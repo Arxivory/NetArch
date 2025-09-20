@@ -11,48 +11,63 @@ import {
   FilePlus,
   Save,
   MousePointer,
-  Hand
+  Hand,
 } from "lucide-react";
+import { useHierarchy } from "./HierarchyContext";
 
 export default function Toolbar() {
+  const { addNode } = useHierarchy();
+
   return (
-    <div className="toolbar">
+    <div className="toolbar flex items-center gap-2 px-2 py-1 border-b border-gray-300 bg-white text-xs">
+      {/* File Controls */}
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
-        <FilePlus size={16} /> 
+        <FilePlus size={16} />
       </button>
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
-        <File size={16} /> 
+        <File size={16} />
       </button>
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
-        <Save size={16} /> 
+        <Save size={16} />
       </button>
-      
+
       <div className="border-l border-gray-300 h-6 my-auto" />
 
+      {/* Selection Tools */}
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
         <MousePointer size={16} /> Select
       </button>
-
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
         <Hand size={16} /> Pan
       </button>
 
       <div className="border-l border-gray-300 h-6 my-auto" />
 
-      <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1 structural-btn">
-        <Mountain size={16} className="structural-btn-icon"/> Domain
+      {/* Structural Controls */}
+      <button
+        className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1 structural-btn"
+        onClick={() => addNode(1, "domain", "New Domain")}
+      >
+        <Mountain size={16} /> Domain
       </button>
 
-      <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1 structural-btn">
-        <Building size={16} className="structural-btn-icon"/> Site
+      <button
+        className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1 structural-btn"
+        onClick={() => addNode(1, "site", "New Site")}
+      >
+        <Building size={16} /> Site
       </button>
 
-      <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1 structural-btn">
-        <Grid size={16} className="structural-btn-icon"/> Space
+      <button
+        className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1 structural-btn"
+        onClick={() => addNode(1, "space", "New Space")}
+      >
+        <Grid size={16} /> Space
       </button>
 
       <div className="border-l border-gray-300 h-6 my-auto" />
 
+      {/* Building Elements */}
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
         <RectangleHorizontal size={16} /> Wall
       </button>
@@ -68,7 +83,8 @@ export default function Toolbar() {
 
       <div className="border-l border-gray-300 h-6 my-auto" />
 
-      <button className="simulate-btn">
+      {/* Simulation */}
+      <button className="simulate-btn bg-blue-600 text-white px-3 py-1 rounded flex items-center gap-1 ml-auto">
         <Play size={16} /> Simulate
       </button>
     </div>

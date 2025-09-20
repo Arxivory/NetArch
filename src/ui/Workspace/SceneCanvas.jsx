@@ -8,6 +8,7 @@ export default function SceneCanvas() {
     if (canvasRef.current) {
       initRenderer(canvasRef.current);
     }
+
   }, []);
 
   return <canvas ref={canvasRef} className="workspace-canvas" />;

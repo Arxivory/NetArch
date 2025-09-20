@@ -5,10 +5,13 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1400,
     height: 900,
+    icon: path.join(__dirname, 'netarch-logo.png'), 
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
     },
   });
+
+  win.setMenuBarVisibility(false);  // removes default File/Edit/etc.
 
   if (process.env.ELECTRON_START_URL) {
     win.loadURL(process.env.ELECTRON_START_URL);

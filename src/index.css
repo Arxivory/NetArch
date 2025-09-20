@@ -28,7 +28,7 @@ body, html, #root {
 
 /* Topbar (File, Edit, etc.) */
 .topbar {
-  background: #f4f4f4;
+  background: #c0b0ff;
   border-bottom: 1px solid #d1d1d1;
   display: flex;
   gap: 4px;

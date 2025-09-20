@@ -1,3 +1,4 @@
+import Topbar from "./Topbar";
 import Toolbar from "./Toolbar";
 import ObjectLibrary from "./ObjectLibrary";
 import Workspace from "./Workspace/Workspace";
@@ -8,7 +9,7 @@ import ConsolePanel from "./ConsolePanel";
 export default function App() {
   return (
     <div className="app">
-      
+      <Topbar />
       <Toolbar />
 
       <div className="main-layout">

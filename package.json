@@ -1,5 +1,6 @@
 {
   "name": "netarch-3d",
+  "productName": "NetArch 3D",
   "version": "0.1.0",
   "private": true,
   "dependencies": {

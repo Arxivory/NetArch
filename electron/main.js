@@ -11,8 +11,6 @@ function createWindow() {
     },
   });
 
-  win.setMenuBarVisibility(false);  // removes default File/Edit/etc.
-
   if (process.env.ELECTRON_START_URL) {
     win.loadURL(process.env.ELECTRON_START_URL);
   } else {

@@ -1,7 +1,7 @@
 export default function ConsolePanel() {
   return (
     <div className="console-panel">
-      <h3 className="font-semibold p-2 border-b border-gray-300">Console</h3>
+      <h3 className="panel-header">Console</h3>
       <table className="w-full text-left border-collapse text-[11px]">
         <thead className="bg-gray-100">
           <tr>

@@ -1,6 +1,7 @@
 import {
-  Globe,
-  MapPin,
+  Mountain,
+  Building,
+  Grid,
   RectangleHorizontal,
   House,
   DoorOpen,
@@ -8,29 +9,46 @@ import {
   Play,
   File,
   FilePlus,
-  Save
+  Save,
+  MousePointer,
+  Hand
 } from "lucide-react";
 
 export default function Toolbar() {
   return (
     <div className="toolbar">
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
-        <FilePlus size={16} /> New
+        <FilePlus size={16} /> 
       </button>
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
-        <File size={16} /> Open
+        <File size={16} /> 
       </button>
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
-        <Save size={16} /> Save
+        <Save size={16} /> 
       </button>
       
       <div className="border-l border-gray-300 h-6 my-auto" />
 
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
-        <Globe size={16} /> Domain
+        <MousePointer size={16} /> Select
       </button>
+
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
-        <MapPin size={16} /> Site
+        <Hand size={16} /> Pan
+      </button>
+
+      <div className="border-l border-gray-300 h-6 my-auto" />
+
+      <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1 structural-btn">
+        <Mountain size={16} className="structural-btn-icon"/> Domain
+      </button>
+
+      <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1 structural-btn">
+        <Building size={16} className="structural-btn-icon"/> Site
+      </button>
+
+      <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1 structural-btn">
+        <Grid size={16} className="structural-btn-icon"/> Space
       </button>
 
       <div className="border-l border-gray-300 h-6 my-auto" />
@@ -48,10 +66,9 @@ export default function Toolbar() {
         <Square size={16} /> Window
       </button>
 
-      {/* Spacer pushes Simulate button to the right */}
-      <div className="flex-grow" />
+      <div className="border-l border-gray-300 h-6 my-auto" />
 
-      <button className="bg-blue-600 text-white px-3 py-1 rounded flex items-center gap-1 hover:bg-blue-700">
+      <button className="simulate-btn">
         <Play size={16} /> Simulate
       </button>
     </div>

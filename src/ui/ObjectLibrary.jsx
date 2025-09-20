@@ -4,7 +4,7 @@ export default function ObjectLibrary() {
   const categories = ["Routers", "Switches", "Hubs", "Wireless"];
   return (
     <div className="object-library">
-      <h3 className="font-semibold text-gray-700 mb-2">Object Library</h3>
+      <h3 className="panel-header">Object Library</h3>
       {categories.map((cat) => (
         <div key={cat} className="mb-3">
           <p className="text-gray-600 font-medium">{cat}</p>

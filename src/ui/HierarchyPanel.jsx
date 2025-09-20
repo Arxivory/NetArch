@@ -1,7 +1,7 @@
 export default function HierarchyPanel() {
   return (
     <div className="hierarchy-panel">
-      <h3 className="font-semibold mb-2">Hierarchy</h3>
+      <h3 className="panel-header">Hierarchy</h3>
       <ul className="pl-4 list-disc space-y-1">
         <li>Centro Escolar University Manila</li>
         <li>Librada Avelino Hall

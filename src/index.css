@@ -26,10 +26,14 @@ body, html, #root {
   overflow: hidden;
 }
 
+.panel-header {
+  font-weight: 800;
+  font-size: 14px;
+}
+
 /* Topbar (File, Edit, etc.) */
 .topbar {
-  background: #c0b0ff;
-  border-bottom: 1px solid #d1d1d1;
+  background: #ffffff;
   display: flex;
   gap: 4px;
   padding: 3px 10px;
@@ -70,21 +74,34 @@ body, html, #root {
   border: 1px solid #d1d1d1;
 }
 
-.toolbar .simulate-btn {
+.structural-btn {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.structural-btn-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.simulate-btn {
   margin-left: auto;
   background: #2563eb;
   color: white;
+  height: 30px;
   font-weight: 500;
   border-radius: 4px;
 }
-.toolbar .simulate-btn:hover {
+.simulate-btn:hover {
   background: #1e4ed8;
 }
 
 /* Layout: left sidebar, workspace, right panel */
 .main-layout {
   display: grid;
-  grid-template-columns: 270px 1fr 300px;
+  grid-template-columns: 300px 1fr 300px;
   flex-grow: 1;
   overflow: hidden;
 }
@@ -96,6 +113,7 @@ body, html, #root {
   padding: 6px;
   font-size: 12px;
   overflow-y: auto;
+  padding: 15px;
 }
 
 .object-library h3 {
@@ -120,14 +138,15 @@ body, html, #root {
   border: 1px solid #d1d1d1;
   border-radius: 3px;
   background: #fff;
-  max-width: 75px;
-  height: 75px;
+  max-width: 85px;
+  height: 85px;
   font-size: 11px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   cursor: pointer;
+  padding: 4px;
   transition: background 0.15s, border 0.15s;
 }
 .device-tile:hover {

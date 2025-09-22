@@ -1,8 +1,12 @@
 import * as THREE from "three";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader";
+import { OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
 
 export function initRenderer(canvas) {
-  // Wait for Three.js to load
+    wifiSimulation(canvas);
+}
+
+function simple3D(canvas) {
     function waitForThree() {
         initApp();
     }
@@ -402,4 +406,384 @@ export function initRenderer(canvas) {
 
     // Start the application
     waitForThree();
+}
+
+function wifiSimulation(canvas) {
+    // ---------------- CONFIG (tuneable) ----------------
+    let NX = 128; // x
+    let NY = 64;  // y
+    let NZ = 32;  // z (depth)
+    const CFL = 0.5; // stability
+    const dx = 1.0;
+    const dy = 1.0;
+    const dz = 1.0;
+    let c = 1.0; // wave speed in normalized units
+    let dt = CFL * Math.min(dx,Math.min(dy,dz)) / Math.sqrt(3.0); // approximate
+
+    // choose packed texture: width = NX, height = NY * NZ
+    const TEX_W = () => NX;
+    const TEX_H = () => NY * NZ;
+
+    // ---------------- Three.js setup ----------------
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio ? Math.min(window.devicePixelRatio, 2) : 1);
+    renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
+    camera.position.set(0, 0, 5);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0,0,0);
+    controls.update();
+
+    // fullscreen quad for compute and for raymarch visualize
+    const quad = new THREE.PlaneGeometry(2,2);
+
+    function createRenderTarget(w,h){
+    return new THREE.WebGLRenderTarget(w,h,{
+        wrapS: THREE.ClampToEdgeWrapping,
+        wrapT: THREE.ClampToEdgeWrapping,
+        minFilter: THREE.NearestFilter,
+        magFilter: THREE.NearestFilter,
+        format: THREE.RGBAFormat,
+        type: THREE.FloatType,
+        depthBuffer: false,
+        stencilBuffer: false,
+    });
+    }
+
+    let rtA = createRenderTarget(TEX_W(), TEX_H());
+    let rtB = createRenderTarget(TEX_W(), TEX_H());
+
+    // compute shader: single-pass leapfrog-ish update for scalar wave
+    const computeFrag = `
+    precision highp float;
+    precision highp sampler2D;
+
+    in vec2 vUv;
+    out vec4 outColor;
+    uniform sampler2D prevTex; // r = u, g = v
+    uniform ivec3 grid; // nx, ny, nz
+    uniform vec2 texSize; // width, height(total = ny*nz)
+    uniform float dt;
+    uniform float c2; // c^2
+    uniform float dx; uniform float dy; uniform float dz;
+    uniform float wallDamp; // attenuation inside walls/obstacles
+    uniform vec3 srcPos; // normalized [0..1] in x,y,z
+    uniform float srcAmp;
+    uniform float srcOmega;
+    uniform float time;
+    uniform int srcType; // 0=pulse,1=cw
+
+    // helper to convert 3D i,j,k to uv
+    vec2 uvFor(int i, int j, int k){
+    // i in [0..nx-1], j in [0..ny-1], k in [0..nz-1]
+    float u = (float(i) + 0.5) / float(grid.x);
+    float row = float(k * grid.y + j);
+    float v = (row + 0.5) / float(grid.y * grid.z);
+    return vec2(u, v);
+    }
+
+    // sample u at neighbor with bounds clamped
+    float sampleU(int i,int j,int k){
+    i = clamp(i, 0, grid.x-1);
+    j = clamp(j, 0, grid.y-1);
+    k = clamp(k, 0, grid.z-1);
+    vec2 uv = uvFor(i,j,k);
+    return texture(prevTex, uv).r;
+    }
+
+    bool isObstacle(int i,int j,int k){
+    // simple room walls: bounding box walls 1 voxel thick
+    if (i<=1 || i>=grid.x-2) return true;
+    if (j<=1 || j>=grid.y-2) return true;
+    if (k<=0 || k>=grid.z-1) return true;
+    // place a table (box) in middle
+    int cx = grid.x/2;
+    int cz = grid.z/2;
+    if (k < int(float(grid.z)*0.4) && k > int(float(grid.z)*0.2)){
+        if (i > cx-10 && i < cx+10 && j > int(float(grid.y)*0.1) && j < int(float(grid.y)*0.18)) return true;
+    }
+    return false;
+    }
+
+    void main(){
+    // get integer pixel coordinate for this RT
+    ivec2 coord = ivec2(gl_FragCoord.xy);
+
+    int ix = coord.x; // [0..nx-1]
+    int flatY = coord.y; // [0..ny*nz-1]
+    int kz = flatY / grid.y; // slice index
+    int jy = flatY - kz * grid.y; // y index
+
+    int i = ix;
+    int j = jy;
+    int k = kz;
+
+    // read previous state
+    vec2 prev = texture(prevTex, vec2((float(i)+0.5)/float(grid.x), (float(k*grid.y + j)+0.5)/float(grid.y*grid.z))).rg;
+    float u = prev.r;
+    float v = prev.g;
+
+    // discrete Laplacian (6-neighbor)
+    float u_xp = sampleU(i+1,j,k);
+    float u_xm = sampleU(i-1,j,k);
+    float u_yp = sampleU(i,j+1,k);
+    float u_ym = sampleU(i,j-1,k);
+    float u_zp = sampleU(i,j,k+1);
+    float u_zm = sampleU(i,j,k-1);
+
+    float lap = (u_xp + u_xm - 2.0*u) / (dx*dx)
+                + (u_yp + u_ym - 2.0*u) / (dy*dy)
+                + (u_zp + u_zm - 2.0*u) / (dz*dz);
+
+    float newV = v + dt * c2 * lap;
+    // local damping in obstacles/walls
+    float damping = 0.0;
+    if (isObstacle(i,j,k)) damping = wallDamp;
+    newV *= exp(-damping * dt);
+    float newU = u + dt * newV;
+
+    // source injection: add to newU if near source
+    // compute normalized voxel coords
+    vec3 pos = vec3((float(i)+0.5)/float(grid.x), (float(j)+0.5)/float(grid.y), (float(k)+0.5)/float(grid.z));
+    float dist = distance(pos, srcPos);
+    if (srcType == 0) {
+        // gaussian pulse in time
+        float pulse = srcAmp * exp(-pow((time - 1.5), 2.0) * 8.0) * exp(-pow(dist*float(grid.x),2.0)/16.0);
+        newU += pulse;
+    } else {
+        float cw = srcAmp * sin(srcOmega * time) * exp(-pow(dist*float(grid.x),2.0)/64.0);
+        newU += cw;
+    }
+
+    outColor = vec4(newU, newV, 0.0, 0.0);
+    }
+    `;
+
+
+    const computeVert = `
+    precision highp float;
+    in vec3 position;
+    in vec2 uv;
+    out vec2 vUv;
+    void main(){ vUv = uv; gl_Position = vec4(position,1.0); }
+    `;
+
+    function makeComputeMaterial(frag){
+    return new THREE.RawShaderMaterial({
+        vertexShader: computeVert,
+        fragmentShader: frag,
+        uniforms: {
+        prevTex: { value: null },
+        grid: { value: [NX, NY, NZ] },
+        texSize: { value: new THREE.Vector2(TEX_W(), TEX_H()) },
+        dt: { value: dt },
+        c2: { value: c*c },
+        dx: { value: dx }, dy: { value: dy }, dz: { value: dz },
+        wallDamp: { value: 1.6 },
+        srcPos: { value: new THREE.Vector3(0.12, 0.8, 0.7) },
+        srcAmp: { value: 0.8 },
+        srcOmega: { value: 2.0 * Math.PI * 2.0 },
+        time: { value: 0.0 },
+        srcType: { value: 1 }
+        },
+        glslVersion: THREE.GLSL3
+    });
+    }
+
+    const matCompute = makeComputeMaterial(computeFrag);
+    const passCompute = (function(){ const m = new THREE.Mesh(quad, matCompute); const s = new THREE.Scene(); s.add(m); return {mesh:m, scene:s}; })();
+
+    // Visualization: raymarch the packed 3D texture
+    const visFrag = `
+    precision highp float;
+    precision highp sampler2D;
+    in vec2 vUv;
+    out vec4 outColor;
+    uniform sampler2D volumeTex; // packed
+    uniform ivec3 grid; // nx,ny,nz
+    uniform vec2 texSize; // width, height
+    uniform mat4 invViewProj;
+    uniform vec3 camPos;
+    uniform int steps;
+    uniform float vmin; uniform float vmax;
+
+    // convert 3D voxel index to uv
+    vec2 uvFor(int i,int j,int k){
+    float u = (float(i)+0.5)/float(grid.x);
+    float row = float(k*grid.y + j);
+    float v = (row + 0.5)/float(grid.y*grid.z);
+    return vec2(u,v);
+    }
+
+    float sampleUatVec3(vec3 p){
+    // p in [0..1]
+    // convert to voxel indices
+    float fx = p.x * float(grid.x) - 0.5;
+    float fy = p.y * float(grid.y) - 0.5;
+    float fz = p.z * float(grid.z) - 0.5;
+    int ix = int(floor(fx+0.5));
+    int iy = int(floor(fy+0.5));
+    int iz = int(floor(fz+0.5));
+    ix = clamp(ix,0,grid.x-1);
+    iy = clamp(iy,0,grid.y-1);
+    iz = clamp(iz,0,grid.z-1);
+    vec2 uv = uvFor(ix,iy,iz);
+    return texture(volumeTex, uv).r;
+    }
+
+    void main(){
+    // build ray in view space
+    vec2 ndc = vUv * 2.0 - 1.0;
+    vec4 p0 = invViewProj * vec4(ndc, -1.0, 1.0);
+    p0 /= p0.w;
+    vec4 p1 = invViewProj * vec4(ndc, 1.0, 1.0);
+    p1 /= p1.w;
+    vec3 ro = camPos;
+    vec3 rd = normalize(p1.xyz - p0.xyz);
+
+    // intersect with unit cube centered at origin (room occupies [-sx..sx])
+    // we will map world coordinates to [0..1] across grid
+    // here assume room size scaled so cube [-1..1]
+    float tmin = 0.0;
+    float tmax = 1000.0;
+    // slab method for cube [-1,1]
+    vec3 invD = 1.0 / rd;
+    vec3 t0s = (-1.0 - ro) * invD;
+    vec3 t1s = ( 1.0 - ro) * invD;
+    vec3 ta = min(t0s, t1s);
+    vec3 tb = max(t0s, t1s);
+    tmin = max(tmin, max(max(ta.x, ta.y), ta.z));
+    tmax = min(tmax, min(min(tb.x, tb.y), tb.z));
+    if (tmax < tmin) { outColor = vec4(0.0); return; }
+
+    float t = max(tmin, 0.0);
+    float dtStep = (tmax - t) / float(steps);
+    vec3 accumColor = vec3(0.0);
+    float accumAlpha = 0.0;
+    for (int i=0;i<1024;i++){
+        if (i>=steps) break;
+        vec3 p = ro + (t + (float(i)+0.5)*dtStep) * rd; // world pos
+        // map world pos [-1..1] -> [0..1]
+        vec3 local = (p + 1.0) * 0.5;
+        if (any(lessThan(local, vec3(0.0))) || any(greaterThan(local, vec3(1.0)))) continue;
+        float s = sampleUatVec3(local);
+        // map s to color
+        float tval = clamp((s - vmin)/(vmax - vmin), 0.0, 1.0);
+        vec3 col = vec3(tval, 1.0 - tval, 0.3 + 0.7*tval);
+        float alpha = smoothstep(0.01, 0.6, abs(s));
+        // front-to-back compositing
+        accumColor = accumColor + (1.0 - accumAlpha) * alpha * col;
+        accumAlpha = accumAlpha + (1.0 - accumAlpha) * alpha;
+        if (accumAlpha > 0.99) break;
+    }
+    outColor = vec4(accumColor, accumAlpha);
+    }
+    `;
+
+    const visMaterial = new THREE.RawShaderMaterial({
+    vertexShader: computeVert,
+    fragmentShader: visFrag,
+    uniforms: {
+        volumeTex: { value: null },
+        grid: { value: [NX, NY, NZ] },
+        texSize: { value: new THREE.Vector2(TEX_W(), TEX_H()) },
+        invViewProj: { value: new THREE.Matrix4() },
+        camPos: { value: new THREE.Vector3() },
+        steps: { value: 80 },
+        vmin: { value: -0.5 }, vmax: { value: 0.5 }
+    },
+    transparent: true,
+    depthTest: false,
+    glslVersion: THREE.GLSL3
+    });
+    const visMesh = new THREE.Mesh(quad, visMaterial);
+    const visScene = new THREE.Scene(); visScene.add(visMesh);
+
+    // helpers to clear RT
+    function clearRenderTarget(rt){ const old = renderer.getRenderTarget(); renderer.setRenderTarget(rt); renderer.setClearColor(0x000000,0); renderer.clear(true,true,true); renderer.setRenderTarget(old); }
+    clearRenderTarget(rtA); clearRenderTarget(rtB);
+
+    // initialize prev textures to zero
+    matCompute.uniforms.prevTex.value = rtA.texture;
+
+    // ping-pong
+    let ping = rtA, pong = rtB;
+
+    // UI
+    const freqEl = document.getElementById('freq'); const freqVal = document.getElementById('freqVal');
+    const ampEl = document.getElementById('amp'); const ampVal = document.getElementById('ampVal');
+    const wallDampEl = document.getElementById('wallDamp'); const wallDampVal = document.getElementById('wallDampVal');
+    const stepsEl = document.getElementById('steps'); const stepsVal = document.getElementById('stepsVal');
+    const sTypeEl = document.getElementById('sType');
+
+    // main step: run compute shader once (one dt) and swap
+    let time = 0.0;
+    function stepGPU(){
+    matCompute.uniforms.prevTex.value = ping.texture;
+    matCompute.uniforms.grid.value = [NX, NY, NZ];
+    matCompute.uniforms.texSize.value.set(TEX_W(), TEX_H());
+    matCompute.uniforms.dt.value = dt;
+    matCompute.uniforms.c2.value = c*c;
+    matCompute.uniforms.dx.value = dx; matCompute.uniforms.dy.value = dy; matCompute.uniforms.dz.value = dz;
+    matCompute.uniforms.wallDamp.value = 1.60;
+    matCompute.uniforms.srcPos.value.set(0.12, 0.8, 0.7);
+    matCompute.uniforms.srcAmp.value = 0.80;
+    matCompute.uniforms.srcOmega.value = 2.0 * Math.PI * 2.80 * 0.01; // scaled
+    matCompute.uniforms.time.value = time;
+    matCompute.uniforms.srcType.value = 1;
+
+    renderer.setRenderTarget(pong);
+    renderer.render(passCompute.scene, new THREE.OrthographicCamera(-1,1,1,-1,0,1));
+    renderer.setRenderTarget(null);
+    // swap
+    let t = ping; ping = pong; pong = t;
+    }
+
+    function renderVis(){
+    visMaterial.uniforms.volumeTex.value = ping.texture;
+    visMaterial.uniforms.grid.value = [NX, NY, NZ];
+    visMaterial.uniforms.texSize.value.set(TEX_W(), TEX_H());
+    visMaterial.uniforms.steps.value = 16;
+    visMaterial.uniforms.vmin.value = -0.8; visMaterial.uniforms.vmax.value = 0.8;
+    // compute inverse view-proj
+    camera.updateMatrixWorld(); camera.updateProjectionMatrix();
+    const viewMat = camera.matrixWorldInverse;
+    const proj = camera.projectionMatrix;
+    const viewProj = new THREE.Matrix4().multiplyMatrices(proj, viewMat);
+    const inv = new THREE.Matrix4().copy(viewProj).invert();
+    visMaterial.uniforms.invViewProj.value.copy(inv);
+    visMaterial.uniforms.camPos.value.copy(camera.position);
+    renderer.render(visScene, camera);
+    }
+
+    // animation loop
+    let lastT = performance.now();
+    function animate(){
+    requestAnimationFrame(animate);
+    const now = performance.now();
+    const dtMs = now - lastT; lastT = now;
+    // run some compute steps per frame
+    const elapsed = dtMs/1000;
+    let stepsToRun = Math.min(8, Math.max(1, Math.ceil(elapsed / dt)));
+    for (let i=0;i<stepsToRun;i++){
+        time += dt;
+        stepGPU();
+    }
+    renderVis();
+    }
+    animate();
+
+    window.addEventListener('resize', ()=>{ renderer.setSize(window.innerWidth, window.innerHeight); camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); });
+
+    // expose helper to change resolution from console
+    window.setResolution = function(nx,ny,nz){
+    NX = nx; NY = ny; NZ = nz;
+    dt = CFL * Math.min(dx,Math.min(dy,dz)) / Math.sqrt(3.0);
+    rtA.dispose(); rtB.dispose(); rtA = createRenderTarget(TEX_W(), TEX_H()); rtB = createRenderTarget(TEX_W(), TEX_H()); ping = rtA; pong = rtB;
+    matCompute.uniforms.grid.value.set(NX,NY,NZ);
+    visMaterial.uniforms.grid.value.set(NX,NY,NZ);
+    clearRenderTarget(rtA); clearRenderTarget(rtB);
+    }
 }

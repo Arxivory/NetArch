@@ -1,6 +1,21 @@
-// Safe bridge between React (renderer) and Node (main)
 const { contextBridge } = require("electron");
+const path = require("path");
 
-contextBridge.exposeInMainWorld("api", {
-  // Add custom APIs here later
+const isDev = true; 
+const basePath = process.cwd();
+
+contextBridge.exposeInMainWorld("electron", {
+  getAssetPath: (assetPath) => {
+    assetPath = assetPath.startsWith('/') ? assetPath.slice(1) : assetPath;
+    
+    const fullPath = path.join(basePath, 'public', assetPath);
+    
+    const fileUrl = 'file:///' + fullPath.replace(/\\/g, '/');
+    
+    console.log('Original path:', assetPath);
+    console.log('Full path:', fullPath);
+    console.log('File URL:', fileUrl);
+    
+    return fileUrl;
+  }
 });

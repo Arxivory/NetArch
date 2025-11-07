@@ -8,16 +8,15 @@ import { HierarchyProvider } from "./HierarchyContext";
 
 export default function App() {
   return (
-    <HierarchyProvider> {/* ✅ wrap whole app */}
+    <HierarchyProvider> 
       <div className="app">
-        {/* Top toolbar */}
         <Toolbar />
 
         <div className="main-layout">
           <ObjectLibrary />
           <Workspace />
           <div className="right-panel">
-            <HierarchyPanel />   {/* ✅ now works with context */}
+            <HierarchyPanel />   
             <PropertiesPanel />
           </div>
         </div>

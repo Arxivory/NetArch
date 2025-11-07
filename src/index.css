@@ -2,12 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Your custom overrides below */
-
-
-/* === NetArch-3D Exact Mockup Styling === */
-
-/* Global reset */
 body, html, #root {
   margin: 0;
   padding: 0;
@@ -18,7 +12,6 @@ body, html, #root {
   background-color: #f7f7f7;
 }
 
-/* App container */
 .app {
   display: flex;
   flex-direction: column;
@@ -31,7 +24,6 @@ body, html, #root {
   font-size: 14px;
 }
 
-/* Topbar (File, Edit, etc.) */
 .topbar {
   background: #ffffff;
   display: flex;
@@ -49,7 +41,6 @@ body, html, #root {
   background: #e9e9e9;
 }
 
-/* Toolbar (Domain, Site, etc.) */
 .toolbar {
   background: #ffffff;
   border-bottom: 1px solid #d1d1d1;
@@ -98,7 +89,6 @@ body, html, #root {
   background: #1e4ed8;
 }
 
-/* Layout: left sidebar, workspace, right panel */
 .main-layout {
   display: grid;
   grid-template-columns: 300px 1fr 300px;
@@ -106,7 +96,6 @@ body, html, #root {
   overflow: hidden;
 }
 
-/* Object Library */
 .object-library {
   border-right: 1px solid #d1d1d1;
   background: #fafafa;
@@ -154,19 +143,16 @@ body, html, #root {
   border-color: #bdbdbd;
 }
 
-/* Workspace (3D canvas) */
 .workspace {
+  width: 100%;
+  height: 100%;
   background: #111;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 .workspace-canvas {
   width: 100%;
   height: 100%;
 }
 
-/* Right Panel */
 .right-panel {
   display: flex;
   flex-direction: column;
@@ -174,7 +160,6 @@ body, html, #root {
   background: #fff;
 }
 
-/* Hierarchy */
 .hierarchy-panel {
   flex: 1;
   border-bottom: 1px solid #d1d1d1;
@@ -206,7 +191,6 @@ body, html, #root {
   color: #777;
 }
 
-/* Properties Panel */
 .properties-panel {
   padding: 8px;
   font-size: 12px;
@@ -236,7 +220,6 @@ body, html, #root {
   background: #fff;
 }
 
-/* Console */
 .console-panel {
   height: 140px;
   background: #fafafa;

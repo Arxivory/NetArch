@@ -20,7 +20,6 @@ export default function Toolbar() {
 
   return (
     <div className="toolbar flex items-center gap-2 px-2 py-1 border-b border-gray-300 bg-white text-xs">
-      {/* File Controls */}
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
         <FilePlus size={16} />
       </button>
@@ -33,7 +32,6 @@ export default function Toolbar() {
 
       <div className="border-l border-gray-300 h-6 my-auto" />
 
-      {/* Selection Tools */}
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
         <MousePointer size={16} /> Select
       </button>
@@ -43,7 +41,6 @@ export default function Toolbar() {
 
       <div className="border-l border-gray-300 h-6 my-auto" />
 
-      {/* Structural Controls */}
       <button
         className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1 structural-btn"
         onClick={() => addNode(1, "domain", "New Domain")}
@@ -67,7 +64,6 @@ export default function Toolbar() {
 
       <div className="border-l border-gray-300 h-6 my-auto" />
 
-      {/* Building Elements */}
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
         <RectangleHorizontal size={16} /> Wall
       </button>
@@ -83,7 +79,6 @@ export default function Toolbar() {
 
       <div className="border-l border-gray-300 h-6 my-auto" />
 
-      {/* Simulation */}
       <button className="simulate-btn bg-blue-600 text-white px-3 py-1 rounded flex items-center gap-1 ml-auto">
         <Play size={16} /> Simulate
       </button>

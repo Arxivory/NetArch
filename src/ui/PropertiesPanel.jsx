@@ -2,6 +2,7 @@ export default function PropertiesPanel() {
   return (
     <div className="properties-panel">
       <h3 className="font-semibold mb-2">Properties</h3>
+      <hr className="header-separator"/>
       <div className="space-y-2">
         <div>
           <label className="block text-gray-600">Device Name</label>

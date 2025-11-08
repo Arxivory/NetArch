@@ -9,6 +9,7 @@ export default function HierarchyPanel() {
       <h3 className="panel-header">
         Hierarchy
       </h3>
+      <hr className="header-separator"/>
       <div className="p-2">
         {hierarchy.map((node) => (
           <TreeItem key={node.id} node={node} />

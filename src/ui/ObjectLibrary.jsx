@@ -5,6 +5,7 @@ export default function ObjectLibrary() {
   return (
     <div className="object-library">
       <h3 className="panel-header">Object Library</h3>
+      <hr className="header-separator"/>
       {categories.map((cat) => (
         <div key={cat} className="mb-3">
           <p className="text-gray-600 font-medium">{cat}</p>

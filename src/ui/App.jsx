@@ -14,16 +14,16 @@ export default function App() {
         <Topbar />
         <Toolbar />
 
+        <Workspace />
         <div className="main-layout">
           <ObjectLibrary />
-          <Workspace />
+          <ConsolePanel />
           <div className="right-panel">
             <HierarchyPanel />   
             <PropertiesPanel />
           </div>
         </div>
-
-        <ConsolePanel />
+        
       </div>
     </HierarchyProvider>
   );

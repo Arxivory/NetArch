@@ -148,7 +148,7 @@ body, html, #root {
 
 .workspace {
   width: 100%;
-  height: 88%;
+  height: 100%;
   background: #111;
   position: absolute;
 }

@@ -6,9 +6,10 @@ export default function HierarchyPanel() {
 
   return (
     <div className="hierarchy-panel text-xs border-l border-gray-300 bg-white">
-      <h3 className="panel-header font-semibold px-2 py-1 border-b border-gray-200">
+      <h3 className="panel-header">
         Hierarchy
       </h3>
+      <hr className="header-separator"/>
       <div className="p-2">
         {hierarchy.map((node) => (
           <TreeItem key={node.id} node={node} />

@@ -10,7 +10,7 @@ export default function ObjectLibrary() {
         <div key={cat} className="mb-3">
           <p className="text-gray-600 font-medium">{cat}</p>
           <div className="device-grid">
-            {Array(4)
+            {Array(6)
               .fill(null)
               .map((_, i) => (
                 <div

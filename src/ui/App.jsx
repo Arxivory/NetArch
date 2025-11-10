@@ -4,32 +4,31 @@ import ObjectLibrary from "./ObjectLibrary";
 import Workspace from "./Workspace/Workspace";
 import HierarchyPanel from "./HierarchyPanel";
 import PropertiesPanel from "./PropertiesPanel";
+import ConsolePanel from "./logs/ConsolePanel";
 import { HierarchyProvider } from "./HierarchyContext";
-
-// Import the new SwitchPanel instead of ConsolePanel and SimulationPanel
-import SwitchPanel from "./logs/SwitchPanel";
+import SimulationPanel from "./logs/SimulationPanel";
 
 export default function App() {
   return (
-    <HierarchyProvider>
+    <HierarchyProvider> 
       <div className="app">
         <Topbar />
         <Toolbar />
 
         <Workspace />
-
         <div className="main-layout">
           <ObjectLibrary />
-
-          {/* Replace ConsolePanel with SwitchPanel */}
-          <SwitchPanel />
-
+          <ConsolePanel />
           <div className="right-panel">
-            <HierarchyPanel />
+            <HierarchyPanel />   
             <PropertiesPanel />
           </div>
         </div>
+        <div>
+        <SimulationPanel />
+      </div>
       </div>
     </HierarchyProvider>
+    
   );
 }

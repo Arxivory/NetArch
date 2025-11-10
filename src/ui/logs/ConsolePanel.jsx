@@ -20,7 +20,7 @@ export default function ConsolePanel() {
     </div>
   </div>
 
-  <div className="max-h-40 overflow-y-auto">
+  <div className="h-40 overflow-y-auto bg-white border-t border-gray-200">
     <table className="w-full text-left border-collapse text-xs">
       <thead className="sticky top-0 z-10">
         <tr className="text-gray-600 bg-white-10">

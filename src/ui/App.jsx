@@ -4,8 +4,9 @@ import ObjectLibrary from "./ObjectLibrary";
 import Workspace from "./Workspace/Workspace";
 import HierarchyPanel from "./HierarchyPanel";
 import PropertiesPanel from "./PropertiesPanel";
-import ConsolePanel from "./ConsolePanel";
+import ConsolePanel from "./logs/ConsolePanel";
 import { HierarchyProvider } from "./HierarchyContext";
+import SimulationPanel from "./SimulationPanel";
 
 export default function App() {
   return (

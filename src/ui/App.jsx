@@ -1,3 +1,4 @@
+import Topbar from "./Topbar";
 import Toolbar from "./Toolbar";
 import ObjectLibrary from "./ObjectLibrary";
 import Workspace from "./Workspace/Workspace";
@@ -10,18 +11,19 @@ export default function App() {
   return (
     <HierarchyProvider> 
       <div className="app">
+        <Topbar />
         <Toolbar />
 
+        <Workspace />
         <div className="main-layout">
           <ObjectLibrary />
-          <Workspace />
+          <ConsolePanel />
           <div className="right-panel">
             <HierarchyPanel />   
             <PropertiesPanel />
           </div>
         </div>
-
-        <ConsolePanel />
+        
       </div>
     </HierarchyProvider>
   );

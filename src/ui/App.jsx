@@ -1,5 +1,5 @@
 import Topbar from "./Topbar";
-import Toolbar from "./Toolbar";
+import Toolbar from "./Toolbar/Toolbar";
 import ObjectLibrary from "./ObjectLibrary";
 import Workspace from "./Workspace/Workspace";
 import HierarchyPanel from "./HierarchyPanel";

@@ -2,25 +2,25 @@ import React from "react";
 
 const SwitchPanel = ({ activeTab, setActiveTab }) => {
   return (
-    <div className="flex space-x-4 px-4 py-2">
+    <div className="switch-panel">
       <button
      
         onClick={() => setActiveTab("console")}
-        className={`px-3 py-2 rounded-t-md font-semibold transition-colors ${
+        className={`log-button ${
       
           activeTab === "console"
-            ? "bg-gray-200 text-black-600 border-b-2 border-gray-600"
-            : "text-gray-600 hover:text-gray-500"
+            ? "active"
+            : "log-button"
         }`}
       >
         Console 
       </button>
       <button
         onClick={() => setActiveTab("simulation")}
-        className={`px-1 py-2 rounded-t-md font-semibold transition-colors ${
+        className={`log-button ${
           activeTab === "simulation"
-            ? "bg-gray-200 text-black-600 border-b-2 border-gray-600"
-            : "text-gray-600 hover:text-gray-500"
+            ? "active"
+            : "log-button"
         }`}
       >
         Simulation

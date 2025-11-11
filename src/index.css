@@ -19,10 +19,6 @@ body, html, #root {
   overflow: hidden;
 }
 
-.panel-header {
-  font-weight: 800;
-  font-size: 14px;
-}
 
 .topbar {
   background: #ffffff;
@@ -101,7 +97,7 @@ body, html, #root {
 }
 
 .object-library {
- height: 100%;
+  width: 500px;
   border-right: 1px solid #d1d1d1;
   background: #fafafa;
   padding: 6px;
@@ -151,6 +147,15 @@ body, html, #root {
   border-color: #bdbdbd;
 }
 
+
+.logical-mode-container {
+  position: absolute;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: auto;
+}
+
 .workspace {
   flex: 1;
   width: 100%;
@@ -159,7 +164,7 @@ body, html, #root {
   justify-content: center;
   height: 100%;
   background: #111;
-  position: relative;
+  position: absolute;
 }
 .workspace-canvas {
   width: 100%;
@@ -171,9 +176,7 @@ body, html, #root {
   flex-direction: column;
   background: none;
   z-index: 1;
-  width: 320px;
-  min-width: 320px;
-  flex-direction: column;
+  width: 500px;
 }
 
 .hierarchy-panel {
@@ -248,7 +251,7 @@ body, html, #root {
 }
 
 .console-panel {
-  width: 300px;
+  width: 100%;
   height: 120%;
   background: #fafafa;
   border: 1px solid #d1d1d1;
@@ -266,72 +269,28 @@ body, html, #root {
   font-size: 12px;
   border-bottom: 1px solid #d1d1d1;
 }
-.console-panel table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.console-panel th,
-.console-panel td {
-  border-bottom: 1px solid #e1e1e1;
-  padding: 4px 6px;
-  text-align: left;
-}
-.console-panel th {
-  background: #f3f3f3;
-  font-weight: 500;
-}
 
 .item {
   font-size: 12px;
 }
 
-.simulation-panel {
-  position: fixed;
-  bottom: 0;
-  width: 100%;
-  background: white;
-  border-top: 1px solid #ddd;
-  overflow-y: auto;
-}
 
-.simulation-panel h3 {
-  padding: 4px 8px;
-  font-weight: 600;
-  font-size: 12px;
-  border-bottom: 1px solid #d1d1d1;
-}
-
-.simulation-panel table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.simulation-panel th,
-.simulation-panel td {
-  border-bottom: 1px solid #e1e1e1;
-  padding: 4px 6px;
-  text-align: left;
-}
-
-.simulation-panel th {
-  background: #f3f3f3;
-  font-weight: 500;
-}
 
 .console-simulation-logs {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 200px; 
-  width: 500px;
+  height: 200px;
   display: flex;
   flex-direction: column;
   background: #fafafa;
   border-top: 1px solid #d1d1d1;
-  overflow: hidden;
   z-index: 10;
+  width: 100%;
+  height: 120px;
   border-radius: 7px 7px 0 0;
+  top: calc(100vh - 276px);
 }
 
 .panel-content {
@@ -341,11 +300,12 @@ body, html, #root {
 
 
 .console-panel, .simulation-panel {
-  position: relative; 
+  position: relative; /* no fixed/top/bottom */
   height: 100%;
   width: 100%;
   overflow-y: auto;
 }
+
 
 .properties-panel input.field-input {
   background-color: #e2e2e2;
@@ -358,4 +318,43 @@ body, html, #root {
   border-bottom: 1px solid #d1d1d1;
   margin-top: 10px;
   margin-bottom: 10px;
+}
+
+.mode-switch-panel {
+  position: absolute;
+  top: 105px;
+  left: 320px;
+  display: flex;
+  gap: 0;
+  padding: 3px 3px;
+  background: #e3e3e3;
+  border: 1px solid #d1d1d1;
+  border-radius: 7px;
+  z-index: 0;
+}
+
+.mode-switch-button {
+  background: none;
+  padding: 2px 6px;
+  margin-left: 2px;
+  margin-right: 2px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.15s, border 0.15s;
+  cursor: pointer;
+}
+
+.mode-switch-button:hover {
+  background: #f1f1f1;
+}
+
+.mode-switch-button-active, .mode-switch-button-active:hover {
+  background: #ffffff;
+}
+
+.structural-panel {
+  z-index: 100;
 }

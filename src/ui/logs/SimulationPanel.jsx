@@ -2,21 +2,20 @@ export default function SimulationPanel() {
   return (
     
     
-    <div className="h-full flex flex-col">
- 
-      <div className="flex justify-between items-center bg-gray-100 sticky top-0 z-10 my-2 p-2 border-b border-gray-300">
-        <h3 className="panel-header text- font-semibold">Logs</h3>
-        <div className="flex items-center space-x-2 text-xs text-gray-600">
+    <div className="simulation-panel">
+      <div className="panel-header flex justify-between items-center bg-gray-100 sticky top-0 z-10 my-2 p-2 border-b border-gray-300">
+        <h3 className="panel-header-title">Logs</h3>
+        <div className="flex items-center space-x-2  text-gray-600">
           <input
             type="text"
             placeholder="Search keywords"
-            className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-400 w-32"
+            className="border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-400 w-32"
           />
-          <button className="flex items-center space-x-2 py-2 text-xs text-black-600">
+          <button className="flex items-center space-x-2 py-2 text-black-600">
             <span>X</span>
             <span>Clear</span>
           </button>
-          <button className="flex items-center space-x-2 text-xs text-black-600">
+          <button className="flex items-center space-x-2  text-black-600">
             <span>F</span>
             <span>Filter</span>
           </button>
@@ -24,8 +23,8 @@ export default function SimulationPanel() {
       </div>
 
      
-      <div className="flex-1 h-full overflow-y-auto bg-white border-t border-gray-200">
-        <table className="w-full text-left border-collapse text-xs">
+      <div className="panel-table">
+        <table className="simulation-panel-table">
           <thead className="sticky top-0 z-10">
             <tr className="text-gray-600 bg-gray-100">
               <th className="px-3 py-2 font-normal">Device</th>

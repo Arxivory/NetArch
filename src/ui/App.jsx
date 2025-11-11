@@ -20,13 +20,12 @@ export default function App() {
         <Workspace />
         <div className="main-layout">
           <ObjectLibrary />
-           <Workspace />
+          <ConsoleSimulationLogs />
           <div className="right-panel">
             <HierarchyPanel />   
             <PropertiesPanel />
           </div>
         </div>
-        <ConsoleSimulationLogs />
       </div>
     </HierarchyProvider>
   );

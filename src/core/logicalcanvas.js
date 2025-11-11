@@ -90,10 +90,12 @@ export class LogicalCanvas {
 
   startDrawRoom() {
     this.mode = 'room';
+    this._updateCursor();
   }
 
   startDrawWall() {
     this.mode = 'wall';
+    this._updateCursor();
   }
 
   cancelDrawing() {
@@ -101,7 +103,17 @@ export class LogicalCanvas {
     this.isPointerDown = false;
     this.startPoint = null;
     this.currentPoint = null;
+    this._updateCursor();
     this._render();
+  }
+
+  _updateCursor() {
+    if (!this.canvas) return;
+    if (this.mode === 'room' || this.mode === 'wall') {
+      this.canvas.style.cursor = 'crosshair';
+    } else {
+      this.canvas.style.cursor = 'default';
+    }
   }
 
   _canvasRect() {

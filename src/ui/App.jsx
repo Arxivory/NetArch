@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import Topbar from "./Topbar";
 import Toolbar from "./Toolbar/Toolbar";
 import ObjectLibrary from "./ObjectLibrary";
@@ -8,13 +9,15 @@ import ConsolePanel from "./ConsolePanel";
 import { HierarchyProvider } from "./HierarchyContext";
 
 export default function App() {
+  const logicalCanvasRef = useRef(null);
+
   return (
     <HierarchyProvider> 
       <div className="app">
         <Topbar />
-        <Toolbar />
+        <Toolbar logicalCanvasRef={logicalCanvasRef} />
 
-        <Workspace />
+        <Workspace logicalCanvasRef={logicalCanvasRef} />
         <div className="main-layout">
           <ObjectLibrary />
           <ConsolePanel />

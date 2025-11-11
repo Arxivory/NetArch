@@ -3,12 +3,17 @@ import PhysicalMode from "./PhysicalMode";
 import { ModeSwitch } from "./ModeSwitch";
 import LogicalMode from "./LogicalMode";
 
-export default function Workspace() {
+export default function Workspace({ logicalCanvasRef }) {
   const [mode, setMode] = useState("logical");
-  const logicalRef = useRef(null);
+  const localLogicalRef = useRef(null);
   const [modeSwitchStyle, setModeSwitchStyle] = useState(null);
 
-  // compute position of mode switch relative to toolbar and object library
+  useEffect(() => {
+    if (logicalCanvasRef) {
+      logicalCanvasRef.current = localLogicalRef.current;
+    }
+  }, [logicalCanvasRef]);
+
   useEffect(() => {
     function compute() {
       const toolbar = document.querySelector('.toolbar');
@@ -46,7 +51,7 @@ export default function Workspace() {
   return (
     <div className="workspace">
       {mode === "logical" ? (
-        <LogicalMode ref={logicalRef} />
+        <LogicalMode ref={localLogicalRef} />
       ) : (
         <PhysicalMode />
       )}

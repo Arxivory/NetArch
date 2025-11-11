@@ -160,6 +160,7 @@ body, html, #root {
   height: 100%;
   background: #111;
   position: absolute;
+  position: absolute;
 }
 .workspace-canvas {
   width: 100%;

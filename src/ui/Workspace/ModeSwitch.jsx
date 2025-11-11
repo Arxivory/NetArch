@@ -1,8 +1,3 @@
-//this section lets users switch modes from logical to physical mode development.
-//This is a module with small panel with two buttons to switch modes.
-import React from "react";
-import { LogicalMode } from "./LogicalMode";
-
 export default function ModeSwitch({ currentMode, onModeChange }) {
     return (
         <div className="mode-switch-panel">
@@ -13,7 +8,7 @@ export default function ModeSwitch({ currentMode, onModeChange }) {
                         ? "mode-switch-button-active"
                         : "mode-switch-button")
                 }
-                //onClick={() => onModeChange("logical")}
+                onClick={() => onModeChange && onModeChange("logical")}
             >
                 Logical Mode
             </button>
@@ -24,7 +19,7 @@ export default function ModeSwitch({ currentMode, onModeChange }) {
                         ? "mode-switch-button-active"
                         : "mode-switch-button")
                 }
-                //onClick={() => onModeChange("physical")}
+                onClick={() => onModeChange && onModeChange("physical")}
             >
                 Physical Mode
             </button>

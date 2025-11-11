@@ -57,8 +57,6 @@ const LogicalMode = forwardRef(function LogicalMode(
         startDrawWall: () => lcRef.current && lcRef.current.startDrawWall(),
         cancelDrawing: () => lcRef.current && lcRef.current.cancelDrawing(),
         clear: () => lcRef.current && lcRef.current.clear(),
-        exportJSON: () => (lcRef.current ? lcRef.current.exportJSON() : null),
-        importJSON: (j) => lcRef.current && lcRef.current.importJSON(j),
         enableSnap: (v) => lcRef.current && lcRef.current.enableSnap(v),
         setGridSize: (n) => lcRef.current && lcRef.current.setGridSize(n),
     }));

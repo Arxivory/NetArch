@@ -1,46 +1,27 @@
-/*
- LogicalCanvas
-
- Provides a simple engineering-style black/white grid canvas with
- snapping and basic drawing primitives: rooms (rectangles) and walls (lines).
-
- Usage:
- import { LogicalCanvas } from './core/logicalcanvas';
- const lc = new LogicalCanvas({ container: document.getElementById('some'), width:800, height:600 });
- lc.startDrawRoom(); // user will call this to start drawing
- lc.startDrawWall(); // likewise for walls
-
- The class exposes callable functions so UI/tooling can attach to them.
- It is intentionally framework-agnostic and manipulates a plain HTMLCanvasElement.
-*/
-
 export class LogicalCanvas {
   constructor(opts = {}) {
     this.container = opts.container || document.body;
     this.width = opts.width || 800;
     this.height = opts.height || 600;
-    this.gridSize = opts.gridSize || 32; // logical pixels
+    this.gridSize = opts.gridSize || 32;
     this.snap = opts.snap ?? true;
-    this.snapTolerance = opts.snapTolerance || 8; // pixels for snapping to existing points
+    this.snapTolerance = opts.snapTolerance || 8; 
     this.bgColor = opts.bgColor || '#ffffffff';
     this.gridColor = opts.gridColor || '#818181ff';
     this.gridMajorColor = opts.gridMajorColor || '#6b6b6bff';
     this.gridMinorAlpha = opts.gridMinorAlpha || 0.12;
     this.devicePixelRatio = window.devicePixelRatio || 1;
 
-    // drawing state
     this.canvas = null;
     this.ctx = null;
     this.isPointerDown = false;
-    this.mode = 'none'; // 'room' | 'wall' | 'none'
+    this.mode = 'none';
     this.startPoint = null;
     this.currentPoint = null;
 
-    // data
-    this.rooms = []; // {id,x,y,w,h}
-    this.walls = []; // {id,x1,y1,x2,y2}
+    this.rooms = [];
+    this.walls = [];
 
-    // callbacks
     this.onRoomCreated = opts.onRoomCreated || function () {};
     this.onWallCreated = opts.onWallCreated || function () {};
 
@@ -65,7 +46,6 @@ export class LogicalCanvas {
 
     this.container.appendChild(c);
 
-    // events
     c.addEventListener('pointerdown', this._pointerDownHandler);
     window.addEventListener('pointermove', this._pointerMoveHandler);
     window.addEventListener('pointerup', this._pointerUpHandler);
@@ -108,7 +88,6 @@ export class LogicalCanvas {
     this._render();
   }
 
-  // Start drawing modes - callable by external tools
   startDrawRoom() {
     this.mode = 'room';
   }
@@ -125,23 +104,6 @@ export class LogicalCanvas {
     this._render();
   }
 
-  // Export/Import
-  exportJSON() {
-    return JSON.stringify({ rooms: this.rooms, walls: this.walls });
-  }
-
-  importJSON(json) {
-    try {
-      const obj = typeof json === 'string' ? JSON.parse(json) : json;
-      this.rooms = obj.rooms || [];
-      this.walls = obj.walls || [];
-      this._render();
-    } catch (e) {
-      console.error('Invalid json for import', e);
-    }
-  }
-
-  // internal pointer helpers
   _canvasRect() {
     return this.canvas.getBoundingClientRect();
   }
@@ -176,7 +138,6 @@ export class LogicalCanvas {
     const snapped = this._snapToGrid(p);
     this.currentPoint = snapped;
     if (this.isPointerDown && this.mode !== 'none') {
-      // preview while drawing
       this._render();
     }
   }
@@ -191,7 +152,6 @@ export class LogicalCanvas {
     }
 
     if (this.mode === 'room') {
-      // create rect normalized
       const x1 = this.startPoint.x;
       const y1 = this.startPoint.y;
       const x2 = this.currentPoint.x;
@@ -210,7 +170,6 @@ export class LogicalCanvas {
       const y1 = this.startPoint.y;
       const x2 = this.currentPoint.x;
       const y2 = this.currentPoint.y;
-      // avoid zero-length walls
       if (Math.hypot(x2 - x1, y2 - y1) > 2) {
         const wall = { id: this._genId('wall'), x1, y1, x2, y2 };
         this.walls.push(wall);
@@ -218,7 +177,6 @@ export class LogicalCanvas {
       }
     }
 
-    // reset drawing state but keep mode so user can draw multiple
     this.startPoint = null;
     this.currentPoint = null;
     this._render();
@@ -228,24 +186,20 @@ export class LogicalCanvas {
     return `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
   }
 
-  // render everything
   _render() {
     if (!this.ctx) return;
     const ctx = this.ctx;
     const w = this.width;
     const h = this.height;
 
-    // clear
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width / this.devicePixelRatio, this.canvas.height / this.devicePixelRatio);
     ctx.restore();
 
-    // background
     ctx.fillStyle = this.bgColor;
     ctx.fillRect(0, 0, w, h);
 
-    // grid - minor
     ctx.beginPath();
     ctx.strokeStyle = this.gridColor;
     ctx.globalAlpha = this.gridMinorAlpha;
@@ -260,7 +214,6 @@ export class LogicalCanvas {
     ctx.stroke();
     ctx.globalAlpha = 1;
 
-    // grid - major lines every 4
     ctx.beginPath();
     ctx.strokeStyle = this.gridMajorColor;
     for (let x = 0; x <= w; x += this.gridSize * 4) {
@@ -273,16 +226,14 @@ export class LogicalCanvas {
     }
     ctx.stroke();
 
-    // draw rooms
     for (const r of this.rooms) {
-      ctx.fillStyle = 'rgba(255,255,255,0.04)';
+      ctx.fillStyle = 'rgba(174, 174, 174, 0.5)';
       ctx.fillRect(r.x, r.y, r.w, r.h);
       ctx.strokeStyle = '#000000ff';
       ctx.lineWidth = 3;
       ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w, r.h);
     }
 
-    // draw walls
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 2;
     for (const wline of this.walls) {
@@ -292,7 +243,6 @@ export class LogicalCanvas {
       ctx.stroke();
     }
 
-    // preview current drawing
     if (this.startPoint && this.currentPoint) {
       ctx.save();
       ctx.strokeStyle = '#00ff00';

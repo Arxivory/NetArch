@@ -14,6 +14,9 @@ const categoryDetails = {
   Wireless: {
     name: "Wireless",
   },
+  Furniture: {
+    name: "Furniture",
+  },
 }
 
 

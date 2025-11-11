@@ -23,7 +23,7 @@ export default function Workspace() {
       const top = Math.max(toolbarRect.bottom - workspaceRect.top + 8, 8);
       const left = Math.max(libRect.right - workspaceRect.left + 8, 8);
 
-      setModeSwitchStyle({ position: 'absolute', top: `${top}px`, left: `${left}px`, zIndex: 1002 });
+      setModeSwitchStyle({ position: 'absolute', top: `${top}px`, left: `${left}px`, zIndex: 0 });
     }
 
     compute();

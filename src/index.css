@@ -327,3 +327,6 @@ body, html, #root {
   background: #ffffff;
 }
 
+.structural-panel {
+  z-index: 100;
+}

@@ -39,7 +39,7 @@ export default function StructuralOption({ label, icon: Icon, onSelectShape }) {
       </button>
 
       {open && (
-        <div className="absolute z-20 mt-1 w-44 bg-white border border-gray-200 rounded shadow-lg">
+        <div className="structural-panel absolute z-100 mt-1 w-44 bg-white border border-gray-200 rounded shadow-lg">
           <div className="px-3 py-2 border-b text-xs font-semibold text-gray-600">
             Structure
           </div>

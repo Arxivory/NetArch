@@ -1,6 +1,6 @@
-export default function ModeSwitch({ currentMode, onModeChange, style = {} }) {
+export default function ModeSwitch({ currentMode, onModeChange }) {
     return (
-        <div className="mode-switch-panel" style={style}>
+        <div className="mode-switch-panel">
             <button
                 className={
                     "mode-switch-button px-3 py-1 mr-2 rounded " +

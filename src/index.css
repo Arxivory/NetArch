@@ -95,14 +95,12 @@ body, html, #root {
 
 .main-layout {
   display: flex;
-  height: 100%;
-  width: 100%;
   overflow: hidden;
   flex: 1;
 }
 
 .object-library {
- height: 100%;
+  width: 500px;
   border-right: 1px solid #d1d1d1;
   background: #fafafa;
   padding: 6px;
@@ -119,7 +117,6 @@ body, html, #root {
   margin-bottom: 6px;
   color: #333;
 }
-
 .device-category {
   margin-bottom: 10px;
 }
@@ -152,6 +149,7 @@ body, html, #root {
   border-color: #bdbdbd;
 }
 
+
 .logical-mode-container {
   position: absolute;
   inset: 0;
@@ -161,14 +159,10 @@ body, html, #root {
 }
 
 .workspace {
-  flex: 1;
   width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   height: 100%;
   background: #111;
-  position: relative;
+  position: absolute;
 }
 .workspace-canvas {
   width: 100%;
@@ -180,9 +174,7 @@ body, html, #root {
   flex-direction: column;
   background: none;
   z-index: 1;
-  width: 320px;
-  min-width: 320px;
-  flex-direction: column;
+  width: 500px;
 }
 
 .hierarchy-panel {
@@ -257,7 +249,7 @@ body, html, #root {
 }
 
 .console-panel {
-  width: 300px;
+  width: 100%;
   height: 120%;
   background: #fafafa;
   border: 1px solid #d1d1d1;
@@ -300,7 +292,7 @@ body, html, #root {
   width: 100%;
   background: white;
   border-top: 1px solid #ddd;
-  overflow-y: autO;
+  overflow-y: auto;
 }
 
 .simulation-panel h3 {
@@ -332,29 +324,29 @@ body, html, #root {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 200px; 
-  width: 500px;
+  height: 200px;
   display: flex;
   flex-direction: column;
   background: #fafafa;
   border-top: 1px solid #d1d1d1;
-  overflow-y: auto;
+  overflow: hidden;
   z-index: 10;
   border-radius: 7px 7px 0 0;
 }
 
 .panel-content {
-  flex: 1; 
+  flex: 1;
   overflow-y: auto;
 }
 
 
 .console-panel, .simulation-panel {
-  position: relative; 
+  position: relative; /* no fixed/top/bottom */
   height: 100%;
   width: 100%;
   overflow-y: auto;
 }
+
 
 .properties-panel input.field-input {
   background-color: #e2e2e2;

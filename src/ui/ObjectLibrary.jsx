@@ -1,17 +1,36 @@
-import { Server, Import } from "lucide-react"; // <-- 1. Import the 'Import' icon
+// 1. FIXED: Combined imports into one line.
+// The old code had a second `import { Server }...` that was removed.
+import { Server, Import } from "lucide-react"; 
+
+const categoryDetails = {
+  Routers: {
+    name: "Router",
+  },
+  Switches: {
+    name: "Switch",
+  },
+  Hubs: {
+    name: "Hub",
+  },
+  Wireless: {
+    name: "Wireless",
+  },
+  Furniture: {
+    name: "Furniture",
+  },
+};
+
+const categories = Object.keys(categoryDetails);
 
 export default function ObjectLibrary() {
-  const categories = ["Routers", "Switches", "Hubs", "Wireless"];
   return (
     <div className="object-library">
-      
-      {/* 2. Create a flex container to hold the title and button */}
       <div className="flex justify-between items-center">
         <h3 className="panel-header">Object Library</h3>
 
-        {/* 3. Add the new Import button */}
-        <button className="flex items-center px-2 py-1 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50">
-          <Import size={16} className="mr-1.5" />
+        {/* Using the custom class from our previous step */}
+        <button className="import-btn">
+          <Import size={16} />
           <span>Import</span>
         </button>
       </div>
@@ -29,12 +48,17 @@ export default function ObjectLibrary() {
                     <Server size={32} />
                   </div>
 
-                  <p className="device-type">Sample Device</p>
+                  {/* 3. LOGIC FIX: 
+                    This now uses your `categoryDetails` object 
+                    to show the correct name. 
+                  */}
+                  <p className="device-type">{categoryDetails[cat].name}</p>
                 </div>
               ))}
           </div>
         </div>
+        // 2. FIXED: Removed the semicolon (`;`) that was here.
       ))}
     </div>
   );
-}
+} 

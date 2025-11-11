@@ -8,10 +8,10 @@ export default function ConsoleSimulationLogs() {
 
   return (
   
-    <div className="console-simulation-logs flex flex-col fixed bottom-0 h-52 bg-gray-100 border-t border-gray-300 z-20 w-[900px] mx-auto">
+    <div className="console-simulation-logs ">
       <SwitchPanel activeTab={activeTab} setActiveTab={setActiveTab} />
      
-      <div className="px-1 w-full flex-1"> 
+      <div className="panel"> 
         {activeTab === "console" ? <ConsolePanel /> : <SimulationPanel />}
       </div>
     </div>

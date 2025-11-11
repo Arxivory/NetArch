@@ -19,10 +19,6 @@ body, html, #root {
   overflow: hidden;
 }
 
-.panel-header {
-  font-weight: 800;
-  font-size: 14px;
-}
 
 .topbar {
   background: #ffffff;
@@ -95,14 +91,13 @@ body, html, #root {
 
 .main-layout {
   display: flex;
-  height: 100%;
-  width: 100%;
   overflow: hidden;
   flex: 1;
 }
 
 .object-library {
- height: 100%;
+  width: 500px;
+  height: 100%;
   border-right: 1px solid #d1d1d1;
   background: #fafafa;
   padding: 6px;
@@ -161,14 +156,10 @@ body, html, #root {
 }
 
 .workspace {
-  flex: 1;
   width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   height: 100%;
   background: #111;
-  position: relative;
+  position: absolute;
 }
 .workspace-canvas {
   width: 100%;
@@ -180,8 +171,7 @@ body, html, #root {
   flex-direction: column;
   background: none;
   z-index: 1;
-  width: 320px;
-  min-width: 320px;
+  width: 500px;
   flex-direction: column;
 }
 
@@ -252,95 +242,28 @@ body, html, #root {
 
 .switch-panel {
   display: flex;
+  align-items: center;
+  padding: 0 0 0 5px;
   border-bottom: 1px solid #d1d1d1;
-  background: #fff;
-}
-
-.console-panel {
-  width: 300px;
-  height: 120%;
-  background: #fafafa;
-  border: 1px solid #d1d1d1;
-  border-bottom: none;
-  font-size: 11px;
-  overflow-y: auto;
-  z-index: 1;
-  border-radius: 7px 7px 0 0;
-  position: relative;
-}
-
-.console-panel h3 {
-  padding: 4px 8px;
-  font-weight: 600;
-  font-size: 12px;
-  border-bottom: 1px solid #d1d1d1;
-}
-.console-panel table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.console-panel th,
-.console-panel td {
-  border-bottom: 1px solid #e1e1e1;
-  padding: 4px 6px;
-  text-align: left;
-}
-.console-panel th {
-  background: #f3f3f3;
-  font-weight: 500;
 }
 
 .item {
   font-size: 12px;
 }
 
-.simulation-panel {
-  position: fixed;
-  bottom: 0;
-  width: 100%;
-  background: white;
-  border-top: 1px solid #ddd;
-  overflow-y: autO;
-}
 
-.simulation-panel h3 {
-  padding: 4px 8px;
-  font-weight: 600;
-  font-size: 12px;
-  border-bottom: 1px solid #d1d1d1;
-}
-
-.simulation-panel table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.simulation-panel th,
-.simulation-panel td {
-  border-bottom: 1px solid #e1e1e1;
-  padding: 4px 6px;
-  text-align: left;
-}
-
-.simulation-panel th {
-  background: #f3f3f3;
-  font-weight: 500;
-}
 
 .console-simulation-logs {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 200px; 
-  width: 500px;
+  position: relative;
   display: flex;
   flex-direction: column;
   background: #fafafa;
   border-top: 1px solid #d1d1d1;
-  overflow-y: auto;
   z-index: 10;
+  width: 100%;
+  height: 120px;
   border-radius: 7px 7px 0 0;
+  top: calc(100vh - 276px);
 }
 
 .panel-content {
@@ -348,12 +271,27 @@ body, html, #root {
   overflow-y: auto;
 }
 
-
-.console-panel, .simulation-panel {
-  position: relative; 
-  height: 100%;
-  width: 100%;
+.panel-table {
+  max-height: 110px;
   overflow-y: auto;
+}
+.console-panel-table, .simulation-panel-table {
+  width: 100%;
+}
+
+.log-button {
+  padding: 5px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 70%;
+  border-radius: 5px;
+}
+
+.log-button:hover, .log-button.active {
+  background-color: #ffffff;
+  border: 1px solid #d1d1d1;
+  color: #111;
 }
 
 .properties-panel input.field-input {
@@ -406,4 +344,15 @@ body, html, #root {
 
 .structural-panel {
   z-index: 100;
+}
+
+.panel-header {
+  position: relative;
+  padding: 1px 10px 1px 10px;
+  margin: 0;
+}
+
+.panel-header-title {
+  font-weight: 600;
+  color: #333;
 }

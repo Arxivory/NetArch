@@ -21,13 +21,13 @@ export default function Toolbar() {
   return (
     <div className="toolbar flex items-center gap-2 px-2 py-1 border-b border-gray-300 bg-white text-xs">
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
-        <FilePlus size={16} />
+        <FilePlus size={16} /> New
       </button>
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
-        <File size={16} />
+        <File size={16} /> Open 
       </button>
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
-        <Save size={16} />
+        <Save size={16} /> Save
       </button>
 
       <div className="border-l border-gray-300 h-6 my-auto" />

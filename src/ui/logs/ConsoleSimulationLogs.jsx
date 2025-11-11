@@ -1,31 +1,19 @@
-import React, { useState } from "react";
-import SwitchPanel from "./SwitchPanel";
+import { useState } from "react";
 import ConsolePanel from "./ConsolePanel";
-import SimulationPanel from "./SimulationPanel";
+import SimulationPanel from "./SimulationPanel"; 
+import SwitchPanel from "./SwitchPanel";
 
-const ConsoleSimulationLogs = () => {
-  const [activeTab, setActiveTab] = useState("devices");
+export default function ConsoleSimulationLogs() {
+  const [activeTab, setActiveTab] = useState("console");
 
   return (
-    <div className="flex flex-col h-full w-full bg-gray-100 border border-gray-300 rounded-md overflow-hidden">
-      <div className="border-b border-gray-300 bg-white shadow-sm">
-        <SwitchPanel activeTab={activeTab} setActiveTab={setActiveTab} />
-      </div>
-
-      <div className="flex-1 overflow-auto bg-gray-50 p-4 relative">
-        {activeTab === "devices" && (
-          <div className="h-full">
-            <ConsolePanel />
-          </div>
-        )}
-        {activeTab === "simulation" && (
-          <div className="h-full">
-            <SimulationPanel />
-          </div>
-        )}
+  
+    <div className="console-simulation-logs flex flex-col fixed bottom-0 h-52 bg-gray-100 border-t border-gray-300 z-20 w-[900px] mx-auto">
+      <SwitchPanel activeTab={activeTab} setActiveTab={setActiveTab} />
+     
+      <div className="px-1 w-full flex-1"> 
+        {activeTab === "console" ? <ConsolePanel /> : <SimulationPanel />}
       </div>
     </div>
   );
-};
-
-export default ConsoleSimulationLogs;
+}

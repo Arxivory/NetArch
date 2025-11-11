@@ -4,9 +4,8 @@ import ObjectLibrary from "./ObjectLibrary";
 import Workspace from "./Workspace/Workspace";
 import HierarchyPanel from "./HierarchyPanel";
 import PropertiesPanel from "./PropertiesPanel";
-import ConsolePanel from "./logs/ConsolePanel";
 import { HierarchyProvider } from "./HierarchyContext";
-import SimulationPanel from "./logs/SimulationPanel";
+import ConsoleSimulationLogs from "./logs/ConsoleSimulationLogs";
 
 export default function App() {
   return (
@@ -14,21 +13,18 @@ export default function App() {
       <div className="app">
         <Topbar />
         <Toolbar />
+    
 
-        <Workspace />
         <div className="main-layout">
           <ObjectLibrary />
-          <ConsolePanel />
+           <Workspace />
           <div className="right-panel">
             <HierarchyPanel />   
             <PropertiesPanel />
           </div>
         </div>
-        <div>
-        <SimulationPanel />
-      </div>
+        <ConsoleSimulationLogs />
       </div>
     </HierarchyProvider>
-    
   );
 }

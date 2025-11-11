@@ -96,6 +96,7 @@ body, html, #root {
 .main-layout {
   display: flex;
   overflow: hidden;
+  flex: 1;
 }
 
 .object-library {

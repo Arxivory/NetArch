@@ -69,6 +69,12 @@ body, html, #root {
   font-weight: 600;
 }
 
+.object-library button:hover {
+  background: #e4e4e4;
+  border: 1px solid #d1d1d1;
+  color: #111;
+  font-weight: 400;
+}
 .structural-btn {
   display: flex;
   flex-direction: column;

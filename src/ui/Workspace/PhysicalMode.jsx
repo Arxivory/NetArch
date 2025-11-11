@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { initRenderer } from "../../core/renderer";
 
-export default function SceneCanvas() {
+export default function PhysicalMode() {
   const canvasRef = useRef(null);
 
   useEffect(() => {

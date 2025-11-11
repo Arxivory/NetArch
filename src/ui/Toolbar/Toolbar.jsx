@@ -13,21 +13,38 @@ import {
   MousePointer,
   Hand,
 } from "lucide-react";
-import { useHierarchy } from "./HierarchyContext";
+import { useHierarchy } from "../HierarchyContext";
+import StructuralOption from "./StructuralOption";
 
-export default function Toolbar() {
+export default function Toolbar({ logicalCanvasRef }) {
   const { addNode } = useHierarchy();
+
+  const handleShapeSelect = (type, shape) => {
+    addNode(1, type.toLowerCase(), `New ${type}`);
+  };
+
+  const handleDrawWall = () => {
+    if (logicalCanvasRef && logicalCanvasRef.current) {
+      logicalCanvasRef.current.startDrawWall();
+    }
+  };
+
+  const handleRectangleSelect = (shape) => {
+    if (shape === "Rectangle" && logicalCanvasRef && logicalCanvasRef.current) {
+      logicalCanvasRef.current.startDrawRoom();
+    }
+  };
 
   return (
     <div className="toolbar flex items-center gap-2 px-2 py-1 border-b border-gray-300 bg-white text-xs">
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
-        <FilePlus size={16} />
+        <FilePlus size={16} /> New
       </button>
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
-        <File size={16} />
+        <File size={16} /> Open
       </button>
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
-        <Save size={16} />
+        <Save size={16} /> Save
       </button>
 
       <div className="border-l border-gray-300 h-6 my-auto" />
@@ -41,30 +58,39 @@ export default function Toolbar() {
 
       <div className="border-l border-gray-300 h-6 my-auto" />
 
-      <button
-        className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1 structural-btn"
-        onClick={() => addNode(1, "domain", "New Domain")}
-      >
-        <Mountain size={16} /> Domain
-      </button>
+      <StructuralOption
+        label="Domain"
+        icon={Mountain}
+        onSelectShape={(shape) => {
+          handleRectangleSelect(shape);
+          handleShapeSelect("Domain");
+        }}
+      />
 
-      <button
-        className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1 structural-btn"
-        onClick={() => addNode(1, "site", "New Site")}
-      >
-        <Building size={16} /> Site
-      </button>
+      <StructuralOption
+        label="Site"
+        icon={Building}
+        onSelectShape={(shape) => {
+          handleRectangleSelect(shape);
+          handleShapeSelect("Site");
+        }}
+      />
 
-      <button
-        className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1 structural-btn"
-        onClick={() => addNode(1, "space", "New Space")}
-      >
-        <Grid size={16} /> Space
-      </button>
+      <StructuralOption
+        label="Space"
+        icon={Grid}
+        onSelectShape={(shape) => {
+          handleRectangleSelect(shape);
+          handleShapeSelect("Space");
+        }}
+      />
 
       <div className="border-l border-gray-300 h-6 my-auto" />
 
-      <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
+      <button 
+        onClick={handleDrawWall}
+        className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1"
+      >
         <RectangleHorizontal size={16} /> Wall
       </button>
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">

@@ -1,4 +1,4 @@
-import { Trash2 } from "lucide-react";
+import { Trash2, BrushCleaning, FunnelPlus } from "lucide-react";
 
 export default function ConsolePanel() {
   return (
@@ -12,11 +12,11 @@ export default function ConsolePanel() {
             className="border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-400 w-32"
           />
           <button className="flex items-center space-x-2 py-2 text-black-600">
-            <span>X</span>
+            <span><BrushCleaning className="brush-cleaning"/></span>
             <span>Clear</span>
           </button>
           <button className="flex items-center space-x-2  text-black-600">
-            <span>F</span>
+            <span><FunnelPlus className="funnel-plus"/></span>
             <span>Filter</span>
           </button>
         </div>

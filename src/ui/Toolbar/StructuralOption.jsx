@@ -31,7 +31,7 @@ export default function StructuralOption({ label, icon: Icon, onSelectShape }) {
   return (
     <div className="relative inline-block text-left" ref={dropdownRef}>
       <button
-        className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1 structural-btn"
+        className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1"
         onClick={() => setOpen(!open)}
       >
         {Icon && <Icon size={16} />}

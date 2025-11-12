@@ -65,6 +65,31 @@ body, html, #root {
   font-weight: 600;
 }
 
+
+
+.import-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px; 
+  background-color: #fafafa;
+  border: 1px solid #d1d1d1;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 400; 
+  color: #333;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-right: 8px;
+}
+
+
+.import-btn:hover {
+  background: #e4e4e4;
+  border: 1px solid #d1d1d1;
+  color: #111;
+  font-weight: 400; 
+}
 .structural-btn {
   display: flex;
   flex-direction: column;
@@ -110,8 +135,8 @@ body, html, #root {
 
 .object-library h3 {
   font-weight: 600;
-  font-size: 12px;
-  margin-bottom: 6px;
+  font-size: 16px;
+  /* margin-bottom: 6px; */
   color: #333;
 }
 
@@ -219,6 +244,7 @@ body, html, #root {
 .properties-panel h3 {
   font-weight: 600;
   margin-bottom: 6px;
+  font-size: 14px;
 }
 .properties-panel label {
   display: block;
@@ -359,6 +385,18 @@ body, html, #root {
 }
 
 .delete-log {
+  color: #000000;
+  width: 17px;
+  height: 17px;
+}
+
+.brush-cleaning {
+  color: #000000;
+  width: 17px;
+  height: 17px;
+}
+
+.funnel-plus {
   color: #000000;
   width: 17px;
   height: 17px;

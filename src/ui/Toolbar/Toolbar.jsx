@@ -170,18 +170,7 @@ export default function Toolbar({ logicalCanvasRef }) {
             ? 'bg-gray-100' 
             : 'hover:bg-gray-100'
         }`}
-      >
-        <RectangleHorizontal size={16} /> Wall
-      </button>
-      <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
-        <House size={16} /> Roof
-      </button>
-      <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
-        <DoorOpen size={16} /> Door
-      </button>
-      <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
-        <Square size={16} /> Window
-      </button>
+      ></button>
 
       {/* Simulate group (with previous fix) */}
       <div className="flex flex-col items-center justify-end ml-auto">

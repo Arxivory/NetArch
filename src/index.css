@@ -19,10 +19,6 @@ body, html, #root {
   overflow: hidden;
 }
 
-.panel-header {
-  font-weight: 800;
-  font-size: 14px;
-}
 
 .topbar {
   background: #ffffff;
@@ -96,10 +92,12 @@ body, html, #root {
 .main-layout {
   display: flex;
   overflow: hidden;
+  flex: 1;
 }
 
 .object-library {
   width: 500px;
+  height: 100%;
   border-right: 1px solid #d1d1d1;
   background: #fafafa;
   padding: 6px;
@@ -116,6 +114,7 @@ body, html, #root {
   margin-bottom: 6px;
   color: #333;
 }
+
 .device-category {
   margin-bottom: 10px;
 }
@@ -148,10 +147,19 @@ body, html, #root {
   border-color: #bdbdbd;
 }
 
+.logical-mode-container {
+  position: absolute;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: auto;
+}
+
 .workspace {
   width: 100%;
   height: 100%;
   background: #111;
+  position: absolute;
   position: absolute;
 }
 .workspace-canvas {
@@ -165,6 +173,7 @@ body, html, #root {
   background: none;
   z-index: 1;
   width: 500px;
+  flex-direction: column;
 }
 
 .hierarchy-panel {
@@ -232,42 +241,58 @@ body, html, #root {
   background: #fff;
 }
 
-.console-panel {
-  width: 100%;
-  height: 120px;
-  background: #fafafa;
-  border: 1px solid #d1d1d1;
-  border-bottom: none;
-  font-size: 11px;
-  overflow-y: auto;
-  z-index: 1;
-  border-radius: 7px 7px 0 0;
-  position: relative;
-  top: calc(100vh - 200px);
-}
-.console-panel h3 {
-  padding: 4px 8px;
-  font-weight: 600;
-  font-size: 12px;
+.switch-panel {
+  display: flex;
+  align-items: center;
+  padding: 0 0 0 5px;
   border-bottom: 1px solid #d1d1d1;
-}
-.console-panel table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.console-panel th,
-.console-panel td {
-  border-bottom: 1px solid #e1e1e1;
-  padding: 4px 6px;
-  text-align: left;
-}
-.console-panel th {
-  background: #f3f3f3;
-  font-weight: 500;
 }
 
 .item {
   font-size: 12px;
+}
+
+
+
+.console-simulation-logs {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: #fafafa;
+  border-top: 1px solid #d1d1d1;
+  z-index: 10;
+  width: 100%;
+  height: 120px;
+  border-radius: 7px 7px 0 0;
+  top: calc(100vh - 276px);
+}
+
+.panel-content {
+  flex: 1; 
+  overflow-y: auto;
+}
+
+.panel-table {
+  max-height: 110px;
+  overflow-y: auto;
+}
+.console-panel-table, .simulation-panel-table {
+  width: 100%;
+}
+
+.log-button {
+  padding: 5px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 70%;
+  border-radius: 5px;
+}
+
+.log-button:hover, .log-button.active {
+  background-color: #ffffff;
+  border: 1px solid #d1d1d1;
+  color: #111;
 }
 
 .properties-panel input.field-input {
@@ -281,4 +306,60 @@ body, html, #root {
   border-bottom: 1px solid #d1d1d1;
   margin-top: 10px;
   margin-bottom: 10px;
+}
+
+.mode-switch-panel {
+  position: absolute;
+  top: 105px;
+  left: 320px;
+  display: flex;
+  gap: 0;
+  padding: 3px 3px;
+  background: #e3e3e3;
+  border: 1px solid #d1d1d1;
+  border-radius: 7px;
+  z-index: 0;
+}
+
+.mode-switch-button {
+  background: none;
+  padding: 2px 6px;
+  margin-left: 2px;
+  margin-right: 2px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.15s, border 0.15s;
+  cursor: pointer;
+}
+
+.mode-switch-button:hover {
+  background: #f1f1f1;
+}
+
+.mode-switch-button-active, .mode-switch-button-active:hover {
+  background: #ffffff;
+}
+
+.structural-panel {
+  z-index: 100;
+}
+
+.panel-header {
+  position: relative;
+  padding: 1px 10px 1px 10px;
+  margin: 0;
+}
+
+.panel-header-title {
+  font-weight: 600;
+  color: #333;
+}
+
+.delete-log {
+  color: #000000;
+  width: 17px;
+  height: 17px;
 }

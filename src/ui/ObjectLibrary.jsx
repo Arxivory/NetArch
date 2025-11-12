@@ -20,7 +20,7 @@ const categoryDetails = {
   Furniture: {
     name: "Furniture",
     icon: Armchair, // use Armchair (exists) instead of Chair
-  },
+  }
 };
 
 const categories = Object.keys(categoryDetails);

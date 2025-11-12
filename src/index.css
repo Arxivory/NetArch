@@ -357,3 +357,9 @@ body, html, #root {
   font-weight: 600;
   color: #333;
 }
+
+.delete-log {
+  color: #000000;
+  width: 17px;
+  height: 17px;
+}

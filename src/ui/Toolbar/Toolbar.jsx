@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useHierarchy } from "../HierarchyContext";
+// Re-importing StructuralOption
 import StructuralOption from "./StructuralOption";
 
 export default function Toolbar({ logicalCanvasRef }) {
@@ -33,10 +34,13 @@ export default function Toolbar({ logicalCanvasRef }) {
   };
 
   const handleRectangleSelect = (shape) => {
+    // We check the shape from the dropdown
     if (shape === "Rectangle" && logicalCanvasRef && logicalCanvasRef.current) {
       logicalCanvasRef.current.startDrawRoom();
       setDrawingMode("room");
     }
+    // You could add else-if blocks here for "Polygon", "Freeform", etc.
+    // else if (shape === "Polygon") { ... }
   };
 
   const handleSelect = () => {
@@ -84,42 +88,48 @@ export default function Toolbar({ logicalCanvasRef }) {
 
       <div className="border-l border-gray-300 h-10 my-auto" />
 
-      {/* Structure group */}
+      {/* ============================================================
+        UPDATED SECTION: Structure group
+        ============================================================
+        
+        This now uses your <StructuralOption> component, which
+        will render the horizontal button with the dropdown.
+      */}
       <div className="flex flex-col items-center justify-end">
         <div className="flex items-center gap-2">
-          <div className="h-8 flex items-center">
-            <StructuralOption
-              label="Domain"
-              icon={Mountain}
-              onSelectShape={(shape) => {
-                handleRectangleSelect(shape);
-                handleShapeSelect("Domain");
-              }}
-            />
-          </div>
-          <div className="h-8 flex items-center">
-            <StructuralOption
-              label="Site"
-              icon={Building}
-              onSelectShape={(shape) => {
-                handleRectangleSelect(shape);
-                handleShapeSelect("Site");
-              }}
-            />
-          </div>
-          <div className="h-8 flex items-center">
-            <StructuralOption
-              label="Space"
-              icon={Grid}
-              onSelectShape={(shape) => {
-                handleRectangleSelect(shape);
-                handleShapeSelect("Space");
-              }}
-            />
-          </div>
+          {/*
+            The <StructuralOption> component's button now has h-8,
+            so it no longer needs a wrapper.
+          */}
+          <StructuralOption
+            label="Domain"
+            icon={Mountain}
+            onSelectShape={(shape) => {
+              handleRectangleSelect(shape);
+              handleShapeSelect("Domain");
+            }}
+          />
+          <StructuralOption
+            label="Site"
+            icon={Building}
+            onSelectShape={(shape) => {
+              handleRectangleSelect(shape);
+              handleShapeSelect("Site");
+            }}
+          />
+          <StructuralOption
+            label="Space"
+            icon={Grid}
+            onSelectShape={(shape) => {
+              handleRectangleSelect(shape);
+              handleShapeSelect("Space");
+            }}
+          />
         </div>
         <span className="text-[10px] text-gray-500 mt-1">Structure</span>
       </div>
+      {/* ========================================================== */}
+
 
       <div className="border-l border-gray-300 h-10 my-auto" />
 
@@ -151,16 +161,15 @@ export default function Toolbar({ logicalCanvasRef }) {
 
       <div className="border-l border-gray-300 h-10 my-auto" />
 
+      {/* Simulate group (with previous fix) */}
       <div className="flex flex-col items-center justify-end ml-auto">
         <button className="simulate-btn bg-blue-600 text-white px-3 py-1 rounded flex items-center gap-1 h-8">
           <Play size={16} /> Simulate
         </button>
-        {/* This invisible span acts as a placeholder to push the button up, matching the other groups */}
         <span className="text-[10px] text-gray-500 mt-1 invisible">
           Simulate
         </span>
       </div>
-
     </div>
   );
 }

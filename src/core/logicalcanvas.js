@@ -21,9 +21,11 @@ export class LogicalCanvas {
 
     this.rooms = [];
     this.walls = [];
+  this.circles = [];
 
     this.onRoomCreated = opts.onRoomCreated || function () {};
     this.onWallCreated = opts.onWallCreated || function () {};
+  this.onCircleCreated = opts.onCircleCreated || function () {};
 
     this._pointerMoveHandler = this._onPointerMove.bind(this);
     this._pointerDownHandler = this._onPointerDown.bind(this);
@@ -85,6 +87,7 @@ export class LogicalCanvas {
   clear() {
     this.rooms = [];
     this.walls = [];
+    this.circles = [];
     this._render();
   }
 
@@ -95,6 +98,11 @@ export class LogicalCanvas {
 
   startDrawWall() {
     this.mode = 'wall';
+    this._updateCursor();
+  }
+
+  startDrawCircle() {
+    this.mode = 'circle';
     this._updateCursor();
   }
 
@@ -109,7 +117,7 @@ export class LogicalCanvas {
 
   _updateCursor() {
     if (!this.canvas) return;
-    if (this.mode === 'room' || this.mode === 'wall') {
+    if (this.mode === 'room' || this.mode === 'wall' || this.mode === 'circle') {
       this.canvas.style.cursor = 'crosshair';
     } else {
       this.canvas.style.cursor = 'default';
@@ -186,6 +194,17 @@ export class LogicalCanvas {
         const wall = { id: this._genId('wall'), x1, y1, x2, y2 };
         this.walls.push(wall);
         this.onWallCreated(wall);
+      }
+    } else if (this.mode === 'circle') {
+      const cx = this.startPoint.x;
+      const cy = this.startPoint.y;
+      const dx = this.currentPoint.x - cx;
+      const dy = this.currentPoint.y - cy;
+      const r = Math.hypot(dx, dy);
+      if (r > 2) {
+        const circle = { id: this._genId('circle'), x: cx, y: cy, r };
+        this.circles.push(circle);
+        this.onCircleCreated(circle);
       }
     }
 
@@ -272,8 +291,27 @@ export class LogicalCanvas {
         ctx.moveTo(this.startPoint.x + 0.5, this.startPoint.y + 0.5);
         ctx.lineTo(this.currentPoint.x + 0.5, this.currentPoint.y + 0.5);
         ctx.stroke();
+      } else if (this.mode === 'circle') {
+        const cx = this.startPoint.x;
+        const cy = this.startPoint.y;
+        const dx = this.currentPoint.x - cx;
+        const dy = this.currentPoint.y - cy;
+        const r = Math.hypot(dx, dy);
+        ctx.beginPath();
+        ctx.arc(cx + 0.5, cy + 0.5, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
       }
       ctx.restore();
+    }
+
+    // draw persisted circles
+    ctx.strokeStyle = '#000000ff';
+    ctx.lineWidth = 2;
+    for (const c of this.circles) {
+      ctx.beginPath();
+      ctx.arc(c.x + 0.5, c.y + 0.5, c.r, 0, Math.PI * 2);
+      ctx.stroke();
     }
   }
 }

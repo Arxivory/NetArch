@@ -5,8 +5,8 @@ import ObjectLibrary from "./ObjectLibrary";
 import Workspace from "./Workspace/Workspace";
 import HierarchyPanel from "./HierarchyPanel";
 import PropertiesPanel from "./PropertiesPanel";
-import ConsolePanel from "./ConsolePanel";
 import { HierarchyProvider } from "./HierarchyContext";
+import ConsoleSimulationLogs from "./logs/ConsoleSimulationLogs";
 
 export default function App() {
   const logicalCanvasRef = useRef(null);
@@ -15,18 +15,17 @@ export default function App() {
     <HierarchyProvider> 
       <div className="app">
         <Topbar />
-        <Toolbar logicalCanvasRef={logicalCanvasRef} />
+        <Toolbar logicalCanvasRef={logicalCanvasRef}/>
 
-        <Workspace logicalCanvasRef={logicalCanvasRef} />
+        <Workspace logicalCanvasRef={logicalCanvasRef}/>
         <div className="main-layout">
           <ObjectLibrary />
-          <ConsolePanel />
+          <ConsoleSimulationLogs />
           <div className="right-panel">
             <HierarchyPanel />   
             <PropertiesPanel />
           </div>
         </div>
-        
       </div>
     </HierarchyProvider>
   );

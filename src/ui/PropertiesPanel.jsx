@@ -37,7 +37,8 @@ export default function PropertiesPanel() {
 
       <div>
         <hr className="my-3" />
-        <h4 className="font-semibold mb-2">Transformations</h4>
+        <h3 className="font-semibold mb-2">Transformations</h3>
+        <hr className="header-separator"/>
 
         <div className="grid grid-cols-4 gap-2 text-sm font-medium text-gray-600 mb-1">
           <span></span>

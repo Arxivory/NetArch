@@ -54,6 +54,7 @@ const LogicalMode = forwardRef(function LogicalMode(
             return lcRef.current;
         },
         startDrawRoom: () => lcRef.current && lcRef.current.startDrawRoom(),
+        startDrawCircle: () => lcRef.current && lcRef.current.startDrawCircle(),
         startDrawWall: () => lcRef.current && lcRef.current.startDrawWall(),
         cancelDrawing: () => lcRef.current && lcRef.current.cancelDrawing(),
         clear: () => lcRef.current && lcRef.current.clear(),

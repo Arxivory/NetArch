@@ -1,10 +1,15 @@
+<<<<<<< HEAD
 // 1. FIXED: Combined imports into one line.
 // The old code had a second `import { Server }...` that was removed.
 import { Server, Import } from "lucide-react"; 
+=======
+import { Server, Network, Router, Database, Cable, Wifi, Armchair } from "lucide-react";
+>>>>>>> 57d4b1a2be105d0caf241aa4d900d866763561e8
 
 const categoryDetails = {
   Routers: {
     name: "Router",
+<<<<<<< HEAD
   },
   Switches: {
     name: "Switch",
@@ -12,14 +17,33 @@ const categoryDetails = {
   Hubs: {
     name: "Hub",
   },
+=======
+    icon: Router, // lucide Router icon
+  },
+  Switches: {
+    name: "Switch",
+    icon: Server, // Network works well for switches
+  },
+  Hubs: {
+    name: "Hub",
+    icon: Database, // Database can represent hub/server rack
+  },
+  Cables: {
+    name: "Cable",
+    icon: Cable
+    ,},
+
+>>>>>>> 57d4b1a2be105d0caf241aa4d900d866763561e8
   Wireless: {
     name: "Wireless",
-  },
-  "End Devices": {
-    name : "End Device",
+    icon: Wifi,
   },
   Furniture: {
     name: "Furniture",
+<<<<<<< HEAD
+=======
+    icon: Armchair, // use Armchair (exists) instead of Chair
+>>>>>>> 57d4b1a2be105d0caf241aa4d900d866763561e8
   },
 };
 
@@ -28,6 +52,7 @@ const categories = Object.keys(categoryDetails);
 export default function ObjectLibrary() {
   return (
     <div className="object-library">
+<<<<<<< HEAD
       <div className="flex justify-between items-center">
         <h3 className="panel-header">Object Library</h3>
 
@@ -49,6 +74,26 @@ export default function ObjectLibrary() {
                 <div key={i} className="device-tile">
                   <div className="device-icon mb-1">
                     <Server size={32} />
+=======
+      <h3 className="panel-header">Object Library</h3>
+      <hr className="header-separator" />
+
+      {categories.map((cat) => {
+        const { name, icon: Icon } = categoryDetails[cat];
+
+        return (
+          <div key={cat} className="mb-3">
+            <p className="text-gray-600 font-medium">{cat}</p>
+            <div className="device-grid">
+              {Array(6)
+                .fill(null)
+                .map((_, i) => (
+                  <div key={i} className="device-tile">
+                    <div className="device-icon mb-1">
+                      <Icon size={32} />
+                    </div>
+                    <p className="device-type">{name}</p>
+>>>>>>> 57d4b1a2be105d0caf241aa4d900d866763561e8
                   </div>
 
                   {/* 3. LOGIC FIX: 
@@ -64,4 +109,8 @@ export default function ObjectLibrary() {
       ))}
     </div>
   );
+<<<<<<< HEAD
 } 
+=======
+}
+>>>>>>> 57d4b1a2be105d0caf241aa4d900d866763561e8

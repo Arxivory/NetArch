@@ -12,7 +12,6 @@ import {
   Save,
   MousePointer,
   Hand,
-  Circle,
 } from "lucide-react";
 import { useState } from "react";
 import { useHierarchy } from "../HierarchyContext";
@@ -34,22 +33,11 @@ export default function Toolbar({ logicalCanvasRef }) {
     }
   };
 
-  const handleDrawCircle = () => {
-    if (logicalCanvasRef && logicalCanvasRef.current) {
-      logicalCanvasRef.current.startDrawCircle();
-      setDrawingMode('circle');
-    }
-  };
-
-  const handleShapeSelectFromDropdown = (shape) => {
-    if (!logicalCanvasRef || !logicalCanvasRef.current) return;
-    if (shape === "Rectangle") {
+  const handleRectangleSelect = (shape) => {
+    // We check the shape from the dropdown
+    if (shape === "Rectangle" && logicalCanvasRef && logicalCanvasRef.current) {
       logicalCanvasRef.current.startDrawRoom();
-      setDrawingMode('room');
-    } else if (shape === "Circular") {
-      // some label variants may use "Circular" in the dropdown
-      logicalCanvasRef.current.startDrawCircle();
-      setDrawingMode('circle');
+      setDrawingMode("room");
     }
     // You could add else-if blocks here for "Polygon", "Freeform", etc.
     // else if (shape === "Polygon") { ... }

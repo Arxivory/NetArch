@@ -15,6 +15,9 @@ const categoryDetails = {
   Wireless: {
     name: "Wireless",
   },
+  "End Devices": {
+    name : "End Device",
+  },
   Furniture: {
     name: "Furniture",
   },

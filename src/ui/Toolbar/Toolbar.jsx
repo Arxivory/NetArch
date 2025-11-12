@@ -13,14 +13,37 @@ import {
   MousePointer,
   Hand,
 } from "lucide-react";
+import { useState } from "react";
 import { useHierarchy } from "../HierarchyContext";
 import StructuralOption from "./StructuralOption";
 
-export default function Toolbar() {
+export default function Toolbar({ logicalCanvasRef }) {
   const { addNode } = useHierarchy();
+  const [drawingMode, setDrawingMode] = useState(null); 
 
   const handleShapeSelect = (type, shape) => {
     addNode(1, type.toLowerCase(), `New ${type}`);
+  };
+
+  const handleDrawWall = () => {
+    if (logicalCanvasRef && logicalCanvasRef.current) {
+      logicalCanvasRef.current.startDrawWall();
+      setDrawingMode('wall');
+    }
+  };
+
+  const handleRectangleSelect = (shape) => {
+    if (shape === "Rectangle" && logicalCanvasRef && logicalCanvasRef.current) {
+      logicalCanvasRef.current.startDrawRoom();
+      setDrawingMode('room');
+    }
+  };
+
+  const handleSelect = () => {
+    if (logicalCanvasRef && logicalCanvasRef.current) {
+      logicalCanvasRef.current.cancelDrawing();
+    }
+    setDrawingMode(null);
   };
 
   return (
@@ -37,7 +60,10 @@ export default function Toolbar() {
 
       <div className="border-l border-gray-300 h-6 my-auto" />
 
-      <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
+      <button 
+        onClick={handleSelect}
+        className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1"
+      >
         <MousePointer size={16} /> Select
       </button>
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
@@ -49,24 +75,40 @@ export default function Toolbar() {
       <StructuralOption
         label="Domain"
         icon={Mountain}
-        onSelectShape={(shape) => handleShapeSelect("Domain")}
+        onSelectShape={(shape) => {
+          handleRectangleSelect(shape);
+          handleShapeSelect("Domain");
+        }}
       />
 
       <StructuralOption
         label="Site"
         icon={Building}
-        onSelectShape={(shape) => handleShapeSelect("Site")}
+        onSelectShape={(shape) => {
+          handleRectangleSelect(shape);
+          handleShapeSelect("Site");
+        }}
       />
 
       <StructuralOption
         label="Space"
         icon={Grid}
-        onSelectShape={(shape) => handleShapeSelect("Space")}
+        onSelectShape={(shape) => {
+          handleRectangleSelect(shape);
+          handleShapeSelect("Space");
+        }}
       />
 
       <div className="border-l border-gray-300 h-6 my-auto" />
 
-      <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
+      <button 
+        onClick={handleDrawWall}
+        className={`px-2 py-1 rounded flex items-center gap-1 ${
+          drawingMode === 'wall' 
+            ? 'bg-gray-100' 
+            : 'hover:bg-gray-100'
+        }`}
+      >
         <RectangleHorizontal size={16} /> Wall
       </button>
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">

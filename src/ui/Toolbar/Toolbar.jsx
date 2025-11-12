@@ -37,7 +37,11 @@ export default function Toolbar({ logicalCanvasRef }) {
     // We check the shape from the dropdown
     if (shape === "Rectangle" && logicalCanvasRef && logicalCanvasRef.current) {
       logicalCanvasRef.current.startDrawRoom();
-      setDrawingMode("room");
+      setDrawingMode('room');
+    } else if (shape === "Circular") {
+      // some label variants may use "Circular" in the dropdown
+      logicalCanvasRef.current.startDrawCircle();
+      setDrawingMode('circle');
     }
     // You could add else-if blocks here for "Polygon", "Freeform", etc.
     // else if (shape === "Polygon") { ... }
@@ -159,7 +163,25 @@ export default function Toolbar({ logicalCanvasRef }) {
         <span className="text-[10px] text-gray-500 mt-1">Fenestration</span>
       </div>
 
-      <div className="border-l border-gray-300 h-10 my-auto" />
+      <button 
+        onClick={handleDrawWall}
+        className={`px-2 py-1 rounded flex items-center gap-1 ${
+          drawingMode === 'wall' 
+            ? 'bg-gray-100' 
+            : 'hover:bg-gray-100'
+        }`}
+      >
+        <RectangleHorizontal size={16} /> Wall
+      </button>
+      <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
+        <House size={16} /> Roof
+      </button>
+      <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
+        <DoorOpen size={16} /> Door
+      </button>
+      <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
+        <Square size={16} /> Window
+      </button>
 
       {/* Simulate group (with previous fix) */}
       <div className="flex flex-col items-center justify-end ml-auto">

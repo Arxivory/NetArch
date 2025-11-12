@@ -45,7 +45,7 @@ export default function Toolbar({ logicalCanvasRef }) {
     if (shape === "Rectangle") {
       logicalCanvasRef.current.startDrawRoom();
       setDrawingMode('room');
-    } else if (shape === "Circular" || shape === "Circle") {
+    } else if (shape === "Circular") {
       // some label variants may use "Circular" in the dropdown
       logicalCanvasRef.current.startDrawCircle();
       setDrawingMode('circle');
@@ -123,16 +123,6 @@ export default function Toolbar({ logicalCanvasRef }) {
         }`}
       >
         <RectangleHorizontal size={16} /> Wall
-      </button>
-      <button 
-        onClick={handleDrawCircle}
-        className={`px-2 py-1 rounded flex items-center gap-1 ${
-          drawingMode === 'circle' 
-            ? 'bg-gray-100' 
-            : 'hover:bg-gray-100'
-        }`}
-      >
-        <Circle size={16} /> Circle
       </button>
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
         <House size={16} /> Roof

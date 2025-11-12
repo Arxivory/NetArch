@@ -15,9 +15,9 @@ export default function App() {
     <HierarchyProvider> 
       <div className="app">
         <Topbar />
-        <Toolbar logicalCanvasRef={logicalCanvasRef}/>
+        <Toolbar />
 
-        <Workspace logicalCanvasRef={logicalCanvasRef}/>
+        <Workspace />
         <div className="main-layout">
           <ObjectLibrary />
           <ConsoleSimulationLogs />

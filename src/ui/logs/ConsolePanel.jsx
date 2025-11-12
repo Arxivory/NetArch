@@ -1,3 +1,5 @@
+import { Trash2 } from "lucide-react";
+
 export default function ConsolePanel() {
   return (
     <div className="console-panel">
@@ -42,7 +44,7 @@ export default function ConsolePanel() {
               <td className="px-3 py-2 pl-2 border-b border-gray-200">9/20/25</td>
               <td className="px-3 py-2 pl-2 border-b border-gray-200">Room 102</td>
               <td className="px-3 py-2 pl-2 border-b border-gray-200 text-center text-red-400 hover:text-red-600 cursor-pointer">
-                🗑️
+                <Trash2 className="delete-log" />
               </td>
             </tr>
             <tr className="bg-white hover:bg-gray-50">
@@ -53,7 +55,7 @@ export default function ConsolePanel() {
               <td className="px-3 py-2 pl-2 border-b border-gray-200">9/20/25</td>
               <td className="px-3 py-2 pl-2 border-b border-gray-200">Room 801</td>
               <td className="px-3 py-2 pl-2 border-b border-gray-200 text-center text-red-400 hover:text-red-600 cursor-pointer">
-                🗑️
+                <Trash2 className="delete-log"/>
               </td>
             </tr>
             <tr className="bg-white hover:bg-gray-50">
@@ -64,7 +66,7 @@ export default function ConsolePanel() {
               <td className="px-3 py-2 pl-2 border-b border-gray-200">9/20/25</td>
               <td className="px-3 py-2 pl-2 border-b border-gray-200">Room 801</td>
               <td className="px-3 py-2 pl-2 border-b border-gray-200 text-center text-red-400 hover:text-red-600 cursor-pointer">
-                🗑️
+                <Trash2 className="delete-log"/>
               </td>
             </tr>
             

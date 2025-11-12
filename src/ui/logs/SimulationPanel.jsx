@@ -1,3 +1,5 @@
+import { Trash2 } from "lucide-react";
+
 export default function SimulationPanel() {
   return (
     
@@ -46,7 +48,7 @@ export default function SimulationPanel() {
               <td className="px-3 py-2 pl-2 border-b border-gray-200">9/20/25</td>
               <td className="px-3 py-2 pl-2 border-b border-gray-200">Room 102</td>
               <td className="px-3 py-2 pl-2 border-b border-gray-200 text-center text-red-400 hover:text-red-600 cursor-pointer">
-                🗑️
+                <Trash2 className="delete-log" />
               </td>
             </tr>
 
@@ -58,7 +60,7 @@ export default function SimulationPanel() {
               <td className="px-3 py-2 pl-2 border-b border-gray-200">9/20/25</td>
               <td className="px-3 py-2 pl-2 border-b border-gray-200">Room 101</td>
               <td className="px-3 py-2 pl-2 border-b border-gray-200 text-center text-red-400 hover:text-red-600 cursor-pointer">
-                🗑️
+                <Trash2 className="delete-log" />
               </td>
             </tr>
 
@@ -70,7 +72,7 @@ export default function SimulationPanel() {
               <td className="px-3 py-2 pl-2 border-b border-gray-200">9/20/25</td>
               <td className="px-3 py-2 pl-2 border-b border-gray-200">Room 101</td>
               <td className="px-3 py-2 pl-2 border-b border-gray-200 text-center text-red-400 hover:text-red-600 cursor-pointer">
-                🗑️
+                <Trash2 className="delete-log" />
               </td>
             </tr>
           

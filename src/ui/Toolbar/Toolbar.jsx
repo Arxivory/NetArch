@@ -12,6 +12,7 @@ import {
   Save,
   MousePointer,
   Hand,
+  Circle,
 } from "lucide-react";
 import { useState } from "react";
 import { useHierarchy } from "../HierarchyContext";
@@ -32,10 +33,22 @@ export default function Toolbar({ logicalCanvasRef }) {
     }
   };
 
-  const handleRectangleSelect = (shape) => {
-    if (shape === "Rectangle" && logicalCanvasRef && logicalCanvasRef.current) {
+  const handleDrawCircle = () => {
+    if (logicalCanvasRef && logicalCanvasRef.current) {
+      logicalCanvasRef.current.startDrawCircle();
+      setDrawingMode('circle');
+    }
+  };
+
+  const handleShapeSelectFromDropdown = (shape) => {
+    if (!logicalCanvasRef || !logicalCanvasRef.current) return;
+    if (shape === "Rectangle") {
       logicalCanvasRef.current.startDrawRoom();
       setDrawingMode('room');
+    } else if (shape === "Circular" || shape === "Circle") {
+      // some label variants may use "Circular" in the dropdown
+      logicalCanvasRef.current.startDrawCircle();
+      setDrawingMode('circle');
     }
   };
 
@@ -76,7 +89,7 @@ export default function Toolbar({ logicalCanvasRef }) {
         label="Domain"
         icon={Mountain}
         onSelectShape={(shape) => {
-          handleRectangleSelect(shape);
+          handleShapeSelectFromDropdown(shape);
           handleShapeSelect("Domain");
         }}
       />
@@ -85,7 +98,7 @@ export default function Toolbar({ logicalCanvasRef }) {
         label="Site"
         icon={Building}
         onSelectShape={(shape) => {
-          handleRectangleSelect(shape);
+          handleShapeSelectFromDropdown(shape);
           handleShapeSelect("Site");
         }}
       />
@@ -94,7 +107,7 @@ export default function Toolbar({ logicalCanvasRef }) {
         label="Space"
         icon={Grid}
         onSelectShape={(shape) => {
-          handleRectangleSelect(shape);
+          handleShapeSelectFromDropdown(shape);
           handleShapeSelect("Space");
         }}
       />
@@ -110,6 +123,16 @@ export default function Toolbar({ logicalCanvasRef }) {
         }`}
       >
         <RectangleHorizontal size={16} /> Wall
+      </button>
+      <button 
+        onClick={handleDrawCircle}
+        className={`px-2 py-1 rounded flex items-center gap-1 ${
+          drawingMode === 'circle' 
+            ? 'bg-gray-100' 
+            : 'hover:bg-gray-100'
+        }`}
+      >
+        <Circle size={16} /> Circle
       </button>
       <button className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1">
         <House size={16} /> Roof

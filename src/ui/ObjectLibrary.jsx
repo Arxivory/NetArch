@@ -1,23 +1,32 @@
-import { Server, Network, Router, Database, Wifi, Armchair } from "lucide-react";
+import { Server, Network, Router, Database, Cable, Wifi, Armchair } from "lucide-react";
 
 const categoryDetails = {
   Routers: {
-    name: "Router", 
+    name: "Router",
+    icon: Router, // lucide Router icon
   },
   Switches: {
-    name: "Switch", 
+    name: "Switch",
+    icon: Server, // Network works well for switches
   },
   Hubs: {
-    name: "Hub", 
-  }, 
+    name: "Hub",
+    icon: Database, // Database can represent hub/server rack
+  },
+  Cables: {
+    name: "Cable",
+    icon: Cable
+    ,},
+
   Wireless: {
     name: "Wireless",
+    icon: Wifi,
   },
   Furniture: {
     name: "Furniture",
-  }
-}
-
+    icon: Armchair, // use Armchair (exists) instead of Chair
+  },
+};
 
 const categories = Object.keys(categoryDetails);
 
@@ -25,12 +34,10 @@ export default function ObjectLibrary() {
   return (
     <div className="object-library">
       <h3 className="panel-header">Object Library</h3>
-      <hr className="header-separator"/>
+      <hr className="header-separator" />
 
-      {}
-      {categories.map((cat) => { 
-
-        const { name } = categoryDetails[cat];
+      {categories.map((cat) => {
+        const { name, icon: Icon } = categoryDetails[cat];
 
         return (
           <div key={cat} className="mb-3">
@@ -41,14 +48,9 @@ export default function ObjectLibrary() {
                 .map((_, i) => (
                   <div key={i} className="device-tile">
                     <div className="device-icon mb-1">
-                      <Server size={32}/>
+                      <Icon size={32} />
                     </div>
-
-                  
-                    <p className="device-type">
-
-                      {name}
-                    </p>
+                    <p className="device-type">{name}</p>
                   </div>
                 ))}
             </div>

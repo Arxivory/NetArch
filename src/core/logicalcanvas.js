@@ -21,10 +21,19 @@ export class LogicalCanvas {
 
     this.rooms = [];
     this.walls = [];
-  this.circles = [];
+    this.circles = [];
+    this.polygons = [];
+    this.currentPolygon = [];
+    this.onPolygonCreated = opts.onPolygonCreated || function () {};
+    this.cables = [];
+
+    // NEW: Device/Object handling
+    this.devices = [];
+    this.onDeviceAdded = opts.onDeviceAdded || function () {};
 
     this.onRoomCreated = opts.onRoomCreated || function () {};
     this.onWallCreated = opts.onWallCreated || function () {};
+    this.onCableCreated = opts.onCableCreated || function () {};
   this.onCircleCreated = opts.onCircleCreated || function () {};
 
     this._pointerMoveHandler = this._onPointerMove.bind(this);
@@ -88,6 +97,8 @@ export class LogicalCanvas {
     this.rooms = [];
     this.walls = [];
     this.circles = [];
+    this.devices = []; // NEW: Clear devices
+    this.cables = [];
     this._render();
   }
 
@@ -101,9 +112,34 @@ export class LogicalCanvas {
     this._updateCursor();
   }
 
+  startDrawCable() {
+    this.mode = 'cable';
+    this._updateCursor();
+  }
+
   startDrawCircle() {
     this.mode = 'circle';
     this._updateCursor();
+  }
+
+  startDrawPolygon() {
+    this.mode = 'polygon';
+    this.currentPolygon = [];
+    this._updateCursor();
+  }
+
+  // NEW: Method to add a device
+  addDevice(deviceData, x, y) {
+      const device = {
+          id: this._genId('device'),
+          type: deviceData.type,
+          label: deviceData.label,
+          x: x,
+          y: y
+      };
+      this.devices.push(device);
+      this.onDeviceAdded(device);
+      this._render();
   }
 
   cancelDrawing() {
@@ -117,7 +153,7 @@ export class LogicalCanvas {
 
   _updateCursor() {
     if (!this.canvas) return;
-    if (this.mode === 'room' || this.mode === 'wall' || this.mode === 'circle') {
+    if (this.mode === 'room' || this.mode === 'wall' || this.mode === 'circle' || this.mode === 'polygon' || this.mode === 'cable') {
       this.canvas.style.cursor = 'crosshair';
     } else {
       this.canvas.style.cursor = 'default';
@@ -142,18 +178,62 @@ export class LogicalCanvas {
     return { x: gx, y: gy };
   }
 
+  // NEW: Public utility method for drop handler in React component
+  getSnappedCanvasCoords(clientX, clientY) {
+      const canvasPoint = this._clientToCanvas(clientX, clientY);
+      return this._snapToGrid(canvasPoint);
+  }
+
   _onPointerDown(e) {
     if (this.mode === 'none') return;
-    this.isPointerDown = true;
+
     const p = this._clientToCanvas(e.clientX, e.clientY);
     const snapped = this._snapToGrid(p);
+
+    if (this.mode === 'polygon') {
+      if (this.currentPolygon.length === 0) {
+        this.currentPolygon.push(snapped);
+      } else {
+        const first = this.currentPolygon[0];
+        const dist = Math.hypot(snapped.x - first.x, snapped.y - first.y);
+
+        if (dist <= this.snapTolerance * 1.5 && this.currentPolygon.length >= 3) {
+          const polygon = {
+            id: this._genId("poly"),
+            points: [...this.currentPolygon]
+          };
+          this.polygons.push(polygon);
+          this.onPolygonCreated(polygon);
+
+          this.currentPolygon = [];
+          this.mode = 'none';
+          this._updateCursor();
+          this._render();
+          return;
+        }
+
+        this.currentPolygon.push(snapped);
+      }
+
+      this._render();
+      return;
+    }
+
+    this.isPointerDown = true;
     this.startPoint = snapped;
     this.currentPoint = snapped;
     this._render();
   }
 
+
   _onPointerMove(e) {
     if (!this.canvas) return;
+    if (this.mode === 'polygon') {
+      const p = this._clientToCanvas(e.clientX, e.clientY);
+      this.currentPoint = this._snapToGrid(p);
+      this._render();
+      return;
+    }
     const p = this._clientToCanvas(e.clientX, e.clientY);
     const snapped = this._snapToGrid(p);
     this.currentPoint = snapped;
@@ -194,6 +274,16 @@ export class LogicalCanvas {
         const wall = { id: this._genId('wall'), x1, y1, x2, y2 };
         this.walls.push(wall);
         this.onWallCreated(wall);
+      }
+    } else if (this.mode === 'cable') {
+      const x1 = this.startPoint.x;
+      const y1 = this.startPoint.y;
+      const x2 = this.currentPoint.x;
+      const y2 = this.currentPoint.y;
+      if (Math.hypot(x2 - x1, y2 - y1) > 2) {
+        const cable = { id: this._genId('cable'), x1, y1, x2, y2 };
+        this.cables.push(cable);
+        this.onCableCreated(cable);
       }
     } else if (this.mode === 'circle') {
       const cx = this.startPoint.x;
@@ -274,6 +364,31 @@ export class LogicalCanvas {
       ctx.stroke();
     }
 
+    ctx.strokeStyle = '#292929ff';
+    ctx.lineWidth = 1.5;
+    for (const cable of this.cables) {
+      ctx.beginPath();
+      ctx.moveTo(cable.x1 + 0.5, cable.y1 + 0.5);
+      ctx.lineTo(cable.x2 + 0.5, cable.y2 + 0.5);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = '#000000ff';
+    ctx.fillStyle = 'rgba(150,150,150,0.4)';
+    ctx.lineWidth = 2;
+
+    for (const poly of this.polygons) {
+      ctx.beginPath();
+      const pts = poly.points;
+      ctx.moveTo(pts[0].x + 0.5, pts[0].y + 0.5);
+      for (let i = 1; i < pts.length; i++) {
+        ctx.lineTo(pts[i].x + 0.5, pts[i].y + 0.5);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+
     if (this.startPoint && this.currentPoint) {
       ctx.save();
       ctx.strokeStyle = '#00ff00';
@@ -291,6 +406,11 @@ export class LogicalCanvas {
         ctx.moveTo(this.startPoint.x + 0.5, this.startPoint.y + 0.5);
         ctx.lineTo(this.currentPoint.x + 0.5, this.currentPoint.y + 0.5);
         ctx.stroke();
+      } else if (this.mode === 'cable') {
+        ctx.beginPath();
+        ctx.moveTo(this.startPoint.x + 0.5, this.startPoint.y + 0.5);
+        ctx.lineTo(this.currentPoint.x + 0.5, this.currentPoint.y + 0.5);
+        ctx.stroke();
       } else if (this.mode === 'circle') {
         const cx = this.startPoint.x;
         const cy = this.startPoint.y;
@@ -303,9 +423,64 @@ export class LogicalCanvas {
         ctx.stroke();
       }
       ctx.restore();
+    } 
+
+    if (this.mode === 'polygon' && this.currentPolygon.length > 0 && this.currentPoint) {
+
+      ctx.save();
+      ctx.strokeStyle = '#00ff00';
+      ctx.lineWidth = 1.5;
+
+      const pts = this.currentPolygon;
+
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+
+      for (let i = 1; i < pts.length; i++) {
+        ctx.lineTo(pts[i].x, pts[i].y);
+      }
+
+      ctx.lineTo(this.currentPoint.x, this.currentPoint.y);
+      ctx.stroke();
+
+      const first = pts[0];
+      const dist = Math.hypot(
+        this.currentPoint.x - first.x,
+        this.currentPoint.y - first.y
+      );
+
+      if (dist < this.snapTolerance * 1.5) {
+        ctx.beginPath();
+        ctx.arc(first.x, first.y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0,255,0,0.3)';
+        ctx.fill();
+      }
+
+      ctx.restore();
     }
 
-    // draw persisted circles
+    // NEW: Render Devices
+    ctx.strokeStyle = '#000000ff';
+    ctx.fillStyle = 'rgba(0, 0, 0, 1)';
+    ctx.lineWidth = 1;
+
+    for (const dev of this.devices) {
+      // Draw a placeholder box for the device
+      const size = this.gridSize * 1.3;
+      const halfSize = size / 2;
+      const x = dev.x - halfSize;
+      const y = dev.y - halfSize;
+
+      ctx.fillRect(x, y, size, size);
+      ctx.strokeRect(x, y, size, size);
+
+      // Draw the label
+      ctx.font = '12px sans-serif';
+      ctx.fillStyle = '#000000';
+      ctx.textAlign = 'center';
+      ctx.fillText(dev.label, dev.x, dev.y + halfSize + 14);
+    }
+
     ctx.strokeStyle = '#000000ff';
     ctx.lineWidth = 2;
     for (const c of this.circles) {

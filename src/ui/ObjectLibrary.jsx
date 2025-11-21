@@ -1,37 +1,31 @@
-import {
-  Router,
-  MonitorSmartphone,
-  EthernetPort,
-  Server,
-  Slash,
-  Armchair,
-} from "lucide-react";
+import { Server, Network, Router, Database, Cable, Wifi, Armchair, Import } from "lucide-react";
 
 
 const categoryDetails = {
   Routers: {
     name: "Router",
-    icon: Router,
+    icon: Router, // lucide Router icon
   },
   Switches: {
     name: "Switch",
-    icon: Server,
+    icon: Server, // Network works well for switches
   },
   Hubs: {
     name: "Hub",
-    icon: EthernetPort,
+    icon: Database, // Database can represent hub/server rack
   },
   Cables: {
     name: "Cable",
-    icon: Slash,
-  },
-  "End Devices": {
-    name: "End Device",
-    icon: MonitorSmartphone,
+    icon: Cable
+    ,},
+
+  Wireless: {
+    name: "Wireless",
+    icon: Wifi,
   },
   Furniture: {
     name: "Furniture",
-    icon: Armchair,
+    icon: Armchair, // use Armchair (exists) instead of Chair
   },
 };
 

@@ -16,8 +16,8 @@ const categoryDetails = {
   },
   Cables: {
     name: "Cable",
-    icon: Cable
-    ,},
+    icon: Cable,
+    },
 
   Wireless: {
     name: "Wireless",

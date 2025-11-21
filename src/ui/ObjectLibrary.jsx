@@ -1,40 +1,36 @@
 import { Server, Network, Router, Database, Cable, Wifi, Armchair, Import } from "lucide-react";
 
-
 const categoryDetails = {
   Routers: {
     name: "Router",
-    icon: Router, // lucide Router icon
+    icon: Router,
   },
   Switches: {
     name: "Switch",
-    icon: Server, // Network works well for switches
+    icon: Server,
   },
   Hubs: {
     name: "Hub",
-    icon: Database, // Database can represent hub/server rack
+    icon: Database,
   },
   Cables: {
     name: "Cable",
     icon: Cable,
-    },
-
+  },
   Wireless: {
     name: "Wireless",
     icon: Wifi,
   },
   Furniture: {
     name: "Furniture",
-    icon: Armchair, // use Armchair (exists) instead of Chair
+    icon: Armchair,
   },
 };
-
 
 const categories = Object.keys(categoryDetails);
 
 export default function ObjectLibrary() {
   
- 
   const onDragStart = (event, nodeType, label) => {
     // We create a data object to identify what is being dragged
     const data = { type: nodeType, label: label };
@@ -46,12 +42,27 @@ export default function ObjectLibrary() {
 
   return (
     <div className="object-library">
-      <h3 className="panel-header">Object Library</h3>
+      
+      {/* --- NEW HEADER SECTION --- */}
+      <div className="flex items-center justify-between mb-2">
+        {/* Title */}
+        <h3 className="panel-header mb-0">Object Library</h3>
+        
+        {/* Import Button */}
+        <button 
+          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors border border-gray-200"
+          onClick={() => console.log("Import clicked")}
+        >
+          <Import size={16} />
+          Import
+        </button>
+      </div>
+      {/* -------------------------- */}
+
       <hr className="header-separator" />
 
       {/* Loop over the categories */}
       {categories.map((cat) => {
-        // Get the correct name and icon for this category
         const { name, icon: IconComponent } = categoryDetails[cat];
 
         return (
@@ -63,20 +74,15 @@ export default function ObjectLibrary() {
                 .map((_, i) => (
                   <div
                     key={i}
-                    // 2. NEW: Enable dragging on this specific tile
                     draggable
-                    // 3. NEW: Connect the drag event to our function
                     onDragStart={(event) => onDragStart(event, cat, name)}
-                    // 4. NEW: Add cursor styles so the user knows it's grabbable
                     className="device-tile cursor-grab active:cursor-grabbing"
                   >
                     <div className="device-icon mb-1">
-                      {/* Use the dynamic icon */}
                       <IconComponent size={32} />
                     </div>
 
                     <p className="device-type">
-                      {/* Use the dynamic name */}
                       {name}
                     </p>
                   </div>

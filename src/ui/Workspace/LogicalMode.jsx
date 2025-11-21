@@ -56,6 +56,7 @@ const LogicalMode = forwardRef(function LogicalMode(
         startDrawRoom: () => lcRef.current && lcRef.current.startDrawRoom(),
         startDrawCircle: () => lcRef.current && lcRef.current.startDrawCircle(),
         startDrawWall: () => lcRef.current && lcRef.current.startDrawWall(),
+        startDrawPolygon: () => lcRef.current && lcRef.current.startDrawPolygon(),
         cancelDrawing: () => lcRef.current && lcRef.current.cancelDrawing(),
         clear: () => lcRef.current && lcRef.current.clear(),
         enableSnap: (v) => lcRef.current && lcRef.current.enableSnap(v),

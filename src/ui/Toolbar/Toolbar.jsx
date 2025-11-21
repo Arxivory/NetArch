@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useHierarchy } from "../HierarchyContext";
-// Re-importing StructuralOption
 import StructuralOption from "./StructuralOption";
 
 export default function Toolbar({ logicalCanvasRef }) {
@@ -34,17 +33,16 @@ export default function Toolbar({ logicalCanvasRef }) {
   };
 
   const handleRectangleSelect = (shape) => {
-    // We check the shape from the dropdown
     if (shape === "Rectangle" && logicalCanvasRef && logicalCanvasRef.current) {
       logicalCanvasRef.current.startDrawRoom();
       setDrawingMode('room');
     } else if (shape === "Circular") {
-      // some label variants may use "Circular" in the dropdown
       logicalCanvasRef.current.startDrawCircle();
       setDrawingMode('circle');
+    } else if (shape === "Polygon") {
+      logicalCanvasRef.current.startDrawPolygon();
+      setDrawingMode('polygon');
     }
-    // You could add else-if blocks here for "Polygon", "Freeform", etc.
-    // else if (shape === "Polygon") { ... }
   };
 
   const handleSelect = () => {

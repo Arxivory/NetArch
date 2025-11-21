@@ -12,6 +12,8 @@ import {
   Save,
   MousePointer,
   Hand,
+  ZoomIn,
+  ZoomOut
 } from "lucide-react";
 import { useState } from "react";
 import { useHierarchy } from "../HierarchyContext";
@@ -83,6 +85,12 @@ export default function Toolbar({ logicalCanvasRef }) {
           </button>
           <button className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1">
             <Hand size={16} /> Pan
+          </button>
+          <button className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1">
+            <ZoomIn size={16}/> Zoom in
+          </button>
+          <button className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1">
+            <ZoomOut size={16}/> Zoom out
           </button>
         </div>
         <span className="text-[10px] text-gray-500 mt-1">Controls</span>

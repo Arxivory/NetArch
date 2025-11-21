@@ -1,5 +1,5 @@
-import { Server, Network, Router, Database, Cable, Wifi, Armchair, Import } from "lucide-react";
-
+import { Server, Network, Router, Database, Cable, Wifi, Armchair, Import, MonitorSmartphone } from "lucide-react";
+import { useState } from "react";
 
 const categoryDetails = {
   Routers: {
@@ -17,8 +17,11 @@ const categoryDetails = {
   Cables: {
     name: "Cable",
     icon: Cable,
-    },
-
+  },
+  EndDevices: {
+    name: "End Device",
+    icon: MonitorSmartphone
+  },
   Wireless: {
     name: "Wireless",
     icon: Wifi,
@@ -32,9 +35,15 @@ const categoryDetails = {
 
 const categories = Object.keys(categoryDetails);
 
-export default function ObjectLibrary() {
+export default function ObjectLibrary({ logicalCanvasRef }) {
   
- 
+  const [drawingMode, setDrawingMode] = useState(null);
+
+  const handleDrawCable = () => {
+    logicalCanvasRef.current.startDrawCable();
+    setDrawingMode('cable');
+  }
+
   const onDragStart = (event, nodeType, label) => {
     // We create a data object to identify what is being dragged
     const data = { type: nodeType, label: label };
@@ -54,36 +63,65 @@ export default function ObjectLibrary() {
         // Get the correct name and icon for this category
         const { name, icon: IconComponent } = categoryDetails[cat];
 
-        return (
-          <div key={cat} className="mb-3">
-            <p className="text-gray-600 font-medium">{cat}</p>
-            <div className="device-grid">
-              {Array(6)
-                .fill(null)
-                .map((_, i) => (
-                  <div
-                    key={i}
-                    // 2. NEW: Enable dragging on this specific tile
-                    draggable
-                    // 3. NEW: Connect the drag event to our function
-                    onDragStart={(event) => onDragStart(event, cat, name)}
-                    // 4. NEW: Add cursor styles so the user knows it's grabbable
-                    className="device-tile cursor-grab active:cursor-grabbing"
-                  >
-                    <div className="device-icon mb-1">
-                      {/* Use the dynamic icon */}
-                      <IconComponent size={32} />
-                    </div>
+        if (name === "Cable") {
+          return (
+            <div key={cat} className="mb-3">
+              <p className="text-gray-600 font-medium">{cat}</p>
+              <div className="device-grid">
+                {Array(6)
+                  .fill(null)
+                  .map((_, i) => (
+                    <div
+                      key={i}
+                      className="device-tile"
+                      onClick={handleDrawCable}
+                    >
+                      <div className="device-icon mb-1">
+                        {/* Use the dynamic icon */}
+                        <IconComponent size={32} />
+                      </div>
 
-                    <p className="device-type">
-                      {/* Use the dynamic name */}
-                      {name}
-                    </p>
-                  </div>
-                ))}
+                      <p className="device-type">
+                        {/* Use the dynamic name */}
+                        {name}
+                      </p>
+                    </div>
+                  ))}
+              </div>
             </div>
-          </div>
-        );
+          );
+        } else {
+            return (
+            <div key={cat} className="mb-3">
+              <p className="text-gray-600 font-medium">{cat}</p>
+              <div className="device-grid">
+                {Array(6)
+                  .fill(null)
+                  .map((_, i) => (
+                    <div
+                      key={i}
+                      // 2. NEW: Enable dragging on this specific tile
+                      draggable
+                      // 3. NEW: Connect the drag event to our function
+                      onDragStart={(event) => onDragStart(event, cat, name)}
+                      // 4. NEW: Add cursor styles so the user knows it's grabbable
+                      className="device-tile cursor-grab active:cursor-grabbing"
+                    >
+                      <div className="device-icon mb-1">
+                        {/* Use the dynamic icon */}
+                        <IconComponent size={32} />
+                      </div>
+
+                      <p className="device-type">
+                        {/* Use the dynamic name */}
+                        {name}
+                      </p>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          );
+        }
       })}
     </div>
   );

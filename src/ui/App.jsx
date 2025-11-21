@@ -19,7 +19,7 @@ export default function App() {
 
         <Workspace logicalCanvasRef={logicalCanvasRef}/>
         <div className="main-layout">
-          <ObjectLibrary />
+          <ObjectLibrary logicalCanvasRef={logicalCanvasRef}/>
           <ConsoleSimulationLogs />
           <div className="right-panel">
             <HierarchyPanel />   

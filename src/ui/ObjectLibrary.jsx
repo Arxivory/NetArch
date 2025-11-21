@@ -4,15 +4,15 @@ import { useState } from "react";
 const categoryDetails = {
   Routers: {
     name: "Router",
-    icon: Router, // lucide Router icon
+    icon: Router,
   },
   Switches: {
     name: "Switch",
-    icon: Server, // Network works well for switches
+    icon: Server,
   },
   Hubs: {
     name: "Hub",
-    icon: Database, // Database can represent hub/server rack
+    icon: Database,
   },
   Cables: {
     name: "Cable",
@@ -28,10 +28,9 @@ const categoryDetails = {
   },
   Furniture: {
     name: "Furniture",
-    icon: Armchair, // use Armchair (exists) instead of Chair
+    icon: Armchair,
   },
 };
-
 
 const categories = Object.keys(categoryDetails);
 
@@ -55,12 +54,27 @@ export default function ObjectLibrary({ logicalCanvasRef }) {
 
   return (
     <div className="object-library">
-      <h3 className="panel-header">Object Library</h3>
+      
+      {/* --- NEW HEADER SECTION --- */}
+      <div className="flex items-center justify-between mb-2">
+        {/* Title */}
+        <h3 className="panel-header mb-0">Object Library</h3>
+        
+        {/* Import Button */}
+        <button 
+          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors border border-gray-200"
+          onClick={() => console.log("Import clicked")}
+        >
+          <Import size={16} />
+          Import
+        </button>
+      </div>
+      {/* -------------------------- */}
+
       <hr className="header-separator" />
 
       {/* Loop over the categories */}
       {categories.map((cat) => {
-        // Get the correct name and icon for this category
         const { name, icon: IconComponent } = categoryDetails[cat];
 
         if (name === "Cable") {

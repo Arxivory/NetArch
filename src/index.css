@@ -24,7 +24,6 @@ body, html, #root {
   background: #ffffff;
   display: flex;
   gap: 4px;
-  padding: 3px 10px;
   font-size: 12px;
   position: relative;
   z-index: 50;
@@ -32,6 +31,7 @@ body, html, #root {
 
 .topbar button {
   padding: 2px 8px;
+  margin: 0;
   border-radius: 3px;
   transition: background 0.15s;
   position: relative;
@@ -341,7 +341,7 @@ body, html, #root {
 
 .mode-switch-panel {
   position: absolute;
-  top: 105px;
+  top: 120px;
   left: 320px;
   display: flex;
   gap: 0;

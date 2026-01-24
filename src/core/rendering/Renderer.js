@@ -8,7 +8,7 @@ let renderer, scene, camera, controls;
 let width, height;
 let fov, aspect;
 
-export async function initRenderer(canvas) {
+export function initRenderer(canvas) {
     width = canvas.clientWidth;
     height = canvas.clientHeight;
 
@@ -36,7 +36,7 @@ export async function initRenderer(canvas) {
 
     setRendererContext(ctx);
 
-    await initWorld();
+    initWorld();
 
     startRenderLoop();
 

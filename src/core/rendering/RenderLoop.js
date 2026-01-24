@@ -1,3 +1,4 @@
+import { moveGridandGroundToCamera, moveSkyboxToCamera } from "./DefaultScene";
 import { getScene, getRenderer, getCamera, getControls } from "./SceneAccess";
 
 let animationId;
@@ -7,6 +8,8 @@ export function startRenderLoop() {
         animationId = requestAnimationFrame(render);
         getControls().update();
         getRenderer().render(getScene(), getCamera());
+        moveSkyboxToCamera(getCamera().position);
+        moveGridandGroundToCamera(getCamera().position);
     }
 
     render();

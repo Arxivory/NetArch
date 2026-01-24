@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { initRenderer } from "../../core/renderer";
+import { initRenderer } from "../../core/rendering/Renderer";
 
 export default function PhysicalMode() {
   const canvasRef = useRef(null);

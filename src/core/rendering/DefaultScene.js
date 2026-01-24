@@ -4,7 +4,7 @@ import { GroundedSkybox } from 'three/examples/jsm/Addons.js';
 import { loadEnvironmentMap } from './loaders/TextureLoader';
 import { initSkybox } from './world/Skybox';
 
-let skybox;
+let skybox, grid, ground;
 
 export async function initWorld() {
     const scene = getScene();
@@ -16,15 +16,15 @@ export async function initWorld() {
         side: THREE.DoubleSide
     });
 
-    const ground = new THREE.Mesh(
+    ground = new THREE.Mesh(
         planeGeometry,
         planeMaterial
     );
 
     ground.rotation.x = -Math.PI / 2;
 
-    const gridHelper = new THREE.GridHelper(500, 50);
-    scene.add(gridHelper);
+    grid = new THREE.GridHelper(500, 50);
+    scene.add(grid);
 
     setupLighting(scene);
     setupSkybox(scene);
@@ -39,6 +39,16 @@ function setupSkybox(scene) {
 export function moveSkyboxToCamera(cameraPosition) {
     if (!skybox) return;
     skybox.position.copy(cameraPosition);
+}
+
+export function moveGridandGroundToCamera(cameraPosition) {
+    if (!grid || !ground) return;
+
+    ground.position.x = cameraPosition.x;
+    ground.position.z = cameraPosition.z;
+
+    grid.position.x = Math.round(cameraPosition.x / 10) * 10;
+    grid.position.z = Math.round(cameraPosition.z / 10) * 10;
 }
 
 function setupLighting(scene) {

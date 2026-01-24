@@ -1,14 +1,15 @@
 import { useEffect, useRef } from "react";
+import { initRenderer } from "../../core/rendering/Renderer";
 
 export default function PhysicalMode() {
   const canvasRef = useRef(null);
 
-  // useEffect(() => {
-  //   if (canvasRef.current) {
-  //     initRenderer(canvasRef.current);
-  //   }
+  useEffect(() => {
+    if (canvasRef.current) {
+      initRenderer(canvasRef.current);
+    }
 
-  // }, []);
+  }, []);
 
   return <canvas ref={canvasRef} className="workspace-canvas" />;
 }

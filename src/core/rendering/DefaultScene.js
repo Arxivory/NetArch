@@ -23,11 +23,11 @@ export async function initWorld() {
     scene.add(gridHelper);
 
     setupLighting(scene);
-    await setupSkybox(scene);
+    setupSkybox(scene);
     scene.add(ground);
 }
 
-async function setupSkybox(scene) {
+function setupSkybox(scene) {
     const skyGeo = new THREE.SphereGeometry(1000, 32, 32);
     const skyMat = new THREE.ShaderMaterial({
         uniforms: {

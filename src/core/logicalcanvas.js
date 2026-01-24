@@ -321,9 +321,12 @@ export class LogicalCanvas {
     ctx.fillStyle = this.bgColor;
     ctx.fillRect(0, 0, w, h);
 
+    // draw minor grid lines (thin, constant width)
+    ctx.save();
     ctx.beginPath();
     ctx.strokeStyle = this.gridColor;
     ctx.globalAlpha = this.gridMinorAlpha;
+    ctx.lineWidth = 1;
     for (let x = 0; x <= w; x += this.gridSize) {
       ctx.moveTo(x + 0.5, 0);
       ctx.lineTo(x + 0.5, h);
@@ -333,10 +336,13 @@ export class LogicalCanvas {
       ctx.lineTo(w, y + 0.5);
     }
     ctx.stroke();
-    ctx.globalAlpha = 1;
+    ctx.restore();
 
+    // draw major grid lines (still thin, but slightly more visible)
+    ctx.save();
     ctx.beginPath();
     ctx.strokeStyle = this.gridMajorColor;
+    ctx.lineWidth = 1;
     for (let x = 0; x <= w; x += this.gridSize * 4) {
       ctx.moveTo(x + 0.5, 0);
       ctx.lineTo(x + 0.5, h);
@@ -346,17 +352,18 @@ export class LogicalCanvas {
       ctx.lineTo(w, y + 0.5);
     }
     ctx.stroke();
+    ctx.restore();
 
     for (const r of this.rooms) {
       ctx.fillStyle = 'rgba(174, 174, 174, 0.5)';
       ctx.fillRect(r.x, r.y, r.w, r.h);
       ctx.strokeStyle = '#000000ff';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 4;
       ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w, r.h);
     }
 
     ctx.strokeStyle = '#000000ff';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 4;
     for (const wline of this.walls) {
       ctx.beginPath();
       ctx.moveTo(wline.x1 + 0.5, wline.y1 + 0.5);
@@ -375,7 +382,7 @@ export class LogicalCanvas {
 
     ctx.strokeStyle = '#000000ff';
     ctx.fillStyle = 'rgba(150,150,150,0.4)';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 4;
 
     for (const poly of this.polygons) {
       ctx.beginPath();

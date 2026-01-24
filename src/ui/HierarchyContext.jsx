@@ -6,7 +6,7 @@ export function HierarchyProvider({ children }) {
   const [hierarchy, setHierarchy] = useState([
     {
       id: 1,
-      label: "Centro Escolar University Manila",
+      label: "Default Domain",
       type: "domain",
       children: [],
     },

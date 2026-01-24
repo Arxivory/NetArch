@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader";
 import { OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
 import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader";
+import { PointerLockControls } from "three/examples/jsm/Addons.js";
 
 export function initRenderer(canvas) {
     simple3D(canvas);
@@ -16,6 +17,12 @@ function simple3D(canvas) {
   let textureLoader;
   let scene, camera, renderer, controls;
   let width, height;
+  let moveForward = false;
+  let moveBackward = false;
+  let moveLeft = false;
+  let moveRight = false;
+  let velocity = new THREE.Vector3();
+  let direction = new THREE.Vector3();
 
   function init() {
     scene = new THREE.Scene();
@@ -24,7 +31,7 @@ function simple3D(canvas) {
     width = rect.width || window.innerWidth;
     height = rect.height || window.innerHeight;
 
-    camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 2000);
+    camera = new THREE.PerspectiveCamera(65, width / height, 0.1, 2000);
     camera.position.set(0, 2, 8);
 
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -34,9 +41,12 @@ function simple3D(canvas) {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.07;
+    controls = new PointerLockControls(camera, document.body);
+    //scene.add(controls.getObject());
+
+    canvas.addEventListener('click', () => {
+      controls.lock();
+    });
 
     // Lights
     const dir = new THREE.DirectionalLight(0xffffff, 0.9);
@@ -360,6 +370,28 @@ function simple3D(canvas) {
   window.addEventListener('pointerup', onPointerUp);
   canvas.addEventListener('dblclick', onSelectObject); // double-click to select (you can use click instead)
 
+  function onKeyDown(event) {
+      switch (event.code) {
+          case "KeyW": moveForward = true; break;
+          case "KeyS": moveBackward = true; break;
+          case "KeyA": moveLeft = true; break;
+          case "KeyD": moveRight = true; break;
+      }
+  }
+
+  function onKeyUp(event) {
+      switch (event.code) {
+          case "KeyW": moveForward = false; break;
+          case "KeyS": moveBackward = false; break;
+          case "KeyA": moveLeft = false; break;
+          case "KeyD": moveRight = false; break;
+      }
+  }
+
+  document.addEventListener("keydown", onKeyDown);
+  document.addEventListener("keyup", onKeyUp);
+
+
   init();
 
   roomSetup();
@@ -379,9 +411,41 @@ function simple3D(canvas) {
   loadMaterial('materials/Rack.mtl', 'objects/Rack.obj', 'Rack');
 
   function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+
+      if (controls.isLocked) {
+          const speed = 5.0; // movement speed
+          const delta = 0.05;
+
+          // Get camera's forward, right, and up vectors in world space
+          const forward = new THREE.Vector3();
+          camera.getWorldDirection(forward);
+          // forward points in the direction the camera is looking
+
+          // Right vector (perpendicular to forward, in world horizontal plane for strafing)
+          const right = new THREE.Vector3();
+          camera.getWorldDirection(right);
+          right.y = 0; // project to horizontal plane for strafe
+          right.normalize();
+          right.cross(camera.up).negate(); // get perpendicular
+
+          // Use camera's actual up (usually (0,1,0) unless camera is rotated)
+          const up = camera.up.clone();
+
+          // Build movement vector in world space
+          let movement = new THREE.Vector3();
+
+          if (moveForward) movement.addScaledVector(forward, speed * delta);
+          if (moveBackward) movement.addScaledVector(forward, -speed * delta);
+          if (moveLeft) movement.addScaledVector(right, speed * delta);
+          if (moveRight) movement.addScaledVector(right, -speed * delta);
+
+          // Apply movement directly to camera position
+          camera.position.add(movement);
+      }
+
+      renderer.render(scene, camera);
   }
+
   animate();
 }

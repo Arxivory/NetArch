@@ -56,7 +56,6 @@ export default function Toolbar({ logicalCanvasRef }) {
 
   return (
     <div className="toolbar flex items-end gap-6 px-3 py-2 border-b border-gray-300 bg-white text-xs">
-      {/* Files group */}
       <div className="flex flex-col items-center justify-end">
         <div className="flex items-center gap-2">
           <button className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1">
@@ -74,7 +73,6 @@ export default function Toolbar({ logicalCanvasRef }) {
 
       <div className="border-l border-gray-300 h-10 my-auto" />
 
-      {/* Controls group */}
       <div className="flex flex-col items-center justify-end">
         <div className="flex items-center gap-2">
           <button
@@ -98,19 +96,9 @@ export default function Toolbar({ logicalCanvasRef }) {
 
       <div className="border-l border-gray-300 h-10 my-auto" />
 
-      {/* ============================================================
-        UPDATED SECTION: Structure group
-        ============================================================
-        
-        This now uses your <StructuralOption> component, which
-        will render the horizontal button with the dropdown.
-      */}
       <div className="flex flex-col items-center justify-end">
         <div className="flex items-center gap-2">
-          {/*
-            The <StructuralOption> component's button now has h-8,
-            so it no longer needs a wrapper.
-          */}
+      
           <StructuralOption
             label="Domain"
             icon={Mountain}
@@ -138,20 +126,14 @@ export default function Toolbar({ logicalCanvasRef }) {
         </div>
         <span className="text-[10px] text-gray-500 mt-1">Structure</span>
       </div>
-      {/* ========================================================== */}
-
-
       <div className="border-l border-gray-300 h-10 my-auto" />
 
-      {/* Fenestration group */}
       <div className="flex flex-col items-center justify-end">
         <div className="flex items-center gap-2">
           <button
             onClick={handleDrawWall}
             className={`px-2 py-1 h-8 rounded flex items-center gap-1 ${
               drawingMode === "wall"
-                ? "bg-gray-100"
-                : "hover:bg-gray-100"
             }`}
           >
             <RectangleHorizontal size={16} /> Wall
@@ -168,17 +150,7 @@ export default function Toolbar({ logicalCanvasRef }) {
         </div>
         <span className="text-[10px] text-gray-500 mt-1">Fenestration</span>
       </div>
-
-      <button 
-        onClick={handleDrawWall}
-        className={`px-2 py-1 rounded flex items-center gap-1 ${
-          drawingMode === 'wall' 
-            ? 'bg-gray-100' 
-            : 'hover:bg-gray-100'
-        }`}
-      ></button>
-
-      {/* Simulate group (with previous fix) */}
+      
       <div className="flex flex-col items-center justify-end ml-auto">
         <button className="simulate-btn bg-blue-600 text-white px-3 py-1 rounded flex items-center gap-1 h-8">
           <Play size={16} /> Simulate

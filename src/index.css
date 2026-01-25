@@ -61,26 +61,19 @@ body, html, #root {
   display: flex;
   align-items: center;
   gap: 4px;
-  transition: background 0.15s, border 0.15s;
-}
-.toolbar button:hover {
-  background: #f3f3f3;
-  border: 1px solid #d1d1d1;
-  color: #111;
-  font-weight: 600;
+  transition: all 0.15s ease;
 }
 
-.toolbar button:is-active {
+.toolbar button:not(.active):hover {
   background: #f3f3f3;
   border: 1px solid #d1d1d1;
   color: #111;
-  font-weight: 600;
 }
 
-.toolbar button:active {
-  background: #f3f3f3;
-  border: 1px solid #d1d1d1;
-  color: #111;
+.toolbar button.active {
+  background-color: #e5e7eb ; 
+  border: 1px solid #9ca3af ;
+  color: #000;
   font-weight: 600;
 }
 

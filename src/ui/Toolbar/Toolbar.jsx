@@ -21,7 +21,8 @@ import StructuralOption from "./StructuralOption";
 
 export default function Toolbar({ logicalCanvasRef }) {
   const { addNode } = useHierarchy();
-  const [drawingMode, setDrawingMode] = useState(null);
+  const [drawingMode, setDrawingMode] = useState("select");
+  const isActive = (mode) => drawingMode === mode;
 
   const handleShapeSelect = (type, shape) => {
     addNode(1, type.toLowerCase(), `New ${type}`);
@@ -48,10 +49,14 @@ export default function Toolbar({ logicalCanvasRef }) {
   };
 
   const handleSelect = () => {
-    if (logicalCanvasRef && logicalCanvasRef.current) {
+    if (logicalCanvasRef?.current) {
       logicalCanvasRef.current.cancelDrawing();
     }
-    setDrawingMode(null);
+    setDrawingMode("select");
+  };
+
+  const handlePan = () => {
+    setDrawingMode("pan");
   };
 
   return (
@@ -77,11 +82,14 @@ export default function Toolbar({ logicalCanvasRef }) {
         <div className="flex items-center gap-2">
           <button
             onClick={handleSelect}
-            className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1"
+            className={`px-2 py-1 h-8 flex items-center rounded gap-1 ${isActive("select") ? "active" : "hover:bg-gray-100"}`}
           >
             <MousePointer size={16} /> Select
           </button>
-          <button className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1">
+          <button 
+            onClick={handlePan}
+            className={`px-2 py-1 h-8 flex items-center rounded gap-1 ${isActive("pan") ? "active" : "hover:bg-gray-100"}`}
+          >
             <Hand size={16} /> Pan
           </button>
           <button className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1">
@@ -98,53 +106,66 @@ export default function Toolbar({ logicalCanvasRef }) {
 
       <div className="flex flex-col items-center justify-end">
         <div className="flex items-center gap-2">
-      
           <StructuralOption
             label="Domain"
             icon={Mountain}
+            isActive={isActive("domain")} 
             onSelectShape={(shape) => {
-              handleRectangleSelect(shape);
-              handleShapeSelect("Domain");
-            }}
+                handleRectangleSelect(shape);
+                handleShapeSelect("Domain");
+                setDrawingMode("domain"); 
+             }}
           />
           <StructuralOption
             label="Site"
             icon={Building}
+            isActive={isActive("site")}
             onSelectShape={(shape) => {
               handleRectangleSelect(shape);
               handleShapeSelect("Site");
+              setDrawingMode("site");
             }}
           />
           <StructuralOption
             label="Space"
             icon={Grid}
+            isActive={isActive("space")}
             onSelectShape={(shape) => {
               handleRectangleSelect(shape);
               handleShapeSelect("Space");
+              setDrawingMode("space");
             }}
           />
         </div>
         <span className="text-[10px] text-gray-500 mt-1">Structure</span>
       </div>
+
       <div className="border-l border-gray-300 h-10 my-auto" />
 
       <div className="flex flex-col items-center justify-end">
         <div className="flex items-center gap-2">
           <button
             onClick={handleDrawWall}
-            className={`px-2 py-1 h-8 rounded flex items-center gap-1 ${
-              drawingMode === "wall"
-            }`}
+            className={`px-2 py-1 h-8 rounded flex items-center gap-1 ${isActive("wall") ? "active" : "hover:bg-gray-100"}`}
           >
             <RectangleHorizontal size={16} /> Wall
           </button>
-          <button className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1">
+          <button 
+            onClick={() => setDrawingMode("roof")}
+            className={`px-2 py-1 h-8 rounded flex items-center gap-1 ${isActive("roof") ? "active" : "hover:bg-gray-100"}`}
+          >
             <House size={16} /> Roof
           </button>
-          <button className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1">
+          <button 
+            onClick={() => setDrawingMode("door")}
+            className={`px-2 py-1 h-8 rounded flex items-center gap-1 ${isActive("door") ? "active" : "hover:bg-gray-100"}`}
+          >
             <DoorOpen size={16} /> Door
           </button>
-          <button className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1">
+          <button 
+            onClick={() => setDrawingMode("window")}
+            className={`px-2 py-1 h-8 rounded flex items-center gap-1 ${isActive("window") ? "active" : "hover:bg-gray-100"}`}
+          >
             <Square size={16} /> Window
           </button>
         </div>
@@ -155,9 +176,7 @@ export default function Toolbar({ logicalCanvasRef }) {
         <button className="simulate-btn bg-blue-600 text-white px-3 py-1 rounded flex items-center gap-1 h-8">
           <Play size={16} /> Simulate
         </button>
-        <span className="text-[10px] text-gray-500 mt-1 invisible">
-          Simulate
-        </span>
+        <span className="text-[10px] text-gray-500 mt-1 invisible">Simulate</span>
       </div>
     </div>
   );

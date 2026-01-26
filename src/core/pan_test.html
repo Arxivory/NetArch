@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Pan testing</title>
+</head>
+
+<body>
+    <script type="module">
+        import LogicalCanvas from './LogicalCanvas.js';
+        const canvas = new LogicalCanvas({
+            width: 800,
+            height: 600,
+            container: document.body,
+            onRoomCreated(room) {
+                console.log('Room created:', room);
+            }
+        });
+        console.log(canvas);
+        window.addEventListener('keydown', (e) => {
+            if (e.key === '1') {
+                console.log("1. " + canvas.startDrawRoom)
+                canvas.startDrawRoom();
+            }
+            if (e.key === '2') {
+                canvas.startGrab(); 
+            }
+            if (e.key === 'Escape') {
+                canvas.cancelDrawing();
+            }
+        });
+        window.canvas = canvas;
+    </script>
+</body>
+
+</html>

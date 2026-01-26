@@ -1,3 +1,5 @@
+//import { SAOShader } from "three/examples/jsm/Addons.js";
+
 export class LogicalCanvas {
   constructor(opts = {}) {
     this.container = opts.container || document.body;
@@ -5,7 +7,7 @@ export class LogicalCanvas {
     this.height = opts.height || 600;
     this.gridSize = opts.gridSize || 32;
     this.snap = opts.snap ?? true;
-    this.snapTolerance = opts.snapTolerance || 8; 
+    this.snapTolerance = opts.snapTolerance || 8;
     this.bgColor = opts.bgColor || '#ffffffff';
     this.gridColor = opts.gridColor || '#818181ff';
     this.gridMajorColor = opts.gridMajorColor || '#6b6b6bff';
@@ -21,12 +23,12 @@ export class LogicalCanvas {
 
     this.rooms = [];
     this.walls = [];
-  this.circles = [];
+    this.circles = [];
 
-    this.onRoomCreated = opts.onRoomCreated || function () {};
-    this.onWallCreated = opts.onWallCreated || function () {};
-  this.onCircleCreated = opts.onCircleCreated || function () {};
-
+    this.onRoomCreated = opts.onRoomCreated || function () { };
+    this.onWallCreated = opts.onWallCreated || function () { };
+    this.onCircleCreated = opts.onCircleCreated || function () { };
+    //'this' is now LogicalCanvas
     this._pointerMoveHandler = this._onPointerMove.bind(this);
     this._pointerDownHandler = this._onPointerDown.bind(this);
     this._pointerUpHandler = this._onPointerUp.bind(this);
@@ -48,12 +50,12 @@ export class LogicalCanvas {
 
     this.container.appendChild(c);
 
-    c.addEventListener('pointerdown', this._pointerDownHandler);
+    c.addEventListener('pointerdown', this._pointerDownHandler); //
     window.addEventListener('pointermove', this._pointerMoveHandler);
     window.addEventListener('pointerup', this._pointerUpHandler);
   }
 
-  destroy() {
+  destroy() { //unused
     if (!this.canvas) return;
     this.canvas.removeEventListener('pointerdown', this._pointerDownHandler);
     window.removeEventListener('pointermove', this._pointerMoveHandler);
@@ -106,6 +108,12 @@ export class LogicalCanvas {
     this._updateCursor();
   }
 
+  startGrab() {
+    this.mode = 'pan';
+    this._updateCursor();
+  }
+
+
   cancelDrawing() {
     this.mode = 'none';
     this.isPointerDown = false;
@@ -119,6 +127,8 @@ export class LogicalCanvas {
     if (!this.canvas) return;
     if (this.mode === 'room' || this.mode === 'wall' || this.mode === 'circle') {
       this.canvas.style.cursor = 'crosshair';
+    } else if (this.mode === 'pan') {
+      this.canvas.style.cursor = 'grab';
     } else {
       this.canvas.style.cursor = 'default';
     }
@@ -128,14 +138,14 @@ export class LogicalCanvas {
     return this.canvas.getBoundingClientRect();
   }
 
-  _clientToCanvas(clientX, clientY) {
+  _clientToCanvas(clientX, clientY) { //pointer coordinates in viewport
     const rect = this._canvasRect();
     const x = (clientX - rect.left) * (this.canvas.width / rect.width) / this.devicePixelRatio;
     const y = (clientY - rect.top) * (this.canvas.height / rect.height) / this.devicePixelRatio;
     return { x, y };
   }
 
-  _snapToGrid(pt) {
+  _snapToGrid(pt) { //returns coordinates of nearest grid intersection to the cursor
     if (!this.snap) return pt;
     const gx = Math.round(pt.x / this.gridSize) * this.gridSize;
     const gy = Math.round(pt.y / this.gridSize) * this.gridSize;
@@ -154,10 +164,10 @@ export class LogicalCanvas {
 
   _onPointerMove(e) {
     if (!this.canvas) return;
-    const p = this._clientToCanvas(e.clientX, e.clientY);
+    const p = this._clientToCanvas(e.clientX, e.clientY); //returns cursor coordinates relative to canvas
     const snapped = this._snapToGrid(p);
     this.currentPoint = snapped;
-    if (this.isPointerDown && this.mode !== 'none') {
+    if (this.isPointerDown && this.mode !== 'none') { //renders while drawing
       this._render();
     }
   }
@@ -223,17 +233,18 @@ export class LogicalCanvas {
     const w = this.width;
     const h = this.height;
 
-    ctx.save();
+    ctx.save(); //saves state into a stack
+    //default and clear
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width / this.devicePixelRatio, this.canvas.height / this.devicePixelRatio);
-    ctx.restore();
+    ctx.restore(); //pop state
 
     ctx.fillStyle = this.bgColor;
     ctx.fillRect(0, 0, w, h);
-
+    //making the minor grids
     ctx.beginPath();
     ctx.strokeStyle = this.gridColor;
-    ctx.globalAlpha = this.gridMinorAlpha;
+    ctx.globalAlpha = this.gridMinorAlpha; //transparency value
     for (let x = 0; x <= w; x += this.gridSize) {
       ctx.moveTo(x + 0.5, 0);
       ctx.lineTo(x + 0.5, h);
@@ -243,8 +254,8 @@ export class LogicalCanvas {
       ctx.lineTo(w, y + 0.5);
     }
     ctx.stroke();
+    //making the major grids
     ctx.globalAlpha = 1;
-
     ctx.beginPath();
     ctx.strokeStyle = this.gridMajorColor;
     for (let x = 0; x <= w; x += this.gridSize * 4) {
@@ -256,7 +267,7 @@ export class LogicalCanvas {
       ctx.lineTo(w, y + 0.5);
     }
     ctx.stroke();
-
+    //render rooms
     for (const r of this.rooms) {
       ctx.fillStyle = 'rgba(174, 174, 174, 0.5)';
       ctx.fillRect(r.x, r.y, r.w, r.h);
@@ -264,7 +275,7 @@ export class LogicalCanvas {
       ctx.lineWidth = 2;
       ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w, r.h);
     }
-
+    //render walls
     ctx.strokeStyle = '#000000ff';
     ctx.lineWidth = 2;
     for (const wline of this.walls) {
@@ -279,6 +290,7 @@ export class LogicalCanvas {
       ctx.strokeStyle = '#00ff00';
       ctx.fillStyle = 'rgba(0,255,0,0.08)';
       ctx.lineWidth = 1.5;
+      //draw modes
       if (this.mode === 'room') {
         const x = Math.min(this.startPoint.x, this.currentPoint.x);
         const y = Math.min(this.startPoint.y, this.currentPoint.y);

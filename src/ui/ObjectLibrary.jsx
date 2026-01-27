@@ -44,10 +44,10 @@ export default function ObjectLibrary({ logicalCanvasRef }) {
   }
 
   const onDragStart = (event, nodeType, label) => {
-    // We create a data object to identify what is being dragged
+    
     const data = { type: nodeType, label: label };
     
-    // We attach this data to the drag event so the canvas can read it later
+    
     event.dataTransfer.setData("application/reactflow", JSON.stringify(data));
     event.dataTransfer.effectAllowed = "move";
   };
@@ -55,12 +55,12 @@ export default function ObjectLibrary({ logicalCanvasRef }) {
   return (
     <div className="object-library">
       
-      {/* --- NEW HEADER SECTION --- */}
+      
       <div className="flex items-center justify-between mb-2">
-        {/* Title */}
+        
         <h3 className="panel-header mb-0">Object Library</h3>
         
-        {/* Import Button */}
+        
         <button 
           className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors border border-gray-200"
           onClick={() => console.log("Import clicked")}
@@ -69,11 +69,11 @@ export default function ObjectLibrary({ logicalCanvasRef }) {
           Import
         </button>
       </div>
-      {/* -------------------------- */}
+      
 
       <hr className="header-separator" />
 
-      {/* Loop over the categories */}
+      
       {categories.map((cat) => {
         const { name, icon: IconComponent } = categoryDetails[cat];
 
@@ -91,12 +91,12 @@ export default function ObjectLibrary({ logicalCanvasRef }) {
                       onClick={handleDrawCable}
                     >
                       <div className="device-icon mb-1">
-                        {/* Use the dynamic icon */}
+                        
                         <IconComponent size={32} />
                       </div>
 
                       <p className="device-type">
-                        {/* Use the dynamic name */}
+                       
                         {name}
                       </p>
                     </div>
@@ -114,20 +114,20 @@ export default function ObjectLibrary({ logicalCanvasRef }) {
                   .map((_, i) => (
                     <div
                       key={i}
-                      // 2. NEW: Enable dragging on this specific tile
+                     
                       draggable
-                      // 3. NEW: Connect the drag event to our function
+                      
                       onDragStart={(event) => onDragStart(event, cat, name)}
-                      // 4. NEW: Add cursor styles so the user knows it's grabbable
+                      
                       className="device-tile cursor-grab active:cursor-grabbing"
                     >
                       <div className="device-icon mb-1">
-                        {/* Use the dynamic icon */}
+                        
                         <IconComponent size={32} />
                       </div>
 
                       <p className="device-type">
-                        {/* Use the dynamic name */}
+                       
                         {name}
                       </p>
                     </div>

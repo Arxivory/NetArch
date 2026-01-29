@@ -17,18 +17,21 @@
                 console.log('Room created:', room);
             }
         });
-        console.log(canvas);
+
         window.addEventListener('keydown', (e) => {
             if (e.key === '1') {
-                console.log("1. " + canvas.startDrawRoom)
                 canvas.startDrawRoom();
             }
             if (e.key === '2') {
-                canvas.startGrab(); 
+                canvas.startPan();
             }
             if (e.key === 'Escape') {
                 canvas.cancelDrawing();
             }
+            if (e.key === '3') {
+                i++;
+            }
+
         });
         window.canvas = canvas;
     </script>

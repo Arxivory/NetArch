@@ -38,10 +38,9 @@ export class LogicalCanvas {
     this.windows = [];
 
     this.panStart = {
-      x: 0,
-      y: 0
+      e: 0,
+      f: 0
     }
-
 
     this.onRoomCreated = opts.onRoomCreated || function () { };
     this.onWallCreated = opts.onWallCreated || function () { };
@@ -65,7 +64,6 @@ export class LogicalCanvas {
     this.canvas = c;
     this.ctx = c.getContext('2d');
     this.ctx.scale(this.devicePixelRatio, this.devicePixelRatio);
-
     this.container.appendChild(c);
     c.addEventListener('pointerdown', this._pointerDownHandler);
     window.addEventListener('pointermove', this._pointerMoveHandler);
@@ -208,12 +206,15 @@ export class LogicalCanvas {
     return this.canvas.getBoundingClientRect();
   }
 
-  _clientToCanvas(clientX, clientY) { //pointer coordinates in viewport
+  _clientToWorld(clientX, clientY) {  //renamed from _clientToCanvas
     const rect = this._canvasRect();
-    const x = (clientX - rect.left) * (this.canvas.width / rect.width) / this.devicePixelRatio;
-    const y = (clientY - rect.top) * (this.canvas.height / rect.height) / this.devicePixelRatio;
+    let x = clientX - rect.left;
+    let y = clientY - rect.top;
+    //adjust coordinates after panning/view change
+    x -= this.viewState.e;
+    y -= this.viewState.f;
     return { x, y };
-  } 
+  }
 
   _snapToGrid(pt) { //returns coordinates of nearest grid intersection to the cursor
     if (!this.snap) return pt;
@@ -224,12 +225,15 @@ export class LogicalCanvas {
 
   _onPointerDown(e) {
     if (this.mode === 'none') return;
-    if (this.mode === 'pan') { //doesnt pass after switch 
+    if (this.mode === 'pan') {
       this.canvas.style.cursor = 'grabbing';
-      this.panStart = this._clientToCanvas(e.clientX, e.clientY);
+      this.panStart = {
+        e: e.clientX,
+        f: e.clientY
+      }
     }
     this.isPointerDown = true;
-    const p = this._clientToCanvas(e.clientX, e.clientY);
+    const p = this._clientToWorld(e.clientX, e.clientY);
     const snapped = this._snapToGrid(p);
     this.startPoint = snapped;
     this.currentPoint = snapped;
@@ -238,13 +242,12 @@ export class LogicalCanvas {
 
   _onPointerMove(e) {
     if (!this.canvas) return;
-    const p = this._clientToCanvas(e.clientX, e.clientY); //returns cursor coordinates relative to canvas
+    const p = this._clientToWorld(e.clientX, e.clientY);
     const snapped = this._snapToGrid(p);
     this.currentPoint = snapped;
-    if (this.isPointerDown && this.mode !== 'none') { //renders while drawing
+    if (this.isPointerDown && this.mode !== 'none') { 
       if (this.mode === 'pan') {
         this.pan(e.clientX, e.clientY);
-
       }
       this._render();
     }
@@ -288,7 +291,6 @@ export class LogicalCanvas {
 
   _render() {
     if (!this.ctx) return;
-    console.log(`E: ${this.viewState.e}, F: ${this.viewState.f}`);
     const ctx = this.ctx;
     const w = this.width;
     const h = this.height;
@@ -296,23 +298,23 @@ export class LogicalCanvas {
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    //apply pixel ratio and pan
-    ctx.restore(); //pop state
-    //1.25
-    ctx.save(); //this pair to return to original view after panning
-    if (this.mode === 'pan') {
-      ctx.translate(this.viewState.e, this.viewState.f);
-    }
-    console.log("Current transform " + ctx.getTransform()); //a
 
-    ctx.fillStyle = "#8c2849";           //this.bgColor;
+    ctx.restore();
+    ctx.setTransform( //apply view change from panning
+      this.devicePixelRatio,
+      0,
+      0,
+      this.devicePixelRatio,
+      this.viewState.e * this.devicePixelRatio,
+      this.viewState.f * this.devicePixelRatio
+    );
+    ctx.fillStyle = this.bgColor;
     ctx.fillRect(0, 0, w, h);
     this.makeMinorGrids();
     this.makeMajorGrids();
     this.renderRooms(); //should be renderRectangles()
     this.renderCircles();
     this.renderWalls();
-    //ctx.restore()
     if (this.startPoint && this.currentPoint) {
       ctx.save();
       ctx.strokeStyle = '#00ff00';
@@ -467,15 +469,16 @@ export class LogicalCanvas {
   }
 
   pan(clientX, clientY) {
-    const p = this._clientToCanvas(clientX, clientY);
-
-    const dx = p.x - this.panStart.x; // current coordinates - start coordinates from mouse down = delta
-    const dy = p.y - this.panStart.y;
-
-    this.viewState.e = dx;
-    this.viewState.f = dy;
-
-    this.panStart = p;
+    // current coordinates - start coordinates from mouse down
+    const dx = clientX - this.panStart.e; 
+    const dy = clientY - this.panStart.f;
+    //accumulate delta
+    this.viewState.e += dx;
+    this.viewState.f += dy;
+    this.panStart = {
+      e: clientX,
+      f: clientY
+    };
   }
 
   makeMinorGrids() {
@@ -515,7 +518,6 @@ export class LogicalCanvas {
       this.ctx.strokeStyle = '#000000ff';
       this.ctx.lineWidth = 2;
       this.ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w, r.h);
-      //console.log(`x: ${r.x + 0.5} y: ${r.y + 0.5} w: ${r.w} h: ${r.h }`);
     }
 
   }

@@ -144,12 +144,18 @@ export class LogicalCanvas {
     this._updateCursor();
   }
 
-  startDrawPolygon(structureType) {
+    startDrawPolygon() { //to be replaced with the method below
     this.mode = 'polygon';
     this.currentPolygon = [];
-    this.structureType = structureType;
     this._updateCursor();
   }
+
+  // startDrawPolygon(structureType) {
+  //   this.mode = 'polygon';
+  //   this.currentPolygon = [];
+  //   this.structureType = structureType;
+  //   this._updateCursor();
+  // }
 
   startDrawFreeform(structureType) {
     this.mode = 'freeform';
@@ -362,6 +368,9 @@ export class LogicalCanvas {
     else if (this.mode === 'wall') {
       this.createWall();
     }
+    else if (this.mode === 'cable'){
+      this.createCable();
+    }
 
     this.startPoint = null;
     this.currentPoint = null;
@@ -398,8 +407,11 @@ export class LogicalCanvas {
     this.makeMinorGrids();
     this.makeMajorGrids();
     this.renderRooms(); //should be renderRectangles()
+    this.renderPolygons();
     this.renderCircles();
     this.renderWalls();
+    this.renderDevices();
+    this.renderCable(); 
 
     if (this.startPoint && this.currentPoint) {
       ctx.save();
@@ -415,7 +427,7 @@ export class LogicalCanvas {
       else if (this.mode === 'circle') {
         this.outlineCircle();
       }
-      else if (this.mode === 'freefrom') {
+      else if (this.mode === 'freeform') {
         this.outlineFreeform();
       }
       else if (this.mode === 'wall') {
@@ -429,6 +441,9 @@ export class LogicalCanvas {
       }
       else if (this.mode === 'window') {
         this.outlineWindow();
+      }
+      else if (this.mode === 'cable') {
+        this.outlineCable();
       }
       ctx.restore();
 
@@ -464,7 +479,7 @@ export class LogicalCanvas {
 
         ctx.restore();
       }
-      this.renderDevices(); //move up?
+
     }
   }
 
@@ -634,13 +649,13 @@ export class LogicalCanvas {
       this.ctx.strokeStyle = this.gridColor;
       this.ctx.globalAlpha = this.gridMinorAlpha;
       this.ctx.lineWidth = 1;
-      for (let x = 0; x <= this.w; x += this.gridSize) {
+      for (let x = 0; x <= this.width; x += this.gridSize) {
         this.ctx.moveTo(x + 0.5, 0);
-        this.ctx.lineTo(x + 0.5, this.h);
+        this.ctx.lineTo(x + 0.5, this.height);
       }
-      for (let y = 0; y <= this.h; y += this.gridSize) {
+      for (let y = 0; y <= this.height; y += this.gridSize) {
         this.ctx.moveTo(0, y + 0.5);
-        this.ctx.lineTo(this.w, y + 0.5);
+        this.ctx.lineTo(this.width, y + 0.5);
       }
       this.ctx.stroke();
       this.ctx.restore();
@@ -651,13 +666,13 @@ export class LogicalCanvas {
       this.ctx.beginPath();
       this.ctx.strokeStyle = this.gridMajorColor;
       this.ctx.lineWidth = 1;
-      for (let x = 0; x <= this.w; x += this.gridSize * 4) {
+      for (let x = 0; x <= this.width; x += this.gridSize * 4) {
         this.ctx.moveTo(x + 0.5, 0);
-        this.ctx.lineTo(x + 0.5, this.h);
+        this.ctx.lineTo(x + 0.5, this.height);
       }
-      for (let y = 0; y <= this.h; y += this.gridSize * 4) {
+      for (let y = 0; y <= this.height; y += this.gridSize * 4) {
         this.ctx.moveTo(0, y + 0.5);
-        this.ctx.lineTo(this.w, y + 0.5);
+        this.ctx.lineTo(this.width, y + 0.5);
       }
       this.ctx.stroke();
       this.ctx.restore();
@@ -739,6 +754,7 @@ export class LogicalCanvas {
     }
 
     renderDevices(){  // NEW: Render Devices
+      this.ctx.save();
       this.ctx.strokeStyle = '#000000ff';
       this.ctx.fillStyle = 'rgba(0, 0, 0, 1)';
       this.ctx.lineWidth = 1;
@@ -759,6 +775,7 @@ export class LogicalCanvas {
         this.ctx.textAlign = 'center';
         this.ctx.fillText(dev.label, dev.x, dev.y + halfSize + 14);
       }
+      this.ctx.restore();
     }
 
   }

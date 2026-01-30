@@ -27,6 +27,7 @@ export class LogicalCanvas {
     //structures
     this.rectangles = [];
     this.polygons = [];
+    this.currentPolygon = [];
     this.freeforms = [];
     this.circles = [];
     this.structureType = '';
@@ -37,14 +38,28 @@ export class LogicalCanvas {
     this.doors = [];
     this.windows = [];
 
+    //controls
     this.panStart = {
       e: 0,
       f: 0
     }
 
-    this.onRoomCreated = opts.onRoomCreated || function () { };
-    this.onWallCreated = opts.onWallCreated || function () { };
+    //objects
+    this.devices = [];
+    this.cables = [];
+
+    // NEW: Device/Object handling
+    this.onRoomCreated = opts.onRoomCreated || function () { }; //pls rename to onRectangleCreated
+    this.onPolygonCreated = opts.onPolygonCreated || function () { };
     this.onCircleCreated = opts.onCircleCreated || function () { };
+
+    this.onWallCreated = opts.onWallCreated || function () { };
+
+    this.onDeviceAdded = opts.onDeviceAdded || function () { };
+    this.onCableCreated = opts.onCableCreated || function () { };
+
+
+
     //'this' is now LogicalCanvas
     this._pointerMoveHandler = this._onPointerMove.bind(this);
     this._pointerDownHandler = this._onPointerDown.bind(this);
@@ -53,6 +68,7 @@ export class LogicalCanvas {
     this._initCanvas();
     this._render();
   }
+
 
   _initCanvas() {
     const c = document.createElement('canvas');
@@ -110,6 +126,8 @@ export class LogicalCanvas {
     this.roofs = [];
     this.doors = [];
     this.windows = [];
+    this.devices = []; // NEW: Clear devices
+    this.cables = [];
     this._render();
   }
 
@@ -128,6 +146,7 @@ export class LogicalCanvas {
 
   startDrawPolygon(structureType) {
     this.mode = 'polygon';
+    this.currentPolygon = [];
     this.structureType = structureType;
     this._updateCursor();
   }
@@ -179,6 +198,29 @@ export class LogicalCanvas {
     this._updateCursor();
   }
 
+  //Objects
+
+  startDrawCable() {
+    this.mode = 'cable';
+    this._updateCursor();
+  }
+
+
+
+
+  // NEW: Method to add a device
+  addDevice(deviceData, x, y) {
+    const device = {
+      id: this._genId('device'),
+      type: deviceData.type,
+      label: deviceData.label,
+      x: x,
+      y: y
+    };
+    this.devices.push(device);
+    this.onDeviceAdded(device);
+    this._render();
+  }
 
   cancelDrawing() {
     this.mode = 'none';
@@ -191,7 +233,7 @@ export class LogicalCanvas {
 
   _updateCursor() {
     if (!this.canvas) return;
-    if (this.mode === 'room' || this.mode === 'wall' || this.mode === 'circle') {
+    if (this.mode === 'room' || this.mode === 'wall' || this.mode === 'circle' || this.mode === 'polygon' || this.mode === 'cable') {
       this.canvas.style.cursor = 'crosshair';
     }
     else if (this.mode === 'pan') {
@@ -223,6 +265,12 @@ export class LogicalCanvas {
     return { x: gx, y: gy };
   }
 
+  // NEW: Public utility method for drop handler in React component
+  getSnappedCanvasCoords(clientX, clientY) {
+    const canvasPoint = this._clientToWorld(clientX, clientY); //changed 
+    return this._snapToGrid(canvasPoint);
+  }
+
   _onPointerDown(e) {
     if (this.mode === 'none') return;
     if (this.mode === 'pan') {
@@ -232,20 +280,54 @@ export class LogicalCanvas {
         f: e.clientY
       }
     }
-    this.isPointerDown = true;
     const p = this._clientToWorld(e.clientX, e.clientY);
     const snapped = this._snapToGrid(p);
+    if (this.mode === 'polygon') { // ?
+      if (this.currentPolygon.length === 0) {
+        this.currentPolygon.push(snapped);
+      }
+      else {
+        const first = this.currentPolygon[0];
+        const dist = Math.hypot(snapped.x - first.x, snapped.y - first.y);
+
+        if (dist <= this.snapTolerance * 1.5 && this.currentPolygon.length >= 3) {
+          const polygon = {
+            id: this._genId("poly"),
+            points: [...this.currentPolygon]
+          };
+          this.polygons.push(polygon);
+          this.onPolygonCreated(polygon);
+
+          this.currentPolygon = [];
+          this.mode = 'none';
+          this._updateCursor();
+          this._render();
+          return;
+        }
+        this.currentPolygon.push(snapped);
+      }
+      this._render();
+      return;
+    }
+
+    this.isPointerDown = true;
     this.startPoint = snapped;
     this.currentPoint = snapped;
     this._render();
   }
 
+
   _onPointerMove(e) {
     if (!this.canvas) return;
     const p = this._clientToWorld(e.clientX, e.clientY);
+    if (this.mode === 'polygon') {
+      this.currentPoint = this._snapToGrid(p);
+      this._render();
+      return;
+    }
     const snapped = this._snapToGrid(p);
     this.currentPoint = snapped;
-    if (this.isPointerDown && this.mode !== 'none') { 
+    if (this.isPointerDown && this.mode !== 'none') {
       if (this.mode === 'pan') {
         this.pan(e.clientX, e.clientY);
       }
@@ -264,6 +346,7 @@ export class LogicalCanvas {
       this.currentPoint = null;
       return;
     }
+
     if (this.mode === 'room') { //to be 'rectangle'
       this.createRectangle()
     }
@@ -284,6 +367,7 @@ export class LogicalCanvas {
     this.currentPoint = null;
     this._render();
   }
+
 
   _genId(prefix) {
     return `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
@@ -308,6 +392,7 @@ export class LogicalCanvas {
       this.viewState.e * this.devicePixelRatio,
       this.viewState.f * this.devicePixelRatio
     );
+
     ctx.fillStyle = this.bgColor;
     ctx.fillRect(0, 0, w, h);
     this.makeMinorGrids();
@@ -315,6 +400,7 @@ export class LogicalCanvas {
     this.renderRooms(); //should be renderRectangles()
     this.renderCircles();
     this.renderWalls();
+
     if (this.startPoint && this.currentPoint) {
       ctx.save();
       ctx.strokeStyle = '#00ff00';
@@ -345,8 +431,43 @@ export class LogicalCanvas {
         this.outlineWindow();
       }
       ctx.restore();
+
+      if (this.mode === 'polygon' && this.currentPolygon.length > 0 && this.currentPoint) {
+        ctx.save();
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 1.5;
+
+        const pts = this.currentPolygon;
+
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+
+        for (let i = 1; i < pts.length; i++) {
+          ctx.lineTo(pts[i].x, pts[i].y);
+        }
+
+        ctx.lineTo(this.currentPoint.x, this.currentPoint.y);
+        ctx.stroke();
+
+        const first = pts[0];
+        const dist = Math.hypot(
+          this.currentPoint.x - first.x,
+          this.currentPoint.y - first.y
+        );
+
+        if (dist < this.snapTolerance * 1.5) {
+          ctx.beginPath();
+          ctx.arc(first.x, first.y, 6, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(0,255,0,0.3)';
+          ctx.fill();
+        }
+
+        ctx.restore();
+      }
+      this.renderDevices(); //move up?
     }
   }
+
 
   createRectangle() {
     const x1 = this.startPoint.x;
@@ -367,203 +488,281 @@ export class LogicalCanvas {
       };
       this.rooms.push(room);
       this.onRoomCreated(room);
-    }
-  }
-
-  createPolygon() {
-
-  }
-
-  createCircle() {
-    const cx = this.startPoint.x;
-    const cy = this.startPoint.y;
-    const dx = this.currentPoint.x - cx;
-    const dy = this.currentPoint.y - cy;
-    const r = Math.hypot(dx, dy);
-    if (r > 2) {
-      const circle = {
-        id: this._genId(`Circle ${this.structureType}`),
-        x: cx,
-        y: cy,
-        r
-      };
-      this.circles.push(circle);
-      this.onCircleCreated(circle);
-    }
-  }
-
-  createFreeform() {
-
-  }
-
-  createWall() {
-    const x1 = this.startPoint.x;
-    const y1 = this.startPoint.y;
-    const x2 = this.currentPoint.x;
-    const y2 = this.currentPoint.y;
-    if (Math.hypot(x2 - x1, y2 - y1) > 2) {
-      const wall = { id: this._genId('wall'), x1, y1, x2, y2 };
-      this.walls.push(wall);
-      this.onWallCreated(wall);
-    }
-  }
-
-  createRoof() {
-
-  }
-
-  createDoor() {
-
-  }
-
-  createWindow() {
-
-  }
-
-  outlineRoom() { //to be renamed 'outlineRectangle'
-    const x = Math.min(this.startPoint.x, this.currentPoint.x);
-    const y = Math.min(this.startPoint.y, this.currentPoint.y);
-    const wRect = Math.abs(this.currentPoint.x - this.startPoint.x);
-    const hRect = Math.abs(this.currentPoint.y - this.startPoint.y);
-    this.ctx.fillRect(x, y, wRect, hRect);
-    this.ctx.strokeRect(x + 0.5, y + 0.5, wRect, hRect);
-  }
-
-  outlinePolygon() {
-
-  }
-
-  outlineCircle() {
-    const cx = this.startPoint.x;
-    const cy = this.startPoint.y;
-    const dx = this.currentPoint.x - cx;
-    const dy = this.currentPoint.y - cy;
-    const r = Math.hypot(dx, dy);
-    this.ctx.beginPath();
-    this.ctx.arc(cx + 0.5, cy + 0.5, r, 0, Math.PI * 2);
-    this.ctx.fill();
-    this.ctx.stroke();
-  }
-
-  outlineFreeform() {
-
-  }
-
-  outlineWall() {
-    this.ctx.beginPath();
-    this.ctx.moveTo(this.startPoint.x + 0.5, this.startPoint.y + 0.5);
-    this.ctx.lineTo(this.currentPoint.x + 0.5, this.currentPoint.y + 0.5);
-    this.ctx.stroke();
-  }
-
-  outlineRoof() {
-
-  }
-
-  outlineDoor() {
-
-  }
-
-  outlineWindow() {
-
-  }
-
-  pan(clientX, clientY) {
-    // current coordinates - start coordinates from mouse down
-    const dx = clientX - this.panStart.e; 
-    const dy = clientY - this.panStart.f;
-    //accumulate delta
-    this.viewState.e += dx;
-    this.viewState.f += dy;
-    this.panStart = {
-      e: clientX,
-      f: clientY
-    };
-  }
-
-  makeMinorGrids() {
-    this.ctx.beginPath();
-    this.ctx.strokeStyle = this.gridColor;
-    this.ctx.globalAlpha = this.gridMinorAlpha; //transparency value
-    for (let x = 0; x <= this.width; x += this.gridSize) {
-      this.ctx.moveTo(x + 0.5, 0);
-      this.ctx.lineTo(x + 0.5, this.height);
-    }
-    for (let y = 0; y <= this.height; y += this.gridSize) {
-      this.ctx.moveTo(0, y + 0.5);
-      this.ctx.lineTo(this.width, y + 0.5);
-    }
-    this.ctx.stroke();
-  }
-
-  makeMajorGrids() {
-    this.ctx.globalAlpha = 1;
-    this.ctx.beginPath();
-    this.ctx.strokeStyle = this.gridMajorColor;
-    for (let x = 0; x <= this.width; x += this.gridSize * 4) {
-      this.ctx.moveTo(x + 0.5, 0);
-      this.ctx.lineTo(x + 0.5, this.height);
-    }
-    for (let y = 0; y <= this.height; y += this.gridSize * 4) {
-      this.ctx.moveTo(0, y + 0.5);
-      this.ctx.lineTo(this.width, y + 0.5);
-    }
-    this.ctx.stroke();
-  }
-
-  renderRooms() { //to be renamed renderRectangles
-    for (const r of this.rooms) { //should be this.rectangles
-      this.ctx.fillStyle = 'rgba(174, 174, 174, 0.5)';
-      this.ctx.fillRect(r.x, r.y, r.w, r.h);
       this.ctx.strokeStyle = '#000000ff';
       this.ctx.lineWidth = 2;
-      this.ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w, r.h);
+      for (const c of this.circles) {
+        this.ctx.beginPath();
+        this.ctx.arc(c.x + 0.5, c.y + 0.5, c.r, 0, Math.PI * 2);
+        this.ctx.stroke();
+      }
+    }
+  }
+
+    createPolygon() {
+
     }
 
-  }
+    createCircle() {
+      const cx = this.startPoint.x;
+      const cy = this.startPoint.y;
+      const dx = this.currentPoint.x - cx;
+      const dy = this.currentPoint.y - cy;
+      const r = Math.hypot(dx, dy);
+      if (r > 2) {
+        const circle = {
+          id: this._genId(`Circle ${this.structureType}`),
+          x: cx,
+          y: cy,
+          r
+        };
+        this.circles.push(circle);
+        this.onCircleCreated(circle);
+      }
+    }
 
-  renderPolygons() {
+    createFreeform() {
 
-  }
+    }
 
-  renderCircles() {
-    this.ctx.strokeStyle = '#000000ff';
-    this.ctx.lineWidth = 2;
-    for (const c of this.circles) {
+    createWall() {
+      const x1 = this.startPoint.x;
+      const y1 = this.startPoint.y;
+      const x2 = this.currentPoint.x;
+      const y2 = this.currentPoint.y;
+      if (Math.hypot(x2 - x1, y2 - y1) > 2) {
+        const wall = { id: this._genId('wall'), x1, y1, x2, y2 };
+        this.walls.push(wall);
+        this.onWallCreated(wall);
+      }
+    }
+
+    createRoof() {
+
+    }
+
+    createDoor() {
+
+    }
+
+    createWindow() {
+
+    }
+
+    createCable(){
+      const x1 = this.startPoint.x;
+      const y1 = this.startPoint.y;
+      const x2 = this.currentPoint.x;
+      const y2 = this.currentPoint.y;
+      if (Math.hypot(x2 - x1, y2 - y1) > 2) {
+        const cable = { id: this._genId('cable'), x1, y1, x2, y2 };
+        this.cables.push(cable);
+        this.onCableCreated(cable);
+      }
+    }
+
+    outlineRoom() { //to be renamed 'outlineRectangle'
+      const x = Math.min(this.startPoint.x, this.currentPoint.x);
+      const y = Math.min(this.startPoint.y, this.currentPoint.y);
+      const wRect = Math.abs(this.currentPoint.x - this.startPoint.x);
+      const hRect = Math.abs(this.currentPoint.y - this.startPoint.y);
+      this.ctx.fillRect(x, y, wRect, hRect);
+      this.ctx.strokeRect(x + 0.5, y + 0.5, wRect, hRect);
+    }
+
+    outlinePolygon() {
+
+    }
+
+    outlineCircle() {
+      const cx = this.startPoint.x;
+      const cy = this.startPoint.y;
+      const dx = this.currentPoint.x - cx;
+      const dy = this.currentPoint.y - cy;
+      const r = Math.hypot(dx, dy);
       this.ctx.beginPath();
-      this.ctx.arc(c.x + 0.5, c.y + 0.5, c.r, 0, Math.PI * 2);
+      this.ctx.arc(cx + 0.5, cy + 0.5, r, 0, Math.PI * 2);
+      this.ctx.fill();
       this.ctx.stroke();
     }
-  }
 
-  renderFreeforms() {
+    outlineFreeform() {
 
-  }
+    }
 
-  renderWalls() {
-    this.ctx.strokeStyle = '#000000ff';
-    this.ctx.lineWidth = 2;
-    for (const wline of this.walls) {
+    outlineWall() {
       this.ctx.beginPath();
-      this.ctx.moveTo(wline.x1 + 0.5, wline.y1 + 0.5);
-      this.ctx.lineTo(wline.x2 + 0.5, wline.y2 + 0.5);
+      this.ctx.moveTo(this.startPoint.x + 0.5, this.startPoint.y + 0.5);
+      this.ctx.lineTo(this.currentPoint.x + 0.5, this.currentPoint.y + 0.5);
       this.ctx.stroke();
     }
+
+    outlineRoof() {
+
+    }
+
+    outlineDoor() {
+
+    }
+
+    outlineWindow() {
+
+    }
+
+    outlineCable() {
+      this.ctx.beginPath();
+      this.ctx.moveTo(this.startPoint.x + 0.5, this.startPoint.y + 0.5);
+      this.ctx.lineTo(this.currentPoint.x + 0.5, this.currentPoint.y + 0.5);
+      this.ctx.stroke();
+    }
+
+    pan(clientX, clientY) {
+      // current coordinates - start coordinates from mouse down
+      const dx = clientX - this.panStart.e;
+      const dy = clientY - this.panStart.f;
+      //accumulate delta
+      this.viewState.e += dx;
+      this.viewState.f += dy;
+      this.panStart = {
+        e: clientX,
+        f: clientY
+      };
+    }
+
+    makeMinorGrids() {      // draw minor grid lines (thin, constant width)
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.ctx.strokeStyle = this.gridColor;
+      this.ctx.globalAlpha = this.gridMinorAlpha;
+      this.ctx.lineWidth = 1;
+      for (let x = 0; x <= this.w; x += this.gridSize) {
+        this.ctx.moveTo(x + 0.5, 0);
+        this.ctx.lineTo(x + 0.5, this.h);
+      }
+      for (let y = 0; y <= this.h; y += this.gridSize) {
+        this.ctx.moveTo(0, y + 0.5);
+        this.ctx.lineTo(this.w, y + 0.5);
+      }
+      this.ctx.stroke();
+      this.ctx.restore();
+    }
+
+    makeMajorGrids() { // draw major grid lines (still thin, but slightly more visible)
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.ctx.strokeStyle = this.gridMajorColor;
+      this.ctx.lineWidth = 1;
+      for (let x = 0; x <= this.w; x += this.gridSize * 4) {
+        this.ctx.moveTo(x + 0.5, 0);
+        this.ctx.lineTo(x + 0.5, this.h);
+      }
+      for (let y = 0; y <= this.h; y += this.gridSize * 4) {
+        this.ctx.moveTo(0, y + 0.5);
+        this.ctx.lineTo(this.w, y + 0.5);
+      }
+      this.ctx.stroke();
+      this.ctx.restore();
+    }
+
+    renderRooms() { //to be renamed renderRectangles
+      for (const r of this.rooms) { //should be this.rectangles
+        this.ctx.fillStyle = 'rgba(174, 174, 174, 0.5)';
+        this.ctx.fillRect(r.x, r.y, r.w, r.h);
+        this.ctx.strokeStyle = '#000000ff';
+        this.ctx.lineWidth = 4;
+        this.ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w, r.h);
+      }
+    }
+
+    renderPolygons() {
+      this.ctx.strokeStyle = '#000000ff';
+      this.ctx.fillStyle = 'rgba(150,150,150,0.4)';
+      this.ctx.lineWidth = 4;
+      for (const poly of this.polygons) {
+        this.ctx.beginPath();
+        const pts = poly.points;
+        this.ctx.moveTo(pts[0].x + 0.5, pts[0].y + 0.5);
+        for (let i = 1; i < pts.length; i++) {
+          this.ctx.lineTo(pts[i].x + 0.5, pts[i].y + 0.5);
+        }
+        this.ctx.closePath();
+        this.ctx.fill();
+        this.ctx.stroke();
+      }
+    }
+
+    renderCircles() {
+      this.ctx.strokeStyle = '#000000ff';
+      this.ctx.lineWidth = 2;
+      for (const c of this.circles) {
+        this.ctx.beginPath();
+        this.ctx.arc(c.x + 0.5, c.y + 0.5, c.r, 0, Math.PI * 2);
+        this.ctx.stroke();
+      }
+    }
+
+    renderFreeforms() {
+
+    }
+
+    renderWalls() {
+      this.ctx.strokeStyle = '#000000ff';
+      this.ctx.lineWidth = 4;
+      for (const wline of this.walls) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(wline.x1 + 0.5, wline.y1 + 0.5);
+        this.ctx.lineTo(wline.x2 + 0.5, wline.y2 + 0.5);
+        this.ctx.stroke();
+      }
+    }
+
+    renderRoofs() {
+
+    }
+
+    renderDoors() {
+
+    }
+
+    renderWindows() {
+
+    }
+
+    renderCable(){
+      this.ctx.strokeStyle = '#292929ff';
+      this.ctx.lineWidth = 1.5;
+      for (const cable of this.cables) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(cable.x1 + 0.5, cable.y1 + 0.5);
+        this.ctx.lineTo(cable.x2 + 0.5, cable.y2 + 0.5);
+        this.ctx.stroke();
+      }
+    }
+
+    renderDevices(){  // NEW: Render Devices
+      this.ctx.strokeStyle = '#000000ff';
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 1)';
+      this.ctx.lineWidth = 1;
+
+      for (const dev of this.devices) {
+        // Draw a placeholder box for the device
+        const size = this.gridSize * 1.3;
+        const halfSize = size / 2;
+        const x = dev.x - halfSize;
+        const y = dev.y - halfSize;
+
+        this.ctx.fillRect(x, y, size, size);
+        this.ctx.strokeRect(x, y, size, size);
+
+        // Draw the label
+        this.ctx.font = '12px sans-serif';
+        this.ctx.fillStyle = '#000000';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(dev.label, dev.x, dev.y + halfSize + 14);
+      }
+    }
+
   }
 
-  renderRoofs() {
-
-  }
-
-  renderDoors() {
-
-  }
-
-  renderWindows() {
-
-  }
-
-}
 
 
-export default LogicalCanvas;
+    export default LogicalCanvas;

@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from "react";
-
 import {
   Square,
   Triangle,
@@ -7,7 +6,7 @@ import {
   Circle,
 } from "lucide-react";
 
-export default function StructuralOption({ label, icon: Icon, onSelectShape }) {
+export default function StructuralOption({ label, icon: Icon, onSelectShape, isActive }) {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -31,7 +30,9 @@ export default function StructuralOption({ label, icon: Icon, onSelectShape }) {
   return (
     <div className="relative inline-block text-left" ref={dropdownRef}>
       <button
-        className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1"
+        className={`px-2 py-1 h-8 flex items-center rounded gap-1 transition-all ${
+          isActive ? "active" : "hover:bg-gray-100"
+        }`}
         onClick={() => setOpen(!open)}
       >
         {Icon && <Icon size={16} />}
@@ -39,7 +40,7 @@ export default function StructuralOption({ label, icon: Icon, onSelectShape }) {
       </button>
 
       {open && (
-        <div className="structural-panel absolute z-100 mt-1 w-44 bg-white border border-gray-200 rounded shadow-lg">
+        <div className="structural-panel absolute z-[100] mt-1 w-44 bg-white border border-gray-200 rounded shadow-lg">
           <div className="px-3 py-2 border-b text-xs font-semibold text-gray-600">
             Structure
           </div>

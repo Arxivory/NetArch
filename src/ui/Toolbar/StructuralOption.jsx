@@ -1,10 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import {
-  Square,
-  Triangle,
-  LineSquiggle,
-  Circle,
-} from "lucide-react";
+import { Square, Triangle, LineSquiggle, Circle } from "lucide-react";
 
 export default function StructuralOption({ label, icon: Icon, onSelectShape, isActive }) {
   const [open, setOpen] = useState(false);
@@ -28,11 +23,9 @@ export default function StructuralOption({ label, icon: Icon, onSelectShape, isA
   }, []);
 
   return (
-    <div className="relative inline-block text-left" ref={dropdownRef}>
+    <div className="dropdown-container" ref={dropdownRef}>
       <button
-        className={`px-2 py-1 h-8 flex items-center rounded gap-1 transition-all ${
-          isActive ? "active" : "hover:bg-gray-100"
-        }`}
+        className={`toolbar-btn ${isActive ? "active" : ""}`}
         onClick={() => setOpen(!open)}
       >
         {Icon && <Icon size={16} />}
@@ -40,14 +33,12 @@ export default function StructuralOption({ label, icon: Icon, onSelectShape, isA
       </button>
 
       {open && (
-        <div className="structural-panel absolute z-[100] mt-1 w-44 bg-white border border-gray-200 rounded shadow-lg">
-          <div className="px-3 py-2 border-b text-xs font-semibold text-gray-600">
-            Structure
-          </div>
+        <div className="dropdown-panel">
+          <div className="dropdown-header">Structure</div>
           {shapes.map(({ name, icon: ShapeIcon }) => (
             <button
               key={name}
-              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-100 text-sm text-gray-700"
+              className="dropdown-item"
               onClick={() => {
                 onSelectShape(name);
                 setOpen(false);

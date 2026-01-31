@@ -5,7 +5,6 @@ import {
   ChevronRight,
   ChevronDown,
   Building,
-  Layers,
   Server,
   Box,
 } from "lucide-react";
@@ -26,21 +25,23 @@ export default function TreeItem({ node }) {
   return (
     <div className="tree-item">
       <div
-        className="tree-item-label"
+        className="tree-item-row"
         onClick={() => hasChildren && setOpen(!open)}
       >
         {hasChildren ? (
           open ? (
-            <ChevronDown className="tree-item-chevron" />
+            <ChevronDown size={14} className="tree-chevron" />
           ) : (
-            <ChevronRight className="tree-item-chevron" />
+            <ChevronRight size={14} className="tree-chevron" />
           )
         ) : (
-          <span className="tree-item-placeholder" />
+          <span className="tree-spacer" />
         )}
-        {Icon && <Icon className="tree-item-icon" />}
+
+        {Icon && <Icon size={14} className="tree-icon" />}
         <span className="item">{node.label}</span>
       </div>
+
       {open &&
         hasChildren &&
         node.children.map((child) => (

@@ -424,6 +424,38 @@ body, html, #root {
   font-size: 12px;
 }
 
+
+.tree-item {
+  padding-left: 12px;
+}
+
+.tree-item-row {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.tree-item-row:hover {
+  background: #f1f1f1;
+}
+
+.tree-chevron {
+  margin-right: 4px;
+  color: #666;
+}
+
+.tree-spacer {
+  width: 16px;
+}
+
+.tree-icon {
+  margin-right: 4px;
+  color: #444;
+}
+
 .properties-group {
   display: flex;
   flex-direction: column;

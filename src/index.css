@@ -134,7 +134,7 @@ body, html, #root {
   height: 100%;
   border-right: 1px solid #d1d1d1;
   background: #fafafa;
-  padding: 6px;
+
   font-size: 12px;
   overflow-y: auto;
   padding: 15px;
@@ -142,11 +142,23 @@ body, html, #root {
   z-index: 1;
 }
 
+.object-library-header {
+  display: flex ;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
 .object-library h3 {
   font-weight: 600;
   font-size: 16px;
   /* margin-bottom: 6px; */
   color: #333;
+}
+.category-title {
+  font-weight: 500;
+  color: #555;
+  margin-bottom: 4px;
 }
 
 .device-category {
@@ -180,6 +192,23 @@ body, html, #root {
   background: #f0f0f0;
   border-color: #bdbdbd;
 }
+.device-tile.draggable {
+  cursor: grab;
+}
+
+.device-tile.draggable:active {
+  cursor: grabbing;
+}
+
+.device-icon {
+  margin-bottom: 4px;
+}
+
+.device-type {
+  font-size: 11px;
+  text-align: center;
+}
+
 
 .logical-mode-container {
   position: absolute;

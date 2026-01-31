@@ -768,7 +768,7 @@ html,
   border-top: 1px solid #d1d1d1;
   border-radius: 7px 7px 0 0;
   width: 100%;
-  max-height: 200px;
+  max-height: 250px;
   overflow: hidden;
 }
 
@@ -917,7 +917,7 @@ html,
   border-radius: 4px;
   padding: 4px 8px;
   width: 8rem;
-  outline: none;
+  outline: none;  
 }
 
 .panel-btn {
@@ -970,5 +970,6 @@ html,
 
 .panel-delete-icon:hover {
   color: #dc2626;
-}
+} 
+
 

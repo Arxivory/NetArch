@@ -12,13 +12,25 @@ export default function SimulationPanel() {
       location: "Room 102",
     },
     {
-      device: "Router",
-      name: "R-1",
-      message: "BGP Neighbor 10.0.0.1 established",
+      device: "Switch",
+      name: "Sw-4",
+      message: "Added password line console 0",
       time: "2:45PM",
       date: "9/20/25",
-      location: "Data Center",
+      location: "Room 802",
+    },
+    { 
+      device: "Switch",
+      name: "Sw-4",
+      message: "Added password line console 0",
+      time: "2:45PM",
+      date: "9/20/25",
+      location: "Room 802",
+
     }
+      
+  
+    
   ];
 
   return (

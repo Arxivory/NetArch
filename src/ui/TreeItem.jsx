@@ -24,21 +24,21 @@ export default function TreeItem({ node }) {
   const hasChildren = node.children && node.children.length > 0;
 
   return (
-    <div className="pl-2">
+    <div className="tree-item">
       <div
-        className="flex items-center cursor-pointer select-none hover:bg-gray-100 rounded px-1 py-0.5"
+        className="tree-item-label"
         onClick={() => hasChildren && setOpen(!open)}
       >
         {hasChildren ? (
           open ? (
-            <ChevronDown size={14} className="mr-1 text-gray-600" />
+            <ChevronDown className="tree-item-chevron" />
           ) : (
-            <ChevronRight size={14} className="mr-1 text-gray-600" />
+            <ChevronRight className="tree-item-chevron" />
           )
         ) : (
-          <span className="w-4" />
+          <span className="tree-item-placeholder" />
         )}
-        {Icon && <Icon size={14} className="mr-1 text-gray-700" />}
+        {Icon && <Icon className="tree-item-icon" />}
         <span className="item">{node.label}</span>
       </div>
       {open &&

@@ -5,12 +5,12 @@ export default function HierarchyPanel() {
   const { hierarchy } = useHierarchy();
 
   return (
-    <div className="hierarchy-panel text-xs border-l border-gray-300 bg-white">
+    <div className="hierarchy-panel">
       <h3 className="panel-header">
         Hierarchy
       </h3>
       <hr className="header-separator"/>
-      <div className="p-2">
+      <div className="panel-content">
         {hierarchy.map((node) => (
           <TreeItem key={node.id} node={node} />
         ))}

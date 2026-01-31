@@ -1,19 +1,6 @@
 import {
-  Mountain,
-  Building,
-  Grid,
-  RectangleHorizontal,
-  House,
-  DoorOpen,
-  Square,
-  Play,
-  File,
-  FilePlus,
-  Save,
-  MousePointer,
-  Hand,
-  ZoomIn,
-  ZoomOut
+  Mountain, Building, Grid, RectangleHorizontal, House, DoorOpen,
+  Square, Play, File, FilePlus, Save, MousePointer, Hand, ZoomIn, ZoomOut
 } from "lucide-react";
 import { useState } from "react";
 import { useHierarchy } from "../HierarchyContext";
@@ -21,171 +8,117 @@ import StructuralOption from "./StructuralOption";
 
 export default function Toolbar({ logicalCanvasRef }) {
   const { addNode } = useHierarchy();
-  const [drawingMode, setDrawingMode] = useState(null);
+  const [drawingMode, setDrawingMode] = useState("select");
+  const isActive = (mode) => drawingMode === mode;
 
   const handleShapeSelect = (type, shape) => {
     addNode(1, type.toLowerCase(), `New ${type}`);
   };
 
   const handleDrawWall = () => {
-    if (logicalCanvasRef && logicalCanvasRef.current) {
+    if (logicalCanvasRef?.current) {
       logicalCanvasRef.current.startDrawWall();
       setDrawingMode("wall");
     }
   };
 
   const handleRectangleSelect = (shape) => {
-    if (shape === "Rectangle" && logicalCanvasRef && logicalCanvasRef.current) {
-      logicalCanvasRef.current.startDrawRoom();
-      setDrawingMode('room');
-    } else if (shape === "Circular") {
-      logicalCanvasRef.current.startDrawCircle();
-      setDrawingMode('circle');
-    } else if (shape === "Polygon") {
-      logicalCanvasRef.current.startDrawPolygon();
-      setDrawingMode('polygon');
-    }
-  };
-
-  const handleSelect = () => {
-    if (logicalCanvasRef && logicalCanvasRef.current) {
-      logicalCanvasRef.current.cancelDrawing();
-    }
-    setDrawingMode(null);
+    if (!logicalCanvasRef?.current) return;
+    if (shape === "Rectangle") logicalCanvasRef.current.startDrawRoom();
+    else if (shape === "Circular") logicalCanvasRef.current.startDrawCircle();
+    else if (shape === "Polygon") logicalCanvasRef.current.startDrawPolygon();
+    setDrawingMode(shape.toLowerCase());
   };
 
   return (
-    <div className="toolbar flex items-end gap-6 px-3 py-2 border-b border-gray-300 bg-white text-xs">
-      {/* Files group */}
-      <div className="flex flex-col items-center justify-end">
-        <div className="flex items-center gap-2">
-          <button className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1">
+    <div className="toolbar">
+      {/* File Group */}
+      <div className="toolbar-group">
+        <div className="toolbar-row">
+          <button className="toolbar-btn">
             <FilePlus size={16} /> New
           </button>
-          <button className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1">
+          <button className="toolbar-btn">
             <File size={16} /> Open
           </button>
-          <button className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1">
+          <button className="toolbar-btn">
             <Save size={16} /> Save
           </button>
         </div>
-        <span className="text-[10px] text-gray-500 mt-1">Files</span>
+        <span className="toolbar-label">Files</span>
       </div>
 
-      <div className="border-l border-gray-300 h-10 my-auto" />
+      <div className="toolbar-divider" />
 
-      {/* Controls group */}
-      <div className="flex flex-col items-center justify-end">
-        <div className="flex items-center gap-2">
+      {/* Controls Group */}
+      <div className="toolbar-group">
+        <div className="toolbar-row">
           <button
-            onClick={handleSelect}
-            className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1"
+            onClick={() => { if(logicalCanvasRef?.current) logicalCanvasRef.current.cancelDrawing(); setDrawingMode("select"); }}
+            className={`toolbar-btn ${isActive("select") ? "active" : ""}`}
           >
             <MousePointer size={16} /> Select
           </button>
-          <button className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1">
+          <button 
+            onClick={() => setDrawingMode("pan")}
+            className={`toolbar-btn ${isActive("pan") ? "active" : ""}`}
+          >
             <Hand size={16} /> Pan
           </button>
-          <button className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1">
-            <ZoomIn size={16}/> Zoom in
-          </button>
-          <button className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1">
-            <ZoomOut size={16}/> Zoom out
-          </button>
+          <button className="toolbar-btn"><ZoomIn size={16}/> Zoom in</button>
+          <button className="toolbar-btn"><ZoomOut size={16}/> Zoom out</button>
         </div>
-        <span className="text-[10px] text-gray-500 mt-1">Controls</span>
+        <span className="toolbar-label">Controls</span>
       </div>
 
-      <div className="border-l border-gray-300 h-10 my-auto" />
+      <div className="toolbar-divider" />
 
-      {/* ============================================================
-        UPDATED SECTION: Structure group
-        ============================================================
-        
-        This now uses your <StructuralOption> component, which
-        will render the horizontal button with the dropdown.
-      */}
-      <div className="flex flex-col items-center justify-end">
-        <div className="flex items-center gap-2">
-          {/*
-            The <StructuralOption> component's button now has h-8,
-            so it no longer needs a wrapper.
-          */}
+      {/* Structure Group */}
+      <div className="toolbar-group">
+        <div className="toolbar-row">
           <StructuralOption
-            label="Domain"
-            icon={Mountain}
-            onSelectShape={(shape) => {
-              handleRectangleSelect(shape);
-              handleShapeSelect("Domain");
-            }}
+            label="Domain" icon={Mountain} isActive={isActive("domain")} 
+            onSelectShape={(shape) => { handleRectangleSelect(shape); handleShapeSelect("Domain"); setDrawingMode("domain"); }}
           />
           <StructuralOption
-            label="Site"
-            icon={Building}
-            onSelectShape={(shape) => {
-              handleRectangleSelect(shape);
-              handleShapeSelect("Site");
-            }}
+            label="Site" icon={Building} isActive={isActive("site")}
+            onSelectShape={(shape) => { handleRectangleSelect(shape); handleShapeSelect("Site"); setDrawingMode("site"); }}
           />
           <StructuralOption
-            label="Space"
-            icon={Grid}
-            onSelectShape={(shape) => {
-              handleRectangleSelect(shape);
-              handleShapeSelect("Space");
-            }}
+            label="Space" icon={Grid} isActive={isActive("space")}
+            onSelectShape={(shape) => { handleRectangleSelect(shape); handleShapeSelect("Space"); setDrawingMode("space"); }}
           />
         </div>
-        <span className="text-[10px] text-gray-500 mt-1">Structure</span>
+        <span className="toolbar-label">Structure</span>
       </div>
-      {/* ========================================================== */}
 
+      <div className="toolbar-divider" />
 
-      <div className="border-l border-gray-300 h-10 my-auto" />
-
-      {/* Fenestration group */}
-      <div className="flex flex-col items-center justify-end">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleDrawWall}
-            className={`px-2 py-1 h-8 rounded flex items-center gap-1 ${
-              drawingMode === "wall"
-                ? "bg-gray-100"
-                : "hover:bg-gray-100"
-            }`}
-          >
+      {/* Fenestration Group */}
+      <div className="toolbar-group">
+        <div className="toolbar-row">
+          <button onClick={handleDrawWall} className={`toolbar-btn ${isActive("wall") ? "active" : ""}`}>
             <RectangleHorizontal size={16} /> Wall
           </button>
-          <button className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1">
+          <button onClick={() => setDrawingMode("roof")} className={`toolbar-btn ${isActive("roof") ? "active" : ""}`}>
             <House size={16} /> Roof
           </button>
-          <button className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1">
+          <button onClick={() => setDrawingMode("door")} className={`toolbar-btn ${isActive("door") ? "active" : ""}`}>
             <DoorOpen size={16} /> Door
           </button>
-          <button className="px-2 py-1 h-8 flex items-center hover:bg-gray-100 rounded gap-1">
+          <button onClick={() => setDrawingMode("window")} className={`toolbar-btn ${isActive("window") ? "active" : ""}`}>
             <Square size={16} /> Window
           </button>
         </div>
-        <span className="text-[10px] text-gray-500 mt-1">Fenestration</span>
+        <span className="toolbar-label">Fenestration</span>
       </div>
-
-      <button 
-        onClick={handleDrawWall}
-        className={`px-2 py-1 rounded flex items-center gap-1 ${
-          drawingMode === 'wall' 
-            ? 'bg-gray-100' 
-            : 'hover:bg-gray-100'
-        }`}
-      ></button>
-
-      {/* Simulate group (with previous fix) */}
-      <div className="flex flex-col items-center justify-end ml-auto">
-        <button className="simulate-btn bg-blue-600 text-white px-3 py-1 rounded flex items-center gap-1 h-8">
+      
+      {/* Simulation Section */}
+      <div className="toolbar-group ml-auto">
+        <button className="simulate-btn">
           <Play size={16} /> Simulate
         </button>
-        <span className="text-[10px] text-gray-500 mt-1 invisible">
-          Simulate
-        </span>
+        <span className="toolbar-label invisible">Simulate</span>
       </div>
     </div>
   );

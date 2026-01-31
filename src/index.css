@@ -723,3 +723,125 @@ html,
 .tree-item-placeholder {
   width: 1rem; 
 }
+
+.console-panel {
+  display: flex;
+  flex-direction: column;
+  background: #fafafa;
+  border-top: 1px solid #d1d1d1;
+  border-radius: 7px 7px 0 0;
+  width: 100%;
+  max-height: 200px;
+  overflow: hidden;
+}
+
+
+.console-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f3f4f6;
+  padding: 6px 10px;
+  border-bottom: 1px solid #d1d5db;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+
+.console-panel-header .panel-header-title {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+
+.console-panel-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.console-panel-input {
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 12px;
+  outline: none;
+}
+
+.console-panel-input:focus {
+  border-color: #2563eb;
+  background-color: #fff;
+}
+
+
+.console-panel-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  color: #111;
+  transition: background 0.15s;
+}
+
+.console-panel-btn:hover {
+  background-color: #f3f4f6;
+}
+
+
+.console-panel-icon {
+  width: 16px;
+  height: 16px;
+  color: #111;
+}
+
+
+.panel-table {
+  overflow-y: auto;
+  max-height: 120px;
+}
+
+
+.console-panel-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+
+.console-panel-table thead {
+  position: sticky;
+  top: 0;
+  background-color: #f3f4f6;
+  z-index: 5;
+  color: #4b5563;
+}
+
+.console-panel-table th,
+.console-panel-table td {
+  padding: 6px 8px;
+  font-size: 12px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+}
+
+.console-panel-table tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+
+.console-panel-delete {
+  text-align: center;
+  color: #f87171;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.console-panel-delete:hover {
+  color: #dc2626;
+}

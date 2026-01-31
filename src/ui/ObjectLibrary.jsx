@@ -1,4 +1,14 @@
-import { Server, Network, Router, Database, Cable, Wifi, Armchair, Import, MonitorSmartphone } from "lucide-react";
+import {
+  Server,
+  Network,
+  Router,
+  Database,
+  Cable,
+  Wifi,
+  Armchair,
+  Import,
+  MonitorSmartphone
+} from "lucide-react";
 import { useState } from "react";
 
 const categoryDetails = {

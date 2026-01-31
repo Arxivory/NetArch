@@ -6,9 +6,36 @@ export function HierarchyProvider({ children }) {
   const [hierarchy, setHierarchy] = useState([
     {
       id: 1,
-      label: "Default Domain",
+      label: "Centro Escolar University Manila",
       type: "domain",
-      children: [],
+      children: [
+        {
+          id: 2,
+          label: "Librada Avelino Hall",
+          type: "building",
+          children: [
+            {
+              id: 3,
+              label: "1st Floor",
+              type: "floor",
+              children: [
+                {
+                  id: 4,
+                  label: "Room 100",
+                  type: "room",
+                  children: [],
+                },
+                {
+                  id: 5,
+                  label: "Room 101",
+                  type: "room",
+                  children: [],
+                },
+              ],
+            },
+          ],
+        },
+      ],
     },
   ]);
 

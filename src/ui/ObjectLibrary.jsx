@@ -4,7 +4,6 @@ import { useState } from "react";
 const categoryDetails = {
   Routers: { name: "Router", icon: Router },
   Switches: { name: "Switch", icon: Server },
-  Hubs: { name: "Hub", icon: Database },
   Cables: { name: "Cable", icon: Cable },
   EndDevices: { name: "End Device", icon: MonitorSmartphone },
   Wireless: { name: "Wireless", icon: Wifi },

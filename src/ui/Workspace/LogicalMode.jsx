@@ -70,47 +70,40 @@ const LogicalMode = forwardRef(function LogicalMode(
         setGridSize: (n) => lcRef.current && lcRef.current.setGridSize(n),
     }));
 
-    // --- NEW: Drag and Drop Handlers ---
+    
 
     const onDragOver = (event) => {
-        event.preventDefault(); // This is crucial to allow a drop
+        event.preventDefault(); 
         event.dataTransfer.dropEffect = "move";
     };
 
     const onDrop = (event) => {
         event.preventDefault();
 
-        // 1. Check for the data format we set in ObjectLibrary
+      
         const reactFlowData = event.dataTransfer.getData("application/reactflow");
 
         if (!reactFlowData) {
-            return; // Not a recognized drag type
+            return; 
         }
         
-        // 2. Parse the data from the drag event
+       
         const droppedObjectData = JSON.parse(reactFlowData);
 
-        // 3. Get the drop position (client coordinates)
+       
         const clientX = event.clientX;
         const clientY = event.clientY;
 
-        // 4. Transform client coordinates to canvas coordinates (this needs a new LogicalCanvas method)
-        // Since we can't directly call a private method, we'll expose a transformation in LogicalCanvas's imperative handle
         
-        // **Wait!** The LogicalCanvas instance has private methods for coordinate translation and snapping.
-        // We need to add a public utility method to LogicalCanvas.js to convert client coords to snapped canvas coords.
-
-        // For now, let's assume we can get the logical canvas instance and use its internal methods.
-        // The most elegant way is to expose the utility method in the imperative handle:
 
         const lcInstance = lcRef.current;
         if (!lcInstance) return;
 
-        // Assuming you expose a utility method `getSnappedCanvasCoords`
+      
         const snappedCoords = lcInstance.getSnappedCanvasCoords(clientX, clientY);
 
         if (snappedCoords) {
-            // 5. Call the new `addDevice` method on the canvas instance
+           
             lcInstance.addDevice(droppedObjectData, snappedCoords.x, snappedCoords.y);
         }
     };
@@ -120,7 +113,7 @@ const LogicalMode = forwardRef(function LogicalMode(
             ref={containerRef}
             className={("logical-mode-container " + className).trim()}
             style={style}
-            // NEW: Add drag and drop listeners
+           
             onDragOver={onDragOver}
             onDrop={onDrop}
         />

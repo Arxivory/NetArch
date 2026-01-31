@@ -518,3 +518,59 @@ body, html, #root {
   width: 17px;
   height: 17px;
 }
+
+.panel-header-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.category-label {
+  color: #4b5563;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.device-tile {
+  border: 1px solid #d1d1d1;
+  border-radius: 4px;
+  background: #fff;
+  aspect-ratio: 1 / 1; 
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 8px;
+  transition: all 0.15s ease;
+}
+
+.device-icon {
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #374151;
+}
+
+.device-type {
+  font-size: 11px;
+  margin: 0;
+  text-align: center;
+}
+
+.draggable-tile {
+  cursor: grab;
+}
+
+.draggable-tile:active {
+  cursor: grabbing;
+  border-color: #2563eb;
+  background-color: #eff6ff;
+}
+
+.device-tile:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}

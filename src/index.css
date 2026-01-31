@@ -882,3 +882,93 @@ html,
 .console-panel-delete:hover {
   color: #dc2626;
 }
+
+.panel-container {
+  width: 100%;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--panel-bg-gray, #f3f4f6);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--panel-border, #d1d5db);
+  margin: 0.5rem 0;
+}
+
+.panel-header-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.panel-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.panel-search-input {
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 4px 8px;
+  width: 8rem;
+  outline: none;
+}
+
+.panel-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #4b5563;
+  font-size: 0.875rem;
+}
+
+.panel-table-wrapper {
+  overflow-x: auto;
+}
+
+.panel-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.panel-table th {
+  background-color: #f3f4f6;
+  padding: 8px 12px;
+  font-weight: 400;
+  color: #4b5563;
+  font-size: 0.875rem;
+  position: sticky;
+  top: 0;
+}
+
+.panel-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.875rem;
+}
+
+.panel-table tr:hover td {
+  background-color: #f9fafb;
+}
+
+.panel-delete-icon {
+  text-align: center;
+  color: #f87171;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.panel-delete-icon:hover {
+  color: #dc2626;
+}
+

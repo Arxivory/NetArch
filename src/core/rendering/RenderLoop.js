@@ -1,6 +1,6 @@
 import { updateEditorControls } from "./Controls";
 import { moveGridandGroundToCamera, moveSkyboxToCamera } from "./DefaultScene";
-import { getScene, getRenderer, getCamera, getControls } from "./SceneAccess";
+import { getScene, getRenderer, getCamera } from "./SceneAccess";
 import * as THREE from 'three';
 
 let animationId;

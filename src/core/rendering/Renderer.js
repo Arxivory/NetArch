@@ -1,11 +1,10 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/Addons.js';
 import { setRendererContext } from './SceneAccess.js';
 import { initWorld } from './DefaultScene.js';
 import { startRenderLoop } from './RenderLoop';
 import { initEditorControls } from './Controls.js';
 
-let renderer, scene, camera, controls;
+let renderer, scene, camera;
 let width, height;
 let fov, aspect;
 
@@ -31,7 +30,6 @@ export function initRenderer(canvas) {
         renderer: renderer,
         scene: scene,
         camera: camera,
-        controls: controls
     }
 
     setRendererContext(ctx);

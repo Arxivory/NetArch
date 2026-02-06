@@ -1,13 +1,9 @@
-import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/Addons.js';
-
-let renderer, scene, camera, controls;
+let renderer, scene, camera;
 
 export function setRendererContext(ctx) {
     renderer = ctx.renderer;
     scene = ctx.scene;
     camera = ctx.camera;
-    controls = ctx.controls;
 }
 
 export function getScene() {
@@ -23,9 +19,4 @@ export function getCamera() {
 export function getRenderer() {
     if (!renderer) throw new Error("Renderer not initialized");
     return renderer;
-}
-
-export function getControls() {
-    if (!controls) throw new Error("Controls not initialized");
-    return controls;
 }

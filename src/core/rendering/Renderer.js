@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/Addons.js';
 import { setRendererContext } from './SceneAccess.js';
 import { initWorld } from './DefaultScene.js';
 import { startRenderLoop } from './RenderLoop';
+import { initEditorControls } from './Controls.js';
 
 let renderer, scene, camera, controls;
 let width, height;
@@ -24,8 +25,7 @@ export function initRenderer(canvas) {
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
+    initEditorControls(camera, renderer.domElement);
 
     const ctx = {
         renderer: renderer,

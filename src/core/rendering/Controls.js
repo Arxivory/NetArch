@@ -7,7 +7,7 @@ const keys = { w: false, a: false, s: false, d: false, q: false, e: false };
 
 export function initEditorControls(camera, domElement) {
     domElement.addEventListener('mousemove', (e) => {
-        if (e.buttons === 2) { // Right click held
+        if (e.buttons === 2) { 
             yaw -= e.movementX * sensitivity;
             pitch -= e.movementY * sensitivity;
 

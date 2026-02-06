@@ -1,81 +1,75 @@
 import { Trash2, BrushCleaning, FunnelPlus } from "lucide-react";
+import '../../index.css'; 
 
 export default function SimulationPanel() {
+  const simulationLogs = [
+    {
+      device: "Switch",
+      name: "Sw-3",
+      message: "Interface Vlan 1 state is set to up",
+      time: "2:34PM",
+      date: "9/20/25",
+      location: "Room 102",
+    },
+    {
+      device: "Router",
+      name: "R-1",
+      message: "BGP Neighbor 10.0.0.1 established",
+      time: "2:45PM",
+      date: "9/20/25",
+      location: "Data Center",
+    }
+  ];
+
   return (
-    
-    
-    <div className="simulation-panel">
-      <div className="panel-header flex justify-between items-center bg-gray-100 sticky top-0 z-10 my-2 p-2 border-b border-gray-300">
+    <div className="console-panel">
+      
+      <div className="console-panel-header">
         <h3 className="panel-header-title">Logs</h3>
-        <div className="flex items-center space-x-2  text-gray-600">
+        <div className="console-panel-controls">
           <input
             type="text"
             placeholder="Search keywords"
-            className="border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-400 w-32"
+            className="console-panel-input"
           />
-          <button className="flex items-center space-x-2 py-2 text-black-600">
-             <span><BrushCleaning className="brush-cleaning"/></span>
+          <button className="console-panel-btn">
+            <BrushCleaning className="console-panel-icon" />
             <span>Clear</span>
           </button>
-          <button className="flex items-center space-x-2  text-black-600">
-            <span><FunnelPlus className="funnel-plus"/></span>
+          <button className="console-panel-btn">
+            <FunnelPlus className="console-panel-icon" />
             <span>Filter</span>
           </button>
         </div>
       </div>
 
-     
       <div className="panel-table">
-        <table className="simulation-panel-table">
-          <thead className="sticky top-0 z-10">
-            <tr className="text-gray-600 bg-gray-100">
-              <th className="px-3 py-2 font-normal">Device</th>
-              <th className="px-3 py-2 font-normal">Device Name</th>
-              <th className="px-3 py-2 font-normal">Message</th>
-              <th className="px-3 py-2 font-normal">Time</th>
-              <th className="px-3 py-2 font-normal">Date</th>
-              <th className="px-3 py-2 font-normal">Location</th>
-              <th className="px-3 py-2 font-normal"></th>
+        <table className="console-panel-table">
+          <thead>
+            <tr>
+              <th>Device</th>
+              <th>Device Name</th>
+              <th>Message</th>
+              <th>Time</th>
+              <th>Date</th>
+              <th>Location</th>
+              <th></th>
             </tr>
           </thead>
-
           <tbody>
-            <tr className="bg-white hover:bg-gray-50">
-              <td className="px-3 py-2 pl-2 border-b border-gray-200">Switch</td>
-              <td className="px-3 py-2 pl-2 border-b border-gray-200">Sw-3</td>
-              <td className="px-3 py-2 pl-2 border-b border-gray-200">Interface Vlan 1 state is set to up</td>
-              <td className="px-3 py-2 pl-2 border-b border-gray-200">2:34PM</td>
-              <td className="px-3 py-2 pl-2 border-b border-gray-200">9/20/25</td>
-              <td className="px-3 py-2 pl-2 border-b border-gray-200">Room 102</td>
-              <td className="px-3 py-2 pl-2 border-b border-gray-200 text-center text-red-400 hover:text-red-600 cursor-pointer">
-                <Trash2 className="delete-log" />
-              </td>
-            </tr>
-
-            <tr className="bg-white hover:bg-gray-50">
-              <td className="px-3 py-2 pl-2 border-b border-gray-200">Switch</td>
-              <td className="px-3 py-2 pl-2 border-b border-gray-200">Sw-4</td>
-              <td className="px-3 py-2 pl-2 border-b border-gray-200">Added password for line console 0</td>
-              <td className="px-3 py-2 pl-2 border-b border-gray-200">2:40PM</td>
-              <td className="px-3 py-2 pl-2 border-b border-gray-200">9/20/25</td>
-              <td className="px-3 py-2 pl-2 border-b border-gray-200">Room 101</td>
-              <td className="px-3 py-2 pl-2 border-b border-gray-200 text-center text-red-400 hover:text-red-600 cursor-pointer">
-                <Trash2 className="delete-log" />
-              </td>
-            </tr>
-
-            <tr className="bg-white hover:bg-gray-50">
-              <td className="px-3 py-2 pl-2 border-b border-gray-200">Switch</td>
-              <td className="px-3 py-2 pl-2 border-b border-gray-200">Sw-4</td>
-              <td className="px-3 py-2 pl-2 border-b border-gray-200">Added password for line console 0</td>
-              <td className="px-3 py-2 pl-2 border-b border-gray-200">2:40PM</td>
-              <td className="px-3 py-2 pl-2 border-b border-gray-200">9/20/25</td>
-              <td className="px-3 py-2 pl-2 border-b border-gray-200">Room 101</td>
-              <td className="px-3 py-2 pl-2 border-b border-gray-200 text-center text-red-400 hover:text-red-600 cursor-pointer">
-                <Trash2 className="delete-log" />
-              </td>
-            </tr>
-          
+            {simulationLogs.map((log, i) => (
+              <tr key={i}>
+                <td>{log.device}</td>
+                <td>{log.name}</td>
+                <td>{log.message}</td>
+                <td>{log.time}</td>
+                <td>{log.date}</td>
+                <td>{log.location}</td>
+                <td className="console-panel-delete">
+                  <Trash2 size={16} />
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

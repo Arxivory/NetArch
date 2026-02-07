@@ -25,6 +25,7 @@ export default class Device {
     }
 
     addInterface(networkInterface) {
+        networkInterface.device = this;
         this.interfaces.push(networkInterface);
     }
 

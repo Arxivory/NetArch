@@ -18,6 +18,8 @@ export default class Interface {
         this.status = 'down';
         this.link = null;
 
+        this.device = null;
+
         this.ipv4 = null;
         this.ipv6 = null;
         this.vlan = null;
@@ -34,5 +36,16 @@ export default class Interface {
 
     configureIPv6({ address, prefixLength }) {
         this.ipv6 = { address, prefixLength };
+    }
+
+    receivePacket(packet) {
+        if (this.status !== 'up') return false;
+        if (!this.device) return false;
+
+        if (typeof this.device.onPacketReceived === 'function') {
+            this.device.onPacketReceived(packet, this);
+        }
+
+        return true;
     }
 }

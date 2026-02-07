@@ -48,4 +48,11 @@ export default class Interface {
 
         return true;
     }
+
+    onPacketReceived(packet, ingressInterface) {
+        /*
+            Default behavior: Devices will override this 
+            method to implement specific packet handling logic
+        */
+    }
 }

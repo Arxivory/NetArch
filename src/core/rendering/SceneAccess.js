@@ -20,3 +20,9 @@ export function getRenderer() {
     if (!renderer) throw new Error("Renderer not initialized");
     return renderer;
 }
+
+export function clearRendererContext() {
+    renderer = null;
+    scene = null;
+    camera = null;
+}

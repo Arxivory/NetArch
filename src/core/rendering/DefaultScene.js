@@ -4,7 +4,7 @@ import { GroundedSkybox } from 'three/examples/jsm/Addons.js';
 import { loadEnvironmentMap } from './loaders/TextureLoader';
 import { initSkybox } from './world/Skybox';
 
-let skybox, grid, ground;
+let skybox, grid, ground, ambientLight, directionalLight;
 
 export async function initWorld() {
     const scene = getScene();
@@ -52,11 +52,51 @@ export function moveGridandGroundToCamera(cameraPosition) {
 }
 
 function setupLighting(scene) {
-    const ambientLight = new THREE.AmbientLight(0x2020ff, 0.2);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    ambientLight = new THREE.AmbientLight(0x2020ff, 0.2);
+    directionalLight = new THREE.DirectionalLight(0xffffff, 1);
 
     directionalLight.position.set(20, 20, 20);
     
     scene.add(ambientLight);
     scene.add(directionalLight);
+}
+
+export function cleanupWorld() {
+    try {
+        const scene = getScene();
+        
+        if (grid) {
+            scene.remove(grid);
+            grid.geometry?.dispose();
+            grid.material?.dispose();
+            grid = null;
+        }
+
+        if (ground) {
+            scene.remove(ground);
+            ground.geometry?.dispose();
+            ground.material?.dispose();
+            ground = null;
+        }
+
+        if (skybox) {
+            scene.remove(skybox);
+            skybox.geometry?.dispose();
+            skybox.material?.dispose();
+            skybox = null;
+        }
+
+        if (ambientLight) {
+            scene.remove(ambientLight);
+            ambientLight = null;
+        }
+        if (directionalLight) {
+            scene.remove(directionalLight);
+            directionalLight = null;
+        }
+
+        scene.fog = null;
+    } catch (e) {
+        console.warn('Error during world cleanup:', e);
+    }
 }

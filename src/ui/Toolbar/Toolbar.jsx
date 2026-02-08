@@ -97,21 +97,18 @@ export default function Toolbar({ canvasController }) {
             label="Domain" icon={Mountain} isActive={activeTool === "domain"}
             onSelectShape={(shape) => {
               handleStructuralShape('Domain', shape);
-              addNode(1, 'domain', `New Domain`);
             }}
           />
           <StructuralOption
             label="Site" icon={Building} isActive={activeTool === "site"}
             onSelectShape={(shape) => {
               handleStructuralShape('Site', shape);
-              addNode(1, 'site', `New Site`);
             }}
           />
           <StructuralOption
             label="Space" icon={Grid} isActive={activeTool === "space"}
             onSelectShape={(shape) => {
               handleStructuralShape('Space', shape);
-              addNode(1, 'space', `New Space`);
             }}
           />
         </div>

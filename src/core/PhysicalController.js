@@ -4,6 +4,7 @@ import appState from '../state/AppState';
 export class PhysicalController {
     constructor(scene) {
         this.scene = scene;
+        this.defaultScaler = 0.7;
     }
 
     destroy() {
@@ -15,10 +16,10 @@ export class PhysicalController {
             console.log('Adding domain to physical controller: ', domain);
             const { x, y, width, height } = domain.geometry;
 
-            const geometry = new THREE.BoxGeometry(width, 1, height);
+            const geometry = new THREE.BoxGeometry(width * this.defaultScaler, 1, height * defaultScaler);
             const material = new THREE.MeshBasicMaterial({ color: 0x909090 });
             const mesh = new THREE.Mesh(geometry, material);
-            mesh.position.set(0, 0.2, 0); //test
+            mesh.position.set(x * defaultScaler, 0.1, y * defaultScaler); 
             this.scene.add(mesh);
         }
     }

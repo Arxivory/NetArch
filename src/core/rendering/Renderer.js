@@ -12,7 +12,7 @@ export function initRenderer(canvas) {
     width = canvas.clientWidth;
     height = canvas.clientHeight;
 
-    fov = 60;
+    fov = 65;
     aspect = width / height;
 
     scene = new THREE.Scene();

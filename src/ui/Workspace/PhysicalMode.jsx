@@ -13,7 +13,7 @@ export default function PhysicalMode() {
     }
 
     const physicalController = new PhysicalController(rendererCtxRef.current.scene);
-    physicalController.addDomainsFromState();
+    physicalController.syncWithState();
 
     return () => {
       if (rendererCtxRef.current) {

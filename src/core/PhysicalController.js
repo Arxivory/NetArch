@@ -4,23 +4,65 @@ import appState from '../state/AppState';
 export class PhysicalController {
     constructor(scene) {
         this.scene = scene;
+        this.store = appState.structural;
+        this.meshes = new Map();
         this.defaultScaler = 0.7;
+
+        this.domainMeshes = new Map();
+
+        this.unsubscribe = this.store.subscribe(() => this.syncWithState());
+
+        this.syncWithState();
     }
 
-    destroy() {
-        this.scene = null;
-    }
+    syncWithState() {
+        const domains = this.store.domains;
+        const activeIds = new Set();
 
-    addDomainsFromState() {
-        for (const domain of appState.structural.domains) {
-            console.log('Adding domain to physical controller: ', domain);
-            const { x, y, width, height } = domain.geometry;
+        for (const domain of domains) {
+            activeIds.add(domain.id);
 
-            const geometry = new THREE.BoxGeometry(width * this.defaultScaler, 1, height * this.defaultScaler);
-            const material = new THREE.MeshBasicMaterial({ color: 0x909090 });
-            const mesh = new THREE.Mesh(geometry, material);
-            mesh.position.set(x * this.defaultScaler, 0.1, y * this.defaultScaler); 
-            this.scene.add(mesh);
+            if (!this.domainMeshes.has(domain.id)) {
+                this.createDomainMesh(domain);
+            } 
         }
+
+        for (const [id, mesh] of this.domainMeshes) {
+            if (!activeIds.has(id)) {
+                this.scene.remove(mesh);
+                this.domainMeshes.delete(id);
+            }
+        }
+    }
+
+    createDomainMesh(domain) {
+        const { x, y, width, height } = domain.geometry;
+
+        const modifiedX = x * this.defaultScaler;
+        const modifiedY = y * this.defaultScaler;
+        const modifiedWidth = width * this.defaultScaler;
+        const modifiedHeight = height * this.defaultScaler;
+
+        const geometry = new THREE.BoxGeometry(modifiedWidth, 1, modifiedHeight);
+        const material = new THREE.MeshBasicMaterial({ color: 0x858585 });
+
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(modifiedX, 0.1, modifiedY);
+
+        this.scene.add(mesh);
+        this.domainMeshes.set(domain.id, mesh);
+    }
+
+    updateDomainMesh(domain) {
+        const { x, y, width, height } = domain.geometry;
+
+        const modifiedX = x * this.defaultScaler;
+        const modifiedY = y * this.defaultScaler;
+        const modifiedWidth = width * this.defaultScaler;
+        const modifiedHeight = height * this.defaultScaler;
+
+        const mesh = this.domainMeshes.get(domain.id);
+        mesh.scale.set(modifiedWidth, 1, modifiedHeight);
+        mesh.position.set(modifiedX, 0.1, modifiedY);
     }
 }

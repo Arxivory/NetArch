@@ -3,7 +3,6 @@ import {
   Square, Play, File, FilePlus, Save, MousePointer, Hand, ZoomIn, ZoomOut
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useHierarchy } from "../HierarchyContext";
 import appState from "../../state/AppState";
 import {
   StartDrawRectangleCommand, StartDrawCircleCommand, StartDrawPolygonCommand, StartDrawWallCommand,
@@ -12,7 +11,6 @@ import {
 import StructuralOption from "./StructuralOption";
 
 export default function Toolbar({ canvasController }) {
-  const { addNode } = useHierarchy();
   const [activeTool, setActiveTool] = useState("select");
 
   useEffect(() => {

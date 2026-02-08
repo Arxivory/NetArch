@@ -9,7 +9,8 @@ import {
   Import,
   MonitorSmartphone
 } from "lucide-react";
-import { useState } from "react";
+import appState from "../state/AppState";
+import { StartDrawCableCommand } from "../core/editor/DrawingCommands";
 
 const categoryDetails = {
   Routers: { name: "Router", icon: Router },
@@ -22,15 +23,12 @@ const categoryDetails = {
 
 const categories = Object.keys(categoryDetails);
 
-export default function ObjectLibrary({ logicalCanvasRef }) {
-  const [drawingMode, setDrawingMode] = useState(null);
-
+export default function ObjectLibrary({ canvasController }) {
   const handleDrawCable = () => {
-    if (logicalCanvasRef?.current) {
-      logicalCanvasRef.current.startDrawCable();
-      setDrawingMode('cable');
-    }
-  }
+    if (!canvasController) return;
+    const cmd = new StartDrawCableCommand(canvasController, appState);
+    cmd.execute();
+  };
 
   const onDragStart = (event, nodeType, label) => {
     const data = { type: nodeType, label: label };

@@ -100,6 +100,18 @@ export class StructuralStore {
         return true;
     }
 
+    subscribe(callback) {
+        if (typeof callback !== 'function') {
+            console.error('Listener must be a function');
+            return () => {};
+        }
+
+        this.listeners.push(callback);
+        return () => {
+            this.listeners = this.listeners.filter(l => l !== callback);
+        };
+    }
+
     notify() {
         this.listeners.forEach(listener => {
             try {

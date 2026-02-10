@@ -39,8 +39,8 @@ export class LogicalLayout {
 
     this.canvas = null;
     this.ctx = null;
-
-    this.mode = 'none';
+    
+    this.mode = 'select';
     this.startPoint = null;
     this.currentPoint = null;
     this.viewState = { e: 0, f: 0 };
@@ -73,11 +73,11 @@ export class LogicalLayout {
     c.style.height = this.height + 'px';
     c.width = Math.floor(this.width * this.devicePixelRatio);
     c.height = Math.floor(this.height * this.devicePixelRatio);
-    
+
     this.canvas = c;
     this.ctx = c.getContext('2d');
     this.ctx.scale(this.devicePixelRatio, this.devicePixelRatio);
-    
+
     this.container.appendChild(c);
     this.pointerHandler.attach(c);
   }
@@ -161,6 +161,11 @@ export class LogicalLayout {
     this._updateCursor();
   }
 
+  startSelect() {
+    this.mode = 'select';
+    this._updateCursor();
+  }
+
   startPan() {
     this.mode = 'pan';
     this._updateCursor();
@@ -176,12 +181,23 @@ export class LogicalLayout {
   }
 
   addDevice(deviceData, x, y) {
+    const size = this.shapeRenderer.gridSize * 1.3;
+    const half = size / 2;
+    const px = x - half;
+    const py = y - half;
+    const path = new Path2D();
+    path.rect(px + 0.5, py + 0.5, size, size);
     const device = {
       id: `device_${Math.random().toString(36).slice(2, 9)}`,
-      type: deviceData.type,
+      type: deviceData.type || 'device',
       label: deviceData.label,
       x,
-      y
+      y,
+      transform: {
+        position: { x, y, z: 0 },
+        scale: { x: 1, y: 1, z: 1 },
+        rotation: { x: 0, y: 0, z: 0 }
+      }
     };
     this.devices.push(device);
     if (this.onDeviceAdded) {
@@ -203,7 +219,8 @@ export class LogicalLayout {
       'wall': 'crosshair',
       'cable': 'crosshair',
       'pan': 'grab',
-      'none': 'default'
+      'none': 'default',
+      'select': 'default'
     };
     this.pointerHandler.setCursor(cursorMap[this.mode] || 'default');
   }
@@ -218,6 +235,11 @@ export class LogicalLayout {
 
     const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState);
     const snapped = this.grid.snapToGrid(p);
+
+    if (this.mode === 'select') {
+      this.identifyEntity(e.clientX, e.clientY);
+      return;
+    }
 
     if (this.mode === 'polygon') {
       if (this.currentPolygon.length === 0) {
@@ -401,6 +423,136 @@ export class LogicalLayout {
       ctx.restore();
     }
   }
+
+  getAllSelectableEntities() {
+    return [
+      this.rectangles,
+      this.polygons,
+      this.currentPolygon,
+      this.circles,
+      this.walls,
+      this.doors,
+      this.windows,
+      this.roofs,
+      this.freeforms,
+      this.devices,
+      this.cables
+    ]
+  }
+
+  findEntityById(id) {
+    const lists = this.getAllSelectableEntities();
+    for (const arr of lists) {
+      for (const en of arr) {
+        if (en && en.id === id) return en;
+      }
+    }
+    return null;
+  }
+
+  updateEntityTransform(id, updates = {}) {
+    const en = this.findEntityById(id);
+    if (!en) return false;
+
+    // apply transform updates to stored transform object
+    en.transform = en.transform || { 
+      position: { 
+        x: en.x || 0, 
+        y: en.y || 0, 
+        z: 0 }, 
+      scale: { 
+        x: 1, 
+        y: 1, 
+        z: 1 }, 
+      rotation: { x: 0, y: 0, z: 0 } };
+
+    if (updates.position) {
+      const nx = updates.position.x;
+      const ny = updates.position.y;
+      // update transform
+      en.transform.position.x = nx;
+      en.transform.position.y = ny;
+
+      // also update common x/y fields and rebuild simple paths where applicable
+      if (typeof en.x === 'number' && typeof en.y === 'number') {
+        en.x = nx;
+        en.y = ny;
+      }
+
+      if (en.type === 'rectangle' && typeof en.w === 'number' && typeof en.h === 'number') {
+        en.x = nx;
+        en.y = ny;
+        en.path = new Path2D();
+        en.path.rect(en.x + 0.5, en.y + 0.5, en.w, en.h);
+      } else if (en.type === 'circle' && typeof en.r === 'number') {
+        en.x = nx;
+        en.y = ny;
+        en.path = new Path2D();
+        en.path.arc(en.x, en.y, en.r, 0, Math.PI * 2);
+      } else if (en.type === 'device') {
+        const size = this.shapeRenderer.gridSize * 1.3;
+        const halfSize = size / 2;
+        const px = nx - halfSize;
+        const py = ny - halfSize;
+        en.x = nx;
+        en.y = ny;
+        en.path = new Path2D();
+        en.path.rect(px + 0.5, py + 0.5, size, size);
+      } else if (en.type === 'polygon' && Array.isArray(en.points)) {
+        // naive: translate points by delta
+        const dx = nx - (en.transform.position.x || en.points[0].x);
+        const dy = ny - (en.transform.position.y || en.points[0].y);
+        for (let i = 0; i < en.points.length; i++) {
+          en.points[i] = { x: en.points[i].x + dx, y: en.points[i].y + dy };
+        }
+        en.transform.position.x = nx;
+        en.transform.position.y = ny;
+        // rebuild path
+        const path = new Path2D();
+        path.moveTo(en.points[0].x, en.points[0].y);
+        for (let i = 1; i < en.points.length; i++) path.lineTo(en.points[i].x, en.points[i].y);
+        path.closePath();
+        en.path = path;
+      }
+    }
+
+    if (updates.scale) {
+      en.transform.scale = { ...en.transform.scale, ...updates.scale };
+    }
+
+    if (updates.rotation) {
+      en.transform.rotation = { ...en.transform.rotation, ...updates.rotation };
+    }
+
+    this._render();
+    return true;
+  }
+
+  identifyEntity(x, y) {
+    const entities = this.getAllSelectableEntities();
+    x *= this.devicePixelRatio;
+    y *= this.devicePixelRatio;
+    for (const arr of entities) {
+      for (const en of arr) {
+        if (!en || !en.path) continue;
+        if (this.wasHit(en, x, y)) {
+          console.log('Entity identified:', en);
+          return en;
+        }
+      }
+    }
+  }
+
+  wasHit(en, x, y) {
+    if (en.hitTestMode === 'path') {
+      return this.ctx.isPointInPath(en.path, x, y);
+    }
+    else if (en.hitTestMode === 'stroke') {
+      return this.ctx.isPointInStroke(en.path, x, y);
+    }
+  }
 }
+
+
 
 export default LogicalLayout;

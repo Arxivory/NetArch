@@ -57,6 +57,10 @@ export class LogicalCanvasController {
     this.layout?.startDrawPolygon(type);
   }
 
+  startSelect() {
+    this.layout?.startSelect();
+  }
+
   startPan() {
     this.layout?.startPan();
   }
@@ -67,6 +71,10 @@ export class LogicalCanvasController {
 
   addDevice(deviceData, x, y) {
     this.layout?.addDevice(deviceData, x, y);
+  }
+
+  updateEntityTransform(id, updates) {
+    this.layout?.updateEntityTransform(id, updates);
   }
 
   getSnappedCoords(clientX, clientY) {

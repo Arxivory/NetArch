@@ -89,6 +89,7 @@ export class LogicalCanvasController {
       appState.structural.addDomain({
         id: rect.id,
         label: `Domain ${this.domainLabelIter++}`,
+        shapeType: 'rectangle',
         x: rect.x,
         y: rect.y,
         w: rect.w,
@@ -105,6 +106,7 @@ export class LogicalCanvasController {
         id: rect.id,
         label: `Site ${rect.id}`,
         domainId: selectedDomainId,
+        shapeType: 'rectangle',
         x: rect.x,
         y: rect.y,
         w: rect.w,
@@ -121,6 +123,7 @@ export class LogicalCanvasController {
         id: rect.id,
         label: `Space ${rect.id}`,
         floorId: selectedFloorId,
+        shapeType: 'rectangle',
         x: rect.x,
         y: rect.y,
         w: rect.w,
@@ -184,6 +187,7 @@ export class LogicalCanvasController {
       appState.structural.addDomain({
         id: polygon.id,
         label: `Domain ${polygon.id}`,
+        shapeType: 'polygon',
         points: polygon.points
       });
     } else if (polygon.structureType === 'Site') {
@@ -195,6 +199,7 @@ export class LogicalCanvasController {
       appState.structural.addSite({
         id: polygon.id,
         label: `Site ${polygon.id}`,
+        shapeType: 'polygon',
         domainId: selectedDomainId,
         points: polygon.points
       });
@@ -207,6 +212,7 @@ export class LogicalCanvasController {
       appState.structural.addSpace({
         id: polygon.id,
         label: `Space ${polygon.id}`,
+        shapeType: 'polygon',
         floorId: selectedFloorId,
         points: polygon.points
       });

@@ -22,9 +22,18 @@ export class PhysicalController {
         for (const domain of domains) {
             activeIds.add(domain.id);
 
-            if (!this.domainMeshes.has(domain.id)) {
-                this.createDomainMesh(domain);
+            if (this.domainMeshes.has(domain.id)) {
+                continue;
             } 
+
+            switch (domain.shapeType) {
+                case 'rectangle':
+                    this.createDomainMesh(domain);
+                    break;
+                case 'polygon':
+                    this.createPolygonalDomainMesh(domain);
+                    break;
+            }
         }
 
         for (const [id, mesh] of this.domainMeshes) {
@@ -49,6 +58,35 @@ export class PhysicalController {
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.set(modifiedX, 0.1, modifiedY);
 
+        this.scene.add(mesh);
+        this.domainMeshes.set(domain.id, mesh);
+    }
+
+    createPolygonalDomainMesh(domain) {
+        const shape = new THREE.Shape();
+        const points = domain.geometry.points;
+
+        shape.moveTo(points[0].x * this.defaultScaler, points[0].y * this.defaultScaler);
+
+        for (let i = 1; i < points.length; i++) {
+            shape.lineTo(points[i].x * this.defaultScaler, points[i].y * this.defaultScaler);
+        }
+        shape.closePath();
+
+        const geometry = new THREE.ExtrudeGeometry(shape, {
+            depth: 1,
+            bevelEnabled: false
+        });
+
+        geometry.translate(0, 0.1, 0);
+        geometry.rotateX(-Math.PI / 2);
+
+        const material = new THREE.MeshBasicMaterial({ 
+            color: 0x858585,
+            side: THREE.DoubleSide
+        });
+
+        const mesh = new THREE.Mesh(geometry, material);
         this.scene.add(mesh);
         this.domainMeshes.set(domain.id, mesh);
     }

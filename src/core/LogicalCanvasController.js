@@ -188,6 +188,8 @@ export class LogicalCanvasController {
         id: polygon.id,
         label: `Domain ${polygon.id}`,
         shapeType: 'polygon',
+        x: polygon.x,
+        y: polygon.y,
         points: polygon.points
       });
     } else if (polygon.structureType === 'Site') {
@@ -200,6 +202,8 @@ export class LogicalCanvasController {
         id: polygon.id,
         label: `Site ${polygon.id}`,
         shapeType: 'polygon',
+        x: polygon.x,
+        y: polygon.y,
         domainId: selectedDomainId,
         points: polygon.points
       });
@@ -213,6 +217,8 @@ export class LogicalCanvasController {
         id: polygon.id,
         label: `Space ${polygon.id}`,
         shapeType: 'polygon',
+        x: polygon.x,
+        y: polygon.y,
         floorId: selectedFloorId,
         points: polygon.points
       });

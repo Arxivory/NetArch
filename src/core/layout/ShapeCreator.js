@@ -72,9 +72,18 @@ export class ShapeCreator {
       return null;
     }
 
+    const minX = Math.min(...points.map(p => p.x));
+    const minY = Math.min(...points.map(p => p.y));
+    const maxX = Math.max(...points.map(p => p.x));
+    const maxY = Math.max(...points.map(p => p.y));
+
     const polygon = {
       id: this._genId('polygon'),
-      points: [...points],
+      x: minX,
+      y: minY,
+      w: maxX - minX,
+      h: maxY - minY,
+      points: [...points], 
       structureType
     };
 

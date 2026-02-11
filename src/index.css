@@ -496,6 +496,10 @@ html,
   border-radius: 3px;
 }
 
+.tree-item-row.selected-bg {
+  background-color: #e0e0e0;
+}
+
 .tree-item-row:hover {
   background: #f1f1f1;
 }

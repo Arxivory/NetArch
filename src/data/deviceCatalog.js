@@ -110,13 +110,37 @@ const routers = {
     interfaceTemplate: "GigabitEthernet0/{n}",
     model3D: "/models/router-1941.glb"
   }
+  
 };
 
 const endDevices = {
-    "Laptop": {
-      modelId: "Laptop",
-
-    }
+  "desktop": {
+    modelId: "desktop",
+    displayName: "Desktop Computer",
+    family: "end-device",
+    vendor: "generic",
+    portCount: 1,
+    interfaceTemplate: "FastEthernet0",
+    model3D: "/models/pc-desktop.glb",
+  },
+  "laptop": {
+    modelId: "laptop",
+    displayName: "Laptop",
+    family: "end-device",
+    vendor: "generic",
+    portCount: 1,
+    interfaceTemplate: "FastEthernet0",
+    model3D: "/models/laptop.glb",
+  },
+  "smartphone": {
+    modelId: "smartphone",
+    displayName: "Smart Phone",
+    family: "end-device",
+    vendor: "generic",
+    portCount: 1,
+    interfaceTemplate: "Wireless0",
+    model3D: "/models/smartphone.glb",
+  }
 };
 
 export const cables = {

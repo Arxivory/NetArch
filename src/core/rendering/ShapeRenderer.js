@@ -5,11 +5,16 @@ export class ShapeRenderer {
 
   renderRectangles(ctx, rectangles) {
     for (const rect of rectangles) {
+      const displayedWidth = rect.w * rect.transform.scale;
+      const displayedHeigth = rect.h * rect.transform.scale;
+      const path = new Path2D();
+      path.rect(rect.x, rect.y, displayedWidth, displayedHeigth);
+      rect.path = path;
       ctx.fillStyle = 'rgba(174, 174, 174, 0.5)';
-      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.fillRect(rect.x, rect.y, displayedWidth, displayedHeigth);
       ctx.strokeStyle = '#000000ff';
       ctx.lineWidth = 4;
-      ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w, rect.h);
+      ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, displayedWidth, displayedHeigth);
     }
   }
 
@@ -17,9 +22,13 @@ export class ShapeRenderer {
     ctx.strokeStyle = '#000000ff';
     ctx.lineWidth = 4;
     for (const circle of circles) {
+      const displayedRadius = circle.r * circle.transform.scale;
+      const path = new Path2D();
+      path.arc(circle.x + 0.5, circle.y + 0.5, displayedRadius, 0, Math.PI * 2);
+      circle.path = path;
       ctx.beginPath();
       ctx.fillStyle = 'rgba(174, 174, 174, 0.5)';
-      ctx.arc(circle.x + 0.5, circle.y + 0.5, circle.r, 0, Math.PI * 2);
+      ctx.arc(circle.x + 0.5, circle.y + 0.5, displayedRadius, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
       ctx.closePath();
@@ -31,15 +40,35 @@ export class ShapeRenderer {
     ctx.fillStyle = 'rgba(150,150,150,0.4)';
     ctx.lineWidth = 4;
     for (const poly of polygons) {
-      ctx.beginPath();
-      const pts = poly.points;
-      ctx.moveTo(pts[0].x + 0.5, pts[0].y + 0.5);
-      for (let i = 1; i < pts.length; i++) {
-        ctx.lineTo(pts[i].x + 0.5, pts[i].y + 0.5);
+      const s = typeof poly.transform?.scale === 'number' ? poly.transform.scale : (poly.transform?.scale?.x ?? 1);
+      const pts = poly.points || [];
+      if (pts.length === 0) continue;
+
+      // compute centroid as anchor
+      let ax = 0, ay = 0;
+      for (let p of pts) { 
+        ax += p.x; 
+        ay += p.y; 
       }
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
+      ax /= pts.length; ay /= pts.length;
+
+      const scaled = pts.map(p => ({ 
+        x: ax + (p.x - ax) * s, 
+        y: ay + (p.y - ay) * s 
+      }));
+
+      const path = new Path2D();
+      path.moveTo(scaled[0].x + 0.5, scaled[0].y + 0.5);
+      for (let i = 1; i < scaled.length; i++) {
+        path.lineTo(scaled[i].x + 0.5, scaled[i].y + 0.5);
+      }
+      path.closePath();
+
+      // Replace entity path so hit-testing matches visuals
+      poly.path = path;
+
+      ctx.fill(path);
+      ctx.stroke(path);
     }
   }
 
@@ -47,10 +76,24 @@ export class ShapeRenderer {
     ctx.strokeStyle = '#000000ff';
     ctx.lineWidth = 4;
     for (const wall of walls) {
-      ctx.beginPath();
-      ctx.moveTo(wall.x1 + 0.5, wall.y1 + 0.5);
-      ctx.lineTo(wall.x2 + 0.5, wall.y2 + 0.5);
-      ctx.stroke();
+      const s = typeof wall.transform?.scale === 'number' ? wall.transform.scale : (wall.transform?.scale?.x ?? 1);
+      const x1 = wall.x1;
+      const y1 = wall.y1;
+      const x2 = wall.x2;
+      const y2 = wall.y2;
+      const ax = (x1 + x2) / 2;
+      const ay = (y1 + y2) / 2;
+      const sx1 = ax + (x1 - ax) * s;
+      const sy1 = ay + (y1 - ay) * s;
+      const sx2 = ax + (x2 - ax) * s;
+      const sy2 = ay + (y2 - ay) * s;
+
+      const path = new Path2D();
+      path.moveTo(sx1 + 0.5, sy1 + 0.5);
+      path.lineTo(sx2 + 0.5, sy2 + 0.5);
+
+      wall.path = path;
+      ctx.stroke(path);
     }
   }
 
@@ -58,10 +101,18 @@ export class ShapeRenderer {
     ctx.strokeStyle = '#292929ff';
     ctx.lineWidth = 1.5;
     for (const cable of cables) {
-      ctx.beginPath();
-      ctx.moveTo(cable.x1 + 0.5, cable.y1 + 0.5);
-      ctx.lineTo(cable.x2 + 0.5, cable.y2 + 0.5);
-      ctx.stroke();
+      const s = typeof cable.transform?.scale === 'number' ? cable.transform.scale : (cable.transform?.scale?.x ?? 1);
+      const x1 = cable.x1, y1 = cable.y1, x2 = cable.x2, y2 = cable.y2;
+      const ax = (x1 + x2) / 2, ay = (y1 + y2) / 2;
+      const sx1 = ax + (x1 - ax) * s, sy1 = ay + (y1 - ay) * s;
+      const sx2 = ax + (x2 - ax) * s, sy2 = ay + (y2 - ay) * s;
+
+      const path = new Path2D();
+      path.moveTo(sx1 + 0.5, sy1 + 0.5);
+      path.lineTo(sx2 + 0.5, sy2 + 0.5);
+
+      cable.path = path;
+      ctx.stroke(path);
     }
   }
 
@@ -72,10 +123,17 @@ export class ShapeRenderer {
     ctx.lineWidth = 1;
 
     for (const dev of devices) {
-      const size = this.gridSize * 1.3;
+      const s = typeof dev.transform?.scale === 'number' ? dev.transform.scale : (dev.transform?.scale?.x ?? 1);
+      const baseSize = this.gridSize * 1.3;
+      const size = baseSize * s;
       const halfSize = size / 2;
       const x = dev.x - halfSize;
       const y = dev.y - halfSize;
+
+      // update path for hit-testing
+      const path = new Path2D();
+      path.rect(x + 0.5, y + 0.5, size, size);
+      dev.path = path;
 
       ctx.fillRect(x, y, size, size);
       ctx.strokeRect(x, y, size, size);
@@ -83,7 +141,7 @@ export class ShapeRenderer {
       ctx.font = '12px sans-serif';
       ctx.fillStyle = '#000000';
       ctx.textAlign = 'center';
-      ctx.fillText(dev.label, dev.x, dev.y + halfSize + 14);
+      ctx.fillText(dev.label, dev.x, dev.y + halfSize + 14 * s);
     }
     ctx.restore();
   }

@@ -92,9 +92,7 @@ export class ShapeCreator {
 
     const path = new Path2D();
     path.moveTo(points[0].x, points[0].y);
-    console.log(points[0].x, points[0].y);
     for (let i = 1; i < points.length; i++) {
-      console.log(points[i].x, points[i].y);
       path.lineTo(points[i].x, points[i].y);
     }
     path.closePath();

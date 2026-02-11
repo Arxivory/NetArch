@@ -49,7 +49,6 @@ export default function PropertiesPanel({ canvasController }) {
     else {
       newTransform[type][axis] = parseFloat(value);
     }
-    console.log(newTransform);
     setTransform(newTransform);
 
     // Dispatch command to update entity
@@ -128,6 +127,18 @@ export default function PropertiesPanel({ canvasController }) {
               className="field-input"
               value={transform.scale}
               onChange={(e) => handleTransformChange('scale', null, e.target.value)}
+            />
+            <input
+              type="number"
+              className="field-input"
+              defaultValue={0}
+              disabled
+            />
+            <input
+              type="number"
+              className="field-input"
+              defaultValue={0}
+              disabled
             />
           </div>
 

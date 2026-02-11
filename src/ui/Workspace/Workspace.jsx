@@ -2,27 +2,26 @@ import { useState, useRef, useEffect } from "react";
 import PhysicalMode from "./PhysicalMode";
 import { ModeSwitch } from "./ModeSwitch";
 import LogicalMode from "./LogicalMode";
+import LogicalCanvasController from "../../core/LogicalCanvasController";
 
-export default function Workspace({ logicalCanvasRef }) {
+export default function Workspace({ canvasControllerRef }) {
   const [mode, setMode] = useState("logical");
-  const localLogicalRef = useRef(null);
-  const [modeSwitchStyle, setModeSwitchStyle] = useState(null);
+  const logicalModeRef = useRef(null);
 
   useEffect(() => {
-    if (logicalCanvasRef) {
-      logicalCanvasRef.current = localLogicalRef.current;
+    if (mode === "logical" && logicalModeRef.current && canvasControllerRef) {
+      // Create controller when LogicalMode is mounted
+      if (!canvasControllerRef.current) {
+        // Controller will be created by LogicalMode component
+      }
     }
-  }, [logicalCanvasRef]);
+  }, [mode, canvasControllerRef]);
 
   return (
     <div className="workspace">
-      {mode === "logical" ? (
-        <LogicalMode ref={localLogicalRef} />
-      ) : (
-        <PhysicalMode />
-      )}
-
-  <ModeSwitch currentMode={mode} onModeChange={(m) => setMode(m)} style={modeSwitchStyle} />
+      {mode === "logical" && <LogicalMode ref={logicalModeRef} canvasControllerRef={canvasControllerRef} />}
+      {mode === "physical" && <PhysicalMode />}
+      <ModeSwitch currentMode={mode} onModeChange={setMode} />
     </div>
   );
 }

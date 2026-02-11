@@ -4,6 +4,7 @@ import { NetworkStore } from './stores/NetworkStore.js';
 import { SelectionStore } from './stores/SelectionStore.js';
 import { UIStore } from './stores/UIStore.js';
 import { CommandStore } from './stores/CommandStore.js';
+import { StructuralStore } from './stores/StructuralStore.js';
 
 export class AppState {
   constructor() {
@@ -13,6 +14,7 @@ export class AppState {
     this.selection = new SelectionStore();
     this.ui = new UIStore();
     this.commands = new CommandStore();
+    this.structural = new StructuralStore();
 
     this.listeners = [];
 
@@ -22,6 +24,7 @@ export class AppState {
     this.selection.subscribe(() => this.notifyListeners());
     this.ui.subscribe(() => this.notifyListeners());
     this.commands.subscribe(() => this.notifyListeners());
+    this.structural.subscribe(() => this.notifyListeners());
   }
 
   // ============================================================================

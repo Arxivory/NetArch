@@ -56,11 +56,7 @@ export class PhysicalController {
         const material = new THREE.MeshBasicMaterial({ color: 0x858585 });
 
         const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(
-            (x + width / 2) * this.defaultScaler,
-            0.1,
-            (y + height / 2) * this.defaultScaler
-        );
+        mesh.position.set(modifiedX, 0.1, modifiedY);
 
         this.scene.add(mesh);
         this.domainMeshes.set(domain.id, mesh);
@@ -85,6 +81,7 @@ export class PhysicalController {
             depth: 1,
             bevelEnabled: false
         });
+
         geometry.rotateX(-Math.PI / 2);
 
         const material = new THREE.MeshBasicMaterial({ 

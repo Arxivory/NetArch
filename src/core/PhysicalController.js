@@ -56,7 +56,7 @@ export class PhysicalController {
         const material = new THREE.MeshBasicMaterial({ color: 0x858585 });
 
         const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(modifiedX, 0.1, modifiedY);
+        mesh.position.set(modifiedX, 0.1, modifiedY / 2);
 
         this.scene.add(mesh);
         this.domainMeshes.set(domain.id, mesh);

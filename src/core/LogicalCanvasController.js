@@ -14,7 +14,8 @@ export class LogicalCanvasController {
       onCableCreated: (cable) => this._handleCableCreated(cable),
       onCircleCreated: (circle) => this._handleCircleCreated(circle),
       onPolygonCreated: (polygon) => this._handlePolygonCreated(polygon),
-      onDeviceAdded: (device) => this._handleDeviceAdded(device)
+      onDeviceAdded: (device) => this._handleDeviceAdded(device),
+      onEntitySelected: (entity) => this._handleEntitySelected(entity)
     });
   }
 
@@ -109,6 +110,11 @@ export class LogicalCanvasController {
 
   _handleDeviceAdded(device) {
     // Device added - can be processed further if needed
+  }
+  
+  _handleEntitySelected(entity) {
+    if (!entity || !entity.id) return;
+    appState.selection.selectDevice(entity.id, false); // false = don't multi-select
   }
 
   //we will call the appstate and push the data to the app state variables.

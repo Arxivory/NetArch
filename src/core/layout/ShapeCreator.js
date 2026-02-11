@@ -30,12 +30,12 @@ export class ShapeCreator {
         w: rw,
         h: rh,
         structureType,
-          type: 'rectangle',
-          transform: {
-            position: { x: rx, y: ry, z: 0 },
-            scale: { x: 1, y: 1, z: 1 },
-            rotation: { x: 0, y: 0, z: 0 }
-          },
+        type: 'rectangle',
+        transform: {
+          position: { x: rx, y: ry, z: 0 },
+          scale: 1,
+          rotation: { x: 0, y: 0, z: 0 }
+        },
         path,
         hitTestMode: 'path'
       };
@@ -65,12 +65,12 @@ export class ShapeCreator {
         y: cy,
         r,
         structureType,
-          type: 'circle',
-          transform: {
-            position: { x: cx, y: cy, z: 0 },
-            scale: { x: 1, y: 1, z: 1 },
-            rotation: { x: 0, y: 0, z: 0 }
-          },
+        type: 'circle',
+        transform: {
+          position: { x: cx, y: cy, z: 0 },
+          scale: 1,
+          rotation: { x: 0, y: 0, z: 0 }
+        },
         path,
         hitTestMode: 'path'
       };
@@ -92,7 +92,9 @@ export class ShapeCreator {
 
     const path = new Path2D();
     path.moveTo(points[0].x, points[0].y);
+    console.log(points[0].x, points[0].y);
     for (let i = 1; i < points.length; i++) {
+      console.log(points[i].x, points[i].y);
       path.lineTo(points[i].x, points[i].y);
     }
     path.closePath();
@@ -101,12 +103,12 @@ export class ShapeCreator {
       id: this._genId('polygon'),
       points: [...points],
       structureType,
-        type: 'polygon',
-        transform: {
-          position: { x: points[0].x, y: points[0].y, z: 0 },
-          scale: { x: 1, y: 1, z: 1 },
-          rotation: { x: 0, y: 0, z: 0 }
-        },
+      type: 'polygon',
+      transform: {
+        position: { x: points[0].x, y: points[0].y, z: 0 },
+        scale: 1,
+        rotation: { x: 0, y: 0, z: 0 }
+      },
       path,
       hitTestMode: 'path'
     };
@@ -126,6 +128,8 @@ export class ShapeCreator {
     const path = new Path2D();
     path.moveTo(x1, y1);
     path.lineTo(x2, y2);
+    console.log(x1, y1);
+    console.log(y1, y2);
     if (Math.hypot(x2 - x1, y2 - y1) > 2) {
       const wall = {
         id: this._genId('wall'),
@@ -133,6 +137,12 @@ export class ShapeCreator {
         y1,
         x2,
         y2,
+        type: 'wall',
+        transform: {
+          position: { x: x1, y: y1, z: 0 },
+          scale: 1,
+          rotation: { x: 0, y: 0, z: 0 }
+        },
         path,
         hitTestMode: 'stroke'
       };
@@ -162,6 +172,12 @@ export class ShapeCreator {
         y1,
         x2,
         y2,
+        type: 'cable',
+        transform: {
+          position: { x: x1, y: y1, z: 0 },
+          scale: 1,
+          rotation: { x: 0, y: 0, z: 0 }
+        },
         path,
         hitTestMode: 'stroke'
       };

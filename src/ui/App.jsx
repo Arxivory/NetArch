@@ -34,7 +34,7 @@ export default function App() {
           <ConsoleSimulationLogs />
           <div className="right-panel">
             <HierarchyPanel />   
-            <PropertiesPanel />
+            <PropertiesPanel canvasController={controller} />
           </div>
         </div>
       </div>

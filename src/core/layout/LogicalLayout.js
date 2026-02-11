@@ -39,7 +39,7 @@ export class LogicalLayout {
 
     this.canvas = null;
     this.ctx = null;
-    
+
     this.mode = 'select';
     this.startPoint = null;
     this.currentPoint = null;
@@ -61,6 +61,7 @@ export class LogicalLayout {
     this.bgColor = opts.bgColor || '#ffffffff';
 
     this.onDeviceAdded = opts.onDeviceAdded || null;
+    this.onEntitySelected = opts.onEntitySelected || null;
 
     this._initCanvas();
     this._render();
@@ -195,9 +196,11 @@ export class LogicalLayout {
       y,
       transform: {
         position: { x, y, z: 0 },
-        scale: { x: 1, y: 1, z: 1 },
+        scale: 1,
         rotation: { x: 0, y: 0, z: 0 }
-      }
+      },
+      path,
+      hitTestMode: 'path'
     };
     this.devices.push(device);
     if (this.onDeviceAdded) {
@@ -428,7 +431,6 @@ export class LogicalLayout {
     return [
       this.rectangles,
       this.polygons,
-      this.currentPolygon,
       this.circles,
       this.walls,
       this.doors,
@@ -452,44 +454,53 @@ export class LogicalLayout {
 
   updateEntityTransform(id, updates = {}) {
     const en = this.findEntityById(id);
+    console.log(updates);
     if (!en) return false;
-
-    // apply transform updates to stored transform object
-    en.transform = en.transform || { 
-      position: { 
-        x: en.x || 0, 
-        y: en.y || 0, 
-        z: 0 }, 
-      scale: { 
-        x: 1, 
-        y: 1, 
-        z: 1 }, 
-      rotation: { x: 0, y: 0, z: 0 } };
-
     if (updates.position) {
       const nx = updates.position.x;
       const ny = updates.position.y;
       // update transform
       en.transform.position.x = nx;
       en.transform.position.y = ny;
-
-      // also update common x/y fields and rebuild simple paths where applicable
-      if (typeof en.x === 'number' && typeof en.y === 'number') {
-        en.x = nx;
-        en.y = ny;
-      }
-
-      if (en.type === 'rectangle' && typeof en.w === 'number' && typeof en.h === 'number') {
+      const deviceTypes = [
+        'device',
+        'Routers',
+        'Switches',
+        'Cables',
+        'EndDevices',
+        'Wireless',
+        'Furniture'
+      ]
+      if (en.type === 'rectangle') {
         en.x = nx;
         en.y = ny;
         en.path = new Path2D();
         en.path.rect(en.x + 0.5, en.y + 0.5, en.w, en.h);
-      } else if (en.type === 'circle' && typeof en.r === 'number') {
+      }
+      else if (en.type === 'polygon' && Array.isArray(en.points)) {
+        const dx = nx - en.points[0].x;
+        const dy = ny - en.points[0].y;
+        console.log(nx, ny);
+        for (let i = 0; i < en.points.length; i++) {
+          en.points[i] = {
+            x: en.points[i].x + dx,
+            y: en.points[i].y + dy
+          };
+        }
+        // rebuild path
+        const path = new Path2D();
+        path.moveTo(en.points[0].x, en.points[0].y);
+        for (let i = 1; i < en.points.length; i++) path.lineTo(en.points[i].x, en.points[i].y);
+        path.closePath();
+        en.path = path;
+      }
+      else if (en.type === 'circle') {
         en.x = nx;
         en.y = ny;
         en.path = new Path2D();
         en.path.arc(en.x, en.y, en.r, 0, Math.PI * 2);
-      } else if (en.type === 'device') {
+      }
+      else if (deviceTypes.includes(en.type)) {
         const size = this.shapeRenderer.gridSize * 1.3;
         const halfSize = size / 2;
         const px = nx - halfSize;
@@ -498,30 +509,28 @@ export class LogicalLayout {
         en.y = ny;
         en.path = new Path2D();
         en.path.rect(px + 0.5, py + 0.5, size, size);
-      } else if (en.type === 'polygon' && Array.isArray(en.points)) {
-        // naive: translate points by delta
-        const dx = nx - (en.transform.position.x || en.points[0].x);
-        const dy = ny - (en.transform.position.y || en.points[0].y);
-        for (let i = 0; i < en.points.length; i++) {
-          en.points[i] = { x: en.points[i].x + dx, y: en.points[i].y + dy };
-        }
-        en.transform.position.x = nx;
-        en.transform.position.y = ny;
-        // rebuild path
+      }
+      else if (en.type === 'wall' || en.type === 'cable') {
+        console.log(nx, ny);
+        const dx = nx - en.x1;
+        const dy = ny - en.y1;
+        en.x1 += dx;
+        en.y1 += dy;
+        en.x2 += dx;
+        en.y2 += dy;
         const path = new Path2D();
-        path.moveTo(en.points[0].x, en.points[0].y);
-        for (let i = 1; i < en.points.length; i++) path.lineTo(en.points[i].x, en.points[i].y);
-        path.closePath();
-        en.path = path;
+        path.moveTo(en.x1, en.y1);
+        path.lineTo(en.x2, en.y2);
       }
     }
-
-    if (updates.scale) {
-      en.transform.scale = { ...en.transform.scale, ...updates.scale };
+    if (updates.scale !== undefined) {
+      en.transform.scale = updates.scale
     }
-
     if (updates.rotation) {
-      en.transform.rotation = { ...en.transform.rotation, ...updates.rotation };
+      en.transform.rotation = {
+        ...en.transform.rotation,
+        ...updates.rotation
+      };
     }
 
     this._render();
@@ -537,6 +546,7 @@ export class LogicalLayout {
         if (!en || !en.path) continue;
         if (this.wasHit(en, x, y)) {
           console.log('Entity identified:', en);
+          if (this.onEntitySelected) this.onEntitySelected(en);
           return en;
         }
       }

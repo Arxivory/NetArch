@@ -10,7 +10,6 @@ import {
   Import,
   MonitorSmartphone
 } from "lucide-react";
-
 import { useState } from "react";
 
 const categoryDetails = {
@@ -28,16 +27,12 @@ const categories = Object.keys(categoryDetails);
 
 export default function ObjectLibrary({ logicalCanvasRef }) {
   const [drawingMode, setDrawingMode] = useState(null);
+
   const handleDrawCable = () => {
-
     if (logicalCanvasRef?.current) {
-
       logicalCanvasRef.current.startDrawCable();
-
       setDrawingMode('cable');
-
     }
-
   }
 
   const onDragStart = (event, nodeType, label) => {

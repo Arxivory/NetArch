@@ -101,7 +101,74 @@ const switches = {
 };
 
 const routers = {
-  // Routers will be added later.
+  "1941": {
+    modelId: "1941",
+    displayName: "Cisco 1941 Router",
+    family: "router",
+    vendor: "cisco",
+    portCount: 2,
+    interfaceTemplate: "GigabitEthernet0/{n}",
+    model3D: "/models/router-1941.glb"
+  }
+};
+
+const endDevices = {
+    "Laptop": {
+      modelId: "Laptop",
+
+    }
+};
+
+export const cables = {
+  "console": {
+    id: "console",
+    label: "Console Cable",
+    description: "Rollover cable for device management",
+    type: "serial", 
+    speed: 0.0096,       
+    maxDistance: 15,    
+    fullDuplex: true,
+    connectorType: "db9_rj45",
+    visual: {
+      color: "#60A5FA",
+      thickness: 0.02,
+      dashArray: [0.1, 0.1],
+      opacity: 1.0
+    }
+  },
+
+  "copper-straight": {
+    id: "copper-straight",
+    label: "Copper Straight-Through",
+    type: "ethernet",
+    category: "cat6",
+    speed: 1000,    
+    maxDistance: 100,
+    fullDuplex: true,
+    connectorType: "rj45",
+    visual: {
+      color: "#000", 
+      thickness: 0.03,
+      opacity: 1.0
+    }
+  },
+
+  "copper-crossover": {
+    id: "copper-crossover",
+    label: "Copper Cross-Over",
+    type: "ethernet",
+    category: "cat6",
+    speed: 1000,
+    maxDistance: 100,
+    fullDuplex: true,
+    connectorType: "rj45",
+    visual: {
+      color: "#000",
+      thickness: 0.03,
+      dashArray: [0.2, 0.2],
+      opacity: 1.0
+    }
+  },
 };
 
 export function generateInterfaces(catalogEntry) {
@@ -135,7 +202,9 @@ export function createDeviceInstance(catalogId, position = { x: 0, y: 0, z: 0 },
 
 const deviceCatalog = {
   switches,
-  routers
+  routers,
+  endDevices,
+  cables
 };
 
 export default deviceCatalog;

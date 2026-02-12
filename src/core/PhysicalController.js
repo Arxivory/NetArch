@@ -81,7 +81,7 @@ export class PhysicalController {
         const material = new THREE.MeshBasicMaterial({ color: 0x858585 });
 
         const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(modifiedX, 0.1, modifiedY / 2);
+        mesh.position.set(modifiedX, 0.1, modifiedY);
 
         this.scene.add(mesh);
         this.domainMeshes.set(domain.id, mesh);
@@ -128,12 +128,16 @@ export class PhysicalController {
         const modifiedWidth = width * this.defaultScaler;
         const modifiedHeight = height * this.defaultScaler;
 
-        const geometry = new THREE.BoxGeometry(modifiedWidth, 20, modifiedHeight);
-        const material = new THREE.MeshBasicMaterial({ color: 0x858585 });
+        const tallness = 50;
+
+        const modTallness = tallness * this.defaultScaler;
+
+        const geometry = new THREE.BoxGeometry(modifiedWidth, modTallness, modifiedHeight);
+        const material = new THREE.MeshBasicMaterial({ color: 0x909090 });
 
         const mesh = new THREE.Mesh(geometry, material);
 
-        mesh.position.set(modifiedX, 10.1, modifiedY / 2);
+        mesh.position.set(modifiedX, modTallness / 2, modifiedY);
 
         this.scene.add(mesh);
         this.siteMeshes.set(site.id, mesh);

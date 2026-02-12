@@ -5,6 +5,7 @@ export default class Site {
         this.id = data.id || `site-${Math.random().toString(36).substr(2, 9)}`;
         this.domainId = data.domainId;
         this.label = data.label || 'New Site';
+        this.shapeType = data.shapeType;
         this.type = 'site';
 
         this.geometry = {
@@ -18,16 +19,15 @@ export default class Site {
 
         this.floors = data.floors ? data.floors.map(f => new Floor(f)) : [];
         
-        this.updateHeight();
     }
 
-    updateHeight() {
-        this.geometry.height = this.floors.reduce((sum, f) => sum + (f.height || 3.0), 0);
-    }
+    // updateHeight() {
+    //     this.geometry.height = this.floors.reduce((sum, f) => sum + (f.height || 3.0), 0);
+    // }
 
-    addFloor(floor) {
-        floor.altitude = this.geometry.height;
-        this.floors.push(floor);
-        this.updateHeight();
-    }
+    // addFloor(floor) {
+    //     floor.altitude = this.geometry.height;
+    //     this.floors.push(floor);
+    //     this.updateHeight();
+    // }
 }

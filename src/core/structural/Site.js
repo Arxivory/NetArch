@@ -4,7 +4,7 @@ export default class Site {
     constructor(data = {}) {
         this.id = data.id || `site-${Math.random().toString(36).substr(2, 9)}`;
         this.domainId = data.domainId;
-        this.name = data.name || 'New Site';
+        this.label = data.label || 'New Site';
         this.type = 'site';
 
         this.geometry = {

@@ -1,4 +1,5 @@
 import Domain from "../../core/structural/Domain";
+import Site from "../../core/structural/Site";
 
 export class StructuralStore {
     constructor() {
@@ -57,18 +58,23 @@ export class StructuralStore {
     // ============= Site Methods =============
     addSite(site) {
         if (!site.id) {
-            site.id = Date.now();
+            throw new Error('Site must have an id');
         }
+
         if (!site.domainId) {
-            console.warn('Site must have a domainId');
-            return null;
+            throw new Error('Site must have a domainId');
         }
+
         if (this.sites.find(s => s.id === site.id)) {
             console.warn(`Site already exists: ${site.id}`);
             return null;
         }
 
-        this.sites.push({ ...site });
+        const newSite = new Site(site);
+
+        console.log('Adding new Site: ', newSite, ' with domain of: ', site.domainId);
+
+        this.sites.push(newSite);
         this.notify();
         return site;
     }

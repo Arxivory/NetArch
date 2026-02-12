@@ -185,7 +185,7 @@ export class StructuralStore {
     }
 
     _buildSiteChildren(domainId) {
-        const sites = this.sites.filter(s => s.domainId === domainId);
+        const sites = this.sites.filter(s => String(s.domainId) === String(domainId));
         return sites.map(site => ({
             id: site.id,
             label: site.label || `Site ${site.id}`,

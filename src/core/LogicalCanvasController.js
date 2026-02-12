@@ -96,15 +96,19 @@ export class LogicalCanvasController {
         h: rect.h
       });
     } else if (rect.structureType === 'Site') {
-      // TODO: Get selected domain ID from appState.selection
-      const selectedDomainId = appState.selection?.getSelectedId?.() || null;
-      if (!selectedDomainId) {
-        console.warn('No domain selected for site creation');
+      const selection = appState.selection;
+
+      const selectedDomainId = selection.getFocusedId();
+      const selectedType = selection.focusedType;
+
+      if (!selectedDomainId || selectedType !== 'domain') {
+        console.warn('Site creation failed: A Domain must be selected in the hierarchy.');
         return;
       }
+
       appState.structural.addSite({
         id: rect.id,
-        label: `Site ${rect.id}`,
+        label: `Site ${this.siteLabelIter++}`,
         domainId: selectedDomainId,
         shapeType: 'rectangle',
         x: rect.x,

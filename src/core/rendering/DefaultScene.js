@@ -8,7 +8,7 @@ let skybox, grid, ground, ambientLight, directionalLight;
 
 export async function initWorld() {
     const scene = getScene();
-    scene.fog = new THREE.Fog( 0xcccccc, 0.1, 300 );
+    scene.fog = new THREE.Fog( 0xcccccc, 0.1, 600 );
 
     const planeGeometry = new THREE.PlaneGeometry(1000, 1000);
     const planeMaterial = new THREE.MeshStandardMaterial({

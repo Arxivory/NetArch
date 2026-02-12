@@ -4,7 +4,7 @@ export function applyEntityTransform(en, updates, shapeRenderer) {
   if (updates.position) {
     const nx = updates.position.x;
     const ny = updates.position.y;
-    // update transform
+
     en.transform.position.x = nx;
     en.transform.position.y = ny;
 
@@ -34,7 +34,7 @@ export function applyEntityTransform(en, updates, shapeRenderer) {
           y: en.points[i].y + dy
         };
       }
-      // rebuild path
+
       const path = new Path2D();
       path.moveTo(en.points[0].x, en.points[0].y);
       for (let i = 1; i < en.points.length; i++) path.lineTo(en.points[i].x, en.points[i].y);

@@ -90,17 +90,16 @@ export class ShapeCreator {
       return null;
     }
 
-    const minX = Math.min(...points.map(p => p.x)); //returns the least x point
-    const minY = Math.min(...points.map(p => p.y)); //returns the least y point
-    const maxX = Math.max(...points.map(p => p.x)); //return the greatest x point
-    const maxY = Math.max(...points.map(p => p.y)); //returns the greatest y point
-
-    console.log(minX, minY);
-    console.log(maxX, maxY);
+    const minX = Math.min(...points.map(p => p.x)); 
+    const minY = Math.min(...points.map(p => p.y)); 
+    const maxX = Math.max(...points.map(p => p.x)); 
+    const maxY = Math.max(...points.map(p => p.y));
+    
+    
     const path = new Path2D();
     path.moveTo(points[0].x, points[0].y);
     for (let i = 1; i < points.length; i++) {
-      console.log(points[i].x, points[i].y);
+
       path.lineTo(points[i].x, points[i].y);
     }
     path.closePath();
@@ -122,7 +121,7 @@ export class ShapeCreator {
       path,
       hitTestMode: 'path'
     };
-    
+
     if (this.onPolygonCreated) {
       this.onPolygonCreated(polygon);
     }
@@ -137,8 +136,6 @@ export class ShapeCreator {
     const path = new Path2D();
     path.moveTo(x1, y1);
     path.lineTo(x2, y2);
-    console.log(x1, y1);
-    console.log(y1, y2);
     if (Math.hypot(x2 - x1, y2 - y1) > 2) {
       const wall = {
         id: this._genId('wall'),

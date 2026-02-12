@@ -10,7 +10,7 @@ export default function PropertiesPanel({ canvasController }) {
     rotation: { x: 0, y: 0, z: 0 }
   });
 
-  // Subscribe to selection changes. Re-subscribe when canvasController changes
+
   useEffect(() => {
     const unsubscribe = appState.selection.subscribe(() => {
       const ids = appState.selection.getSelectedDeviceIds();
@@ -34,7 +34,6 @@ export default function PropertiesPanel({ canvasController }) {
   }, [canvasController]);
 
   const findEntityById = (id) => {
-    // This is a simple lookup; could be improved with a store
     if (!canvasController || !canvasController.layout) return null;
     return canvasController.layout.findEntityById(id);
   };
@@ -51,7 +50,7 @@ export default function PropertiesPanel({ canvasController }) {
     }
     setTransform(newTransform);
 
-    // Dispatch command to update entity
+
     const updates = {};
     updates[type] = newTransform[type];
     const cmd = new UpdateEntityTransformCommand(canvasController, appState, selectedEntity.id, updates);

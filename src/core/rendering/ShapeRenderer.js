@@ -63,8 +63,6 @@ export class ShapeRenderer {
         path.lineTo(scaled[i].x + 0.5, scaled[i].y + 0.5);
       }
       path.closePath();
-
-      // Replace entity path so hit-testing matches visuals
       poly.path = path;
 
       ctx.fill(path);
@@ -130,7 +128,7 @@ export class ShapeRenderer {
       const x = dev.x - halfSize;
       const y = dev.y - halfSize;
 
-      // update path for hit-testing
+
       const path = new Path2D();
       path.rect(x + 0.5, y + 0.5, size, size);
       dev.path = path;

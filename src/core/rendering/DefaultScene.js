@@ -8,9 +8,9 @@ let skybox, grid, ground, ambientLight, directionalLight;
 
 export async function initWorld() {
     const scene = getScene();
-    scene.fog = new THREE.Fog( 0xcccccc, 0.1, 400 );
+    scene.fog = new THREE.Fog( 0xcccccc, 0.1, 300 );
 
-    const planeGeometry = new THREE.PlaneGeometry(500, 500);
+    const planeGeometry = new THREE.PlaneGeometry(1000, 1000);
     const planeMaterial = new THREE.MeshStandardMaterial({
         color: 0x808080,
         side: THREE.DoubleSide
@@ -23,7 +23,7 @@ export async function initWorld() {
 
     ground.rotation.x = -Math.PI / 2;
 
-    grid = new THREE.GridHelper(500, 50);
+    grid = new THREE.GridHelper(1000, 100);
     scene.add(grid);
 
     setupLighting(scene);

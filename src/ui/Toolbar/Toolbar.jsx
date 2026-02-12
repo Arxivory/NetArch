@@ -3,7 +3,6 @@ import {
   Square, Play, File, FilePlus, Save, MousePointer, Hand, ZoomIn, ZoomOut
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useHierarchy } from "../HierarchyContext";
 import appState from "../../state/AppState";
 import {
   StartDrawRectangleCommand, StartDrawCircleCommand, StartDrawPolygonCommand, StartDrawWallCommand,
@@ -12,7 +11,6 @@ import {
 import StructuralOption from "./StructuralOption";
 
 export default function Toolbar({ canvasController }) {
-  const { addNode } = useHierarchy();
   const [activeTool, setActiveTool] = useState("select");
 
   useEffect(() => {
@@ -97,21 +95,18 @@ export default function Toolbar({ canvasController }) {
             label="Domain" icon={Mountain} isActive={activeTool === "domain"}
             onSelectShape={(shape) => {
               handleStructuralShape('Domain', shape);
-              addNode(1, 'domain', `New Domain`);
             }}
           />
           <StructuralOption
             label="Site" icon={Building} isActive={activeTool === "site"}
             onSelectShape={(shape) => {
               handleStructuralShape('Site', shape);
-              addNode(1, 'site', `New Site`);
             }}
           />
           <StructuralOption
             label="Space" icon={Grid} isActive={activeTool === "space"}
             onSelectShape={(shape) => {
               handleStructuralShape('Space', shape);
-              addNode(1, 'space', `New Space`);
             }}
           />
         </div>

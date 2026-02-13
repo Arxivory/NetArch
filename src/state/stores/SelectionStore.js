@@ -4,8 +4,29 @@ export class SelectionStore {
     this.selectedDeviceIds = [];
     this.selectedLinkIds = [];
     this.focusedId = null;
+    this.focusedType = null;
     this.highlightedIds = [];
     this.listeners = [];
+  }
+
+  focusedNode(id, type) {
+    this.focusedId = id;
+    this.focusedType = type;
+
+    this.selectedDeviceIds = [];
+    this.selectedLinkIds = [];
+
+    console.log(`Focused on ${type} with ID: ${id}`);
+
+    this.notify();
+  }
+
+  isFocused(id) {
+    return this.focusedId === id;
+  }
+
+  canAddChild(requiredParentType) {
+    return this.focusedType === requiredParentType;
   }
 
   selectDevice(deviceId, multiSelect = false) {

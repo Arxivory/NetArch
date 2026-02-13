@@ -1,4 +1,5 @@
 import Fenestration from './Fenestration'; 
+import Space from './Space';
 
 export default class Floor {
     constructor(data = {}) {

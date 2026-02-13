@@ -2,6 +2,8 @@ import Grid from './Grid.js';
 import ShapeCreator from './ShapeCreator.js';
 import ShapeRenderer from '../rendering/ShapeRenderer.js';
 import PointerHandler from '../rendering/PointerHandler.js';
+import { Selection } from '../editor/Selection.js';
+import applyEntityTransform from '../transform/EntityTransform.js';
 
 export class LogicalLayout {
   constructor(opts = {}) {
@@ -37,10 +39,15 @@ export class LogicalLayout {
       onPointerUp: this._onPointerUp.bind(this)
     });
 
+    this.selection = new Selection({
+      dpr: this.devicePixelRatio
+    });
+
+
     this.canvas = null;
     this.ctx = null;
 
-    this.mode = 'none';
+    this.mode = 'select';
     this.startPoint = null;
     this.currentPoint = null;
     this.viewState = { e: 0, f: 0 };
@@ -61,9 +68,11 @@ export class LogicalLayout {
     this.bgColor = opts.bgColor || '#ffffffff';
 
     this.onDeviceAdded = opts.onDeviceAdded || null;
+    this.onEntitySelected = opts.onEntitySelected || null;
 
     this._initCanvas();
     this._render();
+
   }
 
   _initCanvas() {
@@ -73,11 +82,11 @@ export class LogicalLayout {
     c.style.height = this.height + 'px';
     c.width = Math.floor(this.width * this.devicePixelRatio);
     c.height = Math.floor(this.height * this.devicePixelRatio);
-    
+
     this.canvas = c;
     this.ctx = c.getContext('2d');
     this.ctx.scale(this.devicePixelRatio, this.devicePixelRatio);
-    
+
     this.container.appendChild(c);
     this.pointerHandler.attach(c);
   }
@@ -161,6 +170,11 @@ export class LogicalLayout {
     this._updateCursor();
   }
 
+  startSelect() {
+    this.mode = 'select';
+    this._updateCursor();
+  }
+
   startPan() {
     this.mode = 'pan';
     this._updateCursor();
@@ -176,12 +190,26 @@ export class LogicalLayout {
   }
 
   addDevice(deviceData, x, y) {
+    const size = this.shapeRenderer.gridSize * 1.3;
+    const half = size / 2;
+    const px = x - half;
+    const py = y - half;
+    const path = new Path2D();
+    path.rect(px + 0.5, py + 0.5, size, size);
+    console.log('From Logical Layout: ', deviceData.label);
     const device = {
       id: `device_${Math.random().toString(36).slice(2, 9)}`,
-      type: deviceData.type,
-      label: deviceData.label,
+      type: deviceData.type || 'device',
+      label: deviceData.name,
       x,
-      y
+      y,
+      transform: {
+        position: { x, y, z: 0 },
+        scale: 1,
+        rotation: { x: 0, y: 0, z: 0 }
+      },
+      path,
+      hitTestMode: 'path'
     };
     this.devices.push(device);
     if (this.onDeviceAdded) {
@@ -203,7 +231,8 @@ export class LogicalLayout {
       'wall': 'crosshair',
       'cable': 'crosshair',
       'pan': 'grab',
-      'none': 'default'
+      'none': 'default',
+      'select': 'default'
     };
     this.pointerHandler.setCursor(cursorMap[this.mode] || 'default');
   }
@@ -218,6 +247,11 @@ export class LogicalLayout {
 
     const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState);
     const snapped = this.grid.snapToGrid(p);
+
+    if (this.mode === 'select') {
+      this.identifyEntity(e.clientX, e.clientY);
+      return;
+    }
 
     if (this.mode === 'polygon') {
       if (this.currentPolygon.length === 0) {
@@ -401,6 +435,51 @@ export class LogicalLayout {
       ctx.restore();
     }
   }
+
+  getAllSelectableEntities() {
+    return [
+      this.rectangles,
+      this.polygons,
+      this.circles,
+      this.walls,
+      this.doors,
+      this.windows,
+      this.roofs,
+      this.freeforms,
+      this.devices,
+      this.cables
+    ]
+  }
+
+  findEntityById(id) {
+    const lists = this.getAllSelectableEntities();
+    for (const arr of lists) {
+      for (const en of arr) {
+        if (en && en.id === id) {
+          return en;
+        }
+      }
+    }
+    return null;
+  }
+
+  updateEntityTransform(id, updates = {}) {
+    const en = this.findEntityById(id);
+    if (applyEntityTransform(en, updates, this.shapeRenderer)) {
+      this._render();
+      return true;
+    }
+    return false;
+  }
+
+  identifyEntity(x, y) {
+    const entities = this.getAllSelectableEntities();
+    const en = this.selection.identifyEntity(x, y, entities, this.ctx);
+    if (this.onEntitySelected) this.onEntitySelected(en);
+    return en;
+  }
 }
+
+
 
 export default LogicalLayout;

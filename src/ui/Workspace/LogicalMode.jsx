@@ -59,17 +59,27 @@ const LogicalMode = forwardRef(function LogicalMode(
     event.dataTransfer.dropEffect = "move";
   };
 
-  const onDrop = (event) => {
-    event.preventDefault();
-    const data = event.dataTransfer.getData("application/reactflow");
-    if (!data) return;
+const onDrop = (event) => {
+  event.preventDefault();
+  
+  const dataString = event.dataTransfer.getData("application/reactflow");
+  if (!dataString) return;
 
-    const device = JSON.parse(data);
+  try {
+    const data = JSON.parse(dataString);
+    // data is now: { type: "Switches", modelId: "2960", label: "Cisco Catalyst 2960" }
+
     const coords = controllerRef.current?.getSnappedCoords(event.clientX, event.clientY);
-    if (coords) {
-      controllerRef.current?.addDevice(device, coords.x, coords.y);
+    
+    if (coords && controllerRef.current) {
+      // Pass the WHOLE data object so the controller can access 'modelId'
+      console.log('From Logical Mode Data: ', data.label);
+      controllerRef.current.addDevice(data, coords.x, coords.y);
     }
-  };
+  } catch (err) {
+    console.error("Error dropping device:", err);
+  }
+};
 
   return (
     <div

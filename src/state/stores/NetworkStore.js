@@ -23,18 +23,18 @@ export class NetworkStore {
       return null;
     }
 
-    // const device = {
-    //   ...deviceData,
-    //   interfaces: deviceData.interfaces || []
-    // };
+    console.log(deviceData);
 
-    // const device = new Device(
-    //   deviceData.id,
-    //   deviceData.type,
-    //   deviceData.label
-    // );
-
-    const device = new Device(deviceData.id, deviceData.type, deviceData.label, )
+    const device = new Device({
+        id: deviceData.id,
+        type: deviceData.type,
+        hostname: deviceData.name || deviceData.label || deviceData.hostname,
+        siteId: deviceData.siteId,
+        domainId: deviceData.domainId,
+        transform: {
+            position: deviceData.position || { x: 0, y: 0, z: 0 }
+        }
+    });
 
     this.devices.push(device);
     this.updateModified();

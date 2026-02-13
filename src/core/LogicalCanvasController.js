@@ -106,6 +106,7 @@ export class LogicalCanvasController {
 
       if (appState.network?.addDevice) {
         appState.network.addDevice(newDevice);
+        console.log('From Logical Canvas Controller, the device: ', newDevice, ' is added');
       }
     } catch (error) {
       console.error("Failed to add device:", error.message);

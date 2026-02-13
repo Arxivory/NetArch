@@ -1,18 +1,27 @@
 import * as THREE from 'three';
 import appState from '../state/AppState';
+import deviceCatalog from '../data/deviceCatalog';
+import { GLTFLoader, MTLLoader, OBJLoader } from 'three/examples/jsm/Addons.js';
 
 export class PhysicalController {
     constructor(scene) {
         this.scene = scene;
         this.store = appState.structural;
+        this.networkStore = appState.network;
         this.meshes = new Map();
         this.defaultScaler = 0.7;
+
+        this.objLoader = new OBJLoader();
+        this.mtlLoader = new MTLLoader();
+        this.gltfLoader = new GLTFLoader();
 
         this.domainMeshes = new Map();
         this.siteMeshes = new Map();
         this.spaceMeshes = new Map();
+        this.deviceMeshes =  new Map();
 
         this.unsubscribe = this.store.subscribe(() => this.syncWithState());
+        this.unsubscribeNetwork = this.networkStore.subscribe(() => this.syncWithState());
 
         this.syncWithState();
     }
@@ -21,10 +30,12 @@ export class PhysicalController {
         const domains = this.store.domains;
         const sites = this.store.sites;
         const spaces = this.store.spaces;
+        const devices = this.networkStore.devices;
 
         const activeDomainIds = new Set();
         const activeSiteIds = new Set();
         const activeSpaceIds = new Set();
+        const activeDeviceIds = new Set();
 
         for (const domain of domains) {
             activeDomainIds.add(domain.id);
@@ -73,6 +84,11 @@ export class PhysicalController {
             }
         }
 
+        for (const device of devices) {
+            activeDeviceIds.add(device.id);
+            this.createDeviceGLTFMesh(device);
+        }
+
         for (const [id, mesh] of this.domainMeshes) {
             if (!activeDomainIds.has(id)) {
                 this.scene.remove(mesh);
@@ -90,6 +106,13 @@ export class PhysicalController {
         for (const [id, mesh] of this.spaceMeshes) {
             if (!activeSiteIds.has(id)) {
                 this.spaceMeshes.delete(id);
+            }
+        }
+
+        for (const [id, mesh] of this.deviceMeshes) {
+            if (!activeDeviceIds.has(id)) {
+                this.scene.remove(mesh);
+                this.siteMeshes.delete(id);
             }
         }
     }
@@ -205,6 +228,92 @@ export class PhysicalController {
 
         this.scene.add(mesh);
         this.spaceMeshes.set(space.id, mesh);
+    }
+
+    createDeviceMesh(device) {
+        const isSwitch = device.type === 'switch';
+        
+        const modelPath = isSwitch 
+            ? 'objects/devices/switches/2960.obj' 
+            : 'objects/devices/routers/1941.obj';
+            
+        const mtlPath = isSwitch 
+            ? 'materials/devices/switches/2960.mtl' 
+            : 'materials/devices/routers/1941.mtl';
+
+        const mtlLoader = new MTLLoader();
+
+        mtlLoader.load(mtlPath, (materials) => {
+            materials.preload(); 
+
+            Object.values(materials.materials).forEach(material => {
+                material.transparent = false;
+                material.opacity = 1.0;
+                material.side = THREE.DoubleSide;
+            });
+
+            this.objLoader.setMaterials(materials);
+
+            this.objLoader.load(modelPath, (obj) => {
+                const modX = device.transform.position.x * this.defaultScaler;
+                const modZ = device.transform.position.y * this.defaultScaler;
+
+                obj.position.set(modX, 2.0, modZ); 
+                obj.scale.set(1, 1, 1); 
+
+                this.scene.add(obj);
+                this.deviceMeshes.set(device.id, obj);
+                
+                console.log(`${device.type} loaded with materials from ${mtlPath}`);
+            }, 
+            undefined, 
+            (err) => console.error("Error loading OBJ:", err));
+            
+        }, undefined, (err) => {
+            console.warn("MTL failed to load, falling back to basic OBJ:", err);
+            this.objLoader.setMaterials(null);
+            this.objLoader.load(modelPath, (obj) => {
+                this.scene.add(obj);
+                this.deviceMeshes.set(device.id, obj);
+            });
+        });
+    }
+
+    createDeviceGLTFMesh(device) {
+        const isSwitch = device.type === 'switch';
+
+        const modelPath = isSwitch 
+            ? 'objects/devices/switches/2960glb.glb' 
+            : 'objects/devices/routers/1941glb.glb';
+
+        this.gltfLoader.load(modelPath, (gltf) => {
+            const model = gltf.scene;
+
+            const modX = device.transform.position.x * this.defaultScaler;
+            const modZ = device.transform.position.y * this.defaultScaler;
+            
+            model.position.set(modX, 2.5, modZ); 
+
+            model.scale.set(7, 7, 7); 
+
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    
+                    if (child.material) {
+                        child.material.metalness = 0.5; 
+                    }
+                }
+            });
+
+            this.scene.add(model);
+            this.deviceMeshes.set(device.id, model);
+            
+            console.log(`Successfully loaded GLB: ${device.type}`);
+        }, 
+        undefined, 
+        (err) => console.error("GLB Load Error:", err));
     }
 
     updateDomainMesh(domain) {

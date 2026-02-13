@@ -160,7 +160,7 @@ export default function ConsolePanel() {
             </div>
             <div className="flex justify-end gap-3 mt-4">
               <button onClick={handleResetFilters} className="text-[11px] text-gray-400 hover:text-gray-600">Reset</button>
-              <button onClick={handleApplyFilters} className="bg-gray-900 text-white px-4 py-1.5 rounded text-[11px] hover:bg-gray-600 transition-all">Apply</button>
+              <button onClick={handleApplyFilters} className="bg-gray-600 text-white px-4 py-1.5 rounded text-[11px] hover:bg-gray-600 transition-all">Apply</button>
             </div>
           </div>
         </div>

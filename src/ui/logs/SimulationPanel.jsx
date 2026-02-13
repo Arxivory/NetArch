@@ -19,7 +19,16 @@ export default function SimulationPanel() {
     { device: "Switch", deviceName: "Sw-1", message: "Spanning tree topology change detected", time: "4:55PM", date: "9/25/25", location: "Room 305" },
     { device: "Router", deviceName: "R-4", message: "BGP session with ISP established", time: "11:30AM", date: "9/25/25", location: "Server Room" },
     { device: "End Device", deviceName: "Phone-2", message: "VoIP call dropped unexpectedly", time: "6:20PM", date: "9/25/25", location: "Room 801" },
-    { device: "Switch", deviceName: "Sw-3", message: "Interface Vlan 1 state is set to down", time: "9:00AM", date: "9/26/25", location: "Room 102" }
+    { device: "Switch", deviceName: "Sw-3", message: "Interface Vlan 1 state is set to down", time: "9:00AM", date: "9/26/25", location: "Room 102" },
+    { device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to up", time: "9:15AM", date: "9/26/25", location: "Room 305" },
+    { device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to up", time: "9:15AM", date: "9/26/25", location: "Room 305" },
+    { device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to up", time: "9:15AM", date: "9/26/25", location: "Room 305" },
+    { device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to up", time: "9:15AM", date: "9/26/25", location: "Room 305" },
+    { device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to up", time: "9:15AM", date: "9/26/25", location: "Room 305" },
+    { device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to up", time: "9:15AM", date: "9/26/25", location: "Room 305" },
+    { device: "End Device", deviceName: "Laptop-1", message: "Disconnected from WiFi 'OfficeNet'", time: "5:00PM", date: "9/26/25", location: "Room 102" },
+    { device: "Switch", deviceName: "Sw-Core-01", message: "%SYS-5-CONFIG_I: Configured from console by admin", time: "12:00PM", date: "9/26/25", location: "Server Room" },
+    { device: "Router", deviceName: "R-5", message: "Interface GigabitEthernet0/2, changed state to down", time: "3:45PM", date: "9/26/25", location: "Room 305" },
   ]);
 
   const [search, setSearch] = useState("");
@@ -137,9 +146,9 @@ export default function SimulationPanel() {
 
     
       {showFilters && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 ">
-          <div className="bg-white w-80 rounded-lg shadow-2xl border border-gray-200 p-4">
-            <div className="flex justify-between items-center mb-3 text-[10px] font-bold text-black uppercase">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
+          <div className="bg-white w-64 rounded-lg shadow-2xl border border-gray-200 p-4">
+            <div className="flex justify-between items-center mb-3 text-[10px] font-bold text-gray-400 uppercase">
               <span>Filter Settings</span>
               <X className="cursor-pointer hover:text-black" size={16} onClick={() => setShowFilters(false)} />
             </div>
@@ -151,7 +160,7 @@ export default function SimulationPanel() {
             </div>
             <div className="flex justify-end gap-3 mt-4">
               <button onClick={handleResetFilters} className="text-[11px] text-gray-400 hover:text-gray-600">Reset</button>
-              <button onClick={handleApplyFilters} className="bg-gray-500 text-white px-4 py-1.5 rounded text-[11px] hover:bg-gray-500 transition-all">Apply</button>
+              <button onClick={handleApplyFilters} className="bg-gray-600 text-white px-4 py-1.5 rounded text-[11px] hover:bg-gray-600 transition-all">Apply</button>
             </div>
           </div>
         </div>
@@ -159,7 +168,7 @@ export default function SimulationPanel() {
 
       {showClearModal && (
         <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-[100]">
-          <div className="bg-white w-80 h-50 rounded-lg shadow-2xl border border-gray-200 p-4">
+          <div className="bg-white rounded-lg p-5 w-80 shadow-2xl border border-gray-200">
             <h4 className="font-bold text-gray-800 text-sm mb-1">Clear Logs</h4>
             <p className="text-gray-500 text-[11px] mb-5">This will delete all logs. Continue?</p>
             <div className="flex justify-end space-x-2">

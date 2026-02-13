@@ -6,13 +6,10 @@ const HierarchyContext = createContext();
 export function HierarchyProvider({ children }) {
   const [hierarchy, setHierarchy] = useState([]);
 
-  // Subscribe to StructuralStore and keep hierarchy in sync
   useEffect(() => {
-    // Set initial hierarchy from StructuralStore
     const tree = appState.structural.getHierarchyTree();
     setHierarchy(tree);
 
-    // Subscribe to changes
     const unsubscribe = appState.structural.subscribe(() => {
       const updatedTree = appState.structural.getHierarchyTree();
       setHierarchy(updatedTree);
@@ -20,6 +17,10 @@ export function HierarchyProvider({ children }) {
 
     return unsubscribe;
   }, []);
+
+  const selectNode = (id, type) => {
+    appState.selection.focusedNode(id, type);
+  }
 
   const addNode = (parentId, type, label) => {
     const newNode = {

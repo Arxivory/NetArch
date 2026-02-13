@@ -63,6 +63,13 @@ export class StartDrawPolygonCommand extends DrawingCommand {
   }
 }
 
+export class StartSelectCommand extends DrawingCommand {
+  execute() {
+    this.controller?.startSelect();
+    this.appState.tools.setActiveTool('select');
+  }
+}
+
 export class StartPanCommand extends DrawingCommand {
   execute() {
     this.controller?.startPan();
@@ -87,6 +94,18 @@ export class AddDeviceCommand extends DrawingCommand {
 
   execute() {
     this.controller?.addDevice(this.deviceData, this.x, this.y);
+  }
+}
+
+export class UpdateEntityTransformCommand extends DrawingCommand {
+  constructor(controller, appState, entityId, updates) {
+    super(controller, appState);
+    this.entityId = entityId;
+    this.updates = updates;
+  }
+
+  execute() {
+    this.controller?.updateEntityTransform(this.entityId, this.updates);
   }
 }
 

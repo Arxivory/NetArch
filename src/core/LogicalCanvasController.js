@@ -256,7 +256,6 @@
 import appState from '../state/AppState.js';
 import LogicalLayout from '../core/layout/LogicalLayout.js';
 import { createDeviceInstance } from '../data/deviceCatalog'; // Make sure this path matches your file structure
-
 export class LogicalCanvasController {
   constructor(container, opts = {}) {
     // Label counters for auto-naming

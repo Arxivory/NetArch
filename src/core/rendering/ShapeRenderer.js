@@ -113,35 +113,60 @@ export class ShapeRenderer {
       ctx.stroke(path);
     }
   }
-
-  renderDevices(ctx, devices) {
+renderDevices(ctx, devices) {
     ctx.save();
-    ctx.strokeStyle = '#000000ff';
-    ctx.fillStyle = 'rgba(0, 0, 0, 1)';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
     ctx.lineWidth = 1;
 
     for (const dev of devices) {
-      const s = typeof dev.transform?.scale === 'number' ? dev.transform.scale : (dev.transform?.scale?.x ?? 1);
-      const baseSize = this.gridSize * 1.3;
+      // 1. Calculate Size & Position
+      // Check for scale (handling both simple numbers and vector objects)
+      const s = typeof dev.transform?.scale === 'number' 
+                ? dev.transform.scale 
+                : (dev.transform?.scale?.x ?? 1);
+      
+      const baseSize = this.gridSize * 1.5; // Made slightly larger for icons
       const size = baseSize * s;
       const halfSize = size / 2;
+      
       const x = dev.x - halfSize;
       const y = dev.y - halfSize;
 
-
+      // 2. Create Hit Path (Invisible, used for clicking the device)
       const path = new Path2D();
-      path.rect(x + 0.5, y + 0.5, size, size);
+      path.rect(x, y, size, size);
       dev.path = path;
 
-      ctx.fillRect(x, y, size, size);
-      ctx.strokeRect(x, y, size, size);
+      // 3. Draw: Icon OR Fallback Square
+      if (dev.icon && dev.icon.complete && dev.icon.naturalWidth !== 0) {
+        // --- DRAW IMAGE ---
+        try {
+          ctx.drawImage(dev.icon, x, y, size, size);
+        } catch (e) {
+          console.warn("Error drawing device icon:", e);
+          // Fallback if image fails
+          this._drawFallbackDevice(ctx, x, y, size);
+        }
+      } else {
+        // --- DRAW FALLBACK SQUARE ---
+        this._drawFallbackDevice(ctx, x, y, size);
+      }
 
-      ctx.font = '12px sans-serif';
+      // 4. Draw Label (Below the device)
       ctx.fillStyle = '#000000';
-      ctx.textAlign = 'center';
-      ctx.fillText(dev.label, dev.x, dev.y + halfSize + 14 * s);
+      // Adjust text position based on size
+      ctx.fillText(dev.label || 'Device', dev.x, dev.y + halfSize + 14);
     }
     ctx.restore();
+  }
+
+  // Helper for drawing the box when no image is found
+  _drawFallbackDevice(ctx, x, y, size) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 1)'; // White background
+    ctx.fillRect(x, y, size, size);
+    ctx.strokeStyle = '#000000';
+    ctx.strokeRect(x, y, size, size);
   }
 
   outlineRectangle(ctx, startPoint, currentPoint) {

@@ -3,32 +3,23 @@ import { useState, useMemo } from "react";
 
 export default function SimulationPanel() {
   const [logData, setLogData] = useState([
-    { device: "Switch", deviceName: "Sw-3", message: "Interface Vlan 1 state is set to up", time: "2:34PM", date: "9/20/25", location: "Room 102" },
-    { device: "Switch", deviceName: "Sw-4", message: "Added password for line console 0", time: "2:40PM", date: "9/20/25", location: "Room 801" },
-    { device: "Switch", deviceName: "Sw-Core-01", message: "%SYS-5-CONFIG_I: Configured from console by admin", time: "02:58AM", date: "9/20/25", location: "Server Room" },
-    { device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to down", time: "3:15PM", date: "9/21/25", location: "Room 305" },
-    { device: "Router", deviceName: "R-5", message: "Interface GigabitEthernet0/2, changed state to up", time: "4:05PM", date: "9/21/25", location: "Room 305" },
-    { device: "End Device", deviceName: "Laptop-1", message: "Connected to WiFi 'OfficeNet'", time: "8:20AM", date: "9/22/25", location: "Room 102" },
-    { device: "End Device", deviceName: "Printer-3", message: "Paper jam detected in Tray 2", time: "11:45AM", date: "9/22/25", location: "Room 801" },
-    { device: "Switch", deviceName: "Sw-2", message: "Port 5 disabled due to security violation", time: "1:30PM", date: "9/23/25", location: "Room 102" },
-    { device: "Router", deviceName: "R-3", message: "OSPF adjacency with R-4 established", time: "9:10AM", date: "9/23/25", location: "Server Room" },
-    { device: "End Device", deviceName: "Desktop-7", message: "Disconnected from network", time: "5:50PM", date: "9/23/25", location: "Room 305" },
-    { device: "Switch", deviceName: "Sw-5", message: "Firmware updated to version 2.1.0", time: "3:25PM", date: "9/24/25", location: "Room 801" },
-    { device: "Router", deviceName: "R-1", message: "CPU utilization exceeded 90%", time: "10:15AM", date: "9/24/25", location: "Server Room" },
-    { device: "End Device", deviceName: "Tablet-4", message: "Battery low warning", time: "2:40PM", date: "9/24/25", location: "Room 102" },
-    { device: "Switch", deviceName: "Sw-1", message: "Spanning tree topology change detected", time: "4:55PM", date: "9/25/25", location: "Room 305" },
-    { device: "Router", deviceName: "R-4", message: "BGP session with ISP established", time: "11:30AM", date: "9/25/25", location: "Server Room" },
-    { device: "End Device", deviceName: "Phone-2", message: "VoIP call dropped unexpectedly", time: "6:20PM", date: "9/25/25", location: "Room 801" },
-    { device: "Switch", deviceName: "Sw-3", message: "Interface Vlan 1 state is set to down", time: "9:00AM", date: "9/26/25", location: "Room 102" },
-    { device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to up", time: "9:15AM", date: "9/26/25", location: "Room 305" },
-    { device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to up", time: "9:15AM", date: "9/26/25", location: "Room 305" },
-    { device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to up", time: "9:15AM", date: "9/26/25", location: "Room 305" },
-    { device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to up", time: "9:15AM", date: "9/26/25", location: "Room 305" },
-    { device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to up", time: "9:15AM", date: "9/26/25", location: "Room 305" },
-    { device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to up", time: "9:15AM", date: "9/26/25", location: "Room 305" },
-    { device: "End Device", deviceName: "Laptop-1", message: "Disconnected from WiFi 'OfficeNet'", time: "5:00PM", date: "9/26/25", location: "Room 102" },
-    { device: "Switch", deviceName: "Sw-Core-01", message: "%SYS-5-CONFIG_I: Configured from console by admin", time: "12:00PM", date: "9/26/25", location: "Server Room" },
-    { device: "Router", deviceName: "R-5", message: "Interface GigabitEthernet0/2, changed state to down", time: "3:45PM", date: "9/26/25", location: "Room 305" },
+    { device: "End Device", deviceName: "PC-1", message: "ICMP Echo Request sent to 192.168.1.254", time: "10:00AM", date: "10/01/25", location: "Lab A" },
+  { device: "Switch", deviceName: "Sw-1", message: "ARP request broadcasted on all ports (Vlan 10)", time: "10:00AM", date: "10/01/25", location: "Lab A" },
+  { device: "Router", deviceName: "R-1", message: "Packet routed via Fa0/0 to Next Hop 10.0.0.2", time: "10:01AM", date: "10/01/25", location: "Data Center" },
+  { device: "Server", deviceName: "SRV-Web", message: "TCP Three-way handshake established with Client-7", time: "10:05AM", date: "10/01/25", location: "Server Room" },
+  { device: "Router", deviceName: "R-Core", message: "DHCP Discover received from MAC 00:0A:95:9D:68:16", time: "10:12AM", date: "10/02/25", location: "Server Room" },
+  { device: "End Device", deviceName: "Laptop-5", message: "DNS Query for 'google.com' resolved to 8.8.8.8", time: "10:15AM", date: "10/02/25", location: "Room 202" },
+  { device: "Switch", deviceName: "Sw-3", message: "STP: Blocking port Gi0/1 to prevent loop", time: "11:20AM", date: "10/02/25", location: "Room 405" },
+  { device: "Router", deviceName: "R-2", message: "NAT translation: 192.168.1.5 -> 203.0.113.10", time: "11:45AM", date: "10/03/25", location: "Room 305" },
+  { device: "End Device", deviceName: "PC-3", message: "Ping timeout: Destination Host Unreachable", time: "1:10PM", date: "10/03/25", location: "Lab B" },
+  { device: "Switch", deviceName: "Sw-Core", message: "VTP: Domain 'Office' revision updated to 5", time: "2:30PM", date: "10/04/25", location: "Server Room" },
+  { device: "Router", deviceName: "R-Edge", message: "ACL Deny: Traffic from 172.16.0.4 dropped on Serial 0/0", time: "3:15PM", date: "10/04/25", location: "Entrance" },
+  { device: "End Device", deviceName: "Tablet-2", message: "Authentication successful via WPA2-Enterprise", time: "4:00PM", date: "10/04/25", location: "Lobby" },
+  { device: "Router", deviceName: "R-3", message: "RIPv2 update sent to neighbors on Se0/1/0", time: "9:05AM", date: "10/05/25", location: "Room 305" },
+  { device: "End Device", deviceName: "Printer-1", message: "SNMP trap sent: Toner low level (10%)", time: "11:30AM", date: "10/05/25", location: "Office 1" },
+  { device: "Switch", deviceName: "Sw-Dist-1", message: "EtherChannel group 1 state changed to UP", time: "1:45PM", date: "10/05/25", location: "IDF-1" }
+  { device: "Server", deviceName: "SRV-DB", message: "High CPU usage detected: 95% utilization", time: "3:00PM", date: "10/06/25", location: "Data Center" },
+  { device: "Router", deviceName: "R-4", message: "OSPF adjacency established with R-5 on Fa0/1", time: "4:20PM", date: "10/06/25", location: "Room 305" },
   ]);
 
   const [search, setSearch] = useState("");
@@ -82,7 +73,7 @@ export default function SimulationPanel() {
         <h3 className="font-bold text-gray-700 text-sm">Logs</h3>
         <div className="flex items-center space-x-2">
           <input
-            type="text" placeholder="Search message..." value={search}
+            type="text" placeholder="Search activity..." value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="border border-gray-300 rounded px-2 py-1 h-5 text-[10px] w-40 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
           />

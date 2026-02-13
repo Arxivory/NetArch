@@ -9,14 +9,17 @@ export class LogicalCanvasController {
       height: opts.height || 600,
       gridSize: opts.gridSize || 32,
       snap: opts.snap ?? true,
+      // devicePixelRatio,
       onRectangleCreated: (rect) => this._handleRectangleCreated(rect),
       onWallCreated: (wall) => this._handleWallCreated(wall),
       onCableCreated: (cable) => this._handleCableCreated(cable),
       onCircleCreated: (circle) => this._handleCircleCreated(circle),
       onPolygonCreated: (polygon) => this._handlePolygonCreated(polygon),
       onDeviceAdded: (device) => this._handleDeviceAdded(device),
-      onEntitySelected: (entity) => this._handleEntitySelected(entity)
+      onEntitySelected: (entity) => this._handleEntitySelected(entity),
     });
+
+    // this.setDefaultZoom(window.devicePixelRatio);
 
     this.domainLabelIter = 0;
     this.siteLabelIter = 0;
@@ -34,6 +37,10 @@ export class LogicalCanvasController {
   setSize(w, h) {
     this.layout?.setSize(w, h);
   }
+
+  // setDefaultZoom(dpr){
+  //   appState.setZoom(dpr);
+  // }
 
   setGridSize(size) {
     this.layout?.setGridSize(size);
@@ -233,6 +240,10 @@ export class LogicalCanvasController {
       });
     }
   }
+  
+  _handleZoomSelected(zoom){
+    this.layout.setZoom(zoom);
+  }
 
   _handleDeviceAdded(device) {
     // Device added - can be processed further if needed
@@ -243,6 +254,8 @@ export class LogicalCanvasController {
     if (!entity || !entity.id) return;
     appState.selection.selectDevice(entity.id, false); // false = don't multi-select
   }
+
+  
 
   //we will call the appstate and push the data to the app state variables.
 }

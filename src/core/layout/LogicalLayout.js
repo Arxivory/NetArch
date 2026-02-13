@@ -680,6 +680,36 @@ export class LogicalLayout {
     this.viewState.f += delta.dy;
     this.pointerHandler.setPanStart(clientX, clientY);
   }
+
+  _getEdgeIntersection(source, target) {
+    const dx = target.x - source.x;
+    const dy = target.y - source.y;
+    
+    // If they are dropped exactly on top of each other, fallback to center
+    if (dx === 0 && dy === 0) return { x: source.x, y: source.y };
+
+    // We calculate based on the device width plus 16px of padding for the tile
+    const hw = (source.width + 16) / 2; 
+    const hh = (source.height + 16) / 2;
+
+    const slope = dy / dx;
+    const aspect = hh / hw;
+
+    let x, y;
+
+    // Determine which edge of the bounding box the line intersects
+    if (Math.abs(slope) > aspect) {
+      // Intersects top or bottom edge
+      y = dy > 0 ? hh : -hh;
+      x = y / slope;
+    } else {
+      // Intersects left or right edge
+      x = dx > 0 ? hw : -hw;
+      y = x * slope;
+    }
+
+    return { x: source.x + x, y: source.y + y };
+  }
   
   _renderDeviceCables(ctx) {
     ctx.save();
@@ -691,6 +721,10 @@ export class LogicalLayout {
 
       if (!src || !dst) continue;
 
+      // Calculate the start and end points on the EDGES of the tiles
+      const p1 = this._getEdgeIntersection(src, dst);
+      const p2 = this._getEdgeIntersection(dst, src);
+
       ctx.beginPath();
 
       // CONSOLE (blue curved)
@@ -698,35 +732,35 @@ export class LogicalLayout {
         ctx.strokeStyle = "#007BFF";
         ctx.setLineDash([]);
 
-        const midX = (src.x + dst.x) / 2;
-        const midY = (src.y + dst.y) / 2 - 40;
+        const midX = (p1.x + p2.x) / 2;
+        const midY = (p1.y + p2.y) / 2 - 40;
 
-        ctx.moveTo(src.x, src.y);
-        ctx.quadraticCurveTo(midX, midY, dst.x, dst.y);
+        ctx.moveTo(p1.x, p1.y);
+        ctx.quadraticCurveTo(midX, midY, p2.x, p2.y);
       }
 
       // CROSSOVER (dashed)
       else if (cable.type === "copper-crossover") {
         ctx.strokeStyle = "#000000";
         ctx.setLineDash([6, 4]);
-        ctx.moveTo(src.x, src.y);
-        ctx.lineTo(dst.x, dst.y);
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
       }
 
       // STRAIGHT-THROUGH (solid)
       else if (cable.type === "copper-straight") {
         ctx.strokeStyle = "#000000";
         ctx.setLineDash([]);
-        ctx.moveTo(src.x, src.y);
-        ctx.lineTo(dst.x, dst.y);
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
       }
 
       // fallback
       else {
         ctx.strokeStyle = "#000000";
         ctx.setLineDash([]);
-        ctx.moveTo(src.x, src.y);
-        ctx.lineTo(dst.x, dst.y);
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
       }
 
       ctx.stroke();
@@ -768,29 +802,58 @@ export class LogicalLayout {
     this.shapeRenderer.renderPolygons(ctx, this.polygons);
     this.shapeRenderer.renderCircles(ctx, this.circles);
     this.shapeRenderer.renderWalls(ctx, this.walls);
+    
+    // 1. Draw cables FIRST so they go underneath the devices
     this._renderDeviceCables(ctx);
+
+    // 2. Draw the background tiles for devices
+    ctx.save();
+    for (const device of this.devices) {
+      const tileW = device.width + 32; // Add 16px of padding
+      const tileH = device.height + 45;
+      const tx = device.x - tileW / 2;
+      const ty = device.y - tileH / 2.5;
+
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#cbd5e1'; // Light grey border
+      ctx.lineWidth = 1;
+      
+      ctx.beginPath();
+      ctx.roundRect(tx, ty, tileW, tileH, 8); // 8px rounded corners
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 3. Draw the device icons on top of the tiles
     this.shapeRenderer.renderDevices(ctx, this.devices);
 
+    // --- SELECTION & HOVER STATES ---
+
+    // Selected Cable Highlight
     if (this.selectedEntity && this.selectedEntity.sourceId) {
       const cable = this.selectedEntity;
       const src = this.findEntityById(cable.sourceId);
       const dst = this.findEntityById(cable.targetId);
 
       if (src && dst) {
+        const p1 = this._getEdgeIntersection(src, dst);
+        const p2 = this._getEdgeIntersection(dst, src);
+
         ctx.save();
         ctx.strokeStyle = "#00AEEF";
         ctx.lineWidth = 4;
         ctx.setLineDash([4, 4]);
 
         ctx.beginPath();
-        ctx.moveTo(src.x, src.y);
-        ctx.lineTo(dst.x, dst.y);
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
         ctx.stroke();
-
         ctx.restore();
       }
     }
 
+    // Polygon / Shape drawing previews
     if (this.mode === 'polygon' && this.currentPolygon.length > 0 && this.currentPoint) {
       ctx.save();
       ctx.strokeStyle = '#00ff00';
@@ -822,13 +885,20 @@ export class LogicalLayout {
       ctx.restore();
     }
 
-    if (this.selectedEntity) {
-      const ctx = this.ctx;
+    // Selection bounding box for non-cable entities (Shapes and Devices)
+    if (this.selectedEntity && !this.selectedEntity.sourceId) {
       const en = this.selectedEntity;
-
       let x, y, w, h;
 
-      if (en.width !== undefined) {
+      // If it's a device, wrap the selection box around the padded tile
+      if (en.interfaces !== undefined || en.icon !== undefined) {
+         w = en.width + 16;
+         h = en.height + 16;
+         x = en.x - w / 2;
+         y = en.y - h / 2;
+      } 
+      // Safely check for shape width/height vs w/h
+      else if (en.width !== undefined) {
         w = en.width;
         h = en.height;
         x = en.x - w / 2;
@@ -848,50 +918,58 @@ export class LogicalLayout {
 
         const size = 8;
         const handles = [
-          [x, y],
-          [x + w, y],
-          [x, y + h],
-          [x + w, y + h]
+          [x, y], [x + w, y], [x, y + h], [x + w, y + h]
         ];
 
         ctx.fillStyle = "#00AEEF";
         handles.forEach(([hx, hy]) => {
           ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
         });
-
         ctx.restore();
       }
     }
 
+    // Pending Cable Source Highlight (Orange)
     if (this.pendingCableSource) {
       const en = this.pendingCableSource;
-
-      const x = en.x - en.width / 2;
-      const y = en.y - en.height / 2;
-      const w = en.width;
-      const h = en.height;
+      // Use safe dimensions
+      const safeW = en.width !== undefined ? en.width : (en.w || 32);
+      const safeH = en.height !== undefined ? en.height : (en.h || 32);
+      
+      const w = safeW + 16;
+      const h = safeH + 16;
+      const x = en.x - w / 2;
+      const y = en.y - h / 2;
 
       ctx.save();
       ctx.strokeStyle = "#ff9900";
       ctx.lineWidth = 3;
       ctx.setLineDash([6, 4]);
-      ctx.strokeRect(x, y, w, h);
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, 8);
+      ctx.stroke();
       ctx.restore();
     }
 
+    // Hovered Device Highlight (Green)
     if (this.hoveredDevice && this.mode === 'cable') {
       const en = this.hoveredDevice;
-
-      const x = en.x - en.width / 2;
-      const y = en.y - en.height / 2;
-      const w = en.width;
-      const h = en.height;
+      // Use safe dimensions
+      const safeW = en.width !== undefined ? en.width : (en.w || 32);
+      const safeH = en.height !== undefined ? en.height : (en.h || 32);
+      
+      const w = safeW + 16;
+      const h = safeH + 16;
+      const x = en.x - w / 2;
+      const y = en.y - h / 2;
 
       ctx.save();
       ctx.strokeStyle = "#00ff00";
       ctx.lineWidth = 3;
       ctx.setLineDash([3, 3]);
-      ctx.strokeRect(x, y, w, h);
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, 8);
+      ctx.stroke();
       ctx.restore();
     }
   }

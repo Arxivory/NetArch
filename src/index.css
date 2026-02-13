@@ -320,45 +320,79 @@ html,
 
 .device-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(85px, 1fr)); 
+  gap: 10px;
+  /* padding: 10px; */
 }
 
 .device-tile {
-  border: 1px solid #d1d1d1;
-  border-radius: 3px;
-  background: #fff;
-  max-width: 85px;
-  height: 85px;
-  font-size: 11px;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  cursor: pointer;
-  padding: 4px;
-  transition: background 0.15s, border 0.15s;
+  flex-direction: column; /* Stacks Icon on top of Text */
+  align-items: center;    /* Centers horizontally */
+  justify-content: center; /* Centers vertically */
+  text-align: center;     /* Centers multi-line text */
+  
+  height: 90px;          /* Taller fixed height */
+  padding: 8px 4px;
+  
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background-color: white;
+  cursor: grab;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
 
-.device-tile:hover {
+/* .device-tile:hover {
   background: #f0f0f0;
   border-color: #bdbdbd;
+} */
+
+.device-tile:hover {
+  background-color: #f8fafc;
+  border-color: #bdbdbd; /* Blue highlight */
 }
+
 .device-tile.draggable {
   cursor: grab;
 }
 
+/* .device-tile.draggable:active {
+  cursor: grabbing;
+} */
+
 .device-tile.draggable:active {
   cursor: grabbing;
+  border-color: #2563eb;
+  background-color: #eff6ff;
 }
 
-.device-icon {
+/* .device-icon {
   margin-bottom: 4px;
+} */
+
+.device-icon {
+  margin-bottom: 8px; /* Space between icon and text */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #334155;
+  width: 32px;        /* Fixed size for icon container */
+  height: 32px;
 }
+
+/* .device-type {
+  font-size: 11px;
+  text-align: center;
+} */
 
 .device-type {
   font-size: 11px;
-  text-align: center;
+  font-weight: 500;
+  color: #475569;
+  line-height: 1.25;
+  width: 100%;        /* Ensures text centers relative to full width */
+  word-wrap: break-word;
 }
 
 
@@ -494,6 +528,10 @@ html,
   user-select: none;
   padding: 2px 4px;
   border-radius: 3px;
+}
+
+.tree-item-row.selected-bg {
+  background-color: #e0e0e0;
 }
 
 .tree-item-row:hover {

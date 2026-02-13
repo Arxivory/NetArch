@@ -71,6 +71,25 @@ export class LogicalLayout {
     this.onDeviceAdded = opts.onDeviceAdded || null;
     this.onEntitySelected = opts.onEntitySelected || null;
 
+    this.deviceIcons = {};
+
+    // We define the SVG strings manually since we can't import React components here.
+    // These match standard Lucide icons.
+    const svgs = {
+      'router': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6.01 18h.01"/><path d="M10.01 18h.01"/><path d="M15 10v4"/><path d="M17.84 7.17a4 4 0 0 0-5.66 0"/><path d="M20.66 4.34a8 8 0 0 0-11.31 0"/></svg>`,
+      'server': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>`,
+      'pc': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>`,
+      'switch': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6" y2="6"/><line x1="6" y1="18" x2="6" y2="18"/></svg>`,
+      'firewall': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>` 
+    };
+
+    Object.keys(svgs).forEach(key => {
+      const img = new Image();
+      // This converts the SVG string into a data URL the canvas can read
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgs[key]);
+      this.deviceIcons[key] = img;
+    });
+
     this._initCanvas();
     this._render();
 
@@ -191,18 +210,51 @@ export class LogicalLayout {
   }
 
   addDevice(deviceData, x, y) {
-    const size = this.shapeRenderer.gridSize * 1.3;
+    const size = this.shapeRenderer.gridSize * 1.5; 
+    
+    // --- SMART ICON MAPPING ---
+    // We combine type and name into one string to search for keywords
+    // e.g. "Cisco 1941 Router"
+    const rawType = (deviceData.type + ' ' + deviceData.name).toLowerCase();
+    
+    let iconKey = null;
+
+    // Check for keywords in the device name
+    if (rawType.includes('router') || rawType.includes('gateway') || rawType.includes('1941')) {
+      iconKey = 'router';
+    } else if (rawType.includes('switch') || rawType.includes('catalyst') || rawType.includes('2960') || rawType.includes('9200')) {
+      iconKey = 'switch';
+    } else if (rawType.includes('server')) {
+      iconKey = 'server';
+    } else if (rawType.includes('firewall') || rawType.includes('asa')) {
+      iconKey = 'firewall';
+    } else if (rawType.includes('pc') || rawType.includes('desktop') || rawType.includes('computer') || rawType.includes('laptop')) {
+      iconKey = 'pc'; // Maps Laptops/Desktops to the PC icon for now
+    } else if (rawType.includes('phone')) {
+      // You can add a 'phone' icon to the constructor later if you want
+      iconKey = 'pc'; 
+    }
+
+    // Try to get the image; fallback to 'router' or null if nothing matched
+    const iconImage = this.deviceIcons[iconKey];
+
+    // ---------------------------
+
     const half = size / 2;
     const px = x - half;
     const py = y - half;
     const path = new Path2D();
-    path.rect(px + 0.5, py + 0.5, size, size);
+    path.rect(px, py, size, size);
+
     const device = {
       id: `device_${Math.random().toString(36).slice(2, 9)}`,
       type: deviceData.type || 'device',
-      label: deviceData.label,
+      label: deviceData.name || 'Device', 
       x,
       y,
+      width: size,
+      height: size,
+      icon: iconImage, // <--- If this is null, you get a black square
       transform: {
         position: { x, y, z: 0 },
         scale: 1,
@@ -211,7 +263,9 @@ export class LogicalLayout {
       path,
       hitTestMode: 'path'
     };
+
     this.devices.push(device);
+    
     if (this.onDeviceAdded) {
       this.onDeviceAdded(device);
     }

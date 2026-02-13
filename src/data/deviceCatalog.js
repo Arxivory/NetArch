@@ -1,7 +1,7 @@
 const switches = {
   "1200": {
     modelId: "1200",
-    displayName: "Cisco 1200 Switch",
+    displayName: "1200",
     family: "switch",
     vendor: "cisco",
     portCount: 24,
@@ -10,7 +10,7 @@ const switches = {
   },
   "1300": {
     modelId: "1300",
-    displayName: "Cisco 1300 Switch",
+    displayName: "1300",
     family: "switch",
     vendor: "cisco",
     portCount: 24,
@@ -19,7 +19,7 @@ const switches = {
   },
   "2960": {
     modelId: "2960",
-    displayName: "Cisco Catalyst 2960",
+    displayName: "2960",
     family: "switch",
     vendor: "cisco",
     portCount: 24,
@@ -28,7 +28,7 @@ const switches = {
   },
   "9200": {
     modelId: "9200",
-    displayName: "Cisco Catalyst 9200",
+    displayName: "9200",
     family: "switch",
     vendor: "cisco",
     portCount: 48,
@@ -37,7 +37,7 @@ const switches = {
   },
   "9300": {
     modelId: "9300",
-    displayName: "Cisco Catalyst 9300",
+    displayName: "9300",
     family: "switch",
     vendor: "cisco",
     portCount: 48,
@@ -46,7 +46,7 @@ const switches = {
   },
   "9400": {
     modelId: "9400",
-    displayName: "Cisco Catalyst 9400",
+    displayName: "9400",
     family: "switch",
     vendor: "cisco",
     portCount: 48,
@@ -55,7 +55,7 @@ const switches = {
   },
   "9500": {
     modelId: "9500",
-    displayName: "Cisco Catalyst 9500",
+    displayName: "9500",
     family: "switch",
     vendor: "cisco",
     portCount: 48,
@@ -64,7 +64,7 @@ const switches = {
   },
   "9600": {
     modelId: "9600",
-    displayName: "Cisco Catalyst 9600",
+    displayName: "9600",
     family: "switch",
     vendor: "cisco",
     portCount: 48,
@@ -73,7 +73,7 @@ const switches = {
   },
   "110": {
     modelId: "110",
-    displayName: "Cisco 110 Switch",
+    displayName: "110",
     family: "switch",
     vendor: "cisco",
     portCount: 8,
@@ -82,7 +82,7 @@ const switches = {
   },
   "220": {
     modelId: "220",
-    displayName: "Cisco 220 Switch",
+    displayName: "220",
     family: "switch",
     vendor: "cisco",
     portCount: 24,
@@ -91,7 +91,7 @@ const switches = {
   },
   "350": {
     modelId: "350",
-    displayName: "Cisco 350 Switch",
+    displayName: "350",
     family: "switch",
     vendor: "cisco",
     portCount: 48,
@@ -103,20 +103,70 @@ const switches = {
 const routers = {
   "1941": {
     modelId: "1941",
-    displayName: "Cisco 1941 Router",
+    displayName: "1941",
+    family: "router",
+    vendor: "cisco",
+    portCount: 2,
+    interfaceTemplate: "GigabitEthernet0/{n}",
+    model3D: "/models/router-1941.glb"
+  },
+  
+  "2901": {
+    modelId: "2901",
+    displayName: "2901",
+    family: "router",
+    vendor: "cisco",
+    portCount: 2,
+    interfaceTemplate: "GigabitEthernet0/{n}",
+    model3D: "/models/router-2901.glb"
+  },
+
+  "2911": {
+    modelId: "2911",
+    displayName: "2911",
+    family: "router",
+    vendor: "cisco",
+    portCount: 2,
+    interfaceTemplate: "GigabitEthernet0/{n}",
+    model3D: "/models/router-2911.glb"
+  },
+
+  "4321": {
+    modelId: "4321",
+    displayName: "4321",
+    family: "router",
+    vendor: "cisco",
+    portCount: 2,
+    interfaceTemplate: "GigabitEthernet0/{n}",
+    model3D: "/models/router-4321.glb"
+  },
+
+  "4331": {
+    modelId: "4331",
+    displayName: "4331",
+    family: "router",
+    vendor: "cisco",
+    portCount: 2,
+    interfaceTemplate: "GigabitEthernet0/{n}",
+    model3D: "/models/router-4331.glb"
+  },
+
+  "1240": {
+    modelId: "1240",
+    displayName: "1240",
     family: "router",
     vendor: "cisco",
     portCount: 2,
     interfaceTemplate: "GigabitEthernet0/{n}",
     model3D: "/models/router-1941.glb"
   }
-  
+
 };
 
 const endDevices = {
   "desktop": {
     modelId: "desktop",
-    displayName: "Desktop Computer",
+    displayName: "Desktop",
     family: "end-device",
     vendor: "generic",
     portCount: 1,
@@ -146,7 +196,7 @@ const endDevices = {
 export const cables = {
   "console": {
     id: "console",
-    label: "Console Cable",
+    label: "Console",
     description: "Rollover cable for device management",
     type: "serial", 
     speed: 0.0096,       
@@ -163,7 +213,7 @@ export const cables = {
 
   "copper-straight": {
     id: "copper-straight",
-    label: "Copper Straight-Through",
+    label: "Straight-Through",
     type: "ethernet",
     category: "cat6",
     speed: 1000,    
@@ -179,7 +229,7 @@ export const cables = {
 
   "copper-crossover": {
     id: "copper-crossover",
-    label: "Copper Cross-Over",
+    label: "Cross-Over",
     type: "ethernet",
     category: "cat6",
     speed: 1000,
@@ -208,7 +258,7 @@ export function createDeviceInstance(catalogId, position = { x: 0, y: 0, z: 0 },
   }
 
   const id = `dev_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
-  const name = opts.name || `${catalogEntry.displayName}-${id.slice(-4)}`;
+  const name = opts.name || catalogEntry.displayName;
   const interfaces = generateInterfaces(catalogEntry);
 
   return {

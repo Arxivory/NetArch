@@ -36,7 +36,7 @@ export class LogicalLayout {
     this.pointerHandler = new PointerHandler({
       onPointerDown: this._onPointerDown.bind(this),
       onPointerMove: this._onPointerMove.bind(this),
-      onPointerUp: this._onPointerUp.bind(this),
+      onPointerUp: this._onPointerUp.bind(this)
     });
 
     this.selection = new Selection({
@@ -67,7 +67,6 @@ export class LogicalLayout {
     this.structureType = '';
     this.bgColor = opts.bgColor || '#ffffffff';
 
-    this.onZoomSelected = opts.onZoomSelected || null;//
     this.onDeviceAdded = opts.onDeviceAdded || null;
     this.onEntitySelected = opts.onEntitySelected || null;
 
@@ -299,8 +298,7 @@ export class LogicalLayout {
       this.pointerHandler.setPanStart(e.clientX, e.clientY);
     }
 
-    const zoomFactor = this.pointerHandler.getZoom();
-    const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoomFactor);
+    const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState);
     const snapped = this.grid.snapToGrid(p);
 
     if (this.mode === 'select') {
@@ -350,8 +348,7 @@ export class LogicalLayout {
   _onPointerMove(e) {
     if (!this.canvas) return;
 
-    const zoomFactor = this.pointerHandler.getZoom();
-    const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoomFactor);
+    const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState);
 
     if (this.mode === 'polygon') {
       this.currentPoint = this.grid.snapToGrid(p);
@@ -432,22 +429,19 @@ export class LogicalLayout {
     const ctx = this.ctx;
     const w = this.width;
     const h = this.height;
-    const zoomFactor = this.pointerHandler.getZoom();
-    const zoom = this.devicePixelRatio * zoomFactor;
+
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.restore();
 
-
-
     ctx.setTransform(
-      zoom,
+      this.devicePixelRatio,
       0,
       0,
-      zoom,
-      this.viewState.e * zoom,
-      this.viewState.f * zoom
+      this.devicePixelRatio,
+      this.viewState.e * this.devicePixelRatio,
+      this.viewState.f * this.devicePixelRatio
     );
 
     ctx.fillStyle = this.bgColor;
@@ -463,7 +457,6 @@ export class LogicalLayout {
     this.shapeRenderer.renderCables(ctx, this.cables);
     this.shapeRenderer.renderDevices(ctx, this.devices);
 
-    
     if (this.mode === 'polygon' && this.currentPolygon.length > 0 && this.currentPoint) {
       ctx.save();
       ctx.strokeStyle = '#00ff00';
@@ -538,12 +531,6 @@ export class LogicalLayout {
     if (this.onEntitySelected) this.onEntitySelected(en);
     return en;
   }
-
-  setZoom(zoom) {
-    this.pointerHandler.setZoom(zoom);
-    this._render();
-  }
-
 }
 
 

@@ -24,7 +24,7 @@ export class LogicalCanvasController {
       onWallCreated: (wall) => this._handleWallCreated(wall),
       onCableCreated: (cable) => this._handleCableCreated(cable),
       onDeviceAdded: (device) => this._handleDeviceAdded(device),
-      onEntitySelected: (entity) => this._handleEntitySelected(entity),
+      onEntitySelected: (entity) => this._handleEntitySelected(entity)
     });
   }
 
@@ -42,10 +42,6 @@ export class LogicalCanvasController {
   setSize(w, h) {
     this.layout?.setSize(w, h);
   }
-
-  // setDefaultZoom(dpr){
-  //   appState.setZoom(dpr);
-  // }
 
   setGridSize(size) {
     this.layout?.setGridSize(size);
@@ -192,10 +188,6 @@ export class LogicalCanvasController {
         cableData.cableType || 'ethernet'
       );
     }
-  }
-  
-  _handleZoomSelected(zoom){
-    this.layout.setZoom(zoom);
   }
 
   _handleDeviceAdded(device) {

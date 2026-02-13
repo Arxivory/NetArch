@@ -1,3 +1,4 @@
+
 export class UIStore {
   constructor() {
     this.hierarchyPanelOpen = true;
@@ -38,12 +39,12 @@ export class UIStore {
     return this.zoomLevel;
   }
 
-  zoomIn(factor = 0.1) {
-    this.setZoom(this.zoomLevel + factor);
+  zoomIn(factor = 1.2) {
+    this.setZoom(this.zoomLevel * factor);
   }
 
-  zoomOut(factor = 0.1) {
-    this.setZoom(this.zoomLevel - factor);
+  zoomOut(factor = 0.8) {
+    this.setZoom(this.zoomLevel * factor);
   }
 
   resetZoom() {

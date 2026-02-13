@@ -55,7 +55,7 @@ export default function SimulationPanel() {
       <span>
         {parts.map((part, i) =>
           part.toLowerCase() === highlight.toLowerCase() ? (
-            <mark key={i} className="bg-yellow-200 text-black rounded-sm px-0.5">{part}</mark>
+            <mark key={i} className="bg-blue-300 text-black rounded-sm px-0.5">{part}</mark>
           ) : ( part )
         )}
       </span>
@@ -68,12 +68,12 @@ export default function SimulationPanel() {
   return (
     <div className="console-panel flex flex-col h-full w-full overflow-hidden bg-white border border-gray-300">
       
-     
+      
       <div className="panel-header flex justify-between items-center h-7 px-3 bg-gray-50 border-b border-gray-300 flex-shrink-0 z-50">
         <h3 className="font-bold text-gray-700 text-sm">Logs</h3>
         <div className="flex items-center space-x-2">
           <input
-            type="text" placeholder="Search activity..." value={search}
+            type="text" placeholder="Search message..." value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="border border-gray-300 rounded px-2 py-1 h-5 text-[10px] w-40 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
           />
@@ -86,7 +86,6 @@ export default function SimulationPanel() {
         </div>
       </div>
 
-     
       <div className="h-7 bg-gray-50 border-b border-gray-300 flex-shrink-0 z-30">
         <table className="w-full table-fixed">
           <thead>
@@ -103,22 +102,18 @@ export default function SimulationPanel() {
         </table>
       </div>
 
-            
-      <div className="flex-1 overflow-y-auto bg-white min-h-0 flex flex-col">
-        <div className="flex-1 flex flex-col bg-white min-h-full">
-          
-          {(isTableEmpty || isFilterEmpty) ? (
-           
-            <div className="flex-1 flex flex-col items-center justify-center p-10 bg-white">
-              {isTableEmpty ? (
-                <p className="text-gray-400 text-[13px] italic">No logs yet — start the project to see activity here.</p>
-              ) : (
-                <p className="text-gray-400 text-[12px] font-medium">No matches found</p>
-              )}
-            </div>
-          ) : (
-   
-            <table className="w-full border-collapse table-fixed bg-white">
+      <div className="flex-1 bg-white min-h-0 overflow-y-auto flex flex-col">
+        {(isTableEmpty || isFilterEmpty) ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-10 bg-white">
+            {isTableEmpty ? (
+              <p className="text-gray-400 text-[13px] italic">No logs yet — start the project to see activity here.</p>
+            ) : (
+              <p className="text-gray-400 text-[12px] font-medium">No matches found</p>
+            )}
+          </div>
+        ) : (
+          <>
+            <table className="w-full border-collapse table-fixed bg-white flex-shrink-0">
               <tbody>
                 {filteredLogs.map((log, index) => (
                   <tr key={index} className="hover:bg-blue-50/50 h-9 transition-colors group border-b border-gray-100">
@@ -135,14 +130,12 @@ export default function SimulationPanel() {
                 ))}
               </tbody>
             </table>
-          )}
-          
-         
-          <div className="flex-1 bg-white" />
-        </div>
+            <div className="flex-1 bg-white"></div>
+          </>
+        )}
       </div>
 
-     
+    
       {showFilters && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
           <div className="bg-white w-64 rounded-lg shadow-2xl border border-gray-200 p-4">

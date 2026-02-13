@@ -102,39 +102,37 @@ export default function ConsolePanel() {
         </table>
       </div>
 
-      <div className="flex-1 bg-white min-h-0 overflow-hidden flex flex-col">
-        <div className="flex-1 overflow-y-scroll bg-white flex flex-col">
-          {(isTableEmpty || isFilterEmpty) ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-10 bg-white">
-              {isTableEmpty ? (
-                <p className="text-gray-400 text-[13px] italic">No logs yet — start the project to see activity here.</p>
-              ) : (
-                <p className="text-gray-400 text-[12px] font-medium">No matches found</p>
-              )}
-            </div>
-          ) : (
-            <>
-              <table className="w-full border-collapse table-fixed bg-white flex-shrink-0">
-                <tbody>
-                  {filteredLogs.map((log, index) => (
-                    <tr key={index} className="hover:bg-blue-50/50 h-9 transition-colors group border-b border-gray-100">
-                      <td className="px-3 py-1 text-[11px] text-gray-700 truncate w-[12%]">{log.device}</td>
-                      <td className="px-3 py-1 text-[11px] text-gray-700 truncate font-medium w-[15%]">{log.deviceName}</td>
-                      <td className="px-3 py-1 text-[11px] text-gray-700 truncate italic w-[33%]">{highlightText(log.message, search)}</td>
-                      <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[10%]">{log.time}</td>
-                      <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[10%]">{log.date}</td>
-                      <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[15%]">{log.location}</td>
-                      <td className="px-4 py-1 text-center w-10">
-                        <Trash2 className="text-red-600 cursor-pointer inline-block transition-colors hover:text-red-800" size={15} onClick={() => deleteLog(index)} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="flex-1 bg-white" />
-            </>
-          )}
-        </div>
+      <div className="flex-1 bg-white min-h-0 overflow-y-auto flex flex-col">
+        {(isTableEmpty || isFilterEmpty) ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-10 bg-white">
+            {isTableEmpty ? (
+              <p className="text-gray-400 text-[13px] italic">No logs yet — start the project to see activity here.</p>
+            ) : (
+              <p className="text-gray-400 text-[12px] font-medium">No matches found</p>
+            )}
+          </div>
+        ) : (
+          <>
+            <table className="w-full border-collapse table-fixed bg-white flex-shrink-0">
+              <tbody>
+                {filteredLogs.map((log, index) => (
+                  <tr key={index} className="hover:bg-blue-50/50 h-9 transition-colors group border-top border-gray-100">
+                    <td className="px-3 py-1 text-[11px] text-gray-700 truncate w-[12%]">{log.device}</td>
+                    <td className="px-3 py-1 text-[11px] text-gray-700 truncate font-medium w-[15%]">{log.deviceName}</td>
+                    <td className="px-3 py-1 text-[11px] text-gray-700 truncate italic w-[33%]">{highlightText(log.message, search)}</td>
+                    <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[10%]">{log.time}</td>
+                    <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[10%]">{log.date}</td>
+                    <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[15%]">{log.location}</td>
+                    <td className="px-4 py-1 text-center w-10">
+                      <Trash2 className="text-red-600 cursor-pointer inline-block transition-colors hover:text-red-800" size={15} onClick={() => deleteLog(index)} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="flex-1 bg-white"></div>
+          </>
+        )}
       </div>
 
     

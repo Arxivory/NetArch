@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import appState from "../../state/AppState";
 import {
   StartDrawRectangleCommand, StartDrawCircleCommand, StartDrawPolygonCommand, StartDrawWallCommand,
-  StartPanCommand, CancelDrawingCommand
+  StartSelectCommand, StartPanCommand, CancelDrawingCommand
 } from "../../core/editor/DrawingCommands";
 import StructuralOption from "./StructuralOption";
 
@@ -70,7 +70,7 @@ export default function Toolbar({ canvasController }) {
       <div className="toolbar-group">
         <div className="toolbar-row">
           <button
-            onClick={() => executeCommand(CancelDrawingCommand)}
+            onClick={() => executeCommand(StartSelectCommand)}
             className={`toolbar-btn ${isActive("select") ? "active" : ""}`}
           >
             <MousePointer size={16} /> Select

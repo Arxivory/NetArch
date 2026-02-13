@@ -14,7 +14,8 @@ export class LogicalCanvasController {
       onCableCreated: (cable) => this._handleCableCreated(cable),
       onCircleCreated: (circle) => this._handleCircleCreated(circle),
       onPolygonCreated: (polygon) => this._handlePolygonCreated(polygon),
-      onDeviceAdded: (device) => this._handleDeviceAdded(device)
+      onDeviceAdded: (device) => this._handleDeviceAdded(device),
+      onEntitySelected: (entity) => this._handleEntitySelected(entity)
     });
 
     this.domainLabelIter = 0;
@@ -62,6 +63,10 @@ export class LogicalCanvasController {
     this.layout?.startDrawPolygon(type);
   }
 
+  startSelect() {
+    this.layout?.startSelect();
+  }
+
   startPan() {
     this.layout?.startPan();
   }
@@ -72,6 +77,10 @@ export class LogicalCanvasController {
 
   addDevice(deviceData, x, y) {
     this.layout?.addDevice(deviceData, x, y);
+  }
+
+  updateEntityTransform(id, updates) {
+    this.layout?.updateEntityTransform(id, updates);
   }
 
   getSnappedCoords(clientX, clientY) {
@@ -232,6 +241,11 @@ export class LogicalCanvasController {
   _handleDeviceAdded(device) {
     // Device added - can be processed further if needed
     // Add to network store or selection
+  }
+  
+  _handleEntitySelected(entity) {
+    if (!entity || !entity.id) return;
+    appState.selection.selectDevice(entity.id, false); // false = don't multi-select
   }
 
   //we will call the appstate and push the data to the app state variables.

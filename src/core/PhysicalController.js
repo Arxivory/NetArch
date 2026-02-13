@@ -137,7 +137,10 @@ export class PhysicalController {
         const modTallness = tallness * this.defaultScaler;
 
         const geometry = new THREE.BoxGeometry(modifiedWidth, modTallness, modifiedHeight);
-        const material = new THREE.MeshBasicMaterial({ color: 0x909090 });
+        const material = new THREE.MeshBasicMaterial({ 
+            color: 0x909090,
+            side: THREE.DoubleSide
+        });
 
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.set(

@@ -102,9 +102,9 @@ export default function ConsolePanel() {
         </table>
       </div>
 
-      <div className="flex-1 bg-white min-h-0 overflow-y-auto flex flex-col">
+      <div className="flex-1 bg-white overflow-y-auto">
         {(isTableEmpty || isFilterEmpty) ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-10 bg-white">
+          <div className="h-full flex flex-col items-center justify-center p-10">
             {isTableEmpty ? (
               <p className="text-gray-400 text-[13px] italic">No logs yet — start the project to see activity here.</p>
             ) : (
@@ -124,7 +124,7 @@ export default function ConsolePanel() {
                     <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[10%]">{log.date}</td>
                     <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[15%]">{log.location}</td>
                     <td className="px-4 py-1 text-center w-10">
-                      <Trash2 className="text-red-600 cursor-pointer inline-block transition-colors hover:text-red-800" size={15} onClick={() => deleteLog(index)} />
+                      <Trash2 className="text-gray-800 cursor-pointer inline-block transition-colors hover:text-gray-800" size={15} onClick={() => deleteLog(index)} />
                     </td>
                   </tr>
                 ))}
@@ -151,20 +151,20 @@ export default function ConsolePanel() {
             </div>
             <div className="flex justify-end gap-3 mt-4">
               <button onClick={handleResetFilters} className="text-[11px] text-gray-400 hover:text-gray-600">Reset</button>
-              <button onClick={handleApplyFilters} className="bg-gray-900 text-white px-4 py-1.5 rounded text-[11px] hover:bg-black transition-all">Apply</button>
+              <button onClick={handleApplyFilters} className="bg-gray-900 text-white px-4 py-1.5 rounded text-[11px] hover:bg-gray-600 transition-all">Apply</button>
             </div>
           </div>
         </div>
       )}
 
       {showClearModal && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-[1px] flex items-center justify-center z-[100]">
+        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-[100]">
           <div className="bg-white rounded-lg p-5 w-80 shadow-2xl border border-gray-200">
             <h4 className="font-bold text-gray-800 text-sm mb-1">Clear Logs</h4>
             <p className="text-gray-500 text-[11px] mb-5">This will delete all logs. Continue?</p>
             <div className="flex justify-end space-x-2">
               <button onClick={() => setShowClearModal(false)} className="px-4 py-1.5 border border-gray-200 rounded text-[11px] text-gray-600 hover:bg-gray-50 font-medium">Cancel</button>
-              <button onClick={clearAllLogs} className="px-4 py-1.5 bg-red-500 text-white rounded text-[11px] hover:bg-red-600 font-medium transition-colors">Clear All</button>
+              <button onClick={clearAllLogs} className="px-4 py-1.5 bg-gray-500 text-white rounded text-[11px] hover:bg-gray-500 font-medium transition-colors">Clear All</button>
             </div>
           </div>
         </div>

@@ -102,9 +102,9 @@ export default function SimulationPanel() {
         </table>
       </div>
 
-      <div className="flex-1 bg-white min-h-0 overflow-y-auto flex flex-col">
+      <div className="flex-1 bg-white overflow-y-auto">
         {(isTableEmpty || isFilterEmpty) ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-10 bg-white">
+          <div className="h-full flex flex-col items-center justify-center p-10">
             {isTableEmpty ? (
               <p className="text-gray-400 text-[13px] italic">No logs yet — start the project to see activity here.</p>
             ) : (
@@ -116,7 +116,7 @@ export default function SimulationPanel() {
             <table className="w-full border-collapse table-fixed bg-white flex-shrink-0">
               <tbody>
                 {filteredLogs.map((log, index) => (
-                  <tr key={index} className="hover:bg-blue-50/50 h-9 transition-colors group border-b border-gray-100">
+                  <tr key={index} className="hover:bg-blue-50/50 h-9 transition-colors group border-top border-gray-100">
                     <td className="px-3 py-1 text-[11px] text-gray-700 truncate w-[12%]">{log.device}</td>
                     <td className="px-3 py-1 text-[11px] text-gray-700 truncate font-medium w-[15%]">{log.deviceName}</td>
                     <td className="px-3 py-1 text-[11px] text-gray-700 truncate italic w-[33%]">{highlightText(log.message, search)}</td>
@@ -124,7 +124,7 @@ export default function SimulationPanel() {
                     <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[10%]">{log.date}</td>
                     <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[15%]">{log.location}</td>
                     <td className="px-4 py-1 text-center w-10">
-                      <Trash2 className="text-red-600 cursor-pointer inline-block transition-colors hover:text-red-800" size={15} onClick={() => deleteLog(index)} />
+                      <Trash2 className="text-gray-800 cursor-pointer inline-block transition-colors hover:text-gray-800" size={15} onClick={() => deleteLog(index)} />
                     </td>
                   </tr>
                 ))}
@@ -137,9 +137,9 @@ export default function SimulationPanel() {
 
     
       {showFilters && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
-          <div className="bg-white w-64 rounded-lg shadow-2xl border border-gray-200 p-4">
-            <div className="flex justify-between items-center mb-3 text-[10px] font-bold text-gray-400 uppercase">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 ">
+          <div className="bg-white w-80 rounded-lg shadow-2xl border border-gray-200 p-4">
+            <div className="flex justify-between items-center mb-3 text-[10px] font-bold text-black uppercase">
               <span>Filter Settings</span>
               <X className="cursor-pointer hover:text-black" size={16} onClick={() => setShowFilters(false)} />
             </div>
@@ -151,20 +151,20 @@ export default function SimulationPanel() {
             </div>
             <div className="flex justify-end gap-3 mt-4">
               <button onClick={handleResetFilters} className="text-[11px] text-gray-400 hover:text-gray-600">Reset</button>
-              <button onClick={handleApplyFilters} className="bg-gray-900 text-white px-4 py-1.5 rounded text-[11px] hover:bg-black transition-all">Apply</button>
+              <button onClick={handleApplyFilters} className="bg-gray-500 text-white px-4 py-1.5 rounded text-[11px] hover:bg-gray-500 transition-all">Apply</button>
             </div>
           </div>
         </div>
       )}
 
       {showClearModal && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-[1px] flex items-center justify-center z-[100]">
-          <div className="bg-white rounded-lg p-5 w-80 shadow-2xl border border-gray-200">
+        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-[100]">
+          <div className="bg-white w-80 h-50 rounded-lg shadow-2xl border border-gray-200 p-4">
             <h4 className="font-bold text-gray-800 text-sm mb-1">Clear Logs</h4>
             <p className="text-gray-500 text-[11px] mb-5">This will delete all logs. Continue?</p>
             <div className="flex justify-end space-x-2">
               <button onClick={() => setShowClearModal(false)} className="px-4 py-1.5 border border-gray-200 rounded text-[11px] text-gray-600 hover:bg-gray-50 font-medium">Cancel</button>
-              <button onClick={clearAllLogs} className="px-4 py-1.5 bg-red-500 text-white rounded text-[11px] hover:bg-red-600 font-medium transition-colors">Clear All</button>
+              <button onClick={clearAllLogs} className="px-4 py-1.5 bg-gray-500 text-white rounded text-[11px] hover:bg-gray-500 font-medium transition-colors">Clear All</button>
             </div>
           </div>
         </div>

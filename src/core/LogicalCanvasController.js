@@ -24,7 +24,10 @@ export class LogicalCanvasController {
       onWallCreated: (wall) => this._handleWallCreated(wall),
       onCableCreated: (cable) => this._handleCableCreated(cable),
       onDeviceAdded: (device) => this._handleDeviceAdded(device),
-      onEntitySelected: (entity) => this._handleEntitySelected(entity)
+      onEntitySelected: (entity) => this._handleEntitySelected(entity),
+
+      onPortSelect: (device, x, y, callback) => this._handlePortSelect(device, x, y, callback)
+
     });
   }
 
@@ -106,6 +109,7 @@ export class LogicalCanvasController {
 
       if (appState.network?.addDevice) {
         appState.network.addDevice(newDevice);
+        console.log('From Logical Canvas Controller, the device: ', newDevice, ' is added');
       }
     } catch (error) {
       console.error("Failed to add device:", error.message);
@@ -119,6 +123,98 @@ export class LogicalCanvasController {
   // =========================================================
   // STATE MANAGEMENT HANDLERS
   // =========================================================
+
+  _handlePortSelect(device, x, y, callback) {
+    // 1. Remove any existing port menus
+    const existingMenu = document.getElementById('canvas-port-menu');
+    if (existingMenu) existingMenu.remove();
+
+    if (!device.interfaces || device.interfaces.length === 0) {
+      console.warn(`Device ${device.label} has no ports available.`);
+      callback(null);
+      return;
+    }
+
+    // --- NEW LOGIC: Check for Used Ports ---
+    const usedPorts = new Set();
+    
+    // Scan all existing cables to see what is already plugged into this device
+    if (this.layout && this.layout.cables) {
+      this.layout.cables.forEach(cable => {
+        if (cable.sourceId === device.id && cable.sourcePort) {
+          usedPorts.add(cable.sourcePort);
+        }
+        if (cable.targetId === device.id && cable.targetPort) {
+          usedPorts.add(cable.targetPort);
+        }
+      });
+    }
+
+    // Filter the device's total ports against the used ports
+    const availablePorts = device.interfaces.filter(port => !usedPorts.has(port));
+
+    // If all ports are full, let the user know and cancel!
+    if (availablePorts.length === 0) {
+      alert(`All ports on ${device.label} are currently in use!`);
+      callback(null);
+      return;
+    }
+    // ---------------------------------------
+
+    // 2. Create the floating menu container
+    const menu = document.createElement('div');
+    menu.id = 'canvas-port-menu';
+    menu.style.position = 'fixed';
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    menu.style.backgroundColor = '#ffffff';
+    menu.style.border = '1px solid #94a3b8';
+    menu.style.borderRadius = '4px';
+    menu.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
+    menu.style.padding = '4px 0';
+    menu.style.zIndex = '9999';
+    menu.style.minWidth = '140px';
+    menu.style.maxHeight = '300px'; // Add a max height just in case of 48-port switches
+    menu.style.overflowY = 'auto';  // Add scrolling for large numbers of ports
+    menu.style.fontFamily = 'sans-serif';
+    menu.style.fontSize = '12px';
+    menu.style.color = '#0f172a';
+
+    // 3. Create a clickable row ONLY for available ports
+    availablePorts.forEach(port => {
+      const item = document.createElement('div');
+      item.innerText = port;
+      item.style.padding = '8px 16px';
+      item.style.cursor = 'pointer';
+      item.style.transition = 'background-color 0.1s';
+      
+      item.onmouseenter = () => item.style.backgroundColor = '#f1f5f9';
+      item.onmouseleave = () => item.style.backgroundColor = '#ffffff';
+
+      item.onclick = (e) => {
+        e.stopPropagation(); 
+        menu.remove();
+        document.removeEventListener('pointerdown', outsideClickListener);
+        callback(port); 
+      };
+      
+      menu.appendChild(item);
+    });
+
+    document.body.appendChild(menu);
+
+    const outsideClickListener = (e) => {
+      if (!menu.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener('pointerdown', outsideClickListener);
+        callback(null); 
+      }
+    };
+    
+    setTimeout(() => {
+      document.addEventListener('pointerdown', outsideClickListener);
+    }, 10);
+  }
 
   _handleShapeCreated(shapeData, shapeType) {
     const { structureType, id, x, y, w, h, r, points } = shapeData;
@@ -151,16 +247,32 @@ export class LogicalCanvasController {
     } 
     
     else if (structureType === 'Space') {
-      const selectedFloorId = appState.ui?.activeFloorId || appState.selection?.getSelectedId?.();
+      // const selectedFloorId = appState.ui?.activeFloorId || appState.selection?.getSelectedId?.();
       
-      if (!selectedFloorId) {
-        console.warn('No floor selected for space creation');
+      // if (!selectedFloorId) {
+      //   console.warn('No floor selected for space creation');
+      //   return;
+      // }
+
+      // appState.structural.addSpace({
+      //   id,
+      //   floorId: selectedFloorId,
+      //   label: `Space ${this.counters.space++}`,
+      //   shapeType: shapeType,
+      //   x, y, w, h, r, points
+      // });
+
+      const selection = appState.selection;
+      const selectedSiteId = selection.getFocusedId() || selection.getSelectedId();
+
+      if (!selectedSiteId) {
+        console.warn("Space creation failed: A Site must be selected.");
         return;
       }
 
       appState.structural.addSpace({
         id,
-        floorId: selectedFloorId,
+        siteId: selectedSiteId,
         label: `Space ${this.counters.space++}`,
         shapeType: shapeType,
         x, y, w, h, r, points

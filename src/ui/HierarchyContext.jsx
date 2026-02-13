@@ -35,9 +35,7 @@ export function HierarchyProvider({ children }) {
     } else if (type === 'site') {
       appState.structural.addSite({ ...newNode, domainId: parentId });
     } else if (type === 'floor') {
-      appState.structural.addFloor({ ...newNode, siteId: parentId });
-    } else if (type === 'space' || type === 'room') {
-      appState.structural.addSpace({ ...newNode, floorId: parentId });
+      appState.structural.addSpace({ ...newNode, siteId: parentId }); //Changed to Site ID, will change to floor soon.
     }
   };
 

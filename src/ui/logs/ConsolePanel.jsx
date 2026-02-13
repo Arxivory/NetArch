@@ -19,7 +19,16 @@ export default function ConsolePanel() {
     { device: "Switch", deviceName: "Sw-1", message: "Spanning tree topology change detected", time: "4:55PM", date: "9/25/25", location: "Room 305" },
     { device: "Router", deviceName: "R-4", message: "BGP session with ISP established", time: "11:30AM", date: "9/25/25", location: "Server Room" },
     { device: "End Device", deviceName: "Phone-2", message: "VoIP call dropped unexpectedly", time: "6:20PM", date: "9/25/25", location: "Room 801" },
-    { device: "Switch", deviceName: "Sw-3", message: "Interface Vlan 1 state is set to down", time: "9:00AM", date: "9/26/25", location: "Room 102" }
+    { device: "Switch", deviceName: "Sw-3", message: "Interface Vlan 1 state is set to down", time: "9:00AM", date: "9/26/25", location: "Room 102" },
+    { device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to up", time: "9:15AM", date: "9/26/25", location: "Room 305" },
+    { device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to up", time: "9:15AM", date: "9/26/25", location: "Room 305" },
+    { device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to up", time: "9:15AM", date: "9/26/25", location: "Room 305" },
+    { device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to up", time: "9:15AM", date: "9/26/25", location: "Room 305" },
+    { device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to up", time: "9:15AM", date: "9/26/25", location: "Room 305" },
+    { device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to up", time: "9:15AM", date: "9/26/25", location: "Room 305" },
+    { device: "End Device", deviceName: "Laptop-1", message: "Disconnected from WiFi 'OfficeNet'", time: "5:00PM", date: "9/26/25", location: "Room 102" },
+    { device: "Switch", deviceName: "Sw-Core-01", message: "%SYS-5-CONFIG_I: Configured from console by admin", time: "12:00PM", date: "9/26/25", location: "Server Room" },
+    { device: "Router", deviceName: "R-5", message: "Interface GigabitEthernet0/2, changed state to down", time: "3:45PM", date: "9/26/25", location: "Room 305" },
   ]);
 
   const [search, setSearch] = useState("");

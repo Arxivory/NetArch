@@ -10,6 +10,7 @@ export class PhysicalController {
 
         this.domainMeshes = new Map();
         this.siteMeshes = new Map();
+        this.spaceMeshes = new Map();
 
         this.unsubscribe = this.store.subscribe(() => this.syncWithState());
 
@@ -19,8 +20,11 @@ export class PhysicalController {
     syncWithState() {
         const domains = this.store.domains;
         const sites = this.store.sites;
+        const spaces = this.store.spaces;
+
         const activeDomainIds = new Set();
         const activeSiteIds = new Set();
+        const activeSpaceIds = new Set();
 
         for (const domain of domains) {
             activeDomainIds.add(domain.id);
@@ -54,6 +58,21 @@ export class PhysicalController {
             }
         }
 
+        for (const space of spaces) {
+            activeSpaceIds.add(space.id);
+
+            if (this.spaceMeshes.has(space.id))
+                continue;
+
+            switch (space.shapeType) {
+                case 'rectangle':
+                    this.createRectangleSpaceMesh(space);
+                    break;
+                default:
+                    break;
+            }
+        }
+
         for (const [id, mesh] of this.domainMeshes) {
             if (!activeDomainIds.has(id)) {
                 this.scene.remove(mesh);
@@ -65,6 +84,12 @@ export class PhysicalController {
             if (!activeSiteIds.has(id)) {
                 this.scene.remove(mesh);
                 this.siteMeshes.delete(id);
+            }
+        }
+
+        for (const [id, mesh] of this.spaceMeshes) {
+            if (!activeSiteIds.has(id)) {
+                this.spaceMeshes.delete(id);
             }
         }
     }
@@ -151,6 +176,35 @@ export class PhysicalController {
 
         this.scene.add(mesh);
         this.siteMeshes.set(site.id, mesh);
+    }
+
+    createRectangleSpaceMesh(space) {
+        const { x, y, width, height } = space.geometry;
+
+        const modifiedX = x * this.defaultScaler;
+        const modifiedY = y * this.defaultScaler;
+        const modifiedWidth = width * this.defaultScaler;
+        const modifiedHeight = height * this.defaultScaler;
+
+        const tallness = 50;
+
+        const modTallness = tallness * this.defaultScaler;
+
+        const geometry = new THREE.BoxGeometry(modifiedWidth, modTallness, modifiedHeight);
+        const material = new THREE.MeshBasicMaterial({ 
+            color: 0x909090,
+            side: THREE.DoubleSide
+        });
+
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(
+            modifiedX + (modifiedWidth / 2),
+            (modTallness / 2),
+            modifiedY + (modifiedHeight / 2)
+        )
+
+        this.scene.add(mesh);
+        this.spaceMeshes.set(space.id, mesh);
     }
 
     updateDomainMesh(domain) {

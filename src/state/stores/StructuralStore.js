@@ -154,7 +154,7 @@ export class StructuralStore {
 
         console.log(`Adding Space: `, newSpace, 'With a Site ID: ', newSpace.siteId);
 
-        this.spaces.push({ ...space });
+        this.spaces.push(newSpace);
         this.notify();
         return space;
     }

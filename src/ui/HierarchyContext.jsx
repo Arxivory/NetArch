@@ -1,43 +1,26 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
+import appState from "../state/AppState";
 
 const HierarchyContext = createContext();
 
 export function HierarchyProvider({ children }) {
-  const [hierarchy, setHierarchy] = useState([
-    {
-      id: 1,
-      label: "Centro Escolar University Manila",
-      type: "domain",
-      children: [
-        {
-          id: 2,
-          label: "Librada Avelino Hall",
-          type: "building",
-          children: [
-            {
-              id: 3,
-              label: "1st Floor",
-              type: "floor",
-              children: [
-                {
-                  id: 4,
-                  label: "Room 100",
-                  type: "room",
-                  children: [],
-                },
-                {
-                  id: 5,
-                  label: "Room 101",
-                  type: "room",
-                  children: [],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-  ]);
+  const [hierarchy, setHierarchy] = useState([]);
+
+  useEffect(() => {
+    const tree = appState.structural.getHierarchyTree();
+    setHierarchy(tree);
+
+    const unsubscribe = appState.structural.subscribe(() => {
+      const updatedTree = appState.structural.getHierarchyTree();
+      setHierarchy(updatedTree);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const selectNode = (id, type) => {
+    appState.selection.focusedNode(id, type);
+  }
 
   const addNode = (parentId, type, label) => {
     const newNode = {
@@ -47,16 +30,15 @@ export function HierarchyProvider({ children }) {
       children: [],
     };
 
-    function addRecursive(nodes) {
-      return nodes.map((n) => {
-        if (n.id === parentId) {
-          return { ...n, children: [...n.children, newNode] };
-        }
-        return { ...n, children: addRecursive(n.children) };
-      });
+    if (type === 'domain') {
+      appState.structural.addDomain(newNode);
+    } else if (type === 'site') {
+      appState.structural.addSite({ ...newNode, domainId: parentId });
+    } else if (type === 'floor') {
+      appState.structural.addFloor({ ...newNode, siteId: parentId });
+    } else if (type === 'space' || type === 'room') {
+      appState.structural.addSpace({ ...newNode, floorId: parentId });
     }
-
-    setHierarchy((prev) => addRecursive(prev));
   };
 
   return (

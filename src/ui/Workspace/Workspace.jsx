@@ -2,27 +2,41 @@ import { useState, useRef, useEffect } from "react";
 import PhysicalMode from "./PhysicalMode";
 import { ModeSwitch } from "./ModeSwitch";
 import LogicalMode from "./LogicalMode";
+import LogicalCanvasController from "../../core/LogicalCanvasController";
+import appState from "../../state/AppState";
 
-export default function Workspace({ logicalCanvasRef }) {
-  const [mode, setMode] = useState("logical");
-  const localLogicalRef = useRef(null);
-  const [modeSwitchStyle, setModeSwitchStyle] = useState(null);
+export default function Workspace({ canvasControllerRef }) {
+  const [currentMode, setCurrentMode] = useState(appState.getCurrentMode());
 
   useEffect(() => {
-    if (logicalCanvasRef) {
-      logicalCanvasRef.current = localLogicalRef.current;
-    }
-  }, [logicalCanvasRef]);
+    const unsubscribe = appState.subscribe(() => {
+      setCurrentMode(appState.getCurrentMode());
+    });
+    
+    return () => unsubscribe();
+  }, []);
 
   return (
-    <div className="workspace">
-      {mode === "logical" ? (
-        <LogicalMode ref={localLogicalRef} />
-      ) : (
-        <PhysicalMode />
-      )}
+    <div className="workspace relative w-full h-full overflow-hidden flex flex-col">
+      <div className="flex-grow relative">
+        
+        <div 
+          className="absolute inset-0" 
+          style={{ visibility: currentMode === "logical" ? "visible" : "hidden", pointerEvents: currentMode === "logical" ? "auto" : "none" }}
+        >
+          <LogicalMode canvasControllerRef={canvasControllerRef} />
+        </div>
+        
+        <div 
+          className="absolute inset-0"
+          style={{ visibility: currentMode === "physical" ? "visible" : "hidden", pointerEvents: currentMode === "physical" ? "auto" : "none" }}
+        >
+          <PhysicalMode currentMode={currentMode} />
+        </div>
 
-  <ModeSwitch currentMode={mode} onModeChange={(m) => setMode(m)} style={modeSwitchStyle} />
+      </div>
+
+      <ModeSwitch currentMode={currentMode} onModeChange={(m) => appState.switchMode(m)} />
     </div>
   );
 }

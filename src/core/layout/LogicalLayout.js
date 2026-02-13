@@ -77,6 +77,7 @@ export class LogicalLayout {
 
     this.onDeviceAdded = opts.onDeviceAdded || null;
     this.onEntitySelected = opts.onEntitySelected || null;
+    this.onPortSelect = opts.onPortSelect || null;
 
     this.selectedEntity = null;
 
@@ -268,6 +269,9 @@ export class LogicalLayout {
       id: `device_${Math.random().toString(36).slice(2, 9)}`,
       type: deviceData.type || 'device',
       label: deviceData.name || 'Device', 
+
+      interfaces: deviceData.interfaces || [],
+
       x,
       y,
       width: size,
@@ -323,36 +327,84 @@ export class LogicalLayout {
     const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState);
     const snapped = this.grid.snapToGrid(p);
 
+    // if (this.mode === 'cable') {
+    //   const device = this._findDeviceAt(snapped.x, snapped.y);
+
+    //   if (!device) return;
+
+    //   if (!this.pendingCableSource) {
+    //     this.pendingCableSource = device;
+    //     return;
+    //   }
+
+    //   const cable = {
+    //     id: `cable_${Math.random().toString(36).slice(2, 9)}`,
+    //     type: this.activeCableType,
+    //     sourceId: this.pendingCableSource.id,
+    //     targetId: device.id,
+    //     properties: {
+    //       bandwidth: null,
+    //       latency: null,
+    //       status: "up"
+    //     }
+    //   };
+
+    //   this.cables.push(cable);
+
+    //   if (this.shapeCreator.onCableCreated) {
+    //     this.shapeCreator.onCableCreated(cable);
+    //   }
+
+    //   this.pendingCableSource = null;
+    //   this._render();
+    //   return;
+    // }
+
     if (this.mode === 'cable') {
       const device = this._findDeviceAt(snapped.x, snapped.y);
-
       if (!device) return;
 
-      if (!this.pendingCableSource) {
-        this.pendingCableSource = device;
-        return;
+      // If we passed in a UI callback for port selection
+      if (this.onPortSelect) {
+        // Ask the UI to show the menu at the mouse coordinates
+        this.onPortSelect(device, e.clientX, e.clientY, (selectedPort) => {
+          // This callback runs AFTER the user clicks a port in the UI
+          if (!selectedPort) return; // User canceled/clicked away
+
+          if (!this.pendingCableSource) {
+            // Step 1: Set the Source Device & Port
+            this.pendingCableSource = device;
+            this.pendingCableSourcePort = selectedPort;
+            this._render();
+          } else {
+            // Step 2: Set the Target Device & Port, then build the cable
+            const cable = {
+              id: `cable_${Math.random().toString(36).slice(2, 9)}`,
+              type: this.activeCableType,
+              sourceId: this.pendingCableSource.id,
+              sourcePort: this.pendingCableSourcePort, // Save chosen port
+              targetId: device.id,
+              targetPort: selectedPort,                // Save chosen port
+              properties: {
+                bandwidth: null,
+                latency: null,
+                status: "up"
+              }
+            };
+
+            this.cables.push(cable);
+
+            if (this.shapeCreator.onCableCreated) {
+              this.shapeCreator.onCableCreated(cable);
+            }
+
+            // Reset for the next cable
+            this.pendingCableSource = null;
+            this.pendingCableSourcePort = null;
+            this._render();
+          }
+        });
       }
-
-      const cable = {
-        id: `cable_${Math.random().toString(36).slice(2, 9)}`,
-        type: this.activeCableType,
-        sourceId: this.pendingCableSource.id,
-        targetId: device.id,
-        properties: {
-          bandwidth: null,
-          latency: null,
-          status: "up"
-        }
-      };
-
-      this.cables.push(cable);
-
-      if (this.shapeCreator.onCableCreated) {
-        this.shapeCreator.onCableCreated(cable);
-      }
-
-      this.pendingCableSource = null;
-      this._render();
       return;
     }
 

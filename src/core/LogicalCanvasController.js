@@ -1,27 +1,31 @@
 import appState from '../state/AppState.js';
 import LogicalLayout from '../core/layout/LogicalLayout.js';
+import { createDeviceInstance } from '../data/deviceCatalog';
 
 export class LogicalCanvasController {
   constructor(container, opts = {}) {
+    this.counters = {
+      domain: 0,
+      site: 0,
+      floor: 0,
+      space: 0
+    };
+
     this.layout = new LogicalLayout({
       container,
       width: opts.width || 800,
       height: opts.height || 600,
       gridSize: opts.gridSize || 32,
       snap: opts.snap ?? true,
-      onRectangleCreated: (rect) => this._handleRectangleCreated(rect),
+      
+      onRectangleCreated: (rect) => this._handleShapeCreated(rect, 'rectangle'),
+      onCircleCreated: (circle) => this._handleShapeCreated(circle, 'circle'),
+      onPolygonCreated: (poly) => this._handleShapeCreated(poly, 'polygon'),
       onWallCreated: (wall) => this._handleWallCreated(wall),
       onCableCreated: (cable) => this._handleCableCreated(cable),
-      onCircleCreated: (circle) => this._handleCircleCreated(circle),
-      onPolygonCreated: (polygon) => this._handlePolygonCreated(polygon),
       onDeviceAdded: (device) => this._handleDeviceAdded(device),
       onEntitySelected: (entity) => this._handleEntitySelected(entity)
     });
-
-    this.domainLabelIter = 0;
-    this.siteLabelIter = 0;
-    this.floorLabelIter = 0;
-    this.spaceLabelIter = 0;
   }
 
   destroy() {
@@ -30,6 +34,10 @@ export class LogicalCanvasController {
       this.layout = null;
     }
   }
+
+  // =========================================================
+  // PUBLIC API
+  // =========================================================
 
   setSize(w, h) {
     this.layout?.setSize(w, h);
@@ -51,16 +59,16 @@ export class LogicalCanvasController {
     this.layout?.startDrawCircle(type);
   }
 
+  startDrawPolygon(type = '') {
+    this.layout?.startDrawPolygon(type);
+  }
+
   startDrawWall() {
     this.layout?.startDrawWall();
   }
 
   startDrawCable() {
     this.layout?.startDrawCable();
-  }
-
-  startDrawPolygon(type = '') {
-    this.layout?.startDrawPolygon(type);
   }
 
   startSelect() {
@@ -75,14 +83,6 @@ export class LogicalCanvasController {
     this.layout?.cancelDrawing();
   }
 
-  addDevice(deviceData, x, y) {
-    this.layout?.addDevice(deviceData, x, y);
-  }
-
-  updateEntityTransform(id, updates) {
-    this.layout?.updateEntityTransform(id, updates);
-  }
-
   getSnappedCoords(clientX, clientY) {
     return this.layout?.getSnappedCanvasCoords(clientX, clientY);
   }
@@ -91,164 +91,117 @@ export class LogicalCanvasController {
     this.layout?.clear();
   }
 
-  // ============= State Management Handlers =============
+  addDevice(deviceData, x, y) {
+    if (!this.layout) return;
 
-  _handleRectangleCreated(rect) {
-    if (rect.structureType === 'Domain') {
+    const catalogId = deviceData.modelId || deviceData.type;
+
+    try {
+      const newDevice = createDeviceInstance(catalogId, { x, y, z: 0 });
+
+      this.layout.addDevice({
+        ...newDevice,
+        label: newDevice.name
+      }, x, y);
+
+      if (appState.network?.addDevice) {
+        appState.network.addDevice(newDevice);
+      }
+    } catch (error) {
+      console.error("Failed to add device:", error.message);
+    }
+  }
+
+  updateEntityTransform(id, updates) {
+    this.layout?.updateEntityTransform(id, updates);
+  }
+
+  // =========================================================
+  // STATE MANAGEMENT HANDLERS
+  // =========================================================
+
+  _handleShapeCreated(shapeData, shapeType) {
+    const { structureType, id, x, y, w, h, r, points } = shapeData;
+
+    if (structureType === 'Domain') {
       appState.structural.addDomain({
-        id: rect.id,
-        label: `Domain ${this.domainLabelIter++}`,
-        shapeType: 'rectangle',
-        x: rect.x,
-        y: rect.y,
-        w: rect.w,
-        h: rect.h
+        id,
+        label: `Domain ${this.counters.domain++}`,
+        shapeType: shapeType,
+        x, y, w, h, r, points
       });
-    } else if (rect.structureType === 'Site') {
+    } 
+    
+    else if (structureType === 'Site') {
       const selection = appState.selection;
+      const selectedDomainId = selection.getFocusedId() || selection.getSelectedId?.();
 
-      const selectedDomainId = selection.getFocusedId();
-      const selectedType = selection.focusedType;
-
-      if (!selectedDomainId || selectedType !== 'domain') {
-        console.warn('Site creation failed: A Domain must be selected in the hierarchy.');
+      if (!selectedDomainId) {
+        console.warn('Site creation failed: A Domain must be selected.');
         return;
       }
 
       appState.structural.addSite({
-        id: rect.id,
-        label: `Site ${this.siteLabelIter++}`,
+        id,
         domainId: selectedDomainId,
-        shapeType: 'rectangle',
-        x: rect.x,
-        y: rect.y,
-        w: rect.w,
-        h: rect.h
+        label: `Site ${this.counters.site++}`,
+        shapeType: shapeType,
+        x, y, w, h, r, points
       });
-    } else if (rect.structureType === 'Space') {
-      // TODO: Get selected floor ID from appState.selection
-      const selectedFloorId = appState.selection?.getSelectedId?.() || null;
+    } 
+    
+    else if (structureType === 'Space') {
+      const selectedFloorId = appState.ui?.activeFloorId || appState.selection?.getSelectedId?.();
+      
       if (!selectedFloorId) {
         console.warn('No floor selected for space creation');
         return;
       }
+
       appState.structural.addSpace({
-        id: rect.id,
-        label: `Space ${rect.id}`,
+        id,
         floorId: selectedFloorId,
-        shapeType: 'rectangle',
-        x: rect.x,
-        y: rect.y,
-        w: rect.w,
-        h: rect.h
+        label: `Space ${this.counters.space++}`,
+        shapeType: shapeType,
+        x, y, w, h, r, points
       });
     }
   }
 
-  _handleWallCreated(wall) {
-    // Walls don't go in structural hierarchy, just stored in layout
-    // Could add to a separate store if needed
-  }
-
-  _handleCableCreated(cable) {
-    // Cables don't go in structural hierarchy, just stored in layout
-    // Could add to a separate store if needed
-  }
-
-  _handleCircleCreated(circle) {
-    if (circle.structureType === 'Domain') {
-      appState.structural.addDomain({
-        id: circle.id,
-        label: `Domain ${circle.id}`,
-        x: circle.x,
-        y: circle.y,
-        r: circle.r
-      });
-    } else if (circle.structureType === 'Site') {
-      const selectedDomainId = appState.selection?.getSelectedId?.() || null;
-      if (!selectedDomainId) {
-        console.warn('No domain selected for site creation');
-        return;
-      }
-      appState.structural.addSite({
-        id: circle.id,
-        label: `Site ${circle.id}`,
-        domainId: selectedDomainId,
-        x: circle.x,
-        y: circle.y,
-        r: circle.r
-      });
-    } else if (circle.structureType === 'Space') {
-      const selectedFloorId = appState.selection?.getSelectedId?.() || null;
-      if (!selectedFloorId) {
-        console.warn('No floor selected for space creation');
-        return;
-      }
-      appState.structural.addSpace({
-        id: circle.id,
-        label: `Space ${circle.id}`,
-        floorId: selectedFloorId,
-        x: circle.x,
-        y: circle.y,
-        r: circle.r
+  _handleWallCreated(wallData) {
+    const activeFloorId = appState.ui?.activeFloorId;
+    if (activeFloorId && appState.structural.addFenestration) {
+      appState.structural.addFenestration(activeFloorId, {
+        id: wallData.id,
+        floorId: activeFloorId,
+        type: 'wall',
+        geometry: { start: wallData.start, end: wallData.end, thickness: 0.2 }
       });
     }
   }
 
-  _handlePolygonCreated(polygon) {
-    if (polygon.structureType === 'Domain') {
-      appState.structural.addDomain({
-        id: polygon.id,
-        label: `Domain ${polygon.id}`,
-        shapeType: 'polygon',
-        x: polygon.x,
-        y: polygon.y,
-        points: polygon.points
-      });
-    } else if (polygon.structureType === 'Site') {
-      const selectedDomainId = appState.selection?.getSelectedId?.() || null;
-      if (!selectedDomainId) {
-        console.warn('No domain selected for site creation');
-        return;
-      }
-      appState.structural.addSite({
-        id: polygon.id,
-        label: `Site ${polygon.id}`,
-        shapeType: 'polygon',
-        x: polygon.x,
-        y: polygon.y,
-        domainId: selectedDomainId,
-        points: polygon.points
-      });
-    } else if (polygon.structureType === 'Space') {
-      const selectedFloorId = appState.selection?.getSelectedId?.() || null;
-      if (!selectedFloorId) {
-        console.warn('No floor selected for space creation');
-        return;
-      }
-      appState.structural.addSpace({
-        id: polygon.id,
-        label: `Space ${polygon.id}`,
-        shapeType: 'polygon',
-        x: polygon.x,
-        y: polygon.y,
-        floorId: selectedFloorId,
-        points: polygon.points
-      });
+  _handleCableCreated(cableData) {
+    if (appState.network?.connectDevices && cableData.sourceId && cableData.targetId) {
+      appState.network.connectDevices(
+        cableData.sourceId,
+        cableData.targetId,
+        cableData.cableType || 'ethernet'
+      );
     }
   }
 
   _handleDeviceAdded(device) {
-    // Device added - can be processed further if needed
-    // Add to network store or selection
+    this.addDevice(device, device.x, device.y);
   }
   
   _handleEntitySelected(entity) {
-    if (!entity || !entity.id) return;
-    appState.selection.selectDevice(entity.id, false); // false = don't multi-select
-  }
+    if (!entity || !entity.id) {
+      appState.selection.clearSelection?.();
+      return;
+    }
 
-  //we will call the appstate and push the data to the app state variables.
+    appState.selection.selectDevice(entity.id, false);
+  }
 }
 
 export default LogicalCanvasController;

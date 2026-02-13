@@ -109,8 +109,58 @@ const routers = {
     portCount: 2,
     interfaceTemplate: "GigabitEthernet0/{n}",
     model3D: "/models/router-1941.glb"
-  }
+  },
   
+  "2901": {
+    modelId: "2901",
+    displayName: "2901",
+    family: "router",
+    vendor: "cisco",
+    portCount: 2,
+    interfaceTemplate: "GigabitEthernet0/{n}",
+    model3D: "/models/router-2901.glb"
+  },
+
+  "2911": {
+    modelId: "2911",
+    displayName: "2911",
+    family: "router",
+    vendor: "cisco",
+    portCount: 2,
+    interfaceTemplate: "GigabitEthernet0/{n}",
+    model3D: "/models/router-2911.glb"
+  },
+
+  "4321": {
+    modelId: "4321",
+    displayName: "4321",
+    family: "router",
+    vendor: "cisco",
+    portCount: 2,
+    interfaceTemplate: "GigabitEthernet0/{n}",
+    model3D: "/models/router-4321.glb"
+  },
+
+  "4331": {
+    modelId: "4331",
+    displayName: "4331",
+    family: "router",
+    vendor: "cisco",
+    portCount: 2,
+    interfaceTemplate: "GigabitEthernet0/{n}",
+    model3D: "/models/router-4331.glb"
+  },
+
+  "1240": {
+    modelId: "1240",
+    displayName: "1240",
+    family: "router",
+    vendor: "cisco",
+    portCount: 2,
+    interfaceTemplate: "GigabitEthernet0/{n}",
+    model3D: "/models/router-1941.glb"
+  }
+
 };
 
 const endDevices = {

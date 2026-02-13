@@ -196,10 +196,11 @@ export class LogicalLayout {
     const py = y - half;
     const path = new Path2D();
     path.rect(px + 0.5, py + 0.5, size, size);
+    console.log('From Logical Layout: ', deviceData.label);
     const device = {
       id: `device_${Math.random().toString(36).slice(2, 9)}`,
       type: deviceData.type || 'device',
-      label: deviceData.label,
+      label: deviceData.name,
       x,
       y,
       transform: {

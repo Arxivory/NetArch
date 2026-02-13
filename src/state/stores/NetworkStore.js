@@ -1,3 +1,4 @@
+import Device from "../../core/network/Device";
 
 export class NetworkStore {
   constructor() {
@@ -26,6 +27,12 @@ export class NetworkStore {
       ...deviceData,
       interfaces: deviceData.interfaces || []
     };
+
+    // const device = new Device(
+    //   deviceData.id,
+    //   deviceData.type,
+    //   deviceData.label
+    // );
 
     this.devices.push(device);
     this.updateModified();

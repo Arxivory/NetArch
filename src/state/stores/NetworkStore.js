@@ -23,16 +23,18 @@ export class NetworkStore {
       return null;
     }
 
-    const device = {
-      ...deviceData,
-      interfaces: deviceData.interfaces || []
-    };
+    // const device = {
+    //   ...deviceData,
+    //   interfaces: deviceData.interfaces || []
+    // };
 
     // const device = new Device(
     //   deviceData.id,
     //   deviceData.type,
     //   deviceData.label
     // );
+
+    const device = new Device(deviceData.id, deviceData.type, deviceData.label, )
 
     this.devices.push(device);
     this.updateModified();

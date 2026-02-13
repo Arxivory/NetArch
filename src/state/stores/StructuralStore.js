@@ -1,5 +1,6 @@
 import Domain from "../../core/structural/Domain";
 import Site from "../../core/structural/Site";
+import Space from "../../core/structural/Space";
 
 export class StructuralStore {
     constructor() {
@@ -144,14 +145,14 @@ export class StructuralStore {
         if (!space.id) {
             space.id = Date.now();
         }
-        if (!space.floorId) {
-            console.warn('Space must have a floorId');
-            return null;
-        }
         if (this.spaces.find(s => s.id === space.id)) {
             console.warn(`Space already exists: ${space.id}`);
             return null;
         }
+
+        const newSpace = new Space(space);
+
+        console.log(`Adding Space: `, newSpace, 'With a Site ID: ', newSpace.siteId);
 
         this.spaces.push({ ...space });
         this.notify();
@@ -191,28 +192,52 @@ export class StructuralStore {
             label: site.label || `Site ${site.id}`,
             type: 'site',
             domainId: site.domainId,
-            children: this._buildFloorChildren(site.id)
+            children: this._buildSpaceChildren(site.id) 
         }));
     }
 
-    _buildFloorChildren(siteId) {
-        const floors = this.floors.filter(f => f.siteId === siteId);
-        return floors.map(floor => ({
-            id: floor.id,
-            label: floor.label || `Floor ${floor.id}`,
-            type: 'floor',
-            siteId: floor.siteId,
-            children: this._buildSpaceChildren(floor.id)
-        }));
-    }
+    // _buildSiteChildren(domainId) {
+    //     const sites = this.sites.filter(s => String(s.domainId) === String(domainId));
+    //     return sites.map(site => ({
+    //         id: site.id,
+    //         label: site.label || `Site ${site.id}`,
+    //         type: 'site',
+    //         domainId: site.domainId,
+    //         children: this._buildFloorChildren(site.id)
+    //     }));
+    // }
 
-    _buildSpaceChildren(floorId) {
-        const spaces = this.spaces.filter(s => s.floorId === floorId);
+    // _buildFloorChildren(siteId) {
+    //     const floors = this.floors.filter(f => f.siteId === siteId);
+    //     return floors.map(floor => ({
+    //         id: floor.id,
+    //         label: floor.label || `Floor ${floor.id}`,
+    //         type: 'floor',
+    //         siteId: floor.siteId,
+    //         children: this._buildSpaceChildren(floor.id)
+    //     }));
+    // }
+
+    // _buildSpaceChildren(floorId) {
+    //     const spaces = this.spaces.filter(s => s.floorId === floorId);
+    //     return spaces.map(space => ({
+    //         id: space.id,
+    //         label: space.label || `Space ${space.id}`,
+    //         type: 'space',
+    //         floorId: space.floorId,
+    //         children: []
+    //     }));
+    // }
+
+    // commented codes are for future cases.
+
+    _buildSpaceChildren(siteId) {
+        const spaces = this.spaces.filter(s => String(s.siteId) === String(siteId));
         return spaces.map(space => ({
             id: space.id,
             label: space.label || `Space ${space.id}`,
             type: 'space',
-            floorId: space.floorId,
+            siteId: space.siteId,
             children: []
         }));
     }

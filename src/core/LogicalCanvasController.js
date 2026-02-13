@@ -151,16 +151,32 @@ export class LogicalCanvasController {
     } 
     
     else if (structureType === 'Space') {
-      const selectedFloorId = appState.ui?.activeFloorId || appState.selection?.getSelectedId?.();
+      // const selectedFloorId = appState.ui?.activeFloorId || appState.selection?.getSelectedId?.();
       
-      if (!selectedFloorId) {
-        console.warn('No floor selected for space creation');
+      // if (!selectedFloorId) {
+      //   console.warn('No floor selected for space creation');
+      //   return;
+      // }
+
+      // appState.structural.addSpace({
+      //   id,
+      //   floorId: selectedFloorId,
+      //   label: `Space ${this.counters.space++}`,
+      //   shapeType: shapeType,
+      //   x, y, w, h, r, points
+      // });
+
+      const selection = appState.selection;
+      const selectedSiteId = selection.getFocusedId() || selection.getSelectedId();
+
+      if (!selectedSiteId) {
+        console.warn("Space creation failed: A Site must be selected.");
         return;
       }
 
       appState.structural.addSpace({
         id,
-        floorId: selectedFloorId,
+        siteId: selectedSiteId,
         label: `Space ${this.counters.space++}`,
         shapeType: shapeType,
         x, y, w, h, r, points

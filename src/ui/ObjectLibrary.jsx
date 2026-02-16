@@ -80,6 +80,7 @@
 
 import React from "react";
 import {
+
   Server,
   Network, // Router icon usually
   Router,
@@ -123,6 +124,8 @@ const categoryDetails = {
   Furniture: { name: "Furniture", icon: Armchair, dataKey: null },
 };
 
+
+
 const categories = Object.keys(categoryDetails);
 
 export default function ObjectLibrary({ canvasController }) {
@@ -151,9 +154,13 @@ export default function ObjectLibrary({ canvasController }) {
     
     event.dataTransfer.setData("application/reactflow", JSON.stringify(data));
     event.dataTransfer.effectAllowed = "move";
+
   };
 
+
+
   return (
+
     <div className="object-library">
       <div className="panel-header-container">
         <h3 className="panel-header-title">Object Library</h3>
@@ -162,6 +169,8 @@ export default function ObjectLibrary({ canvasController }) {
           Import
         </button>
       </div>
+
+
 
       <hr className="header-separator" />
 
@@ -202,6 +211,7 @@ export default function ObjectLibrary({ canvasController }) {
                   className={`device-tile ${!isCableCategory ? 'draggable-tile' : ''}`}
                   title={device.displayName || device.label} // Tooltip
                 >
+
                   <div className="device-icon">
                     {/* You could eventually load device.model3D thumbnails here */}
                     <IconComponent size={32} style={{ color: device.visual?.color || 'inherit' }} />
@@ -212,12 +222,19 @@ export default function ObjectLibrary({ canvasController }) {
                     {device.displayName || device.label}
                   </p>
                 </div>
+
               ))}
 
             </div>
+
           </div>
+
         );
+
       })}
+
     </div>
+
   );
+
 }

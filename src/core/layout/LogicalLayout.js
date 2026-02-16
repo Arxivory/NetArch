@@ -43,6 +43,9 @@ export class LogicalLayout {
       dpr: this.devicePixelRatio
     });
 
+    this.selectedEntity = null;
+    this.isResizing = false;
+    this.resizeStart = null;
 
     this.canvas = null;
     this.ctx = null;
@@ -64,12 +67,27 @@ export class LogicalLayout {
     this.devices = [];
     this.cables = [];
 
+    this.pendingCableSource = null;
+    this.currentCableType = "straight";
+    this.hoveredDevice = null;
+    this.activeCableType = "straight";
+
     this.structureType = '';
     this.bgColor = opts.bgColor || '#ffffffff';
 
     this.onZoomSelected = opts.onZoomSelected || null;//
     this.onDeviceAdded = opts.onDeviceAdded || null;
     this.onEntitySelected = opts.onEntitySelected || null;
+    this.onPortSelect = opts.onPortSelect || null;
+
+    this.selectedEntity = null;
+
+    this.interaction = {
+      mode: null,
+      handle: null,
+      start: null
+    };
+
 
     this.deviceIcons = {};
 
@@ -185,10 +203,12 @@ export class LogicalLayout {
     this._updateCursor();
   }
 
-  startDrawCable() {
+  startDrawCable(type = "straight") {
     this.mode = 'cable';
+    this.activeCableType = type;
     this._updateCursor();
   }
+
 
   startSelect() {
     this.mode = 'select';
@@ -250,6 +270,9 @@ export class LogicalLayout {
       id: `device_${Math.random().toString(36).slice(2, 9)}`,
       type: deviceData.type || 'device',
       label: deviceData.name || 'Device', 
+
+      interfaces: deviceData.interfaces || [],
+
       x,
       y,
       width: size,
@@ -292,7 +315,10 @@ export class LogicalLayout {
   }
 
   _onPointerDown(e) {
-    if (this.mode === 'none') return;
+    if (this.mode === 'none') {
+      this.pointerHandler.setPointerDown(false);
+      return;
+    }
 
     if (this.mode === 'pan') {
       this.pointerHandler.setCursor('grabbing');
@@ -303,10 +329,130 @@ export class LogicalLayout {
     const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoomFactor);
     const snapped = this.grid.snapToGrid(p);
 
-    if (this.mode === 'select') {
-      this.identifyEntity(e.clientX, e.clientY);
+    // if (this.mode === 'cable') {
+    //   const device = this._findDeviceAt(snapped.x, snapped.y);
+
+    //   if (!device) return;
+
+    //   if (!this.pendingCableSource) {
+    //     this.pendingCableSource = device;
+    //     return;
+    //   }
+
+    //   const cable = {
+    //     id: `cable_${Math.random().toString(36).slice(2, 9)}`,
+    //     type: this.activeCableType,
+    //     sourceId: this.pendingCableSource.id,
+    //     targetId: device.id,
+    //     properties: {
+    //       bandwidth: null,
+    //       latency: null,
+    //       status: "up"
+    //     }
+    //   };
+
+    //   this.cables.push(cable);
+
+    //   if (this.shapeCreator.onCableCreated) {
+    //     this.shapeCreator.onCableCreated(cable);
+    //   }
+
+    //   this.pendingCableSource = null;
+    //   this._render();
+    //   return;
+    // }
+
+    if (this.mode === 'cable') {
+      const device = this._findDeviceAt(snapped.x, snapped.y);
+      if (!device) return;
+
+      // If we passed in a UI callback for port selection
+      if (this.onPortSelect) {
+        // Ask the UI to show the menu at the mouse coordinates
+        this.onPortSelect(device, e.clientX, e.clientY, (selectedPort) => {
+          // This callback runs AFTER the user clicks a port in the UI
+          if (!selectedPort) return; // User canceled/clicked away
+
+          if (!this.pendingCableSource) {
+            // Step 1: Set the Source Device & Port
+            this.pendingCableSource = device;
+            this.pendingCableSourcePort = selectedPort;
+            this._render();
+          } else {
+            // Step 2: Set the Target Device & Port, then build the cable
+            const cable = {
+              id: `cable_${Math.random().toString(36).slice(2, 9)}`,
+              type: this.activeCableType,
+              sourceId: this.pendingCableSource.id,
+              sourcePort: this.pendingCableSourcePort, // Save chosen port
+              targetId: device.id,
+              targetPort: selectedPort,                // Save chosen port
+              properties: {
+                bandwidth: null,
+                latency: null,
+                status: "up"
+              }
+            };
+
+            this.cables.push(cable);
+
+            if (this.shapeCreator.onCableCreated) {
+              this.shapeCreator.onCableCreated(cable);
+            }
+
+            // Reset for the next cable
+            this.pendingCableSource = null;
+            this.pendingCableSourcePort = null;
+            this._render();
+          }
+        });
+      }
       return;
     }
+
+
+    if (this.mode === 'select') {
+      const en = this.identifyEntity(e.clientX, e.clientY);
+      if (!en) return;
+
+      const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState);
+
+      const x = en.x;
+      const y = en.y;
+      const w = en.w || en.width;
+      const h = en.h || en.height;
+      const size = 8;
+
+      const handles = {
+        nw: [x, y],
+        ne: [x + w, y],
+        sw: [x, y + h],
+        se: [x + w, y + h]
+      };
+
+      for (const key in handles) {
+        const [hx, hy] = handles[key];
+        if (Math.abs(p.x - hx) < size && Math.abs(p.y - hy) < size) {
+          this.interaction = {
+            mode: 'resize',
+            handle: key,
+            start: { x: p.x, y: p.y }
+          };
+          this.pointerHandler.setPointerDown(true);
+          return;
+        }
+      }
+
+      this.interaction = {
+        mode: 'move',
+        start: { x: p.x, y: p.y }
+      };
+
+      this.pointerHandler.setPointerDown(true);
+      return;
+    }
+
+
 
     if (this.mode === 'polygon') {
       if (this.currentPolygon.length === 0) {
@@ -341,10 +487,12 @@ export class LogicalLayout {
       return;
     }
 
-    this.pointerHandler.setPointerDown(true);
-    this.startPoint = snapped;
-    this.currentPoint = snapped;
-    this._render();
+    if (this.mode !== 'select' && this.mode !== 'pan' && this.mode !== 'none') {
+      this.pointerHandler.setPointerDown(true);
+      this.startPoint = snapped;
+      this.currentPoint = snapped;
+      this._render();
+    }
   }
 
   _onPointerMove(e) {
@@ -352,6 +500,42 @@ export class LogicalLayout {
 
     const zoomFactor = this.pointerHandler.getZoom();
     const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoomFactor);
+
+    if (this.mode === 'select') {
+      if (this.selectedEntity) {
+        const en = this.selectedEntity;
+
+        const x = en.x;
+        const y = en.y;
+        const w = en.w || en.width;
+        const h = en.h || en.height;
+        const size = 8;
+
+        const handles = {
+          nw: [x, y],
+          ne: [x + w, y],
+          sw: [x, y + h],
+          se: [x + w, y + h]
+        };
+
+        let cursor = 'move';
+
+        for (const key in handles) {
+          const [hx, hy] = handles[key];
+          if (Math.abs(p.x - hx) < size && Math.abs(p.y - hy) < size) {
+            cursor = (key === 'nw' || key === 'se')
+              ? 'nwse-resize'
+              : 'nesw-resize';
+          }
+        }
+
+        this.pointerHandler.setCursor(cursor);
+      } else {
+        this.pointerHandler.setCursor('default');
+      }
+    } else {
+      this._updateCursor();
+    }
 
     if (this.mode === 'polygon') {
       this.currentPoint = this.grid.snapToGrid(p);
@@ -362,15 +546,91 @@ export class LogicalLayout {
     const snapped = this.grid.snapToGrid(p);
     this.currentPoint = snapped;
 
-    if (this.pointerHandler.getIsPointerDown() && this.mode !== 'none') {
+    if (this.mode === 'cable') {
+      this.hoveredDevice = this._findDeviceAt(snapped.x, snapped.y);
+      this._render();
+    } else {
+      this.hoveredDevice = null;
+    }
+
+    if (this.pointerHandler.getIsPointerDown()) {
+      // PAN
       if (this.mode === 'pan') {
         this._pan(e.clientX, e.clientY);
+        this._render();
+        return;
       }
-      this._render();
+
+      // MOVE OR RESIZE
+      if (this.mode === 'select' && this.selectedEntity && this.interaction.mode) {
+        const en = this.selectedEntity;
+
+        const dx = p.x - this.interaction.start.x;
+        const dy = p.y - this.interaction.start.y;
+
+        const wKey = en.w !== undefined ? "w" : "width";
+        const hKey = en.h !== undefined ? "h" : "height";
+
+        if (this.interaction.mode === "move") {
+          en.x += dx;
+          en.y += dy;
+        }
+
+        if (this.interaction.mode === "resize") {
+          switch (this.interaction.handle) {
+            case "se":
+              en[wKey] += dx;
+              en[hKey] += dy;
+              break;
+            case "nw":
+              en.x += dx;
+              en.y += dy;
+              en[wKey] -= dx;
+              en[hKey] -= dy;
+              break;
+            case "ne":
+              en.y += dy;
+              en[wKey] += dx;
+              en[hKey] -= dy;
+              break;
+            case "sw":
+              en.x += dx;
+              en[wKey] -= dx;
+              en[hKey] += dy;
+              break;
+            default:
+              throw new Error(); 
+          }
+        }
+
+        this.interaction.start = { x: p.x, y: p.y };
+        this._render();
+        return;
+      }
+        // DRAWING PREVIEW (rectangle, circle, cable, wall)
+      if (
+        this.mode === 'rectangle' ||
+        this.mode === 'circle' ||
+        this.mode === 'wall' ||
+        this.mode === 'cable'
+      ) {
+        this._render();
+        return;
+      }
+
     }
+
   }
 
   _onPointerUp(e) {
+    this.interaction = {
+      mode: null,
+      handle: null,
+      start: null
+    };
+    this.isResizing = false;
+    this.resizeStart = null;
+
     if (!this.pointerHandler.getIsPointerDown()) return;
 
     if (this.mode === 'pan') {
@@ -425,6 +685,62 @@ export class LogicalLayout {
     this.viewState.f += delta.dy;
     this.pointerHandler.setPanStart(clientX, clientY);
   }
+  
+  _renderDeviceCables(ctx) {
+    ctx.save();
+    ctx.lineWidth = 2;
+
+    for (const cable of this.cables) {
+      const src = this.findEntityById(cable.sourceId);
+      const dst = this.findEntityById(cable.targetId);
+
+      if (!src || !dst) continue;
+
+      ctx.beginPath();
+
+      // CONSOLE (blue curved)
+      if (cable.type === "console") {
+        ctx.strokeStyle = "#007BFF";
+        ctx.setLineDash([]);
+
+        const midX = (src.x + dst.x) / 2;
+        const midY = (src.y + dst.y) / 2 - 40;
+
+        ctx.moveTo(src.x, src.y);
+        ctx.quadraticCurveTo(midX, midY, dst.x, dst.y);
+      }
+
+      // CROSSOVER (dashed)
+      else if (cable.type === "copper-crossover") {
+        ctx.strokeStyle = "#000000";
+        ctx.setLineDash([6, 4]);
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(dst.x, dst.y);
+      }
+
+      // STRAIGHT-THROUGH (solid)
+      else if (cable.type === "copper-straight") {
+        ctx.strokeStyle = "#000000";
+        ctx.setLineDash([]);
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(dst.x, dst.y);
+      }
+
+      // fallback
+      else {
+        ctx.strokeStyle = "#000000";
+        ctx.setLineDash([]);
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(dst.x, dst.y);
+      }
+
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+
 
   _render() {
     if (!this.ctx) return;
@@ -460,10 +776,29 @@ export class LogicalLayout {
     this.shapeRenderer.renderPolygons(ctx, this.polygons);
     this.shapeRenderer.renderCircles(ctx, this.circles);
     this.shapeRenderer.renderWalls(ctx, this.walls);
-    this.shapeRenderer.renderCables(ctx, this.cables);
+    this._renderDeviceCables(ctx);
     this.shapeRenderer.renderDevices(ctx, this.devices);
 
-    
+    if (this.selectedEntity && this.selectedEntity.sourceId) {
+      const cable = this.selectedEntity;
+      const src = this.findEntityById(cable.sourceId);
+      const dst = this.findEntityById(cable.targetId);
+
+      if (src && dst) {
+        ctx.save();
+        ctx.strokeStyle = "#00AEEF";
+        ctx.lineWidth = 4;
+        ctx.setLineDash([4, 4]);
+
+        ctx.beginPath();
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(dst.x, dst.y);
+        ctx.stroke();
+
+        ctx.restore();
+      }
+    }
+
     if (this.mode === 'polygon' && this.currentPolygon.length > 0 && this.currentPoint) {
       ctx.save();
       ctx.strokeStyle = '#00ff00';
@@ -494,21 +829,94 @@ export class LogicalLayout {
 
       ctx.restore();
     }
+
+    if (this.selectedEntity) {
+      const ctx = this.ctx;
+      const en = this.selectedEntity;
+
+      let x, y, w, h;
+
+      if (en.width !== undefined) {
+        w = en.width;
+        h = en.height;
+        x = en.x - w / 2;
+        y = en.y - h / 2;
+      } else {
+        x = en.x;
+        y = en.y;
+        w = en.w;
+        h = en.h;
+      }
+
+      if (x !== undefined && w !== undefined) {
+        ctx.save();
+        ctx.strokeStyle = "#00AEEF";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, w, h);
+
+        const size = 8;
+        const handles = [
+          [x, y],
+          [x + w, y],
+          [x, y + h],
+          [x + w, y + h]
+        ];
+
+        ctx.fillStyle = "#00AEEF";
+        handles.forEach(([hx, hy]) => {
+          ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
+        });
+
+        ctx.restore();
+      }
+    }
+
+    if (this.pendingCableSource) {
+      const en = this.pendingCableSource;
+
+      const x = en.x - en.width / 2;
+      const y = en.y - en.height / 2;
+      const w = en.width;
+      const h = en.height;
+
+      ctx.save();
+      ctx.strokeStyle = "#ff9900";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(x, y, w, h);
+      ctx.restore();
+    }
+
+    if (this.hoveredDevice && this.mode === 'cable') {
+      const en = this.hoveredDevice;
+
+      const x = en.x - en.width / 2;
+      const y = en.y - en.height / 2;
+      const w = en.width;
+      const h = en.height;
+
+      ctx.save();
+      ctx.strokeStyle = "#00ff00";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([3, 3]);
+      ctx.strokeRect(x, y, w, h);
+      ctx.restore();
+    }
   }
 
   getAllSelectableEntities() {
     return [
-      this.rectangles,
+      this.cables,
+      this.devices,
+      this.rectangles, 
       this.polygons,
       this.circles,
       this.walls,
       this.doors,
       this.windows,
       this.roofs,
-      this.freeforms,
-      this.devices,
-      this.cables
-    ]
+      this.freeforms
+    ];
   }
 
   findEntityById(id) {
@@ -534,8 +942,32 @@ export class LogicalLayout {
 
   identifyEntity(x, y) {
     const entities = this.getAllSelectableEntities();
-    const en = this.selection.identifyEntity(x, y, entities, this.ctx);
+    let en = this.selection.identifyEntity(x, y, entities, this.ctx);
+
+    if (!en) {
+      for (const cable of this.cables) {
+        const src = this.findEntityById(cable.sourceId);
+        const dst = this.findEntityById(cable.targetId);
+
+        if (!src || !dst) continue;
+
+        const dist = this._pointToLineDistance(
+          x, y,
+          src.x, src.y,
+          dst.x, dst.y
+        );
+
+        if (dist < 6) {
+          en = cable;
+          break;
+        }
+      }
+    }
+
+    this.selectedEntity = en || null;
+
     if (this.onEntitySelected) this.onEntitySelected(en);
+    this._render();
     return en;
   }
 
@@ -544,8 +976,54 @@ export class LogicalLayout {
     this._render();
   }
 
+
+  _findDeviceAt(x, y) {
+    for (const device of this.devices) {
+      const dx = device.x - device.width / 2;
+      const dy = device.y - device.height / 2;
+
+      if (
+        x >= dx &&
+        x <= dx + device.width &&
+        y >= dy &&
+        y <= dy + device.height
+      ) {
+        return device;
+      }
+    }
+    return null;
+  }
+  
+  _pointToLineDistance(px, py, x1, y1, x2, y2) {
+    const A = px - x1;
+    const B = py - y1;
+    const C = x2 - x1;
+    const D = y2 - y1;
+
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+    let param = -1;
+
+    if (lenSq !== 0) param = dot / lenSq;
+
+    let xx, yy;
+
+    if (param < 0) {
+      xx = x1;
+      yy = y1;
+    } else if (param > 1) {
+      xx = x2;
+      yy = y2;
+    } else {
+      xx = x1 + param * C;
+      yy = y1 + param * D;
+    }
+
+    const dx = px - xx;
+    const dy = py - yy;
+
+    return Math.sqrt(dx * dx + dy * dy);
+  }
 }
-
-
 
 export default LogicalLayout;

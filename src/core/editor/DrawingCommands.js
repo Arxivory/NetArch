@@ -45,8 +45,13 @@ export class StartDrawWallCommand extends DrawingCommand {
 }
 
 export class StartDrawCableCommand extends DrawingCommand {
+  constructor(controller, appState, cableType = "straight") {
+    super(controller, appState);
+    this.cableType = cableType;
+  }
+
   execute() {
-    this.controller?.startDrawCable();
+    this.controller?.startDrawCable(this.cableType);
     this.appState.tools.setActiveTool('cable');
   }
 }

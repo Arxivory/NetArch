@@ -324,6 +324,7 @@ export class LogicalLayout {
     if (this.mode === 'pan') {
       this.pointerHandler.setCursor('grabbing');
       this.pointerHandler.setPanStart(e.clientX, e.clientY);
+      this.pointerHandler.setPointerDown(true);
     }
 
     const zoomFactor = this.pointerHandler.getZoom();
@@ -416,7 +417,8 @@ export class LogicalLayout {
       const en = this.identifyEntity(e.clientX, e.clientY);
       if (!en) return;
 
-      const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState);
+      const zoom = this.pointerHandler.getZoom();
+      const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
 
       const x = en.x;
       const y = en.y;

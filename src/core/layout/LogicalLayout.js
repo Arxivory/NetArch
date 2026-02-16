@@ -296,7 +296,8 @@ export class LogicalLayout {
   }
 
   getSnappedCanvasCoords(clientX, clientY) {
-    const canvasPoint = this.pointerHandler.clientToWorld(clientX, clientY, this.viewState);
+    const zoomFactor = this.pointerHandler.getZoom();
+    const canvasPoint = this.pointerHandler.clientToWorld(clientX, clientY, this.viewState, zoomFactor);
     return this.grid.snapToGrid(canvasPoint);
   }
 

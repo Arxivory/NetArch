@@ -44,8 +44,8 @@ export class PointerHandler {
     let x = clientX - rect.left;
     let y = clientY - rect.top;
   
-    x = x / zoom - viewState.e;
-    y = y / zoom - viewState.f;
+    x = (x  - viewState.e) / zoom;
+    y = (y  - viewState.f) / zoom;
     
     return { x, y };
   }

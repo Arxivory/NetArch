@@ -44,10 +44,6 @@ export class LogicalCanvasController {
     this.layout?.setSize(w, h);
   }
 
-  // setDefaultZoom(dpr){
-  //   appState.setZoom(dpr);
-  // }
-
   setGridSize(size) {
     this.layout?.setGridSize(size);
   }

@@ -98,7 +98,7 @@ export class LogicalLayout {
       'server': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>`,
       'pc': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>`,
       'switch': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6" y2="6"/><line x1="6" y1="18" x2="6" y2="18"/></svg>`,
-      'firewall': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>` 
+      'firewall': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>`
     };
 
     Object.keys(svgs).forEach(key => {
@@ -120,11 +120,9 @@ export class LogicalLayout {
     c.style.height = this.height + 'px';
     c.width = Math.floor(this.width * this.devicePixelRatio);
     c.height = Math.floor(this.height * this.devicePixelRatio);
-
     this.canvas = c;
     this.ctx = c.getContext('2d');
     this.ctx.scale(this.devicePixelRatio, this.devicePixelRatio);
-
     this.container.appendChild(c);
     this.pointerHandler.attach(c);
   }
@@ -230,13 +228,13 @@ export class LogicalLayout {
   }
 
   addDevice(deviceData, x, y) {
-    const size = this.shapeRenderer.gridSize * 1.5; 
-    
+    const size = this.shapeRenderer.gridSize * 1.5;
+
     // --- SMART ICON MAPPING ---
     // We combine type and name into one string to search for keywords
     // e.g. "Cisco 1941 Router"
     const rawType = (deviceData.type + ' ' + deviceData.name).toLowerCase();
-    
+
     let iconKey = null;
 
     // Check for keywords in the device name
@@ -252,7 +250,7 @@ export class LogicalLayout {
       iconKey = 'pc'; // Maps Laptops/Desktops to the PC icon for now
     } else if (rawType.includes('phone')) {
       // You can add a 'phone' icon to the constructor later if you want
-      iconKey = 'pc'; 
+      iconKey = 'pc';
     }
 
     // Try to get the image; fallback to 'router' or null if nothing matched
@@ -269,7 +267,7 @@ export class LogicalLayout {
     const device = {
       id: `device_${Math.random().toString(36).slice(2, 9)}`,
       type: deviceData.type || 'device',
-      label: deviceData.name || 'Device', 
+      label: deviceData.name || 'Device',
 
       interfaces: deviceData.interfaces || [],
 
@@ -288,7 +286,7 @@ export class LogicalLayout {
     };
 
     this.devices.push(device);
-    
+
     if (this.onDeviceAdded) {
       this.onDeviceAdded(device);
     }
@@ -531,13 +529,11 @@ export class LogicalLayout {
               : 'nesw-resize';
           }
         }
-
         this.pointerHandler.setCursor(cursor);
-      } else {
+      }
+      else {
         this.pointerHandler.setCursor('default');
       }
-    } else {
-      this._updateCursor();
     }
 
     if (this.mode === 'polygon') {
@@ -602,7 +598,7 @@ export class LogicalLayout {
               en[hKey] += dy;
               break;
             default:
-              throw new Error(); 
+              throw new Error();
           }
         }
 
@@ -610,7 +606,7 @@ export class LogicalLayout {
         this._render();
         return;
       }
-        // DRAWING PREVIEW (rectangle, circle, cable, wall)
+      // DRAWING PREVIEW (rectangle, circle, cable, wall)
       if (
         this.mode === 'rectangle' ||
         this.mode === 'circle' ||
@@ -688,7 +684,7 @@ export class LogicalLayout {
     this.viewState.f += delta.dy;
     this.pointerHandler.setPanStart(clientX, clientY);
   }
-  
+
   _renderDeviceCables(ctx) {
     ctx.save();
     ctx.lineWidth = 2;
@@ -752,22 +748,20 @@ export class LogicalLayout {
     const w = this.width;
     const h = this.height;
     const zoomFactor = this.pointerHandler.getZoom();
-    const zoom = this.devicePixelRatio * zoomFactor;
+    const scale = this.devicePixelRatio * zoomFactor;
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.restore();
 
-
-
     ctx.setTransform(
-      zoom,
+      scale, 
       0,
       0,
-      zoom,
-      this.viewState.e * zoom,
-      this.viewState.f * zoom
-    );
+      scale,
+      this.viewState.e * this.devicePixelRatio,
+      this.viewState.f * this.devicePixelRatio
+    )
 
     ctx.fillStyle = this.bgColor;
     ctx.fillRect(0, 0, w, h);
@@ -911,7 +905,7 @@ export class LogicalLayout {
     return [
       this.cables,
       this.devices,
-      this.rectangles, 
+      this.rectangles,
       this.polygons,
       this.circles,
       this.walls,
@@ -996,7 +990,7 @@ export class LogicalLayout {
     }
     return null;
   }
-  
+
   _pointToLineDistance(px, py, x1, y1, x2, y2) {
     const A = px - x1;
     const B = py - y1;

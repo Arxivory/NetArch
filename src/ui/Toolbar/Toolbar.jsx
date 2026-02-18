@@ -85,12 +85,12 @@ export default function Toolbar({ canvasController }) {
             onClick={() => {
               executeCommand(StartZoomInCommand);
             }}
-            className={`toolbar-btn ${isActive("zoom") ? "active" : ""}`}>
+            className={`toolbar-btn ${isActive("zoom in") ? "active" : ""}`}>
             <ZoomIn size={16} /> Zoom in</button>
           <button
             onClick={() => {executeCommand(StartZoomOutCommand);
             }}
-            className={`toolbar-btn ${isActive("zoom") ? "active" : ""}`}>
+            className={`toolbar-btn ${isActive("zoom out") ? "active" : ""}`}>
             <ZoomOut size={16} /> Zoom out</button>
         </div>
         <span className="toolbar-label">Controls</span>

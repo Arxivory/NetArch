@@ -25,9 +25,7 @@ export class LogicalCanvasController {
       onCableCreated: (cable) => this._handleCableCreated(cable),
       onDeviceAdded: (device) => this._handleDeviceAdded(device),
       onEntitySelected: (entity) => this._handleEntitySelected(entity),
-
       onPortSelect: (device, x, y, callback) => this._handlePortSelect(device, x, y, callback)
-
     });
   }
 
@@ -109,6 +107,7 @@ export class LogicalCanvasController {
 
       if (appState.network?.addDevice) {
         appState.network.addDevice(newDevice);
+        console.log('From Logical Canvas Controller, the device: ', newDevice, ' is added');
       }
     } catch (error) {
       console.error("Failed to add device:", error.message);
@@ -246,16 +245,32 @@ export class LogicalCanvasController {
     } 
     
     else if (structureType === 'Space') {
-      const selectedFloorId = appState.ui?.activeFloorId || appState.selection?.getSelectedId?.();
+      // const selectedFloorId = appState.ui?.activeFloorId || appState.selection?.getSelectedId?.();
       
-      if (!selectedFloorId) {
-        console.warn('No floor selected for space creation');
+      // if (!selectedFloorId) {
+      //   console.warn('No floor selected for space creation');
+      //   return;
+      // }
+
+      // appState.structural.addSpace({
+      //   id,
+      //   floorId: selectedFloorId,
+      //   label: `Space ${this.counters.space++}`,
+      //   shapeType: shapeType,
+      //   x, y, w, h, r, points
+      // });
+
+      const selection = appState.selection;
+      const selectedSiteId = selection.getFocusedId() || selection.getSelectedId();
+
+      if (!selectedSiteId) {
+        console.warn("Space creation failed: A Site must be selected.");
         return;
       }
 
       appState.structural.addSpace({
         id,
-        floorId: selectedFloorId,
+        siteId: selectedSiteId,
         label: `Space ${this.counters.space++}`,
         shapeType: shapeType,
         x, y, w, h, r, points
@@ -283,6 +298,10 @@ export class LogicalCanvasController {
         cableData.cableType || 'ethernet'
       );
     }
+  }
+  
+  _handleZoomSelected(zoom){
+    this.layout.setZoom(zoom);
   }
 
   _handleDeviceAdded(device) {

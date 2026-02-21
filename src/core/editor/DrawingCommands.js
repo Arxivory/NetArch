@@ -82,6 +82,24 @@ export class StartPanCommand extends DrawingCommand {
   }
 }
 
+export class StartZoomInCommand extends DrawingCommand {
+  execute() {
+    this.appState.tools.setActiveTool('zoom');
+    this.appState.ui.zoomIn();
+    const zoom = this.appState.ui.getZoom();
+    this.controller?._handleZoomSelected(zoom);
+  }
+}
+
+export class StartZoomOutCommand extends DrawingCommand {
+  execute() {
+    this.appState.tools.setActiveTool('zoom');
+    this.appState.ui.zoomOut();
+    const zoom = this.appState.ui.getZoom();
+    this.controller?._handleZoomSelected(zoom);
+  }
+}
+
 export class CancelDrawingCommand extends DrawingCommand {
   execute() {
     this.controller?.cancelDrawing();

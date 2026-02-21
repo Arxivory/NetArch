@@ -24,7 +24,7 @@ const switches = {
     vendor: "cisco",
     portCount: 24,
     interfaceTemplate: "FastEthernet0/{n}",
-    model3D: "/models/switch-2960.glb",
+    model3D: "objects/devices/switches/2960.obj",
   },
   "9200": {
     modelId: "9200",
@@ -252,7 +252,7 @@ export function generateInterfaces(catalogEntry) {
 }
 
 export function createDeviceInstance(catalogId, position = { x: 0, y: 0, z: 0 }, opts = {}) {
-  const catalogEntry = switches[catalogId] || routers[catalogId];
+  const catalogEntry = switches[catalogId] || routers[catalogId] || endDevices[catalogId];
   if (!catalogEntry) {
     throw new Error(`Unknown catalogId: ${catalogId}`);
   }

@@ -658,7 +658,10 @@ export class LogicalLayout {
         this.currentPoint,
         this.structureType
       );
-      if (rect) this.rectangles.push(rect);
+      if (!this._checkForOverlap(rect)) {
+        this.rectangles.push(rect);
+      }
+
     } else if (this.mode === 'circle') {
       const circle = this.shapeCreator.createCircle(
         this.startPoint,
@@ -755,7 +758,7 @@ export class LogicalLayout {
     ctx.restore();
 
     ctx.setTransform(
-      scale, 
+      scale,
       0,
       0,
       scale,
@@ -1020,6 +1023,46 @@ export class LogicalLayout {
     const dy = py - yy;
 
     return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  _checkForOverlap(newEntity) {
+    const entities = this.getAllSelectableEntities();
+    for (const arr of entities) {
+      for (const en of arr) {
+        if (newEntity.type === 'rectangle') {
+          const enRx = en.x;
+          const enLx = en.lx;
+          const enRy = en.y;
+          const enLy = en.ly;
+          const newRx = newEntity.x;
+          const newLx = newEntity.lx;
+          const newRy = newEntity.y;
+          const newLy = newEntity.ly;
+          const xOverlaps = (newRx > enRx && newRx < enLx) || (newLx > enRx && newLx < enLx);
+          const yOverlaps = (newRy > enRy && newRy < enLy) || (newLy > enRy && newLy < enLy);
+          if (xOverlaps && yOverlaps) {
+            console.log("Overlap Detected with " + en.id);
+            return true;
+          }
+        }
+
+        else if (newEntity.type === 'circle') {
+
+        }
+        else if (newEntity.type === 'polygon') {
+
+        }
+        else if (newEntity.type === 'device') {
+
+        }
+        else if (newEntity.type === 'wall' || en.type === 'cable') {
+        }
+      }
+    }
+    //iterate thru all selectable entities
+    // check if any of their fill & strokes overlap with the new entity
+    //alert
+    //cancel
   }
 }
 

@@ -18,6 +18,8 @@ export class ShapeCreator {
     const y2 = currentPoint.y;
     const rx = Math.min(x1, x2);
     const ry = Math.min(y1, y2);
+    const lx = Math.max(x1, x2);
+    const ly = Math.max(y1, y2);
     const rw = Math.abs(x2 - x1);
     const rh = Math.abs(y2 - y1);
     const path = new Path2D();
@@ -29,6 +31,8 @@ export class ShapeCreator {
         y: ry,
         w: rw,
         h: rh,
+        lx,
+        ly,
         structureType,
         type: 'rectangle',
         transform: {

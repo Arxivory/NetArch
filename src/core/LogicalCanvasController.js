@@ -215,6 +215,10 @@ export class LogicalCanvasController {
   }
 
   _handleShapeCreated(shapeData, shapeType) {
+    if (this.layout?._checkForOverlap(shapeData)){
+      return;
+    }
+    
     const { structureType, id, x, y, w, h, r, points } = shapeData;
 
     if (structureType === 'Domain') {

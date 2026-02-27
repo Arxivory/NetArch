@@ -25,7 +25,8 @@ export class LogicalCanvasController {
       onCableCreated: (cable) => this._handleCableCreated(cable),
       onDeviceAdded: (device) => this._handleDeviceAdded(device),
       onEntitySelected: (entity) => this._handleEntitySelected(entity),
-      onPortSelect: (device, x, y, callback) => this._handlePortSelect(device, x, y, callback)
+      onPortSelect: (device, x, y, callback) => this._handlePortSelect(device, x, y, callback),
+      onEntityChanged: (en) => this._handleEntityChanged(en)
     });
   }
 
@@ -218,7 +219,7 @@ export class LogicalCanvasController {
     if (this.layout?._checkForOverlap(shapeData)){
       return;
     }
-    
+
     const { structureType, id, x, y, w, h, r, points } = shapeData;
 
     if (structureType === 'Domain') {
@@ -319,6 +320,11 @@ export class LogicalCanvasController {
     }
 
     appState.selection.selectDevice(entity.id, false);
+  }
+  
+  _handleEntityChanged(en){
+    //console.log("notified");
+    appState.selection.notify();
   }
 }
 

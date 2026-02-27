@@ -3,7 +3,7 @@ import ShapeCreator from './ShapeCreator.js';
 import ShapeRenderer from '../rendering/ShapeRenderer.js';
 import PointerHandler from '../rendering/PointerHandler.js';
 import { Selection } from '../editor/Selection.js';
-import applyEntityTransform from '../transform/EntityTransform.js';
+import EntityTransformer from './transform/EntityTransformer.js';
 
 export class LogicalLayout {
   constructor(opts = {}) {
@@ -43,6 +43,8 @@ export class LogicalLayout {
       dpr: this.devicePixelRatio
     });
 
+    this.entityTransformer = new EntityTransformer();
+
     this.selectedEntity = null;
     this.isResizing = false;
     this.resizeStart = null;
@@ -75,12 +77,14 @@ export class LogicalLayout {
     this.structureType = '';
     this.bgColor = opts.bgColor || '#ffffffff';
 
-    this.onZoomSelected = opts.onZoomSelected || null;//
+    this.onZoomSelected = opts.onZoomSelected || null;
     this.onDeviceAdded = opts.onDeviceAdded || null;
     this.onEntitySelected = opts.onEntitySelected || null;
+    this.onEntityChanged = opts.onEntityChanged || null;
     this.onPortSelect = opts.onPortSelect || null;
 
     this.selectedEntity = null;
+    this.originalEntity = null;
 
     this.interaction = {
       mode: null,
@@ -563,6 +567,10 @@ export class LogicalLayout {
       // MOVE OR RESIZE
       if (this.mode === 'select' && this.selectedEntity && this.interaction.mode) {
         const en = this.selectedEntity;
+        if (this.originalEntity === null) {
+          this.originalEntity = this.cloneEntity(en);
+          console.log("Its null.", this.originalEntity);
+        }
 
         const dx = p.x - this.interaction.start.x;
         const dy = p.y - this.interaction.start.y;
@@ -573,6 +581,8 @@ export class LogicalLayout {
         if (this.interaction.mode === "move") {
           en.x += dx;
           en.y += dy;
+          en.transform.position.x += dx;
+          en.transform.position.y += dy;
         }
 
         if (this.interaction.mode === "resize") {
@@ -603,6 +613,7 @@ export class LogicalLayout {
         }
 
         this.interaction.start = { x: p.x, y: p.y };
+        this.onEntityChanged(en);
         this._render();
         return;
       }
@@ -622,6 +633,14 @@ export class LogicalLayout {
   }
 
   _onPointerUp(e) {
+    console.log(this.selectedEntity, this.originalEntity);
+    if (this.interaction.mode === 'move' && this._checkForOverlap(this.selectedEntity)) {
+      this.overwriteEntity(this.selectedEntity, this.originalEntity);
+      this.onEntityChanged(this.selectedEntity);
+      this.originalEntity = null;
+      this._render();
+    }
+    
     this.interaction = {
       mode: null,
       handle: null,
@@ -648,6 +667,7 @@ export class LogicalLayout {
 
     this.startPoint = null;
     this.currentPoint = null;
+    //console.log('reached');
     this._render();
   }
 
@@ -931,9 +951,17 @@ export class LogicalLayout {
     return null;
   }
 
+  removeEntityById(id) {
+    const lists = this.getAllSelectableEntities();
+    for (let arr of lists) {
+      arr = arr.filter(e => e.id !== id);
+    }
+    return null;
+  }
+
   updateEntityTransform(id, updates = {}) {
     const en = this.findEntityById(id);
-    if (applyEntityTransform(en, updates, this.shapeRenderer)) {
+    if (this.entityTransformer.applyEntityTransform(en, updates, this.shapeRenderer, this._checkForOverlap.bind(this))) {
       this._render();
       return true;
     }
@@ -1026,27 +1054,44 @@ export class LogicalLayout {
   }
 
   _checkForOverlap(newEntity) {
+    if (newEntity === null) return true;
     const entities = this.getAllSelectableEntities();
     for (const arr of entities) {
       for (const en of arr) {
+        if (en.id === newEntity.id) {
+          continue;
+        }
         if (newEntity.type === 'rectangle') {
+          //console.log("Type passed");
           const enRx = en.x;
-          const enLx = en.lx;
+          const enLx = enRx + en.w * en.transform.scale;
           const enRy = en.y;
-          const enLy = en.ly;
+          const enLy = enRy + en.h * en.transform.scale;
           const newRx = newEntity.x;
-          const newLx = newEntity.lx;
+          const newLx = newRx + newEntity.w * newEntity.transform.scale;
           const newRy = newEntity.y;
-          const newLy = newEntity.ly;
-          const xOverlaps = (newRx > enRx && newRx < enLx) || (newLx > enRx && newLx < enLx);
-          const yOverlaps = (newRy > enRy && newRy < enLy) || (newLy > enRy && newLy < enLy);
-          if (xOverlaps && yOverlaps) {
-            console.log("Overlap Detected with " + en.id);
+          const newLy = newRy + newEntity.h * newEntity.transform.scale;
+          // console.log(`enRx: ${enRx}, enLx: ${enLx}, enRy: ${enRy}, enLy: ${enLy}`);
+          // console.log(`newRx: ${newRx}, newLx: ${newLx}, newRy: ${newRy}, newLy: ${newLy}`);
+          const enIsInside = (newRx <= enRx && newLx >= enLx) && (newRy <= enRy && newLy >= enLy);
+          const newEntityIsInside = (newRx >= enRx && newRx < enLx && newLx <= enLx) &&
+            (newRy >= enRy && newRy < enLy && newLy <= enLy);
+          const xFormula1 = (newRx <= enRx && newLx > enRx); //newRx starts before enRx and newLx is greater than enRx
+          const xFormula2 = (newRx > enRx && newRx < enLx); //newRx is in between enRx and enLx
+          const xOverlaps = xFormula1 || xFormula2;
+          const yFormula1 = newRy <= enRy && newLy > enRy; //newRy starts before enRy and newLy is greater than enRy
+          const yFormula2 = newRy > enRy && newRy < enLy; //newRy is in between enRy and enLy
+          const yOverlaps = yFormula1 || yFormula2;
+          const isOverlapping = xOverlaps && yOverlaps;
+          // console.log(xFormula1, xFormula2, yFormula1, yFormula2);
+          // console.log(enIsInside, newEntityIsInside, isOverlapping);
+          if (enIsInside || newEntityIsInside || isOverlapping) {
+            alert("Overlap Detected with " + en.id);
             return true;
           }
         }
-
         else if (newEntity.type === 'circle') {
+
 
         }
         else if (newEntity.type === 'polygon') {
@@ -1059,11 +1104,26 @@ export class LogicalLayout {
         }
       }
     }
-    //iterate thru all selectable entities
-    // check if any of their fill & strokes overlap with the new entity
-    //alert
-    //cancel
   }
+
+
+  cloneEntity(en) {
+    const clone = { ...en };
+
+    if (en.path instanceof Path2D) {
+      clone.path = new Path2D(en.path);
+    }
+    console.log(en.transform.scale);
+    return clone;
+  }
+
+  overwriteEntity(target, source) {
+    Object.assign(target, source);
+    if (target.path instanceof Path2D && source.path instanceof Path2D) {
+      target.path = new Path2D(source.path);
+    }
+  }
+
 }
 
 export default LogicalLayout;

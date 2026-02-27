@@ -12,6 +12,7 @@ export default function PropertiesPanel({ canvasController }) {
 
 
   useEffect(() => {
+    //console.log("reached");
     const unsubscribe = appState.selection.subscribe(() => {
       const ids = appState.selection.getSelectedDeviceIds();
       if (ids && ids.length > 0) {
@@ -19,10 +20,10 @@ export default function PropertiesPanel({ canvasController }) {
         const entity = findEntityById(entityId);
         if (entity) {
           setSelectedEntity(entity);
-          setTransform(entity.transform || {
-            position: { x: entity.x || 0, y: entity.y || 0, z: 0 },
-            scale: { x: 1, y: 1, z: 1 },
-            rotation: { x: 0, y: 0, z: 0 }
+          setTransform({
+            position: { ...entity.transform.position },
+            scale: entity.transform.scale || 1,
+            rotation: { ...entity.transform.rotation }
           });
           return;
         }

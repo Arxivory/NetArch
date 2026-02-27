@@ -122,6 +122,9 @@ export class LogicalLayout {
 
   syncWithState() {
     this.selectedEntity = this.findEntityById(this.store.getFocusedId());
+    // when selection changes via appState (e.g. hierarchy click)
+    // force a re-render so highlight is drawn immediately
+    this._render();
   }
 
   _initCanvas() {

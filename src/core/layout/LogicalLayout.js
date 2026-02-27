@@ -4,6 +4,7 @@ import ShapeRenderer from '../rendering/ShapeRenderer.js';
 import PointerHandler from '../rendering/PointerHandler.js';
 import { Selection } from '../editor/Selection.js';
 import applyEntityTransform from '../transform/EntityTransform.js';
+import appState from '../../state/AppState.js';
 
 export class LogicalLayout {
   constructor(opts = {}) {
@@ -36,7 +37,7 @@ export class LogicalLayout {
     this.pointerHandler = new PointerHandler({
       onPointerDown: this._onPointerDown.bind(this),
       onPointerMove: this._onPointerMove.bind(this),
-      onPointerUp: this._onPointerUp.bind(this)
+      onPointerUp: this._onPointerUp.bind(this),
     });
 
     this.selection = new Selection({
@@ -67,6 +68,10 @@ export class LogicalLayout {
     this.devices = [];
     this.cables = [];
 
+    this.store = appState.selection;
+
+    this.store.subscribe(() => this.syncWithState());
+
     this.pendingCableSource = null;
     this.currentCableType = "straight";
     this.hoveredDevice = null;
@@ -75,6 +80,7 @@ export class LogicalLayout {
     this.structureType = '';
     this.bgColor = opts.bgColor || '#ffffffff';
 
+    this.onZoomSelected = opts.onZoomSelected || null;
     this.onDeviceAdded = opts.onDeviceAdded || null;
     this.onEntitySelected = opts.onEntitySelected || null;
     this.onPortSelect = opts.onPortSelect || null;
@@ -97,7 +103,7 @@ export class LogicalLayout {
       'server': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>`,
       'pc': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>`,
       'switch': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6" y2="6"/><line x1="6" y1="18" x2="6" y2="18"/></svg>`,
-      'firewall': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>` 
+      'firewall': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>`
     };
 
     Object.keys(svgs).forEach(key => {
@@ -110,6 +116,15 @@ export class LogicalLayout {
     this._initCanvas();
     this._render();
 
+    this.syncWithState();
+
+  }
+
+  syncWithState() {
+    this.selectedEntity = this.findEntityById(this.store.getFocusedId());
+    // when selection changes via appState (e.g. hierarchy click)
+    // force a re-render so highlight is drawn immediately
+    this._render();
   }
 
   _initCanvas() {
@@ -119,11 +134,9 @@ export class LogicalLayout {
     c.style.height = this.height + 'px';
     c.width = Math.floor(this.width * this.devicePixelRatio);
     c.height = Math.floor(this.height * this.devicePixelRatio);
-
     this.canvas = c;
     this.ctx = c.getContext('2d');
     this.ctx.scale(this.devicePixelRatio, this.devicePixelRatio);
-
     this.container.appendChild(c);
     this.pointerHandler.attach(c);
   }
@@ -229,13 +242,13 @@ export class LogicalLayout {
   }
 
   addDevice(deviceData, x, y) {
-    const size = this.shapeRenderer.gridSize * 1.5; 
-    
+    const size = this.shapeRenderer.gridSize * 1.5;
+
     // --- SMART ICON MAPPING ---
     // We combine type and name into one string to search for keywords
     // e.g. "Cisco 1941 Router"
     const rawType = (deviceData.type + ' ' + deviceData.name).toLowerCase();
-    
+
     let iconKey = null;
 
     // Check for keywords in the device name
@@ -251,7 +264,7 @@ export class LogicalLayout {
       iconKey = 'pc'; // Maps Laptops/Desktops to the PC icon for now
     } else if (rawType.includes('phone')) {
       // You can add a 'phone' icon to the constructor later if you want
-      iconKey = 'pc'; 
+      iconKey = 'pc';
     }
 
     // Try to get the image; fallback to 'router' or null if nothing matched
@@ -268,7 +281,7 @@ export class LogicalLayout {
     const device = {
       id: `device_${Math.random().toString(36).slice(2, 9)}`,
       type: deviceData.type || 'device',
-      label: deviceData.name || 'Device', 
+      label: deviceData.name || 'Device',
 
       interfaces: deviceData.interfaces || [],
 
@@ -287,7 +300,7 @@ export class LogicalLayout {
     };
 
     this.devices.push(device);
-    
+
     if (this.onDeviceAdded) {
       this.onDeviceAdded(device);
     }
@@ -295,7 +308,8 @@ export class LogicalLayout {
   }
 
   getSnappedCanvasCoords(clientX, clientY) {
-    const canvasPoint = this.pointerHandler.clientToWorld(clientX, clientY, this.viewState);
+    const zoomFactor = this.pointerHandler.getZoom();
+    const canvasPoint = this.pointerHandler.clientToWorld(clientX, clientY, this.viewState, zoomFactor);
     return this.grid.snapToGrid(canvasPoint);
   }
 
@@ -322,9 +336,11 @@ export class LogicalLayout {
     if (this.mode === 'pan') {
       this.pointerHandler.setCursor('grabbing');
       this.pointerHandler.setPanStart(e.clientX, e.clientY);
+      this.pointerHandler.setPointerDown(true);
     }
 
-    const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState);
+    const zoomFactor = this.pointerHandler.getZoom();
+    const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoomFactor);
     const snapped = this.grid.snapToGrid(p);
 
     // if (this.mode === 'cable') {
@@ -413,7 +429,8 @@ export class LogicalLayout {
       const en = this.identifyEntity(e.clientX, e.clientY);
       if (!en) return;
 
-      const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState);
+      const zoom = this.pointerHandler.getZoom();
+      const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
 
       const x = en.x;
       const y = en.y;
@@ -496,7 +513,8 @@ export class LogicalLayout {
   _onPointerMove(e) {
     if (!this.canvas) return;
 
-    const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState);
+    const zoomFactor = this.pointerHandler.getZoom();
+    const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoomFactor);
 
     if (this.mode === 'select') {
       if (this.selectedEntity) {
@@ -525,13 +543,11 @@ export class LogicalLayout {
               : 'nesw-resize';
           }
         }
-
         this.pointerHandler.setCursor(cursor);
-      } else {
+      }
+      else {
         this.pointerHandler.setCursor('default');
       }
-    } else {
-      this._updateCursor();
     }
 
     if (this.mode === 'polygon') {
@@ -595,6 +611,8 @@ export class LogicalLayout {
               en[wKey] -= dx;
               en[hKey] += dy;
               break;
+            default:
+              throw new Error();
           }
         }
 
@@ -602,7 +620,7 @@ export class LogicalLayout {
         this._render();
         return;
       }
-        // DRAWING PREVIEW (rectangle, circle, cable, wall)
+      // DRAWING PREVIEW (rectangle, circle, cable, wall)
       if (
         this.mode === 'rectangle' ||
         this.mode === 'circle' ||
@@ -777,20 +795,21 @@ export class LogicalLayout {
     const ctx = this.ctx;
     const w = this.width;
     const h = this.height;
-
+    const zoomFactor = this.pointerHandler.getZoom();
+    const scale = this.devicePixelRatio * zoomFactor;
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.restore();
 
     ctx.setTransform(
-      this.devicePixelRatio,
+      scale, 
       0,
       0,
-      this.devicePixelRatio,
+      scale,
       this.viewState.e * this.devicePixelRatio,
       this.viewState.f * this.devicePixelRatio
-    );
+    )
 
     ctx.fillStyle = this.bgColor;
     ctx.fillRect(0, 0, w, h);
@@ -835,6 +854,9 @@ export class LogicalLayout {
       const cable = this.selectedEntity;
       const src = this.findEntityById(cable.sourceId);
       const dst = this.findEntityById(cable.targetId);
+
+      
+      console.log('From Logical Layout Render: ', this.selectedEntity);
 
       if (src && dst) {
         const p1 = this._getEdgeIntersection(src, dst);
@@ -978,7 +1000,7 @@ export class LogicalLayout {
     return [
       this.cables,
       this.devices,
-      this.rectangles, 
+      this.rectangles,
       this.polygons,
       this.circles,
       this.walls,
@@ -1041,6 +1063,11 @@ export class LogicalLayout {
     return en;
   }
 
+  setZoom(zoom) {
+    this.pointerHandler.setZoom(zoom);
+    this._render();
+  }
+
 
   _findDeviceAt(x, y) {
     for (const device of this.devices) {
@@ -1058,7 +1085,7 @@ export class LogicalLayout {
     }
     return null;
   }
-  
+
   _pointToLineDistance(px, py, x1, y1, x2, y2) {
     const A = px - x1;
     const B = py - y1;

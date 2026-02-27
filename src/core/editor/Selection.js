@@ -1,3 +1,5 @@
+import appState from "../../state/AppState";
+
 export class Selection {
     constructor(opts) {
         this.dpr = opts.dpr || 1;
@@ -11,6 +13,8 @@ export class Selection {
                 if (!en || !en.path) continue;
                 if (this.wasHit(en, x, y, ctx)) {
                     console.log('Entity identified:', en);
+
+                    appState.selection.focusedNode(en.id, en.type);
                     return en;
                 }
             }

@@ -5,7 +5,11 @@ export class PointerHandler {
     this.onPointerUp = opts.onPointerUp || null;
 
     this.isPointerDown = false;
-    this.panStart = { e: 0, f: 0 };
+    this.panStart = {
+      e: 0,
+      f: 0,
+      zoom: 1
+    };
 
     this._pointerDownHandler = this._onPointerDown.bind(this);
     this._pointerMoveHandler = this._onPointerMove.bind(this);
@@ -33,25 +37,34 @@ export class PointerHandler {
     return this.canvas.getBoundingClientRect();
   }
 
-  clientToWorld(clientX, clientY, viewState = { e: 0, f: 0 }) {
+  clientToWorld(clientX, clientY, viewState = { e: 0, f: 0 }, zoom) {
     const rect = this.getCanvasRect();
     if (!rect) return { x: 0, y: 0 };
 
     let x = clientX - rect.left;
     let y = clientY - rect.top;
-    
-    x -= viewState.e;
-    y -= viewState.f;
+  
+    x = (x  - viewState.e) / zoom;
+    y = (y  - viewState.f) / zoom;
     
     return { x, y };
   }
 
   setPanStart(clientX, clientY) {
-    this.panStart = { e: clientX, f: clientY };
+    this.panStart.e = clientX;
+    this.panStart.f = clientY;
   }
 
   getPanStart() {
     return this.panStart;
+  }
+
+  getZoom() {
+    return this.panStart.zoom;
+  }
+
+  setZoom(zoom) {
+    this.panStart.zoom = zoom;
   }
 
   getPanDelta(clientX, clientY) {

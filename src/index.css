@@ -1059,3 +1059,23 @@ html,
 .floor-specifier-btn:hover {
   background: #1e40af;
 }
+
+/* visual cue when active floor changes */
+.floor-navigator.flash {
+  animation: floor-flash 0.4s ease-in-out;
+}
+
+@keyframes floor-flash {
+  0% { background-color: rgba(37, 99, 235, 0.3); }
+  100% { background-color: transparent; }
+}
+
+.chevron-label {
+  display: flex;
+}
+
+.tree-item-wrapper {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+}

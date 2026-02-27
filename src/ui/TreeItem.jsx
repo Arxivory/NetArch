@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import appState from "../state/AppState"; 
-import { Mountain, Grid, ChevronRight, ChevronDown, Building, Server, Box } from "lucide-react";
+import { Mountain, Grid, ChevronRight, ChevronDown, Building, Server, Box, Layers } from "lucide-react";
 import FloorSpecifier from "./FloorSpecifier";
 
 const icons = {
   domain: Mountain,
   site: Building,
+  floor: Box,
   space: Grid,
   rack: Server,
   device: Box,
@@ -14,6 +15,7 @@ const icons = {
 export default function TreeItem({ node }) {
   const [open, setOpen] = useState(true);
   const [isFocused, setIsFocused] = useState(appState.selection.isFocused(node.id));
+  const [specifierOpen, setSpecifierOpen] = useState(false);
 
   useEffect(() => {
     const unsubscribe = appState.selection.subscribe((store) => {
@@ -27,6 +29,17 @@ export default function TreeItem({ node }) {
 
   const handleRowClick = (e) => {
     appState.selection.focusedNode(node.id, node.type);
+    // maintain active floor when clicking sites or floors
+    if (node.type === "floor") {
+      appState.ui.setActiveFloor(node.id);
+    } else if (node.type === "site") {
+      const floors = appState.structural.getFloorsBySite(node.id);
+      if (floors && floors.length) {
+        appState.ui.setActiveFloor(floors[0].id);
+      } else {
+        appState.ui.setActiveFloor(null);
+      }
+    }
   };
 
   const toggleOpen = (e) => {
@@ -40,16 +53,24 @@ export default function TreeItem({ node }) {
         className={`tree-item-row ${isFocused ? "selected-bg" : ""}`} 
         onClick={handleRowClick}
       >
-        <div className="chevron-wrapper" onClick={toggleOpen}>
-          {hasChildren ? (
-            open ? <ChevronDown size={14} className="tree-chevron" /> : <ChevronRight size={14} className="tree-chevron" />
-          ) : (
-            <span className="tree-spacer" />
-          )}
-        </div>
+        <div className="tree-item-wrapper">
+          <div className="chevron-label">
+            <div className="chevron-wrapper" onClick={toggleOpen}>
+              {hasChildren ? (
+                open ? <ChevronDown size={14} className="tree-chevron" /> : <ChevronRight size={14} className="tree-chevron" />
+              ) : (
+                <span className="tree-spacer" />
+              )}
+            </div>
 
-        {Icon && <Icon size={14} className="tree-icon" />}
-        <span className="item-label">{node.label}</span>
+          
+            {Icon && <Icon size={14} className="tree-icon" />}
+            <span className="item-label">{node.label}</span>
+          </div>
+
+          {node.type === 'site' && <Layers size={12}/>}
+        </div>
+        
       </div>
 
       {open && (
@@ -59,7 +80,7 @@ export default function TreeItem({ node }) {
               <TreeItem key={child.id} node={child} />
             ))}
           {node.type === "site" && (
-            <FloorSpecifier parentId={node.id} />
+              <FloorSpecifier parentId={node.id} />
           )}
         </div>
       )}

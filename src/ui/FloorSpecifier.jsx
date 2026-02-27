@@ -5,15 +5,22 @@ import { useHierarchy } from "./HierarchyContext";
 export default function FloorSpecifier({ parentId }) {
     const [count, setCount] = useState(1);
     const { addNode } = useHierarchy();
+    const [floorCount, setFloorCount] = useState(0);
 
     const handleAdd = () => {
         const n = parseInt(count, 10);
         if (isNaN(n) || n <= 0) return;
+        let lastId = null;
         for (let i = 0; i < n; i++) {
-            // label can be adjusted later; using timestamp for uniqueness
-            addNode(parentId, "floor", `Floor ${Date.now()}`);
+            const id = Date.now() + i;
+            addNode(parentId, "floor", `Floor ${floorCount}`);
+            lastId = id;
+        }
+        if (lastId) {
+            // after adding, activate the last floor (HierarchyContext already sets ui)
         }
         setCount(1);
+        setFloorCount(floorCount + 1);
     };
 
     return (

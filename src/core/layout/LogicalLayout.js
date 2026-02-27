@@ -666,29 +666,46 @@ export class LogicalLayout {
   }
 
   _createShapeFromMode() {
+    const activeFloor = appState.ui.activeFloorId;
+
     if (this.mode === 'rectangle') {
       const rect = this.shapeCreator.createRectangle(
         this.startPoint,
         this.currentPoint,
         this.structureType
       );
-      if (rect) this.rectangles.push(rect);
+      if (rect) {
+        rect.floorId = activeFloor || null;
+        this.rectangles.push(rect);
+      }
     } else if (this.mode === 'circle') {
       const circle = this.shapeCreator.createCircle(
         this.startPoint,
         this.currentPoint,
         this.structureType
       );
-      if (circle) this.circles.push(circle);
+      if (circle) {
+        circle.floorId = activeFloor || null;
+        this.circles.push(circle);
+      }
     } else if (this.mode === 'wall') {
       const wall = this.shapeCreator.createWall(this.startPoint, this.currentPoint);
-      if (wall) this.walls.push(wall);
+      if (wall) {
+        wall.floorId = activeFloor || null;
+        this.walls.push(wall);
+      }
     } else if (this.mode === 'cable') {
       const cable = this.shapeCreator.createCable(this.startPoint, this.currentPoint);
-      if (cable) this.cables.push(cable);
+      if (cable) {
+        cable.floorId = activeFloor || null;
+        this.cables.push(cable);
+      }
     } else if (this.mode === 'polygon') {
       const polygon = this.shapeCreator.createPolygon(this.currentPolygon, this.structureType);
-      if (polygon) this.polygons.push(polygon);
+      if (polygon) {
+        polygon.floorId = activeFloor || null;
+        this.polygons.push(polygon);
+      }
     }
   }
 
@@ -783,10 +800,17 @@ export class LogicalLayout {
     this.grid.renderMinorGrids(ctx, w, h);
     this.grid.renderMajorGrids(ctx, w, h);
 
-    this.shapeRenderer.renderRectangles(ctx, this.rectangles);
-    this.shapeRenderer.renderPolygons(ctx, this.polygons);
-    this.shapeRenderer.renderCircles(ctx, this.circles);
-    this.shapeRenderer.renderWalls(ctx, this.walls);
+    // if a floor is active, hide shapes assigned to other floors
+    const activeFloor = appState.ui.activeFloorId;
+    const filterForFloor = (arr) => {
+      if (!activeFloor) return arr;
+      return arr.filter(o => o.floorId == null || o.floorId === activeFloor);
+    };
+
+    this.shapeRenderer.renderRectangles(ctx, filterForFloor(this.rectangles));
+    this.shapeRenderer.renderPolygons(ctx, filterForFloor(this.polygons));
+    this.shapeRenderer.renderCircles(ctx, filterForFloor(this.circles));
+    this.shapeRenderer.renderWalls(ctx, filterForFloor(this.walls));
     this._renderDeviceCables(ctx);
     this.shapeRenderer.renderDevices(ctx, this.devices);
 
@@ -794,9 +818,6 @@ export class LogicalLayout {
       const cable = this.selectedEntity;
       const src = this.findEntityById(cable.sourceId);
       const dst = this.findEntityById(cable.targetId);
-
-      
-      console.log('From Logical Layout Render: ', this.selectedEntity);
 
       if (src && dst) {
         ctx.save();

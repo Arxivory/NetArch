@@ -243,34 +243,37 @@ export class LogicalCanvasController {
         x, y, w, h, r, points
       });
     } 
-    
-    else if (structureType === 'Space') {
-      // const selectedFloorId = appState.ui?.activeFloorId || appState.selection?.getSelectedId?.();
-      
-      // if (!selectedFloorId) {
-      //   console.warn('No floor selected for space creation');
-      //   return;
-      // }
 
-      // appState.structural.addSpace({
-      //   id,
-      //   floorId: selectedFloorId,
-      //   label: `Space ${this.counters.space++}`,
-      //   shapeType: shapeType,
-      //   x, y, w, h, r, points
-      // });
-
+    else if (structureType === 'Floor') {
       const selection = appState.selection;
       const selectedSiteId = selection.getFocusedId() || selection.getSelectedId();
 
       if (!selectedSiteId) {
-        console.warn("Space creation failed: A Site must be selected.");
+        console.warn('Floor creation failed: A Site must be selected.');
+        return;
+      }
+
+      appState.structural.addFloor({
+        id,
+        siteId: selectedSiteId,
+        label: `Floor ${this.counters.floor++}`,
+        shapeType: shapeType,
+        x, y, w, h, r, points
+      });
+      appState.ui.setActiveFloor(id);
+    }
+    
+    else if (structureType === 'Space') {
+      const selectedFloorId = appState.ui?.activeFloorId || appState.selection?.getFocusedId?.();
+
+      if (!selectedFloorId) {
+        console.warn('Space creation failed: A Floor must be selected.');
         return;
       }
 
       appState.structural.addSpace({
         id,
-        siteId: selectedSiteId,
+        floorId: selectedFloorId,
         label: `Space ${this.counters.space++}`,
         shapeType: shapeType,
         x, y, w, h, r, points

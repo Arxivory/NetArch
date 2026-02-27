@@ -4,6 +4,7 @@ import ShapeRenderer from '../rendering/ShapeRenderer.js';
 import PointerHandler from '../rendering/PointerHandler.js';
 import { Selection } from '../editor/Selection.js';
 import applyEntityTransform from '../transform/EntityTransform.js';
+import appState from '../../state/AppState.js';
 
 export class LogicalLayout {
   constructor(opts = {}) {
@@ -67,6 +68,10 @@ export class LogicalLayout {
     this.devices = [];
     this.cables = [];
 
+    this.store = appState.selection;
+
+    this.store.subscribe(() => this.syncWithState());
+
     this.pendingCableSource = null;
     this.currentCableType = "straight";
     this.hoveredDevice = null;
@@ -75,7 +80,7 @@ export class LogicalLayout {
     this.structureType = '';
     this.bgColor = opts.bgColor || '#ffffffff';
 
-    this.onZoomSelected = opts.onZoomSelected || null;//
+    this.onZoomSelected = opts.onZoomSelected || null;
     this.onDeviceAdded = opts.onDeviceAdded || null;
     this.onEntitySelected = opts.onEntitySelected || null;
     this.onPortSelect = opts.onPortSelect || null;
@@ -111,6 +116,12 @@ export class LogicalLayout {
     this._initCanvas();
     this._render();
 
+    this.syncWithState();
+
+  }
+
+  syncWithState() {
+    this.selectedEntity = this.findEntityById(this.store.getFocusedId());
   }
 
   _initCanvas() {
@@ -776,10 +787,13 @@ export class LogicalLayout {
     this._renderDeviceCables(ctx);
     this.shapeRenderer.renderDevices(ctx, this.devices);
 
-    if (this.selectedEntity && this.selectedEntity.sourceId) {
+    if (this.selectedEntity) {
       const cable = this.selectedEntity;
       const src = this.findEntityById(cable.sourceId);
       const dst = this.findEntityById(cable.targetId);
+
+      
+      console.log('From Logical Layout Render: ', this.selectedEntity);
 
       if (src && dst) {
         ctx.save();
@@ -830,6 +844,8 @@ export class LogicalLayout {
     if (this.selectedEntity) {
       const ctx = this.ctx;
       const en = this.selectedEntity;
+
+      console.log('From Logical Layout, there exists en: ', this.selectedEntity);
 
       let x, y, w, h;
 

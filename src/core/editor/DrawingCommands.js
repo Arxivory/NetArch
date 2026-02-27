@@ -45,8 +45,13 @@ export class StartDrawWallCommand extends DrawingCommand {
 }
 
 export class StartDrawCableCommand extends DrawingCommand {
+  constructor(controller, appState, cableType = "straight") {
+    super(controller, appState);
+    this.cableType = cableType;
+  }
+
   execute() {
-    this.controller?.startDrawCable();
+    this.controller?.startDrawCable(this.cableType);
     this.appState.tools.setActiveTool('cable');
   }
 }
@@ -74,6 +79,24 @@ export class StartPanCommand extends DrawingCommand {
   execute() {
     this.controller?.startPan();
     this.appState.tools.setActiveTool('pan');
+  }
+}
+
+export class StartZoomInCommand extends DrawingCommand {
+  execute() {
+    this.appState.tools.setActiveTool('zoom');
+    this.appState.ui.zoomIn();
+    const zoom = this.appState.ui.getZoom();
+    this.controller?._handleZoomSelected(zoom);
+  }
+}
+
+export class StartZoomOutCommand extends DrawingCommand {
+  execute() {
+    this.appState.tools.setActiveTool('zoom');
+    this.appState.ui.zoomOut();
+    const zoom = this.appState.ui.getZoom();
+    this.controller?._handleZoomSelected(zoom);
   }
 }
 

@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import appState from "../../state/AppState";
 import {
   StartDrawRectangleCommand, StartDrawCircleCommand, StartDrawPolygonCommand, StartDrawWallCommand,
-  StartSelectCommand, StartPanCommand, CancelDrawingCommand
+  StartSelectCommand, StartPanCommand, StartZoomInCommand, StartZoomOutCommand, CancelDrawingCommand
 } from "../../core/editor/DrawingCommands";
 import StructuralOption from "./StructuralOption";
 
@@ -75,14 +75,23 @@ export default function Toolbar({ canvasController }) {
           >
             <MousePointer size={16} /> Select
           </button>
-          <button 
+          <button
             onClick={() => executeCommand(StartPanCommand)}
             className={`toolbar-btn ${isActive("pan") ? "active" : ""}`}
           >
             <Hand size={16} /> Pan
           </button>
-          <button className="toolbar-btn"><ZoomIn size={16}/> Zoom in</button>
-          <button className="toolbar-btn"><ZoomOut size={16}/> Zoom out</button>
+          <button
+            onClick={() => {
+              executeCommand(StartZoomInCommand);
+            }}
+            className={`toolbar-btn ${isActive("zoom in") ? "active" : ""}`}>
+            <ZoomIn size={16} /> Zoom in</button>
+          <button
+            onClick={() => {executeCommand(StartZoomOutCommand);
+            }}
+            className={`toolbar-btn ${isActive("zoom out") ? "active" : ""}`}>
+            <ZoomOut size={16} /> Zoom out</button>
         </div>
         <span className="toolbar-label">Controls</span>
       </div>
@@ -129,7 +138,7 @@ export default function Toolbar({ canvasController }) {
         </div>
         <span className="toolbar-label">Fenestration</span>
       </div>
-      
+
       <div className="toolbar-group ml-auto">
         <button className="simulate-btn">
           <Play size={16} /> Simulate

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import appState from "../state/AppState"; 
 import { Mountain, Grid, ChevronRight, ChevronDown, Building, Server, Box } from "lucide-react";
+import FloorSpecifier from "./FloorSpecifier";
 
 const icons = {
   domain: Mountain,
@@ -51,11 +52,15 @@ export default function TreeItem({ node }) {
         <span className="item-label">{node.label}</span>
       </div>
 
-      {open && hasChildren && (
+      {open && (
         <div className="tree-children">
-          {node.children.map((child) => (
-            <TreeItem key={child.id} node={child} />
-          ))}
+          {hasChildren &&
+            node.children.map((child) => (
+              <TreeItem key={child.id} node={child} />
+            ))}
+          {node.type === "site" && (
+            <FloorSpecifier parentId={node.id} />
+          )}
         </div>
       )}
     </div>

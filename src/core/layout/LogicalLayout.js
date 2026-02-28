@@ -726,9 +726,6 @@ export class LogicalLayout {
 
       if (!src || !dst) continue;
 
-      // Calculate the start and end points on the EDGES of the tiles
-      const p1 = this._getEdgeIntersection(src, dst);
-      const p2 = this._getEdgeIntersection(dst, src);
 
       ctx.beginPath();
 
@@ -737,35 +734,35 @@ export class LogicalLayout {
         ctx.strokeStyle = "#007BFF";
         ctx.setLineDash([]);
 
-        const midX = (p1.x + p2.x) / 2;
-        const midY = (p1.y + p2.y) / 2 - 40;
+        const midX = (src.x + dst.x) / 2;
+        const midY = (src.y + dst.y) / 2 - 40;
 
-        ctx.moveTo(p1.x, p1.y);
-        ctx.quadraticCurveTo(midX, midY, p2.x, p2.y);
+        ctx.moveTo(src.x, src.y);
+        ctx.quadraticCurveTo(midX, midY, dst.x, dst.y);
       }
 
       // CROSSOVER (dashed)
       else if (cable.type === "copper-crossover") {
         ctx.strokeStyle = "#000000";
         ctx.setLineDash([6, 4]);
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(dst.x, dst.y);
       }
 
       // STRAIGHT-THROUGH (solid)
       else if (cable.type === "copper-straight") {
         ctx.strokeStyle = "#000000";
         ctx.setLineDash([]);
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(dst.x, dst.y);
       }
 
       // fallback
       else {
         ctx.strokeStyle = "#000000";
         ctx.setLineDash([]);
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(dst.x, dst.y);
       }
 
       ctx.stroke();
@@ -848,8 +845,6 @@ export class LogicalLayout {
       const dst = this.findEntityById(cable.targetId);
 
       if (src && dst) {
-        const p1 = this._getEdgeIntersection(src, dst);
-        const p2 = this._getEdgeIntersection(dst, src);
 
         ctx.save();
         ctx.strokeStyle = "#00AEEF";
@@ -857,8 +852,8 @@ export class LogicalLayout {
         ctx.setLineDash([4, 4]);
 
         ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(dst.x, dst.y);
         ctx.stroke();
         ctx.restore();
       }

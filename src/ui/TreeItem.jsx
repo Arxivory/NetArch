@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import appState from "../state/AppState"; 
-import { Mountain, Grid, ChevronRight, ChevronDown, Building, Server, Box, Layers } from "lucide-react";
+import { Mountain, Grid, ChevronRight, ChevronDown, Building, Server, Box, Layers, CopyPlus } from "lucide-react";
 import FloorSpecifier from "./FloorSpecifier";
 
 const icons = {
@@ -16,6 +16,7 @@ export default function TreeItem({ node }) {
   const [open, setOpen] = useState(true);
   const [isFocused, setIsFocused] = useState(appState.selection.isFocused(node.id));
   const [specifierOpen, setSpecifierOpen] = useState(false);
+  const [floorSpecifierCount, setFloorSpecifierCount] = useState(0);
 
   useEffect(() => {
     const unsubscribe = appState.selection.subscribe((store) => {
@@ -68,7 +69,7 @@ export default function TreeItem({ node }) {
             <span className="item-label">{node.label}</span>
           </div>
 
-          {node.type === 'site' && <Layers size={12}/>}
+          {node.type === 'site' && <CopyPlus size={12} onClick={() => setSpecifierOpen(!specifierOpen)}/>}
         </div>
         
       </div>
@@ -79,8 +80,8 @@ export default function TreeItem({ node }) {
             node.children.map((child) => (
               <TreeItem key={child.id} node={child} />
             ))}
-          {node.type === "site" && (
-              <FloorSpecifier parentId={node.id} />
+          {node.type === "site" && specifierOpen && (
+              <FloorSpecifier parentId={node.id} onCloseModal={() => { setSpecifierOpen(!specifierOpen); setFloorSpecifierCount(floorSpecifierCount + 1)}} floorCount={floorSpecifierCount} />
           )}
         </div>
       )}

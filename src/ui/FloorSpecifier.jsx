@@ -2,10 +2,9 @@
 import { useState } from "react";
 import { useHierarchy } from "./HierarchyContext";
 
-export default function FloorSpecifier({ parentId }) {
+export default function FloorSpecifier({ parentId, onCloseModal, floorCount }) {
     const [count, setCount] = useState(1);
     const { addNode } = useHierarchy();
-    const [floorCount, setFloorCount] = useState(0);
 
     const handleAdd = () => {
         const n = parseInt(count, 10);
@@ -20,7 +19,6 @@ export default function FloorSpecifier({ parentId }) {
             // after adding, activate the last floor (HierarchyContext already sets ui)
         }
         setCount(1);
-        setFloorCount(floorCount + 1);
     };
 
     return (
@@ -37,7 +35,7 @@ export default function FloorSpecifier({ parentId }) {
                     onChange={(e) => setCount(e.target.value)}
                 />
             </div>
-            <button className="floor-specifier-btn" onClick={handleAdd}>
+            <button className="floor-specifier-btn" onClick={() => {handleAdd(); onCloseModal();}}>
                 Add
             </button>
         </div>

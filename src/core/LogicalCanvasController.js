@@ -92,27 +92,43 @@ export class LogicalCanvasController {
     this.layout?.clear();
   }
 
-  addDevice(deviceData, x, y) {
+// LogicalCanvasController.js
+addDevice(deviceData, x, y) {
     if (!this.layout) return;
 
-    const catalogId = deviceData.modelId || deviceData.type;
+    // Use modelId directly from drag data
+    const catalogId = deviceData.modelId;
+    if (!catalogId) {
+        console.error("Missing modelId in deviceData", deviceData);
+        return;
+    }
 
     try {
-      const newDevice = createDeviceInstance(catalogId, { x, y, z: 0 });
+        const newDevice = createDeviceInstance(catalogId, { x, y, z: 0 });
+        
+        // --- FIX: Explicitly set catalogId for the 3D renderer lookup ---
+        newDevice.catalogId = catalogId; 
+        
+        newDevice.label = deviceData.label || newDevice.name;
 
-      this.layout.addDevice({
-        ...newDevice,
-        label: newDevice.name
-      }, x, y);
+        this.layout.addDevice({ ...newDevice }, x, y);
 
-      if (appState.network?.addDevice) {
-        appState.network.addDevice(newDevice);
-        console.log('From Logical Canvas Controller, the device: ', newDevice, ' is added');
-      }
+        if (appState.network?.addDevice) {
+            appState.network.addDevice(newDevice);
+        }
+
+        // --- FIX: Ensure physical controller is referenced correctly ---
+        if (this.physicalController) {
+            this.physicalController.createDeviceGLTFMesh(newDevice);
+        } else {
+            console.error("Physical controller reference not found.");
+        }
+
+        console.log('Device added:', newDevice.id, 'with Catalog ID:', newDevice.catalogId);
     } catch (error) {
-      console.error("Failed to add device:", error.message);
+        console.error("Failed to add device:", error.message);
     }
-  }
+}
 
   updateEntityTransform(id, updates) {
     this.layout?.updateEntityTransform(id, updates);

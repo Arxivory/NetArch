@@ -24,7 +24,7 @@ const switches = {
     vendor: "cisco",
     portCount: 24,
     interfaceTemplate: "FastEthernet0/{n}",
-    model3D: "objects/devices/switches/2960.obj",
+    model3D: "/objects/devices/switches/2960.glb",
   },
   "9200": {
     modelId: "9200",
@@ -87,7 +87,7 @@ const switches = {
     vendor: "cisco",
     portCount: 24,
     interfaceTemplate: "GigabitEthernet0/{n}",
-    model3D: "/models/switch-220.glb",
+    model3D: "/objects/devices/switches/220.glb",
   },
   "350": {
     modelId: "350",
@@ -108,7 +108,7 @@ const routers = {
     vendor: "cisco",
     portCount: 2,
     interfaceTemplate: "GigabitEthernet0/{n}",
-    model3D: "/models/router-1941.glb"
+    model3D: "/objects/devices/routers/1941.glb"
   },
   
   "2901": {

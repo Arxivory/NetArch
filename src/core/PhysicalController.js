@@ -231,63 +231,63 @@ export class PhysicalController {
     }
 
     createDeviceGLTFMesh(device) {
-            const { switches, routers, endDevices } = deviceCatalog;
-            
-            const cId = device.catalogId || device.hostname || device.name; 
-            
-            const catalogEntry = switches[cId] || routers[cId] || endDevices[cId];
-
-            if (!catalogEntry) {
-                console.warn(`Lookup failed for ID: ${cId}. Falling back to default.`);
-            }
-
-            let modelPath = (catalogEntry && catalogEntry.model3D) 
-                ? catalogEntry.model3D 
-                : 'objects/devices/routers/1941.glb';
-
-            if (modelPath.endsWith('.obj')) {
-                console.warn(`Redirecting ${modelPath} to .glb for GLTFLoader`);
-                modelPath = modelPath.replace('.obj', '.glb'); 
-            }
-
-            this.gltfLoader.load(modelPath, (gltf) => {
-                const model = gltf.scene;
-
-                const modX = device.transform.position.x * this.defaultScaler;
-                const modZ = device.transform.position.y * this.defaultScaler;
-                
-                model.position.set(modX, 2.5, modZ); 
-                model.scale.set(7, 7, 7); 
-
-                model.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                        if (child.material) {
-                            child.material.metalness = 0.5; 
-                        }
-                    }
-                });
-
-                this.scene.add(model);
-                this.deviceMeshes.set(device.id, model);
-                
-                console.log(`Successfully loaded ${cId} from: ${modelPath}`);
-            }, 
-            undefined, 
-            (err) => console.error("GLB Load Error. Path tried:", modelPath, err));
-        }
+        const { switches, routers, endDevices } = deviceCatalog;
         
-        updateDomainMesh(domain) {
-            const { x, y, width, height } = domain.geometry;
+        const cId = device.catalogId || device.hostname || device.name; 
+        
+        const catalogEntry = switches[cId] || routers[cId] || endDevices[cId];
 
-            const modifiedX = x * this.defaultScaler;
-            const modifiedY = y * this.defaultScaler;
-            const modifiedWidth = width * this.defaultScaler;
-            const modifiedHeight = height * this.defaultScaler;
-
-            const mesh = this.domainMeshes.get(domain.id);
-            mesh.scale.set(modifiedWidth, 1, modifiedHeight);
-            mesh.position.set(modifiedX, 0.1, modifiedY);
+        if (!catalogEntry) {
+            console.warn(`Lookup failed for ID: ${cId}. Falling back to default.`);
         }
+
+        let modelPath = (catalogEntry && catalogEntry.model3D) 
+            ? catalogEntry.model3D 
+            : 'objects/devices/routers/1941.glb';
+
+        if (modelPath.endsWith('.obj')) {
+            console.warn(`Redirecting ${modelPath} to .glb for GLTFLoader`);
+            modelPath = modelPath.replace('.obj', '.glb'); 
+        }
+
+        this.gltfLoader.load(modelPath, (gltf) => {
+            const model = gltf.scene;
+
+            const modX = device.transform.position.x * this.defaultScaler;
+            const modZ = device.transform.position.y * this.defaultScaler;
+            
+            model.position.set(modX, 2.5, modZ); 
+            model.scale.set(7, 7, 7); 
+
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    if (child.material) {
+                        child.material.metalness = 0.5; 
+                    }
+                }
+            });
+
+            this.scene.add(model);
+            this.deviceMeshes.set(device.id, model);
+            
+            console.log(`Successfully loaded ${cId} from: ${modelPath}`);
+        }, 
+        undefined, 
+        (err) => console.error("GLB Load Error. Path tried:", modelPath, err));
     }
+    
+    updateDomainMesh(domain) {
+        const { x, y, width, height } = domain.geometry;
+
+        const modifiedX = x * this.defaultScaler;
+        const modifiedY = y * this.defaultScaler;
+        const modifiedWidth = width * this.defaultScaler;
+        const modifiedHeight = height * this.defaultScaler;
+
+        const mesh = this.domainMeshes.get(domain.id);
+        mesh.scale.set(modifiedWidth, 1, modifiedHeight);
+        mesh.position.set(modifiedX, 0.1, modifiedY);
+    }
+}

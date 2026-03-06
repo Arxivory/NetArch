@@ -15,9 +15,6 @@ export default function FloorSpecifier({ parentId, onCloseModal, floorCount }) {
             addNode(parentId, "floor", `Floor ${floorCount}`);
             lastId = id;
         }
-        if (lastId) {
-            // after adding, activate the last floor (HierarchyContext already sets ui)
-        }
         setCount(1);
     };
 

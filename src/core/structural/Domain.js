@@ -2,9 +2,9 @@ export default class Domain {
     constructor(data = {}) {
         this.id = data.id || `domain-${Math.random().toString(36).substr(2, 9)}`;
         this.label = data.label || 'New Domain';
-        this.type = 'domain';
+        this.type = data.structureType;
 
-        this.shapeType = data.shapeType || 'rectangle';
+        this.shapeType = data.type;
 
         this.geometry = {
             x: data.x || 0,
@@ -17,4 +17,5 @@ export default class Domain {
 
         this.siteIds = data.siteIds || [];
     }
+
 }

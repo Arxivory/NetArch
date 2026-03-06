@@ -1,3 +1,7 @@
+import { Rectangle } from './entities/Rectangle.js';
+import { Circle } from './entities/Circle.js';
+import { Polygon } from './entities/Polygon.js';
+
 export class ShapeCreator {
   constructor(opts = {}) {
     this.onRectangleCreated = opts.onRectangleCreated || null;
@@ -11,124 +15,26 @@ export class ShapeCreator {
     return `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
   }
 
-  createRectangle(startPoint, currentPoint, structureType = '') {
-    const x1 = startPoint.x;
-    const y1 = startPoint.y;
-    const x2 = currentPoint.x;
-    const y2 = currentPoint.y;
-    const rx = Math.min(x1, x2);
-    const ry = Math.min(y1, y2);
-    const lx = Math.max(x1, x2);
-    const ly = Math.max(y1, y2);
-    const rw = Math.abs(x2 - x1);
-    const rh = Math.abs(y2 - y1);
-    const path = new Path2D();
-    path.rect(rx, ry, rw, rh);
-    if (rw > 2 && rh > 2) {
-      const rectangle = {
-        id: this._genId(`Rectangle ${structureType}`),
-        x: rx,
-        y: ry,
-        w: rw,
-        h: rh,
-        lx,
-        ly,
-        structureType,
-        type: 'rectangle',
-        transform: {
-          position: { x: rx, y: ry, z: 0 },
-          scale: 1,
-          rotation: { x: 0, y: 0, z: 0 }
-        },
-        path,
-        hitTestMode: 'path'
-      };
-
-      if (this.onRectangleCreated) {
-        this.onRectangleCreated(rectangle);
-      }
-
-      return rectangle;
-    }
-
-    return null;
+  createRectangle(startPoint, currentPoint, structureType = '',) {
+    const rectangle = new Rectangle(startPoint, currentPoint, structureType);
+    if (rectangle.w <= 2 && rectangle.h <= 2) return null;
+    rectangle.id = this._genId(`Rectangle ${structureType}`);
+    return rectangle;
   }
 
   createCircle(startPoint, currentPoint, structureType = '') {
-    const cx = startPoint.x;
-    const cy = startPoint.y;
-    const dx = currentPoint.x - cx;
-    const dy = currentPoint.y - cy;
-    const r = Math.hypot(dx, dy);
-    const path = new Path2D();
-    path.arc(cx, cy, r, 0, Math.PI * 2);
-    if (r > 2) {
-      const circle = {
-        id: this._genId(`Circle ${structureType}`),
-        x: cx,
-        y: cy,
-        r,
-        structureType,
-        type: 'circle',
-        transform: {
-          position: { x: cx, y: cy, z: 0 },
-          scale: 1,
-          rotation: { x: 0, y: 0, z: 0 }
-        },
-        path,
-        hitTestMode: 'path'
-      };
-
-      if (this.onCircleCreated) {
-        this.onCircleCreated(circle);
-      }
-
-      return circle;
-    }
-
-    return null;
+    const circle = new Circle(startPoint, currentPoint, structureType);
+    if (circle.r <= 2) return null;
+    circle.id = this._genId(`Circle ${structureType}`);
+    return circle;
   }
 
   createPolygon(points, structureType = '') {
     if (!points || points.length < 3) {
       return null;
     }
-
-    const minX = Math.min(...points.map(p => p.x)); 
-    const minY = Math.min(...points.map(p => p.y)); 
-    const maxX = Math.max(...points.map(p => p.x)); 
-    const maxY = Math.max(...points.map(p => p.y));
-    
-    
-    const path = new Path2D();
-    path.moveTo(points[0].x, points[0].y);
-    for (let i = 1; i < points.length; i++) {
-
-      path.lineTo(points[i].x, points[i].y);
-    }
-    path.closePath();
-
-    const polygon = {
-      id: this._genId('polygon'),
-      x: minX,
-      y: minY,
-      w: maxX - minX,
-      h: maxY - minY,
-      points: [...points],
-      structureType,
-      type: 'polygon',
-      transform: {
-        position: { x: points[0].x, y: points[0].y, z: 0 },
-        scale: 1,
-        rotation: { x: 0, y: 0, z: 0 }
-      },
-      path,
-      hitTestMode: 'path'
-    };
-
-    if (this.onPolygonCreated) {
-      this.onPolygonCreated(polygon);
-    }
+    const polygon = new Polygon(points, structureType);
+    polygon.id = this._genId(`Polygon ${structureType}`);
     return polygon;
   }
 

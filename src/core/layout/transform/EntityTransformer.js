@@ -26,22 +26,15 @@ export class EntityTransformer {
         en.path = new Path2D();
         en.path.rect(en.x + 0.5, en.y + 0.5, en.w, en.h);
       }
-      else if (en.type === 'polygon' && Array.isArray(en.points)) {
+      else if (en.type === 'polygon') {
         const dx = nx - en.points[0].x;
         const dy = ny - en.points[0].y;
-        console.log(nx, ny);
         for (let i = 0; i < en.points.length; i++) {
           en.points[i] = {
             x: en.points[i].x + dx,
             y: en.points[i].y + dy
           };
         }
-
-        const path = new Path2D();
-        path.moveTo(en.points[0].x, en.points[0].y);
-        for (let i = 1; i < en.points.length; i++) path.lineTo(en.points[i].x, en.points[i].y);
-        path.closePath();
-        en.path = path;
       }
       else if (en.type === 'circle') {
         en.x = nx;
@@ -75,16 +68,12 @@ export class EntityTransformer {
     }
 
     if (updates.scale !== undefined) {
-      const originalScale = en.transform.scale;
-      en.transform.scale = updates.scale;
+      en.setPreviousScale();
+      en.setScale(updates.scale);
       if ((checkForOverlap(en))) {
         console.log(`Scaling area overlapping. Please Try again`);
-        en.transform.scale = originalScale;
+        en.transform.scale = en.previousScale;
         return false;
-      }
-      if (en.type === 'rectangle' || en.type === 'polygon'){
-        en.w *= updates.scale;
-        en.h *= updates.scale;
       }
     }
 

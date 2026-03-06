@@ -216,19 +216,15 @@ export class LogicalCanvasController {
   }
 
   _handleShapeCreated(shapeData, shapeType) {
-    if (this.layout?._checkForOverlap(shapeData)){
-      return;
-    }
-
     const { structureType, id, x, y, w, h, r, points } = shapeData;
 
     if (structureType === 'Domain') {
-      appState.structural.addDomain({
-        id,
+      const data = {
+        ...shapeData,
         label: `Domain ${this.counters.domain++}`,
-        shapeType: shapeType,
-        x, y, w, h, r, points
-      });
+      };
+      console.log(data);
+      appState.structural.addDomain(data);
     } 
     
     else if (structureType === 'Site') {

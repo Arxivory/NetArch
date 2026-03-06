@@ -418,6 +418,7 @@ export class LogicalLayout {
     if (this.mode === 'select') {
       const en = this.identifyEntity(e.clientX, e.clientY);
       if (!en) return;
+      en.saveCurrentPosition();
 
       const zoom = this.pointerHandler.getZoom();
       const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
@@ -437,7 +438,7 @@ export class LogicalLayout {
 
       for (const key in handles) {
         const [hx, hy] = handles[key];
-        if (Math.abs(p.x - hx) < size && Math.abs(p.y - hy) < size) {
+        if (Math.abs(p.x - hx) < size && Math.abs(p.y - hy) < size && en.type === 'rectangle') {
           this.interaction = {
             mode: 'resize',
             handle: key,
@@ -462,7 +463,8 @@ export class LogicalLayout {
     if (this.mode === 'polygon') {
       if (this.currentPolygon.length === 0) {
         this.currentPolygon.push(snapped);
-      } else {
+      }
+      else {
         const first = this.currentPolygon[0];
         const canClose = this.shapeCreator.canClosePolygon(
           first,
@@ -475,15 +477,18 @@ export class LogicalLayout {
             [...this.currentPolygon],
             this.structureType
           );
-          if (polygon) {
+          if (!this._checkForOverlap(polygon)) {
+            if (this.shapeCreator.onPolygonCreated) {
+              this.shapeCreator.onPolygonCreated(polygon);
+            }
             this.polygons.push(polygon);
+            this.currentPolygon = [];
+            this.mode = 'none';
+            this.currentPoint = null;
+            this._updateCursor();
+            this._render();
+            return;
           }
-          this.currentPolygon = [];
-          this.mode = 'none';
-          this.currentPoint = null;
-          this._updateCursor();
-          this._render();
-          return;
         }
         this.currentPolygon.push(snapped);
       }
@@ -567,10 +572,6 @@ export class LogicalLayout {
       // MOVE OR RESIZE
       if (this.mode === 'select' && this.selectedEntity && this.interaction.mode) {
         const en = this.selectedEntity;
-        if (this.originalEntity === null) {
-          this.originalEntity = this.cloneEntity(en);
-          console.log("Its null.", this.originalEntity);
-        }
 
         const dx = p.x - this.interaction.start.x;
         const dy = p.y - this.interaction.start.y;
@@ -579,10 +580,22 @@ export class LogicalLayout {
         const hKey = en.h !== undefined ? "h" : "height";
 
         if (this.interaction.mode === "move") {
-          en.x += dx;
-          en.y += dy;
-          en.transform.position.x += dx;
-          en.transform.position.y += dy;
+          if (en.type === 'polygon') {
+            for (let i = 0; i < en.points.length; i++) {
+              en.points[i] = {
+                x: en.points[i].x + dx,
+                y: en.points[i].y + dy
+              };
+            }
+            en.transform.position.x = en.points[0].x;
+            en.transform.position.y = en.points[0].y;
+          }
+          else {
+            en.x += dx;
+            en.y += dy;
+            en.transform.position.x += dx;
+            en.transform.position.y += dy;
+          }
         }
 
         if (this.interaction.mode === "resize") {
@@ -610,6 +623,10 @@ export class LogicalLayout {
             default:
               throw new Error();
           }
+          en.transform.position.x = en.x;
+          en.transform.position.y = en.y;
+          en.transform.scale.w = en[wKey];
+          en.transform.scale.h = en[hKey];
         }
 
         this.interaction.start = { x: p.x, y: p.y };
@@ -633,14 +650,15 @@ export class LogicalLayout {
   }
 
   _onPointerUp(e) {
-    console.log(this.selectedEntity, this.originalEntity);
-    if (this.interaction.mode === 'move' && this._checkForOverlap(this.selectedEntity)) {
-      this.overwriteEntity(this.selectedEntity, this.originalEntity);
-      this.onEntityChanged(this.selectedEntity);
-      this.originalEntity = null;
-      this._render();
+    console.log(this.interaction.mode);
+    if (this.interaction.mode === 'move') {
+      if (this._checkForOverlap(this.selectedEntity)) {
+        this.selectedEntity.restoreToSavedPosition();
+        this.onEntityChanged();
+        this._render();
+      }
     }
-    
+
     this.interaction = {
       mode: null,
       handle: null,
@@ -667,7 +685,6 @@ export class LogicalLayout {
 
     this.startPoint = null;
     this.currentPoint = null;
-    //console.log('reached');
     this._render();
   }
 
@@ -676,9 +693,12 @@ export class LogicalLayout {
       const rect = this.shapeCreator.createRectangle(
         this.startPoint,
         this.currentPoint,
-        this.structureType
+        this.structureType,
       );
       if (!this._checkForOverlap(rect)) {
+        if (this.shapeCreator.onRectangleCreated) {
+          this.shapeCreator.onRectangleCreated(rect);
+        }
         this.rectangles.push(rect);
       }
 
@@ -688,7 +708,12 @@ export class LogicalLayout {
         this.currentPoint,
         this.structureType
       );
-      if (circle) this.circles.push(circle);
+      if (!this._checkForOverlap(circle)) {
+        if (this.shapeCreator.onCircleCreated) {
+          this.shapeCreator.onCircleCreated(circle);
+        }
+        this.circles.push(circle);
+      }
     } else if (this.mode === 'wall') {
       const wall = this.shapeCreator.createWall(this.startPoint, this.currentPoint);
       if (wall) this.walls.push(wall);
@@ -696,6 +721,7 @@ export class LogicalLayout {
       const cable = this.shapeCreator.createCable(this.startPoint, this.currentPoint);
       if (cable) this.cables.push(cable);
     } else if (this.mode === 'polygon') {
+      console.log("Wait what");
       const polygon = this.shapeCreator.createPolygon(this.currentPolygon, this.structureType);
       if (polygon) this.polygons.push(polygon);
     }
@@ -1053,76 +1079,23 @@ export class LogicalLayout {
     return Math.sqrt(dx * dx + dy * dy);
   }
 
-  _checkForOverlap(newEntity) {
-    if (newEntity === null) return true;
+  _checkForOverlap(currentEntity) {
+    if (currentEntity === null) return true;
     const entities = this.getAllSelectableEntities();
     for (const arr of entities) {
       for (const en of arr) {
-        if (en.id === newEntity.id) {
+        if (en.id === currentEntity.id) {
           continue;
         }
-        if (newEntity.type === 'rectangle') {
-          //console.log("Type passed");
-          const enRx = en.x;
-          const enLx = enRx + en.w * en.transform.scale;
-          const enRy = en.y;
-          const enLy = enRy + en.h * en.transform.scale;
-          const newRx = newEntity.x;
-          const newLx = newRx + newEntity.w * newEntity.transform.scale;
-          const newRy = newEntity.y;
-          const newLy = newRy + newEntity.h * newEntity.transform.scale;
-          // console.log(`enRx: ${enRx}, enLx: ${enLx}, enRy: ${enRy}, enLy: ${enLy}`);
-          // console.log(`newRx: ${newRx}, newLx: ${newLx}, newRy: ${newRy}, newLy: ${newLy}`);
-          const enIsInside = (newRx <= enRx && newLx >= enLx) && (newRy <= enRy && newLy >= enLy);
-          const newEntityIsInside = (newRx >= enRx && newRx < enLx && newLx <= enLx) &&
-            (newRy >= enRy && newRy < enLy && newLy <= enLy);
-          const xFormula1 = (newRx <= enRx && newLx > enRx); //newRx starts before enRx and newLx is greater than enRx
-          const xFormula2 = (newRx > enRx && newRx < enLx); //newRx is in between enRx and enLx
-          const xOverlaps = xFormula1 || xFormula2;
-          const yFormula1 = newRy <= enRy && newLy > enRy; //newRy starts before enRy and newLy is greater than enRy
-          const yFormula2 = newRy > enRy && newRy < enLy; //newRy is in between enRy and enLy
-          const yOverlaps = yFormula1 || yFormula2;
-          const isOverlapping = xOverlaps && yOverlaps;
-          // console.log(xFormula1, xFormula2, yFormula1, yFormula2);
-          // console.log(enIsInside, newEntityIsInside, isOverlapping);
-          if (enIsInside || newEntityIsInside || isOverlapping) {
-            alert("Overlap Detected with " + en.id);
-            return true;
-          }
-        }
-        else if (newEntity.type === 'circle') {
-
-
-        }
-        else if (newEntity.type === 'polygon') {
-
-        }
-        else if (newEntity.type === 'device') {
-
-        }
-        else if (newEntity.type === 'wall' || en.type === 'cable') {
+        if (currentEntity.checkIfOverlapping(en)) {
+          alert("Overlapping detected");
+          return true;
         }
       }
     }
+    return false;
   }
 
-
-  cloneEntity(en) {
-    const clone = { ...en };
-
-    if (en.path instanceof Path2D) {
-      clone.path = new Path2D(en.path);
-    }
-    console.log(en.transform.scale);
-    return clone;
-  }
-
-  overwriteEntity(target, source) {
-    Object.assign(target, source);
-    if (target.path instanceof Path2D && source.path instanceof Path2D) {
-      target.path = new Path2D(source.path);
-    }
-  }
 
 }
 

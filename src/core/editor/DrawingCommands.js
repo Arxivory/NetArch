@@ -128,7 +128,8 @@ export class UpdateEntityTransformCommand extends DrawingCommand {
   }
 
   execute() {
-    this.controller?.updateEntityTransform(this.entityId, this.updates);
+    const success = this.controller?.updateEntityTransform(this.entityId, this.updates);
+    return success;
   }
 }
 

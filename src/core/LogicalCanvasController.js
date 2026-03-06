@@ -92,11 +92,9 @@ export class LogicalCanvasController {
     this.layout?.clear();
   }
 
-// LogicalCanvasController.js
 addDevice(deviceData, x, y) {
     if (!this.layout) return;
 
-    // Use modelId directly from drag data
     const catalogId = deviceData.modelId;
     if (!catalogId) {
         console.error("Missing modelId in deviceData", deviceData);
@@ -106,7 +104,6 @@ addDevice(deviceData, x, y) {
     try {
         const newDevice = createDeviceInstance(catalogId, { x, y, z: 0 });
         
-        // --- FIX: Explicitly set catalogId for the 3D renderer lookup ---
         newDevice.catalogId = catalogId; 
         
         newDevice.label = deviceData.label || newDevice.name;
@@ -117,7 +114,6 @@ addDevice(deviceData, x, y) {
             appState.network.addDevice(newDevice);
         }
 
-        // --- FIX: Ensure physical controller is referenced correctly ---
         if (this.physicalController) {
             this.physicalController.createDeviceGLTFMesh(newDevice);
         } else {
@@ -139,7 +135,6 @@ addDevice(deviceData, x, y) {
   // =========================================================
 
   _handlePortSelect(device, x, y, callback) {
-    // 1. Remove any existing port menus
     const existingMenu = document.getElementById('canvas-port-menu');
     if (existingMenu) existingMenu.remove();
 
@@ -149,10 +144,8 @@ addDevice(deviceData, x, y) {
       return;
     }
 
-    // --- NEW LOGIC: Check for Used Ports ---
     const usedPorts = new Set();
     
-    // Scan all existing cables to see what is already plugged into this device
     if (this.layout && this.layout.cables) {
       this.layout.cables.forEach(cable => {
         if (cable.sourceId === device.id && cable.sourcePort) {
@@ -164,18 +157,14 @@ addDevice(deviceData, x, y) {
       });
     }
 
-    // Filter the device's total ports against the used ports
     const availablePorts = device.interfaces.filter(port => !usedPorts.has(port));
 
-    // If all ports are full, let the user know and cancel!
     if (availablePorts.length === 0) {
       alert(`All ports on ${device.label} are currently in use!`);
       callback(null);
       return;
     }
-    // ---------------------------------------
 
-    // 2. Create the floating menu container
     const menu = document.createElement('div');
     menu.id = 'canvas-port-menu';
     menu.style.position = 'fixed';
@@ -188,13 +177,12 @@ addDevice(deviceData, x, y) {
     menu.style.padding = '4px 0';
     menu.style.zIndex = '9999';
     menu.style.minWidth = '140px';
-    menu.style.maxHeight = '300px'; // Add a max height just in case of 48-port switches
-    menu.style.overflowY = 'auto';  // Add scrolling for large numbers of ports
+    menu.style.maxHeight = '300px'; 
+    menu.style.overflowY = 'auto';  
     menu.style.fontFamily = 'sans-serif';
     menu.style.fontSize = '12px';
     menu.style.color = '#0f172a';
 
-    // 3. Create a clickable row ONLY for available ports
     availablePorts.forEach(port => {
       const item = document.createElement('div');
       item.innerText = port;

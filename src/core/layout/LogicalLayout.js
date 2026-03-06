@@ -96,8 +96,6 @@ export class LogicalLayout {
 
     this.deviceIcons = {};
 
-    // We define the SVG strings manually since we can't import React components here.
-    // These match standard Lucide icons.
     const svgs = {
       'router': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6.01 18h.01"/><path d="M10.01 18h.01"/><path d="M15 10v4"/><path d="M17.84 7.17a4 4 0 0 0-5.66 0"/><path d="M20.66 4.34a8 8 0 0 0-11.31 0"/></svg>`,
       'server': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>`,
@@ -108,7 +106,6 @@ export class LogicalLayout {
 
     Object.keys(svgs).forEach(key => {
       const img = new Image();
-      // This converts the SVG string into a data URL the canvas can read
       img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgs[key]);
       this.deviceIcons[key] = img;
     });
@@ -122,8 +119,6 @@ export class LogicalLayout {
 
   syncWithState() {
     this.selectedEntity = this.findEntityById(this.store.getFocusedId());
-    // when selection changes via appState (e.g. hierarchy click)
-    // force a re-render so highlight is drawn immediately
     this._render();
   }
 
@@ -244,14 +239,10 @@ export class LogicalLayout {
   addDevice(deviceData, x, y) {
     const size = this.shapeRenderer.gridSize * 1.5;
 
-    // --- SMART ICON MAPPING ---
-    // We combine type and name into one string to search for keywords
-    // e.g. "Cisco 1941 Router"
     const rawType = (deviceData.type + ' ' + deviceData.name).toLowerCase();
 
     let iconKey = null;
 
-    // Check for keywords in the device name
     if (rawType.includes('router') || rawType.includes('gateway') || rawType.includes('1941')) {
       iconKey = 'router';
     } else if (rawType.includes('switch') || rawType.includes('catalyst') || rawType.includes('2960') || rawType.includes('9200')) {
@@ -261,16 +252,12 @@ export class LogicalLayout {
     } else if (rawType.includes('firewall') || rawType.includes('asa')) {
       iconKey = 'firewall';
     } else if (rawType.includes('pc') || rawType.includes('desktop') || rawType.includes('computer') || rawType.includes('laptop')) {
-      iconKey = 'pc'; // Maps Laptops/Desktops to the PC icon for now
+      iconKey = 'pc'; 
     } else if (rawType.includes('phone')) {
-      // You can add a 'phone' icon to the constructor later if you want
       iconKey = 'pc';
     }
 
-    // Try to get the image; fallback to 'router' or null if nothing matched
     const iconImage = this.deviceIcons[iconKey];
-
-    // ---------------------------
 
     const half = size / 2;
     const px = x - half;
@@ -289,7 +276,7 @@ export class LogicalLayout {
       y,
       width: size,
       height: size,
-      icon: iconImage, // <--- If this is null, you get a black square
+      icon: iconImage, 
       transform: {
         position: { x, y, z: 0 },
         scale: 1,
@@ -343,64 +330,26 @@ export class LogicalLayout {
     const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoomFactor);
     const snapped = this.grid.snapToGrid(p);
 
-    // if (this.mode === 'cable') {
-    //   const device = this._findDeviceAt(snapped.x, snapped.y);
-
-    //   if (!device) return;
-
-    //   if (!this.pendingCableSource) {
-    //     this.pendingCableSource = device;
-    //     return;
-    //   }
-
-    //   const cable = {
-    //     id: `cable_${Math.random().toString(36).slice(2, 9)}`,
-    //     type: this.activeCableType,
-    //     sourceId: this.pendingCableSource.id,
-    //     targetId: device.id,
-    //     properties: {
-    //       bandwidth: null,
-    //       latency: null,
-    //       status: "up"
-    //     }
-    //   };
-
-    //   this.cables.push(cable);
-
-    //   if (this.shapeCreator.onCableCreated) {
-    //     this.shapeCreator.onCableCreated(cable);
-    //   }
-
-    //   this.pendingCableSource = null;
-    //   this._render();
-    //   return;
-    // }
-
     if (this.mode === 'cable') {
       const device = this._findDeviceAt(snapped.x, snapped.y);
       if (!device) return;
 
-      // If we passed in a UI callback for port selection
       if (this.onPortSelect) {
-        // Ask the UI to show the menu at the mouse coordinates
         this.onPortSelect(device, e.clientX, e.clientY, (selectedPort) => {
-          // This callback runs AFTER the user clicks a port in the UI
-          if (!selectedPort) return; // User canceled/clicked away
+          if (!selectedPort) return;
 
           if (!this.pendingCableSource) {
-            // Step 1: Set the Source Device & Port
             this.pendingCableSource = device;
             this.pendingCableSourcePort = selectedPort;
             this._render();
           } else {
-            // Step 2: Set the Target Device & Port, then build the cable
             const cable = {
               id: `cable_${Math.random().toString(36).slice(2, 9)}`,
               type: this.activeCableType,
               sourceId: this.pendingCableSource.id,
-              sourcePort: this.pendingCableSourcePort, // Save chosen port
+              sourcePort: this.pendingCableSourcePort, 
               targetId: device.id,
-              targetPort: selectedPort,                // Save chosen port
+              targetPort: selectedPort,    
               properties: {
                 bandwidth: null,
                 latency: null,
@@ -414,7 +363,6 @@ export class LogicalLayout {
               this.shapeCreator.onCableCreated(cable);
             }
 
-            // Reset for the next cable
             this.pendingCableSource = null;
             this.pendingCableSourcePort = null;
             this._render();
@@ -567,14 +515,12 @@ export class LogicalLayout {
     }
 
     if (this.pointerHandler.getIsPointerDown()) {
-      // PAN
       if (this.mode === 'pan') {
         this._pan(e.clientX, e.clientY);
         this._render();
         return;
       }
 
-      // MOVE OR RESIZE
       if (this.mode === 'select' && this.selectedEntity && this.interaction.mode) {
         const en = this.selectedEntity;
 
@@ -620,7 +566,6 @@ export class LogicalLayout {
         this._render();
         return;
       }
-      // DRAWING PREVIEW (rectangle, circle, cable, wall)
       if (
         this.mode === 'rectangle' ||
         this.mode === 'circle' ||
@@ -729,7 +674,6 @@ export class LogicalLayout {
 
       ctx.beginPath();
 
-      // CONSOLE (blue curved)
       if (cable.type === "console") {
         ctx.strokeStyle = "#007BFF";
         ctx.setLineDash([]);
@@ -741,7 +685,6 @@ export class LogicalLayout {
         ctx.quadraticCurveTo(midX, midY, dst.x, dst.y);
       }
 
-      // CROSSOVER (dashed)
       else if (cable.type === "copper-crossover") {
         ctx.strokeStyle = "#000000";
         ctx.setLineDash([6, 4]);
@@ -749,7 +692,6 @@ export class LogicalLayout {
         ctx.lineTo(dst.x, dst.y);
       }
 
-      // STRAIGHT-THROUGH (solid)
       else if (cable.type === "copper-straight") {
         ctx.strokeStyle = "#000000";
         ctx.setLineDash([]);
@@ -757,7 +699,6 @@ export class LogicalLayout {
         ctx.lineTo(dst.x, dst.y);
       }
 
-      // fallback
       else {
         ctx.strokeStyle = "#000000";
         ctx.setLineDash([]);
@@ -770,8 +711,6 @@ export class LogicalLayout {
 
     ctx.restore();
   }
-
-
 
   _render() {
     if (!this.ctx) return;
@@ -801,7 +740,6 @@ export class LogicalLayout {
     this.grid.renderMinorGrids(ctx, w, h);
     this.grid.renderMajorGrids(ctx, w, h);
 
-    // if a floor is active, hide shapes assigned to other floors
     const activeFloor = appState.ui.activeFloorId;
     const filterForFloor = (arr) => {
       if (!activeFloor) return arr;
@@ -814,31 +752,26 @@ export class LogicalLayout {
     this.shapeRenderer.renderWalls(ctx, filterForFloor(this.walls));
     this._renderDeviceCables(ctx);
 
-    // 2. Draw the background tiles for devices
     ctx.save();
     for (const device of this.devices) {
-      const tileW = device.width + 32; // Add 16px of padding
+      const tileW = device.width + 32; 
       const tileH = device.height + 45;
       const tx = device.x - tileW / 2;
       const ty = device.y - tileH / 2.5;
 
       ctx.fillStyle = '#ffffff';
-      ctx.strokeStyle = '#cbd5e1'; // Light grey border
+      ctx.strokeStyle = '#cbd5e1';
       ctx.lineWidth = 1;
       
       ctx.beginPath();
-      ctx.roundRect(tx, ty, tileW, tileH, 8); // 8px rounded corners
+      ctx.roundRect(tx, ty, tileW, tileH, 8); 
       ctx.fill();
       ctx.stroke();
     }
     ctx.restore();
 
-    // 3. Draw the device icons on top of the tiles
     this.shapeRenderer.renderDevices(ctx, this.devices);
 
-    // --- SELECTION & HOVER STATES ---
-
-    // Selected Cable Highlight
     if (this.selectedEntity && this.selectedEntity.sourceId) {
       const cable = this.selectedEntity;
       const src = this.findEntityById(cable.sourceId);
@@ -859,7 +792,6 @@ export class LogicalLayout {
       }
     }
 
-    // Polygon / Shape drawing previews
     if (this.mode === 'polygon' && this.currentPolygon.length > 0 && this.currentPoint) {
       ctx.save();
       ctx.strokeStyle = '#00ff00';
@@ -891,19 +823,16 @@ export class LogicalLayout {
       ctx.restore();
     }
 
-    // Selection bounding box for non-cable entities (Shapes and Devices)
     if (this.selectedEntity && !this.selectedEntity.sourceId) {
       const en = this.selectedEntity;
       let x, y, w, h;
 
-      // If it's a device, wrap the selection box around the padded tile
       if (en.interfaces !== undefined || en.icon !== undefined) {
          w = en.width + 16;
          h = en.height + 16;
          x = en.x - w / 2;
          y = en.y - h / 2;
       } 
-      // Safely check for shape width/height vs w/h
       else if (en.width !== undefined) {
         w = en.width;
         h = en.height;
@@ -935,10 +864,8 @@ export class LogicalLayout {
       }
     }
 
-    // Pending Cable Source Highlight (Orange)
     if (this.pendingCableSource) {
       const en = this.pendingCableSource;
-      // Use safe dimensions
       const safeW = en.width !== undefined ? en.width : (en.w || 32);
       const safeH = en.height !== undefined ? en.height : (en.h || 32);
       
@@ -957,10 +884,9 @@ export class LogicalLayout {
       ctx.restore();
     }
 
-    // Hovered Device Highlight (Green)
     if (this.hoveredDevice && this.mode === 'cable') {
       const en = this.hoveredDevice;
-      // Use safe dimensions
+      
       const safeW = en.width !== undefined ? en.width : (en.w || 32);
       const safeH = en.height !== undefined ? en.height : (en.h || 32);
       

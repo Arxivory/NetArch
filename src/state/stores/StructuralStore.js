@@ -39,12 +39,9 @@ export class StructuralStore {
             return false;
         }
 
-        // Cascade delete: remove all sites under this domain
         this.sites = this.sites.filter(s => s.domainId !== domainId);
-        // Remove all floors under those sites
         const siteIds = this.sites.map(s => s.id);
         this.floors = this.floors.filter(f => !siteIds.includes(f.siteId));
-        // Remove all spaces under those floors
         const floorIds = this.floors.map(f => f.id);
         this.spaces = this.spaces.filter(sp => !floorIds.includes(sp.floorId));
 
@@ -88,10 +85,8 @@ export class StructuralStore {
             return false;
         }
 
-        // Cascade delete: remove all floors under this site
         const floorIds = this.floors.filter(f => f.siteId === siteId).map(f => f.id);
         this.floors = this.floors.filter(f => f.siteId !== siteId);
-        // Remove all spaces under those floors
         this.spaces = this.spaces.filter(sp => !floorIds.includes(sp.floorId));
 
         this.sites.splice(index, 1);
@@ -103,7 +98,6 @@ export class StructuralStore {
         return this.sites.filter(s => s.domainId === domainId);
     }
 
-    // ============= Floor Methods =============
     addFloor(floor) {
         if (!floor.id) {
             floor.id = Date.now();
@@ -117,7 +111,6 @@ export class StructuralStore {
             return null;
         }
 
-        // convert to Floor instance for consistency with Domain/Site
         const newFloor = new Floor(floor);
         this.floors.push(newFloor);
         this.notify();
@@ -131,7 +124,6 @@ export class StructuralStore {
             return false;
         }
 
-        // Cascade delete: remove all spaces under this floor
         this.spaces = this.spaces.filter(sp => sp.floorId !== floorId);
 
         this.floors.splice(index, 1);
@@ -157,7 +149,6 @@ export class StructuralStore {
             return null;
         }
 
-        // optional: propagate siteId from floor for convenience
         const floor = this.getFloor(space.floorId);
         if (floor) {
             space.siteId = floor.siteId;
@@ -242,18 +233,6 @@ export class StructuralStore {
             label: space.label || `Space ${space.id}`,
             type: 'space',
             floorId: space.floorId,
-            children: []
-        }));
-    }
-
-    // legacy helper used elsewhere in some older logic (not needed for tree)
-    _buildSpaceChildrenLegacy(siteId) {
-        const spaces = this.spaces.filter(s => String(s.siteId) === String(siteId));
-        return spaces.map(space => ({
-            id: space.id,
-            label: space.label || `Space ${space.id}`,
-            type: 'space',
-            siteId: space.siteId,
             children: []
         }));
     }

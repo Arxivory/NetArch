@@ -4,6 +4,7 @@ import ShapeRenderer from '../rendering/ShapeRenderer.js';
 import PointerHandler from '../rendering/PointerHandler.js';
 import { Selection } from '../editor/Selection.js';
 import EntityTransformer from './transform/EntityTransformer.js';
+import { System } from 'check2d';
 
 export class LogicalLayout {
   constructor(opts = {}) {
@@ -11,6 +12,8 @@ export class LogicalLayout {
     this.width = opts.width || 800;
     this.height = opts.height || 600;
     this.devicePixelRatio = window.devicePixelRatio || 1;
+
+    this.system = new System();
 
     this.grid = new Grid({
       gridSize: opts.gridSize || 32,
@@ -26,7 +29,8 @@ export class LogicalLayout {
       onCircleCreated: opts.onCircleCreated || null,
       onPolygonCreated: opts.onPolygonCreated || null,
       onWallCreated: opts.onWallCreated || null,
-      onCableCreated: opts.onCableCreated || null
+      onCableCreated: opts.onCableCreated || null,
+      system: this.system
     });
 
     this.shapeRenderer = new ShapeRenderer({
@@ -475,20 +479,21 @@ export class LogicalLayout {
         if (canClose && this.currentPolygon.length >= 3) {
           const polygon = this.shapeCreator.createPolygon(
             [...this.currentPolygon],
-            this.structureType
+            this.structureType, this.system
           );
-          if (!this._checkForOverlap(polygon)) {
+          console.log("canClose ll");
+          if (!this._checkForOverlap(polygon, "creation")) {
             if (this.shapeCreator.onPolygonCreated) {
               this.shapeCreator.onPolygonCreated(polygon);
             }
             this.polygons.push(polygon);
-            this.currentPolygon = [];
-            this.mode = 'none';
-            this.currentPoint = null;
-            this._updateCursor();
-            this._render();
-            return;
           }
+          this.currentPolygon = [];
+          this.mode = 'none';
+          this.currentPoint = null;
+          this._updateCursor();
+          this._render();
+          return;
         }
         this.currentPolygon.push(snapped);
       }
@@ -576,57 +581,38 @@ export class LogicalLayout {
         const dx = p.x - this.interaction.start.x;
         const dy = p.y - this.interaction.start.y;
 
-        const wKey = en.w !== undefined ? "w" : "width";
-        const hKey = en.h !== undefined ? "h" : "height";
-
         if (this.interaction.mode === "move") {
-          if (en.type === 'polygon') {
-            for (let i = 0; i < en.points.length; i++) {
-              en.points[i] = {
-                x: en.points[i].x + dx,
-                y: en.points[i].y + dy
-              };
-            }
-            en.transform.position.x = en.points[0].x;
-            en.transform.position.y = en.points[0].y;
-          }
-          else {
-            en.x += dx;
-            en.y += dy;
-            en.transform.position.x += dx;
-            en.transform.position.y += dy;
-          }
+          console.log(dx, dy);
+          en.move(dx, dy);
         }
 
-        if (this.interaction.mode === "resize") {
+        if (this.interaction.mode === "resize" && en.type === 'rectangle') {
+          let wKey = en.transform.scale.w;
+          let hKey = en.transform.scale.h;
           switch (this.interaction.handle) {
             case "se":
-              en[wKey] += dx;
-              en[hKey] += dy;
+              wKey += dx;
+              hKey += dy;
               break;
             case "nw":
-              en.x += dx;
-              en.y += dy;
-              en[wKey] -= dx;
-              en[hKey] -= dy;
+              en.move(dx, dy);
+              wKey -= dx;
+              hKey -= dy;
               break;
             case "ne":
-              en.y += dy;
-              en[wKey] += dx;
-              en[hKey] -= dy;
+              en.move(0, dy)
+              wKey += dx;
+              hKey -= dy;
               break;
             case "sw":
-              en.x += dx;
-              en[wKey] -= dx;
-              en[hKey] += dy;
+              en.move(dx, 0);
+              wKey -= dx;
+              hKey += dy;
               break;
             default:
               throw new Error();
           }
-          en.transform.position.x = en.x;
-          en.transform.position.y = en.y;
-          en.transform.scale.w = en[wKey];
-          en.transform.scale.h = en[hKey];
+          en.setWidthAndHeight(wKey, hKey);
         }
 
         this.interaction.start = { x: p.x, y: p.y };
@@ -650,9 +636,8 @@ export class LogicalLayout {
   }
 
   _onPointerUp(e) {
-    console.log(this.interaction.mode);
     if (this.interaction.mode === 'move') {
-      if (this._checkForOverlap(this.selectedEntity)) {
+      if (this._checkForOverlap(this.selectedEntity, "transformation")) {
         this.selectedEntity.restoreToSavedPosition();
         this.onEntityChanged();
         this._render();
@@ -695,7 +680,7 @@ export class LogicalLayout {
         this.currentPoint,
         this.structureType,
       );
-      if (!this._checkForOverlap(rect)) {
+      if (!this._checkForOverlap(rect, "creation")) {
         if (this.shapeCreator.onRectangleCreated) {
           this.shapeCreator.onRectangleCreated(rect);
         }
@@ -708,7 +693,7 @@ export class LogicalLayout {
         this.currentPoint,
         this.structureType
       );
-      if (!this._checkForOverlap(circle)) {
+      if (!this._checkForOverlap(circle, "creation")) {
         if (this.shapeCreator.onCircleCreated) {
           this.shapeCreator.onCircleCreated(circle);
         }
@@ -1079,19 +1064,13 @@ export class LogicalLayout {
     return Math.sqrt(dx * dx + dy * dy);
   }
 
-  _checkForOverlap(currentEntity) {
+  _checkForOverlap(currentEntity, action) {
     if (currentEntity === null) return true;
-    const entities = this.getAllSelectableEntities();
-    for (const arr of entities) {
-      for (const en of arr) {
-        if (en.id === currentEntity.id) {
-          continue;
-        }
-        if (currentEntity.checkIfOverlapping(en)) {
-          alert("Overlapping detected");
-          return true;
-        }
-      }
+    console.log("check for overlap called");
+    if (currentEntity.checkIfOverlapping()) {
+      alert("Overlapping detected");
+      if (action === 'creation') this.system.remove(currentEntity.body);
+      return true;
     }
     return false;
   }

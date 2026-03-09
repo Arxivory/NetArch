@@ -2,11 +2,11 @@ export class EntityTransformer {
 
   applyEntityTransform(en, updates, shapeRenderer, checkForOverlap) {
     if (!en) return false;
-    console.log('apply', en);
     if (updates.position) {
       const nx = updates.position.x;
       const ny = updates.position.y;
 
+      en.saveCurrentPosition();
       en.transform.position.x = nx;
       en.transform.position.y = ny;
 
@@ -19,22 +19,18 @@ export class EntityTransformer {
         'Wireless',
         'Furniture'
       ]
-
       if (en.type === 'rectangle') {
         en.x = nx;
         en.y = ny;
-        en.path = new Path2D();
-        en.path.rect(en.x + 0.5, en.y + 0.5, en.w, en.h);
+        en.maxX = nx + en.transform.scale.w;
+        en.maxY = ny + en.transform.scale.h;
+        en.body.setPosition(en.x, en.y, true);
       }
+
       else if (en.type === 'polygon') {
-        const dx = nx - en.points[0].x;
-        const dy = ny - en.points[0].y;
-        for (let i = 0; i < en.points.length; i++) {
-          en.points[i] = {
-            x: en.points[i].x + dx,
-            y: en.points[i].y + dy
-          };
-        }
+        const dx = nx - en.x;
+        const dy = ny - en.y;
+        en.move(dx, dy);
       }
       else if (en.type === 'circle') {
         en.x = nx;
@@ -64,15 +60,19 @@ export class EntityTransformer {
         path.moveTo(en.x1, en.y1);
         path.lineTo(en.x2, en.y2);
       }
-
+      if (checkForOverlap(en, "transformation")) {
+        console.log("Move area overlapping.");
+        en.restoreToSavedPosition();
+        return false;
+      }
     }
 
     if (updates.scale !== undefined) {
-      en.setPreviousScale();
+      en.saveCurrentScale();
       en.setScale(updates.scale);
-      if ((checkForOverlap(en))) {
+      if (checkForOverlap(en, "transformation")) {
         console.log(`Scaling area overlapping. Please Try again`);
-        en.transform.scale = en.previousScale;
+        en.restoreToSavedScale();
         return false;
       }
     }

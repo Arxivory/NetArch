@@ -41,7 +41,11 @@ export default function PropertiesPanel({ canvasController }) {
 const handleTransformChange = (type, axis, value) => {
   if (!selectedEntity || !canvasController) return;
 
-  const numericValue = parseFloat(value);
+  let numericValue = parseFloat(value);
+
+  if (numericValue < 0 || numericValue === null){
+    numericValue = 0;
+  }
 
   const updates = {
     [type]: {

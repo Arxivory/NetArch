@@ -1,5 +1,7 @@
+import { Box } from "check2d";
+
 export class Rectangle {
-    constructor(startPoint, currentPoint, structureType) {
+    constructor(startPoint, currentPoint, structureType, system) {
         this.id = null;
         this.x = Math.min(startPoint.x, currentPoint.x);
         this.y = Math.min(startPoint.y, currentPoint.y);
@@ -7,16 +9,28 @@ export class Rectangle {
         this.maxY = Math.max(startPoint.y, currentPoint.y);
         this.w = this.maxX - this.x;
         this.h = this.maxY - this.y;
+        this.system = system;
         this.type = 'rectangle';
         this.structureType = structureType;
         this.hitTestMode = 'path';
         this.initPath();
+        this.initBody();
         this.initTransform();
     }
 
     initPath() {
         this.path = new Path2D();
         this.path.rect(this.x, this.y, this.w, this.h);
+    }
+
+    initBody() {
+        const margin = 0.0001;
+        this.body = new Box(
+            { x: this.x + margin, y: this.y + margin },
+            this.w - 2 * margin,
+            this.h - 2 * margin
+        );
+        this.system.insert(this.body);
     }
 
     initTransform() {
@@ -34,14 +48,33 @@ export class Rectangle {
         this.path = path;
     }
 
+    setWidthAndHeight(w, h) {
+        this.w = w;
+        this.h = h;
+        this.transform.scale.w = w;
+        this.transform.scale.h = h;
+        this.body.width = w;
+        this.body.height = h;
+    }
+
     setScale(newScale) {
         this.transform.scale.factor = newScale.factor;
         this.transform.scale.w = this.w * newScale.factor;
         this.transform.scale.h = this.h * newScale.factor;
+        this.maxX = this.x + this.transform.scale.w;
+        this.maxY = this.y + this.transform.scale.h;
+        this.body.setScale(newScale.factor, newScale.factor);
     }
 
-    setPreviousScale() {
-        this.previousScale = JSON.parse(JSON.stringify(this.transform.scale));
+    saveCurrentScale() {
+        this.savedScale = JSON.parse(JSON.stringify(this.transform.scale));
+    }
+
+    restoreToSavedScale() {
+        this.transform.scale = this.savedScale;
+        this.maxX = this.x + this.transform.scale.w;
+        this.maxY = this.y + this.transform.scale.h;
+        this.body.setScale(this.transform.scale.factor, this.transform.scale.factor);
     }
 
     saveCurrentPosition() {
@@ -60,6 +93,7 @@ export class Rectangle {
         this.maxY = this.savedPosition.maxY;
         this.transform.position.x = this.x;
         this.transform.position.y = this.y;
+        this.body.setPosition(this.x, this.y, true);
     }
 
     getCurrentBounds() {
@@ -71,45 +105,32 @@ export class Rectangle {
         }
     }
 
-    checkIfOverlapping(otherEn) {
-        switch (otherEn.type) {
-            case 'rectangle':
-                return this.overlapsWithOtherRectangle(otherEn);
-            case 'circle':
-                return this.overlapsWithCircle(otherEn);
-            case 'polygon':
-                return this.overlapsWithPolygon(otherEn);
-            case 'freeform':
-                return this.overlapsWithFreeform(otherEn);
-            case 'device':
-                return this.overlapsWithDevice(otherEn);
-            case 'cable':
-                return this.overlapsWithCable(otherEn);
-            case 'wall':
-                return this.overlapsWithWall(otherEn);
-            default:
-                return false;
-        }
+    move(dx, dy) {
+        this.x += dx;
+        this.y += dy;
+        this.maxX += dx;
+        this.maxY += dy;
+        this.transform.position.x += dx;
+        this.transform.position.y += dy;
+        this.body.setPosition(this.x, this.y, true);
+    }
+
+    checkIfOverlapping() {
+        let overlapping = false;
+
+        this.system.checkOne(this.body, (other) => {
+            if (other !== this.body) {
+                overlapping = true;
+            }
+        });
+        return overlapping;
     }
 
     overlapsWithOtherRectangle(rect) {
-        const thisLeft = this.x;
-        const thisRight = this.x + this.transform.scale.w;
-        const thisTop = this.y;
-        const thisBottom = this.y + this.transform.scale.h;
-
-        const otherLeft = rect.x;
-        const otherRight = rect.x + rect.transform.scale.w;
-        const otherTop = rect.y;
-        const otherBottom = rect.y + rect.transform.scale.h;
-
-        return !(
-            thisRight <= otherLeft ||
-            thisLeft >= otherRight ||
-            thisBottom <= otherTop ||
-            thisTop >= otherBottom
-        );
+        const result = this.system.checkOne(rect.body);
+        return (this.system.checkOne(rect.body));
     }
+
     overlapsWithCircle(circle) {
         const { minX, maxX, minY, maxY } = this.getCurrentBounds();
 

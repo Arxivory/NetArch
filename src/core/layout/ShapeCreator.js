@@ -1,3 +1,4 @@
+
 import { Rectangle } from './entities/Rectangle.js';
 import { Circle } from './entities/Circle.js';
 import { Polygon } from './entities/Polygon.js';
@@ -9,22 +10,29 @@ export class ShapeCreator {
     this.onPolygonCreated = opts.onPolygonCreated || null;
     this.onWallCreated = opts.onWallCreated || null;
     this.onCableCreated = opts.onCableCreated || null;
+    this.system = opts.system || null;
   }
 
   _genId(prefix) {
     return `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
   }
 
-  createRectangle(startPoint, currentPoint, structureType = '',) {
-    const rectangle = new Rectangle(startPoint, currentPoint, structureType);
-    if (rectangle.w <= 2 && rectangle.h <= 2) return null;
+  createRectangle(startPoint, currentPoint, structureType = '') {
+    const rectangle = new Rectangle(startPoint, currentPoint, structureType, this.system);
+    if (rectangle.w <= 0 || rectangle.h <= 0) {
+      this.system.remove(rectangle.body);
+      return null;
+    }
     rectangle.id = this._genId(`Rectangle ${structureType}`);
     return rectangle;
   }
 
   createCircle(startPoint, currentPoint, structureType = '') {
     const circle = new Circle(startPoint, currentPoint, structureType);
-    if (circle.r <= 2) return null;
+    if (circle.r <= 2) {
+      
+      return null;
+    }
     circle.id = this._genId(`Circle ${structureType}`);
     return circle;
   }
@@ -33,7 +41,7 @@ export class ShapeCreator {
     if (!points || points.length < 3) {
       return null;
     }
-    const polygon = new Polygon(points, structureType);
+    const polygon = new Polygon(points, structureType, this.system);
     polygon.id = this._genId(`Polygon ${structureType}`);
     return polygon;
   }

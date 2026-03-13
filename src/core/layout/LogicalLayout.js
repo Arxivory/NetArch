@@ -28,6 +28,7 @@ export class LogicalLayout {
       onRectangleCreated: opts.onRectangleCreated || null,
       onCircleCreated: opts.onCircleCreated || null,
       onPolygonCreated: opts.onPolygonCreated || null,
+      onFreeformCreated: opts.onFreeformCreated || null,
       onWallCreated: opts.onWallCreated || null,
       onCableCreated: opts.onCableCreated || null,
       system: this.system
@@ -41,6 +42,7 @@ export class LogicalLayout {
       onPointerDown: this._onPointerDown.bind(this),
       onPointerMove: this._onPointerMove.bind(this),
       onPointerUp: this._onPointerUp.bind(this),
+      onRightClick: this._onRightClick.bind(this)
     });
 
     this.selection = new Selection({
@@ -70,6 +72,7 @@ export class LogicalLayout {
     this.windows = [];
     this.roofs = [];
     this.freeforms = [];
+    this.currentFreeform = [];
     this.devices = [];
     this.cables = [];
 
@@ -204,6 +207,13 @@ export class LogicalLayout {
     this._updateCursor();
   }
 
+  startDrawFreeform(structureType = '') {
+    this.mode = 'freeform';
+    this.currentPolygon = [];
+    this.structureType = structureType;
+    this._updateCursor();
+  }
+
   startDrawWall() {
     this.mode = 'wall';
     this._updateCursor();
@@ -312,6 +322,7 @@ export class LogicalLayout {
       'rectangle': 'crosshair',
       'circle': 'crosshair',
       'polygon': 'crosshair',
+      'freeform': 'crosshair',
       'wall': 'crosshair',
       'cable': 'crosshair',
       'pan': 'grab',
@@ -336,6 +347,7 @@ export class LogicalLayout {
     const zoomFactor = this.pointerHandler.getZoom();
     const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoomFactor);
     const snapped = this.grid.snapToGrid(p);
+
 
     // if (this.mode === 'cable') {
     //   const device = this._findDeviceAt(snapped.x, snapped.y);
@@ -502,6 +514,14 @@ export class LogicalLayout {
       return;
     }
 
+    if (this.mode === 'freeform') {
+      console.log(snapped);
+      this.currentFreeform.push(snapped);
+      this.currentPoint = snapped;
+      this._render();
+      return;
+    }
+
     if (this.mode !== 'select' && this.mode !== 'pan' && this.mode !== 'none') {
       this.pointerHandler.setPointerDown(true);
       this.startPoint = snapped;
@@ -550,7 +570,7 @@ export class LogicalLayout {
       }
     }
 
-    if (this.mode === 'polygon') {
+    if (this.mode === 'polygon' || this.mode === 'freeform') {
       this.currentPoint = this.grid.snapToGrid(p);
       this._render();
       return;
@@ -582,7 +602,6 @@ export class LogicalLayout {
         const dy = p.y - this.interaction.start.y;
 
         if (this.interaction.mode === "move") {
-          console.log(dx, dy);
           en.move(dx, dy);
         }
 
@@ -673,6 +692,25 @@ export class LogicalLayout {
     this._render();
   }
 
+  _onRightClick() {
+    console.log('sad');
+    if (this.currentFreeform.length > 1) {
+      const freeform = this.shapeCreator.createFreeform(
+        [...this.currentFreeform],
+        this.structureType, this.system
+      );
+      this.freeforms.push(freeform);
+      if (this.shapeCreator.onFreeformCreated) {
+        this.shapeCreator.onFreeformCreated(freeform);
+      }
+      this.currentFreeform = [];
+      this.mode = 'none';
+      this.currentPoint = null;
+      this._updateCursor();
+      this._render();
+    }
+  }
+
   _createShapeFromMode() {
     if (this.mode === 'rectangle') {
       const rect = this.shapeCreator.createRectangle(
@@ -706,7 +744,6 @@ export class LogicalLayout {
       const cable = this.shapeCreator.createCable(this.startPoint, this.currentPoint);
       if (cable) this.cables.push(cable);
     } else if (this.mode === 'polygon') {
-      console.log("Wait what");
       const polygon = this.shapeCreator.createPolygon(this.currentPolygon, this.structureType);
       if (polygon) this.polygons.push(polygon);
     }
@@ -805,6 +842,7 @@ export class LogicalLayout {
 
     this.shapeRenderer.renderRectangles(ctx, this.rectangles);
     this.shapeRenderer.renderPolygons(ctx, this.polygons);
+    this.shapeRenderer.renderFreeforms(ctx, this.freeforms);
     this.shapeRenderer.renderCircles(ctx, this.circles);
     this.shapeRenderer.renderWalls(ctx, this.walls);
     this._renderDeviceCables(ctx);
@@ -830,19 +868,28 @@ export class LogicalLayout {
       }
     }
 
-    if (this.mode === 'polygon' && this.currentPolygon.length > 0 && this.currentPoint) {
+    if ((this.currentPolygon.length > 0 || this.currentFreeform.length > 0) && this.currentPoint) {
       ctx.save();
       ctx.strokeStyle = '#00ff00';
       ctx.fillStyle = 'rgba(0,255,0,0.08)';
       ctx.lineWidth = 1.5;
-      this.shapeRenderer.outlinePolygonInProgress(
+      let points;
+      if (this.mode === 'polygon') {
+        points = this.currentPolygon;
+      }
+      else if (this.mode === 'freeform') {
+        console.log("reached outline");
+        points = this.currentFreeform;
+      }
+      this.shapeRenderer.outlinePolygonOrFreeformInProgress(
         ctx,
-        this.currentPolygon,
+        points,
         this.currentPoint,
         this.grid.getSnapTolerance()
       );
       ctx.restore();
-    } else if (this.startPoint && this.currentPoint) {
+    }
+    else if (this.startPoint && this.currentPoint) {
       ctx.save();
       ctx.strokeStyle = '#00ff00';
       ctx.fillStyle = 'rgba(0,255,0,0.08)';

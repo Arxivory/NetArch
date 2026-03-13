@@ -39,6 +39,15 @@ export class ShapeRenderer {
     }
   }
 
+  renderFreeforms(ctx, freeforms) {
+    ctx.strokeStyle = '#000000ff';
+    ctx.lineWidth = 4;
+    for (const freeform of freeforms) {
+      freeform.updatePath();
+      ctx.stroke(freeform.path);
+    }
+  }
+
   renderWalls(ctx, walls) {
     ctx.strokeStyle = '#000000ff';
     ctx.lineWidth = 4;
@@ -82,7 +91,7 @@ export class ShapeRenderer {
       ctx.stroke(path);
     }
   }
-renderDevices(ctx, devices) {
+  renderDevices(ctx, devices) {
     ctx.save();
     ctx.font = '12px sans-serif';
     ctx.textAlign = 'center';
@@ -91,14 +100,14 @@ renderDevices(ctx, devices) {
     for (const dev of devices) {
       // 1. Calculate Size & Position
       // Check for scale (handling both simple numbers and vector objects)
-      const s = typeof dev.transform?.scale === 'number' 
-                ? dev.transform.scale 
-                : (dev.transform?.scale?.x ?? 1);
-      
+      const s = typeof dev.transform?.scale === 'number'
+        ? dev.transform.scale
+        : (dev.transform?.scale?.x ?? 1);
+
       const baseSize = this.gridSize * 1.5; // Made slightly larger for icons
       const size = baseSize * s;
       const halfSize = size / 2;
-      
+
       const x = dev.x - halfSize;
       const y = dev.y - halfSize;
 
@@ -173,11 +182,8 @@ renderDevices(ctx, devices) {
     ctx.stroke();
   }
 
-  outlinePolygonInProgress(ctx, polygonPoints, currentPoint, snapTolerance) {
+  outlinePolygonOrFreeformInProgress(ctx, polygonPoints, currentPoint, snapTolerance) {
     if (polygonPoints.length > 0) {
-      ctx.strokeStyle = '#00ff00';
-      ctx.lineWidth = 1.5;
-
       const pts = polygonPoints;
 
       ctx.beginPath();

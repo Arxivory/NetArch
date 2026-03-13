@@ -17,10 +17,11 @@ export class LogicalCanvasController {
       height: opts.height || 600,
       gridSize: opts.gridSize || 32,
       snap: opts.snap ?? true,
-      
+
       onRectangleCreated: (rect) => this._handleShapeCreated(rect, 'rectangle'),
       onCircleCreated: (circle) => this._handleShapeCreated(circle, 'circle'),
       onPolygonCreated: (poly) => this._handleShapeCreated(poly, 'polygon'),
+      onFreeformCreated: (freeform) => this._handleShapeCreated(freeform, 'freeform'),
       onWallCreated: (wall) => this._handleWallCreated(wall),
       onCableCreated: (cable) => this._handleCableCreated(cable),
       onDeviceAdded: (device) => this._handleDeviceAdded(device),
@@ -63,6 +64,10 @@ export class LogicalCanvasController {
 
   startDrawPolygon(type = '') {
     this.layout?.startDrawPolygon(type);
+  }
+
+  startDrawFreeform(type = '') {
+    this.layout?.startDrawFreeform(type);
   }
 
   startDrawWall() {
@@ -136,7 +141,7 @@ export class LogicalCanvasController {
 
     // --- NEW LOGIC: Check for Used Ports ---
     const usedPorts = new Set();
-    
+
     // Scan all existing cables to see what is already plugged into this device
     if (this.layout && this.layout.cables) {
       this.layout.cables.forEach(cable => {
@@ -186,17 +191,17 @@ export class LogicalCanvasController {
       item.style.padding = '8px 16px';
       item.style.cursor = 'pointer';
       item.style.transition = 'background-color 0.1s';
-      
+
       item.onmouseenter = () => item.style.backgroundColor = '#f1f5f9';
       item.onmouseleave = () => item.style.backgroundColor = '#ffffff';
 
       item.onclick = (e) => {
-        e.stopPropagation(); 
+        e.stopPropagation();
         menu.remove();
         document.removeEventListener('pointerdown', outsideClickListener);
-        callback(port); 
+        callback(port);
       };
-      
+
       menu.appendChild(item);
     });
 
@@ -206,10 +211,10 @@ export class LogicalCanvasController {
       if (!menu.contains(e.target)) {
         menu.remove();
         document.removeEventListener('pointerdown', outsideClickListener);
-        callback(null); 
+        callback(null);
       }
     };
-    
+
     setTimeout(() => {
       document.addEventListener('pointerdown', outsideClickListener);
     }, 10);
@@ -225,8 +230,8 @@ export class LogicalCanvasController {
       };
       console.log(data);
       appState.structural.addDomain(data);
-    } 
-    
+    }
+
     else if (structureType === 'Site') {
       const selection = appState.selection;
       const selectedDomainId = selection.getFocusedId() || selection.getSelectedId?.();
@@ -243,11 +248,11 @@ export class LogicalCanvasController {
         shapeType: shapeType,
         x, y, w, h, r, points
       });
-    } 
-    
+    }
+
     else if (structureType === 'Space') {
       // const selectedFloorId = appState.ui?.activeFloorId || appState.selection?.getSelectedId?.();
-      
+
       // if (!selectedFloorId) {
       //   console.warn('No floor selected for space creation');
       //   return;
@@ -300,15 +305,15 @@ export class LogicalCanvasController {
       );
     }
   }
-  
-  _handleZoomSelected(zoom){
+
+  _handleZoomSelected(zoom) {
     this.layout.setZoom(zoom);
   }
 
   _handleDeviceAdded(device) {
     this.addDevice(device, device.x, device.y);
   }
-  
+
   _handleEntitySelected(entity) {
     if (!entity || !entity.id) {
       appState.selection.clearSelection?.();
@@ -317,8 +322,8 @@ export class LogicalCanvasController {
 
     appState.selection.selectDevice(entity.id, false);
   }
-  
-  _handleEntityChanged(en){
+
+  _handleEntityChanged(en) {
     //console.log("notified");
     appState.selection.notify();
   }

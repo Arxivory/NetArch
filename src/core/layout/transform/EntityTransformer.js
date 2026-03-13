@@ -27,7 +27,7 @@ export class EntityTransformer {
         en.body.setPosition(en.x, en.y, true);
       }
 
-      else if (en.type === 'polygon') {
+      else if (en.type === 'polygon' || en.type === 'freeform') {
         const dx = nx - en.x;
         const dy = ny - en.y;
         en.move(dx, dy);
@@ -35,8 +35,7 @@ export class EntityTransformer {
       else if (en.type === 'circle') {
         en.x = nx;
         en.y = ny;
-        en.path = new Path2D();
-        en.path.arc(en.x, en.y, en.r, 0, Math.PI * 2);
+        en.body.setPosition(en.x, en.y, true);
       }
       else if (deviceTypes.includes(en.type)) {
         const size = shapeRenderer.gridSize * 1.3;

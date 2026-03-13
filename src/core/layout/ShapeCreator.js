@@ -2,12 +2,14 @@
 import { Rectangle } from './entities/Rectangle.js';
 import { Circle } from './entities/Circle.js';
 import { Polygon } from './entities/Polygon.js';
+import { Freeform } from './entities/Freeform.js';
 
 export class ShapeCreator {
   constructor(opts = {}) {
     this.onRectangleCreated = opts.onRectangleCreated || null;
     this.onCircleCreated = opts.onCircleCreated || null;
     this.onPolygonCreated = opts.onPolygonCreated || null;
+    this.onFreeformCreated = opts.onFreeformCreated || null;
     this.onWallCreated = opts.onWallCreated || null;
     this.onCableCreated = opts.onCableCreated || null;
     this.system = opts.system || null;
@@ -28,9 +30,9 @@ export class ShapeCreator {
   }
 
   createCircle(startPoint, currentPoint, structureType = '') {
-    const circle = new Circle(startPoint, currentPoint, structureType);
+    const circle = new Circle(startPoint, currentPoint, structureType, this.system);
     if (circle.r <= 2) {
-      
+      this.system.remove(circle.body);
       return null;
     }
     circle.id = this._genId(`Circle ${structureType}`);
@@ -44,6 +46,15 @@ export class ShapeCreator {
     const polygon = new Polygon(points, structureType, this.system);
     polygon.id = this._genId(`Polygon ${structureType}`);
     return polygon;
+  }
+
+  createFreeform(points, structureType = '') {
+    if (!points || points.length <= 1) {
+      return null;
+    }
+    const freeform = new Freeform(points, structureType, this.system);
+    freeform.id = this._genId(`Freeform ${structureType}`);
+    return freeform;
   }
 
   createWall(startPoint, currentPoint) {

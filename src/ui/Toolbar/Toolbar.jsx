@@ -5,7 +5,7 @@ import {
 import { useEffect, useState } from "react";
 import appState from "../../state/AppState";
 import {
-  StartDrawRectangleCommand, StartDrawCircleCommand, StartDrawPolygonCommand, StartDrawWallCommand,
+  StartDrawRectangleCommand, StartDrawCircleCommand, StartDrawPolygonCommand, StartDrawFreeformCommand, StartDrawWallCommand,
   StartSelectCommand, StartPanCommand, StartZoomInCommand, StartZoomOutCommand, CancelDrawingCommand
 } from "../../core/editor/DrawingCommands";
 import StructuralOption from "./StructuralOption";
@@ -43,7 +43,7 @@ export default function Toolbar({ canvasController }) {
         Command = StartDrawPolygonCommand;
         break;
       case "Freeform":
-        Command = StartDrawPolygonCommand;
+        Command = StartDrawFreeformCommand;
         break;
       default:
         Command = StartDrawRectangleCommand;

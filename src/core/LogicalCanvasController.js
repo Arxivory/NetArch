@@ -1,6 +1,8 @@
 import appState from '../state/AppState.js';
 import LogicalLayout from '../core/layout/LogicalLayout.js';
 import { createDeviceInstance } from '../data/deviceCatalog';
+import { createFurnitureInstance } from '../data/furnitureCatalog';
+
 
 export class LogicalCanvasController {
   constructor(container, opts = {}) {
@@ -25,6 +27,7 @@ export class LogicalCanvasController {
       onWallCreated: (wall) => this._handleWallCreated(wall),
       onCableCreated: (cable) => this._handleCableCreated(cable),
       onDeviceAdded: (device) => this._handleDeviceAdded(device),
+      onFurnitureAdded: (furniture) => this._handleFurnitureAdded(furniture),
       onEntitySelected: (entity) => this._handleEntitySelected(entity),
       onPortSelect: (device, x, y, callback) => this._handlePortSelect(device, x, y, callback),
       onEntityChanged: (en) => this._handleEntityChanged(en)
@@ -101,6 +104,10 @@ export class LogicalCanvasController {
 addDevice(deviceData, x, y) {
     if (!this.layout) return;
 
+    if (deviceData.entityType === 'furniture') {
+        return this.addFurniture(deviceData, x, y);
+    }
+
     const catalogId = deviceData.modelId;
     if (!catalogId) {
         console.error("Missing modelId in deviceData", deviceData);
@@ -129,6 +136,44 @@ addDevice(deviceData, x, y) {
         console.log('Device added:', newDevice.id, 'with Catalog ID:', newDevice.catalogId);
     } catch (error) {
         console.error("Failed to add device:", error.message);
+    }
+}
+
+addFurniture(furnitureData, x, y) {
+  console.log('Adding furniture with data:', furnitureData, 'at position:', { x, y });
+    if (!this.layout) return;
+
+    const catalogId = furnitureData.modelId;
+    if (!catalogId) {
+        console.error("Missing modelId in furnitureData", furnitureData);
+        return;
+    }
+
+    try {
+        const newFurniture = createFurnitureInstance(catalogId, { x, y, z: 0 });
+        
+        newFurniture.catalogId = catalogId; 
+        
+        newFurniture.label = furnitureData.label || newFurniture.name;
+
+        console.log('Creating furniture instance with catalogId:', catalogId, 'and:', newFurniture);
+
+        this.layout.addFurniture({ ...newFurniture }, x, y);
+
+        if (appState.furniture?.addFurniture) {
+            appState.furniture.addFurniture(newFurniture);
+        }
+
+
+        if (this.physicalController) {
+            this.physicalController.createFurnitureGLTFMesh(newFurniture);
+        } else {
+            console.warn("Physical controller not ready yet (normal if in 2D mode).");
+        }
+
+        console.log('Furniture added:', newFurniture.id, 'with Catalog ID:', newFurniture.catalogId);
+    } catch (error) {
+        console.error("Failed to add furniture:", error.message);
     }
 }
 
@@ -321,6 +366,10 @@ addDevice(deviceData, x, y) {
     this.addDevice(device, device.x, device.y);
   }
 
+  _handleFurnitureAdded(furniture) {
+    this.addFurniture(furniture, furniture.x, furniture.y);
+  }
+  
   _handleEntitySelected(entity) {
     if (!entity || !entity.id) {
       appState.selection.clearSelection?.();

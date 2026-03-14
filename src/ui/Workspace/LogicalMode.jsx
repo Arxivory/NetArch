@@ -68,13 +68,17 @@ const onDrop = (event) => {
   try {
     const data = JSON.parse(dataString);
     // data is now: { type: "Switches", modelId: "2960", label: "Cisco Catalyst 2960" }
+    console.log('Dropped data:', data);
 
     const coords = controllerRef.current?.getSnappedCoords(event.clientX, event.clientY);
     
     if (coords && controllerRef.current) {
       // Pass the WHOLE data object so the controller can access 'modelId'
-      console.log('From Logical Mode Data: ', data.label);
-      controllerRef.current.addDevice(data, coords.x, coords.y);
+      //console.log('From Logical Mode Data: ', data.label);
+      if (data.entityType === "furniture")
+        controllerRef.current.addFurniture(data, coords.x, coords.y);
+      else
+        controllerRef.current.addDevice(data, coords.x, coords.y);
     }
   } catch (err) {
     console.error("Error dropping device:", err);

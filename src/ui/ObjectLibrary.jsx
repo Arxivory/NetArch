@@ -77,13 +77,7 @@
 //     </div>
 //   );
 // }
-<<<<<<< HEAD
-
-import React, { useState, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
-=======
 import React from "react";
->>>>>>> 1c4943f57eb4855fdbd34ef2117895951c7bc91a
 import {
   Server,
   Network,
@@ -98,15 +92,10 @@ import {
 } from "lucide-react";
 import appState from "../state/AppState";
 import { StartDrawCableCommand } from "../core/editor/DrawingCommands";
-<<<<<<< HEAD
-// 1. IMPORT YOUR CATALOG
-import deviceCatalog from "../data/deviceCatalog"; // Adjust path as needed
-=======
 
 // 1. IMPORT YOUR CATALOGS
 import deviceCatalog from "../data/deviceCatalog"; 
 import furnitureCatalog from "../data/furnitureCatalog"; 
->>>>>>> 1c4943f57eb4855fdbd34ef2117895951c7bc91a
 
 // 2. MAP CATALOGS AND ENTITY TYPES
 const categoryDetails = {

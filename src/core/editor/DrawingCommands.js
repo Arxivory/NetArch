@@ -68,6 +68,18 @@ export class StartDrawPolygonCommand extends DrawingCommand {
   }
 }
 
+export class StartDrawFreeformCommand extends DrawingCommand {
+  constructor(controller, appState, structureType = '') {
+    super(controller, appState);
+    this.structureType = structureType;
+  }
+  
+  execute() {
+    this.controller?.startDrawFreeform(this.structureType);
+    this.appState.tools.setActiveTool('freeform');
+  }
+}
+
 export class StartSelectCommand extends DrawingCommand {
   execute() {
     this.controller?.startSelect();
@@ -79,6 +91,24 @@ export class StartPanCommand extends DrawingCommand {
   execute() {
     this.controller?.startPan();
     this.appState.tools.setActiveTool('pan');
+  }
+}
+
+export class StartZoomInCommand extends DrawingCommand {
+  execute() {
+    this.appState.tools.setActiveTool('zoom');
+    this.appState.ui.zoomIn();
+    const zoom = this.appState.ui.getZoom();
+    this.controller?._handleZoomSelected(zoom);
+  }
+}
+
+export class StartZoomOutCommand extends DrawingCommand {
+  execute() {
+    this.appState.tools.setActiveTool('zoom');
+    this.appState.ui.zoomOut();
+    const zoom = this.appState.ui.getZoom();
+    this.controller?._handleZoomSelected(zoom);
   }
 }
 
@@ -110,7 +140,8 @@ export class UpdateEntityTransformCommand extends DrawingCommand {
   }
 
   execute() {
-    this.controller?.updateEntityTransform(this.entityId, this.updates);
+    const success = this.controller?.updateEntityTransform(this.entityId, this.updates);
+    return success;
   }
 }
 

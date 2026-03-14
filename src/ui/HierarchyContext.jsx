@@ -35,7 +35,12 @@ export function HierarchyProvider({ children }) {
     } else if (type === 'site') {
       appState.structural.addSite({ ...newNode, domainId: parentId });
     } else if (type === 'floor') {
-      appState.structural.addSpace({ ...newNode, siteId: parentId }); //Changed to Site ID, will change to floor soon.
+      const added = appState.structural.addFloor({ ...newNode, siteId: parentId });
+      if (added && added.id) {
+        appState.ui.setActiveFloor(added.id);
+      }
+    } else if (type === 'space') {
+      appState.structural.addSpace({ ...newNode, floorId: parentId });
     }
   };
 

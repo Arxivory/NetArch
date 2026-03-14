@@ -1,6 +1,7 @@
 import {
   Mountain, Building, Grid, RectangleHorizontal, House, DoorOpen,
-  Square, Play, File, FilePlus, Save, MousePointer, Hand, ZoomIn, ZoomOut
+  Square, Play, File, FilePlus, Save, MousePointer, Hand, ZoomIn, ZoomOut,
+  ChevronUp, ChevronDown, Box
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import appState from "../../state/AppState";
@@ -9,6 +10,7 @@ import {
   StartSelectCommand, StartPanCommand, StartZoomInCommand, StartZoomOutCommand, CancelDrawingCommand
 } from "../../core/editor/DrawingCommands";
 import StructuralOption from "./StructuralOption";
+import FloorNavigator from "./FloorNavigator";
 
 export default function Toolbar({ canvasController }) {
   const [activeTool, setActiveTool] = useState("select");
@@ -137,6 +139,10 @@ export default function Toolbar({ canvasController }) {
           <button className="toolbar-btn"><Square size={16} /> Window</button>
         </div>
         <span className="toolbar-label">Fenestration</span>
+      </div>
+
+      <div className="toolbar-group">
+        <FloorNavigator />
       </div>
 
       <div className="toolbar-group ml-auto">

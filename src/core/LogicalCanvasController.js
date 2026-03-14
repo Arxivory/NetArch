@@ -98,27 +98,39 @@ export class LogicalCanvasController {
     this.layout?.clear();
   }
 
-  addDevice(deviceData, x, y) {
+addDevice(deviceData, x, y) {
     if (!this.layout) return;
 
-    const catalogId = deviceData.modelId || deviceData.type;
+    const catalogId = deviceData.modelId;
+    if (!catalogId) {
+        console.error("Missing modelId in deviceData", deviceData);
+        return;
+    }
 
     try {
-      const newDevice = createDeviceInstance(catalogId, { x, y, z: 0 });
+        const newDevice = createDeviceInstance(catalogId, { x, y, z: 0 });
+        
+        newDevice.catalogId = catalogId; 
+        
+        newDevice.label = deviceData.label || newDevice.name;
 
-      this.layout.addDevice({
-        ...newDevice,
-        label: newDevice.name
-      }, x, y);
+        this.layout.addDevice({ ...newDevice }, x, y);
 
-      if (appState.network?.addDevice) {
-        appState.network.addDevice(newDevice);
-        console.log('From Logical Canvas Controller, the device: ', newDevice, ' is added');
-      }
+        if (appState.network?.addDevice) {
+            appState.network.addDevice(newDevice);
+        }
+
+        if (this.physicalController) {
+            this.physicalController.createDeviceGLTFMesh(newDevice);
+        } else {
+            console.error("Physical controller reference not found.");
+        }
+
+        console.log('Device added:', newDevice.id, 'with Catalog ID:', newDevice.catalogId);
     } catch (error) {
-      console.error("Failed to add device:", error.message);
+        console.error("Failed to add device:", error.message);
     }
-  }
+}
 
   updateEntityTransform(id, updates) {
     this.layout?.updateEntityTransform(id, updates);
@@ -129,7 +141,6 @@ export class LogicalCanvasController {
   // =========================================================
 
   _handlePortSelect(device, x, y, callback) {
-    // 1. Remove any existing port menus
     const existingMenu = document.getElementById('canvas-port-menu');
     if (existingMenu) existingMenu.remove();
 
@@ -139,10 +150,8 @@ export class LogicalCanvasController {
       return;
     }
 
-    // --- NEW LOGIC: Check for Used Ports ---
     const usedPorts = new Set();
-
-    // Scan all existing cables to see what is already plugged into this device
+    
     if (this.layout && this.layout.cables) {
       this.layout.cables.forEach(cable => {
         if (cable.sourceId === device.id && cable.sourcePort) {
@@ -154,18 +163,14 @@ export class LogicalCanvasController {
       });
     }
 
-    // Filter the device's total ports against the used ports
     const availablePorts = device.interfaces.filter(port => !usedPorts.has(port));
 
-    // If all ports are full, let the user know and cancel!
     if (availablePorts.length === 0) {
       alert(`All ports on ${device.label} are currently in use!`);
       callback(null);
       return;
     }
-    // ---------------------------------------
 
-    // 2. Create the floating menu container
     const menu = document.createElement('div');
     menu.id = 'canvas-port-menu';
     menu.style.position = 'fixed';
@@ -178,13 +183,12 @@ export class LogicalCanvasController {
     menu.style.padding = '4px 0';
     menu.style.zIndex = '9999';
     menu.style.minWidth = '140px';
-    menu.style.maxHeight = '300px'; // Add a max height just in case of 48-port switches
-    menu.style.overflowY = 'auto';  // Add scrolling for large numbers of ports
+    menu.style.maxHeight = '300px'; 
+    menu.style.overflowY = 'auto';  
     menu.style.fontFamily = 'sans-serif';
     menu.style.fontSize = '12px';
     menu.style.color = '#0f172a';
 
-    // 3. Create a clickable row ONLY for available ports
     availablePorts.forEach(port => {
       const item = document.createElement('div');
       item.innerText = port;
@@ -248,35 +252,38 @@ export class LogicalCanvasController {
         shapeType: shapeType,
         x, y, w, h, r, points
       });
-    }
+    } 
 
-    else if (structureType === 'Space') {
-      // const selectedFloorId = appState.ui?.activeFloorId || appState.selection?.getSelectedId?.();
-
-      // if (!selectedFloorId) {
-      //   console.warn('No floor selected for space creation');
-      //   return;
-      // }
-
-      // appState.structural.addSpace({
-      //   id,
-      //   floorId: selectedFloorId,
-      //   label: `Space ${this.counters.space++}`,
-      //   shapeType: shapeType,
-      //   x, y, w, h, r, points
-      // });
-
+    else if (structureType === 'Floor') {
       const selection = appState.selection;
       const selectedSiteId = selection.getFocusedId();
 
       if (!selectedSiteId) {
-        console.warn("Space creation failed: A Site must be selected.");
+        console.warn('Floor creation failed: A Site must be selected.');
+        return;
+      }
+
+      appState.structural.addFloor({
+        id,
+        siteId: selectedSiteId,
+        label: `Floor ${this.counters.floor++}`,
+        shapeType: shapeType,
+        x, y, w, h, r, points
+      });
+      appState.ui.setActiveFloor(id);
+    }
+    
+    else if (structureType === 'Space') {
+      const selectedFloorId = appState.ui?.activeFloorId || appState.selection?.getFocusedId?.();
+
+      if (!selectedFloorId) {
+        console.warn('Space creation failed: A Floor must be selected.');
         return;
       }
 
       appState.structural.addSpace({
         id,
-        siteId: selectedSiteId,
+        floorId: selectedFloorId,
         label: `Space ${this.counters.space++}`,
         shapeType: shapeType,
         x, y, w, h, r, points

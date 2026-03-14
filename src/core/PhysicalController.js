@@ -230,61 +230,25 @@ export class PhysicalController {
         this.spaceMeshes.set(space.id, mesh);
     }
 
-    createDeviceMesh(device) {
-        const isSwitch = device.type === 'switch';
-        
-        const modelPath = isSwitch 
-            ? 'objects/devices/switches/2960.obj' 
-            : 'objects/devices/routers/1941.obj';
-            
-        const mtlPath = isSwitch 
-            ? 'materials/devices/switches/2960.mtl' 
-            : 'materials/devices/routers/1941.mtl';
-
-        const mtlLoader = new MTLLoader();
-
-        mtlLoader.load(mtlPath, (materials) => {
-            materials.preload(); 
-
-            Object.values(materials.materials).forEach(material => {
-                material.transparent = false;
-                material.opacity = 1.0;
-                material.side = THREE.DoubleSide;
-            });
-
-            this.objLoader.setMaterials(materials);
-
-            this.objLoader.load(modelPath, (obj) => {
-                const modX = device.transform.position.x * this.defaultScaler;
-                const modZ = device.transform.position.y * this.defaultScaler;
-
-                obj.position.set(modX, 2.0, modZ); 
-                obj.scale.set(1, 1, 1); 
-
-                this.scene.add(obj);
-                this.deviceMeshes.set(device.id, obj);
-                
-                console.log(`${device.type} loaded with materials from ${mtlPath}`);
-            }, 
-            undefined, 
-            (err) => console.error("Error loading OBJ:", err));
-            
-        }, undefined, (err) => {
-            console.warn("MTL failed to load, falling back to basic OBJ:", err);
-            this.objLoader.setMaterials(null);
-            this.objLoader.load(modelPath, (obj) => {
-                this.scene.add(obj);
-                this.deviceMeshes.set(device.id, obj);
-            });
-        });
-    }
-
     createDeviceGLTFMesh(device) {
-        const isSwitch = device.type === 'switch';
+        const { switches, routers, endDevices } = deviceCatalog;
+        
+        const cId = device.catalogId || device.hostname || device.name; 
+        
+        const catalogEntry = switches[cId] || routers[cId] || endDevices[cId];
 
-        const modelPath = isSwitch 
-            ? 'objects/devices/switches/2960glb.glb' 
-            : 'objects/devices/routers/1941glb.glb';
+        if (!catalogEntry) {
+            console.warn(`Lookup failed for ID: ${cId}. Falling back to default.`);
+        }
+
+        let modelPath = (catalogEntry && catalogEntry.model3D) 
+            ? catalogEntry.model3D 
+            : 'objects/devices/routers/1941.glb';
+
+        if (modelPath.endsWith('.obj')) {
+            console.warn(`Redirecting ${modelPath} to .glb for GLTFLoader`);
+            modelPath = modelPath.replace('.obj', '.glb'); 
+        }
 
         this.gltfLoader.load(modelPath, (gltf) => {
             const model = gltf.scene;
@@ -293,14 +257,12 @@ export class PhysicalController {
             const modZ = device.transform.position.y * this.defaultScaler;
             
             model.position.set(modX, 2.5, modZ); 
-
             model.scale.set(7, 7, 7); 
 
             model.traverse((child) => {
                 if (child.isMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
-                    
                     if (child.material) {
                         child.material.metalness = 0.5; 
                     }
@@ -310,12 +272,12 @@ export class PhysicalController {
             this.scene.add(model);
             this.deviceMeshes.set(device.id, model);
             
-            console.log(`Successfully loaded GLB: ${device.type}`);
+            console.log(`Successfully loaded ${cId} from: ${modelPath}`);
         }, 
         undefined, 
-        (err) => console.error("GLB Load Error:", err));
+        (err) => console.error("GLB Load Error. Path tried:", modelPath, err));
     }
-
+    
     updateDomainMesh(domain) {
         const { x, y, width, height } = domain.geometry;
 

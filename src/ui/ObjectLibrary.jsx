@@ -77,7 +77,7 @@
 //     </div>
 //   );
 // }
-import React from "react";
+import React, {useState, useRef, useEffect} from "react";
 import {
   Server,
   Network,
@@ -180,6 +180,108 @@ export default function ObjectLibrary({ canvasController }) {
     
     event.dataTransfer.setData("application/reactflow", JSON.stringify(data));
     event.dataTransfer.effectAllowed = "move";
+  };
+
+  const parseModelFilename = (filename) => {
+    const nameWithoutExt = filename.replace(/\.(obj|glb|fbx|)$/i, '');
+    const parts = nameWithoutExt.toLoweCase().split(/[_-]+/);
+    let vendor = "Unknown";
+    let family = "endDevice";
+    let modelId = nameWithoutExt;
+
+    if (parts.length >= 3) {
+      vendor = parts [0].charAt(0).toUpperCase() + parts[0].slice(1);
+      family = parts [1];
+      modelId = parts.slice(2).join('-');
+
+    }
+
+    const familyMap = {
+      'switch': 'switches',
+      'router': 'routers',
+      'host': 'endDevices',
+      'server': 'endDevices',
+      'endDevice': 'endDevices',
+
+    };
+
+    const targetKey = familyMap[family] || 'endDevices';
+
+    return  {
+      device: {
+        modelId: modelId.toUpperCase(),
+        displayName: nameWithoutExt.replace(/[_-]+/g, ' ').toUpperCase(),
+        family: family,
+        vendor,
+        model3D: `/models/${filename}`
+      },
+      targetKey
+    };
+  };
+
+  const processFile = (file) => {
+    if (!file) return;
+    const validExtensions = ['obj', 'glb', 'fbx'];
+    const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+
+    if (!validExtensions.includes(fileExt)) {
+      setImportError (`Unsupported file type: ${fileExt}. Please upload .obj, .glb, or .fbx files.`);
+      return;
+    }
+
+    const { device, targetKey } = parseModelFilename(file.name);
+    setCustomDevices(prev => ({
+      ...prev,
+      [targetKey]: {
+        ...prev[targetKey],
+        [device.modelId]: device
+      }
+    }));
+
+    setImportSuccess(`Successfully imported ${device.displayName} as a ${targetKey.slice(0, -1)}.`);
+    setTimeout(() => {
+      setshowImportModal(false);
+      setImportSuccess(null);
+
+    }, 3000);
+
+  };
+
+  const ModalPortal = () => {
+    return createPortal(
+      <div className="import-modal-overlay" onClick={() => setShowImportModal(false)}>
+        <div className="import-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="import-modal-header">
+            <button className="close-btn" onClick={() => setShowImportModal(false)}>
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="import-modal-content">
+            {importError && <div className="import-alert error">{importError}</div>}
+            {importSuccess && <div className="import-alert success">{importSuccess}</div>}
+
+            <div 
+              className="import-drop-zone"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); processFile(e.dataTransfer.files[0]); }}
+            >
+              
+              <label className="import-file-label">
+                <h1>Import Devices</h1>
+                <input type="file" onChange={(e) => processFile(e.target.files[0])} hidden />
+              </label>
+            </div>
+
+            <div className="import-format-info">
+              <p><strong>Supported:</strong> .obj, .glb, .fbx</p>
+              <pre className="format-example">vendor-family-model.obj</pre>
+            </div>
+          </div>
+        </div>
+      </div>,
+      document.body // This pushes it to the end of the body tag
+    );
   };
 
   return (

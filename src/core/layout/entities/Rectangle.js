@@ -30,6 +30,7 @@ export class Rectangle {
             this.w - 2 * margin,
             this.h - 2 * margin
         );
+        this.body.structType = this.structureType;
         this.system.insert(this.body);
     }
 
@@ -116,56 +117,22 @@ export class Rectangle {
     }
 
     checkIfOverlapping() {
+        const structMap = new Map();
+        structMap.set("Site", "Domain");
+        structMap.set("Space", "Site");
+        const ceStruct = this.structureType;
         let overlapping = false;
-
         this.system.checkOne(this.body, (other) => {
             if (other !== this.body) {
                 overlapping = true;
             }
-        });
+            const candidateStruct = other.b.structType;
+            if (structMap.get(ceStruct) === candidateStruct){
+                overlapping = false;
+            }
+        }); 
         return overlapping;
     }
-
-    overlapsWithOtherRectangle(rect) {
-        const result = this.system.checkOne(rect.body);
-        return (this.system.checkOne(rect.body));
-    }
-
-    overlapsWithCircle(circle) {
-        const { minX, maxX, minY, maxY } = this.getCurrentBounds();
-
-        // Clamp circle center to rectangle bounds
-        const closestX = Math.max(minX, Math.min(circle.x, maxX));
-        const closestY = Math.max(minY, Math.min(circle.y, maxY));
-
-        // Distance from circle center to closest point
-        const dx = circle.x - closestX;
-        const dy = circle.y - closestY;
-
-        return (dx * dx + dy * dy) <= (circle.r * circle.r);
-    }
-
-    overlapsWithPolygon() {
-        return false;
-    }
-
-    overlapsWithFreeform() {
-        return false;
-    }
-
-    overlapsWithDevice() {
-        return false;
-    }
-
-    overlapsWithWall() {
-        return false;
-    }
-
-    overlapsWithCable() {
-        return false;
-    }
-
-
 }
 
 export default Rectangle;

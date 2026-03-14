@@ -267,7 +267,7 @@ export class LogicalCanvasController {
       // });
 
       const selection = appState.selection;
-      const selectedSiteId = selection.getFocusedId() || selection.getSelectedId();
+      const selectedSiteId = selection.getFocusedId();
 
       if (!selectedSiteId) {
         console.warn("Space creation failed: A Site must be selected.");

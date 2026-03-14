@@ -5,6 +5,7 @@ import PointerHandler from '../rendering/PointerHandler.js';
 import { Selection } from '../editor/Selection.js';
 import EntityTransformer from './transform/EntityTransformer.js';
 import { System } from 'check2d';
+import { type } from '@testing-library/user-event/dist/type/index.js';
 
 export class LogicalLayout {
   constructor(opts = {}) {
@@ -493,7 +494,6 @@ export class LogicalLayout {
             [...this.currentPolygon],
             this.structureType, this.system
           );
-          console.log("canClose ll");
           if (!this._checkForOverlap(polygon, "creation")) {
             if (this.shapeCreator.onPolygonCreated) {
               this.shapeCreator.onPolygonCreated(polygon);
@@ -515,7 +515,6 @@ export class LogicalLayout {
     }
 
     if (this.mode === 'freeform') {
-      console.log(snapped);
       this.currentFreeform.push(snapped);
       this.currentPoint = snapped;
       this._render();
@@ -693,15 +692,16 @@ export class LogicalLayout {
   }
 
   _onRightClick() {
-    console.log('sad');
     if (this.currentFreeform.length > 1) {
       const freeform = this.shapeCreator.createFreeform(
         [...this.currentFreeform],
         this.structureType, this.system
       );
-      this.freeforms.push(freeform);
-      if (this.shapeCreator.onFreeformCreated) {
-        this.shapeCreator.onFreeformCreated(freeform);
+      if (!this._checkForOverlap(freeform, "creation")) {
+        if (this.shapeCreator.onFreeformCreated) {
+          this.shapeCreator.onFreeformCreated(freeform);
+        }
+        this.freeforms.push(freeform);
       }
       this.currentFreeform = [];
       this.mode = 'none';
@@ -878,7 +878,6 @@ export class LogicalLayout {
         points = this.currentPolygon;
       }
       else if (this.mode === 'freeform') {
-        console.log("reached outline");
         points = this.currentFreeform;
       }
       this.shapeRenderer.outlinePolygonOrFreeformInProgress(
@@ -1113,10 +1112,18 @@ export class LogicalLayout {
 
   _checkForOverlap(currentEntity, action) {
     if (currentEntity === null) return true;
-    console.log("check for overlap called");
     if (currentEntity.checkIfOverlapping()) {
       alert("Overlapping detected");
-      if (action === 'creation') this.system.remove(currentEntity.body);
+      if (action === 'creation') {
+        if (currentEntity.type === 'freeform') {
+          for (const body of currentEntity.bodies) {
+            this.system.remove(body);
+          }
+        }
+        else {
+          this.system.remove(currentEntity.body);
+        }
+      }
       return true;
     }
     return false;

@@ -52,6 +52,7 @@ export class Polygon {
         }));
 
         this.body = new SystemPolygon({ x: cx, y: cy }, localPoints);
+        this.body.structType = this.structureType;
         this.system.insert(this.body);
     }
 
@@ -176,50 +177,22 @@ export class Polygon {
     }
 
     checkIfOverlapping() {
+        const structMap = new Map();
+        structMap.set("Site", "Domain");
+        structMap.set("Space", "Site");
+        const ceStruct = this.structureType;
         let overlapping = false;
         this.system.checkOne(this.body, (other) => {
             if (other !== this.body) {
                 overlapping = true;
             }
+            const candidateStruct = other.b.structType;
+            if (structMap.get(ceStruct) === candidateStruct) {
+                overlapping = false;
+            }
         });
         return overlapping;
     }
-
-    overlapsWithRectangle(rect) {
-        return false;
-    }
-    overlapsWithCircle(circle) {
-        return false;
-    }
-
-    overlapsWithOtherPolygon(pol) {
-        // let overlapping = false;
-
-        // this.system.checkOne(this.body, (other) => {
-        //     if (other !== this.body) {
-        //         overlapping = true;
-        //     }
-        // });
-        // return overlapping;
-    }
-
-    overlapsWithFreeform() {
-        return false;
-    }
-
-    overlapsWithDevice() {
-        return false;
-    }
-
-    overlapsWithWall() {
-        return false;
-    }
-
-    overlapsWithCable() {
-        return false;
-    }
-
-
 }
 
 export default Polygon;

@@ -30,6 +30,7 @@ export class Circle {
     initBody() {
         const margin = 0.001;
         this.body = new SystemCircle({ x: this.x, y: this.y }, this.r - margin);
+        this.body.structType = this.structureType;
         this.system.insert(this.body);
     }
 
@@ -86,66 +87,21 @@ export class Circle {
     }
 
     checkIfOverlapping() {
+        const structMap = new Map();
+        structMap.set("Site", "Domain");
+        structMap.set("Space", "Site");
+        const ceStruct = this.structureType;
         let overlapping = false;
         this.system.checkOne(this.body, (other) => {
             if (other !== this.body) {
                 overlapping = true;
             }
-        });
+            const candidateStruct = other.b.structType;
+            if (structMap.get(ceStruct) === candidateStruct){
+                overlapping = false;
+            }
+        }); 
         return overlapping;
-    }
-
-    overlapsWithRectangle(rect) {
-        console.log("In Here");
-        const { minX, maxX, minY, maxY } = rect.getCurrentBounds();
-
-        // Clamp circle center to rectangle bounds
-        const closestX = Math.max(minX, Math.min(this.x, maxX));
-        const closestY = Math.max(minY, Math.min(this.y, maxY));
-
-        // Distance from circle center to closest point
-        const dx = this.x - closestX;
-        const dy = this.y - closestY;
-
-        return (dx * dx + dy * dy) <= (this.r * this.r);
-    }
-
-    overlapsWithOtherCircle(circle) {
-        const x1 = this.x;
-        const y1 = this.y;
-        const r1 = this.transform.scale.r;
-
-        const x2 = circle.x;
-        const y2 = circle.y;
-        const r2 = circle.transform.scale.r;
-
-        const dx = x2 - x1;
-        const dy = y2 - y1;
-
-        const distanceSquared = dx * dx + dy * dy;
-        const radiusSum = r1 + r2;
-
-        return distanceSquared <= radiusSum * radiusSum;
-    }
-
-    overlapsWithPolygon() {
-        return false;
-    }
-
-    overlapsWithFreeform() {
-        return false;
-    }
-
-    overlapsWithDevice() {
-        return false;
-    }
-
-    overlapsWithWall() {
-        return false;
-    }
-
-    overlapsWithCable() {
-        return false;
     }
 }
 

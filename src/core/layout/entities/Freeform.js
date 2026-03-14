@@ -30,7 +30,7 @@ export class Freeform {
     }
 
     initBody() {
-        const thickness = 0.5; 
+        const thickness = 0.5;
         this.bodies = [];
 
         for (let i = 0; i < this.transform.scale.points.length - 1; i++) {
@@ -40,7 +40,7 @@ export class Freeform {
             const dx = b.x - a.x;
             const dy = b.y - a.y;
             const len = Math.hypot(dx, dy);
-            
+
             const nx = -dy / len * thickness;
             const ny = dx / len * thickness;
 
@@ -55,8 +55,10 @@ export class Freeform {
             ];
 
             const body = new Polygon({ x: cx, y: cy }, localPoints);
+            body.structType = this.structureType;
             this.system.insert(body);
             this.bodies.push(body);
+
         }
     }
 
@@ -172,6 +174,10 @@ export class Freeform {
     }
 
     checkIfOverlapping() {
+        const structMap = new Map();
+        structMap.set("Site", "Domain");
+        structMap.set("Space", "Site");
+        const ceStruct = this.structureType;
         for (const body of this.bodies) {
             this.system.remove(body);
         }
@@ -183,8 +189,11 @@ export class Freeform {
                 if (!this.bodies.includes(other)) {
                     overlapping = true;
                 }
+                const candidateStruct = other.b.structType;
+                if (structMap.get(ceStruct) === candidateStruct) {
+                    overlapping = false;
+                }
             });
-
 
             if (overlapping) {
                 for (const body of this.bodies) {
@@ -200,43 +209,6 @@ export class Freeform {
 
         return false;
     }
-
-
-    overlapsWithRectangle(rect) {
-        return false;
-    }
-    overlapsWithCircle(circle) {
-        return false;
-    }
-
-    overlapsWithOtherPolygon(pol) {
-        // let overlapping = false;
-
-        // this.system.checkOne(this.body, (other) => {
-        //     if (other !== this.body) {
-        //         overlapping = true;
-        //     }
-        // });
-        // return overlapping;
-    }
-
-    overlapsWithFreeform() {
-        return false;
-    }
-
-    overlapsWithDevice() {
-        return false;
-    }
-
-    overlapsWithWall() {
-        return false;
-    }
-
-    overlapsWithCable() {
-        return false;
-    }
-
-
 }
 
 export default Freeform;

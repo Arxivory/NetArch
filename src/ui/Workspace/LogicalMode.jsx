@@ -41,15 +41,27 @@ const LogicalMode = forwardRef(function LogicalMode(
     };
   }, [gridSize, snap, canvasControllerRef]);
 
-  // Listen for active floor changes and update the canvas
   useEffect(() => {
-    const unsubscribe = appState.ui.subscribe((store) => {
+    const handleUpdate = () => {
       if (controllerRef.current) {
-        controllerRef.current.setActiveFloor(store.activeFloorId);
+        const isFocusedOnFloor = appState.selection.focusedType === 'floor';
+        const floorId = isFocusedOnFloor ? appState.ui.activeFloorId : null;
+        controllerRef.current.setActiveFloor(floorId);
       }
+    };
+
+    const unsubUi = appState.ui.subscribe(() => {
+      handleUpdate();
     });
 
-    return unsubscribe;
+    const unsubSel = appState.selection.subscribe(() => {
+      handleUpdate();
+    });
+
+    return () => {
+      unsubUi();
+      unsubSel();
+    };
   }, []);
 
   useImperativeHandle(ref, () => ({
@@ -84,7 +96,6 @@ const onDrop = (event) => {
     const coords = controllerRef.current?.getSnappedCoords(event.clientX, event.clientY);
     
     if (coords && controllerRef.current) {
-      // Pass the WHOLE data object so the controller can access 'modelId'
       console.log('From Logical Mode Data: ', data.label);
       controllerRef.current.addDevice(data, coords.x, coords.y);
     }

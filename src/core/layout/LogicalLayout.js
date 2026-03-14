@@ -381,7 +381,11 @@ export class LogicalLayout {
 
     if (this.mode === 'select') {
       const en = this.identifyEntity(e.clientX, e.clientY);
-      if (!en) return;
+      if (!en) {
+        // Clear focus when clicking on empty canvas
+        appState.selection.focusedNode(null, null);
+        return;
+      }
 
       const zoom = this.pointerHandler.getZoom();
       const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
@@ -751,7 +755,9 @@ export class LogicalLayout {
     this.grid.renderMinorGrids(ctx, w, h);
     this.grid.renderMajorGrids(ctx, w, h);
 
-    const activeFloor = this.activeFloorId || appState.ui.activeFloorId;
+    // Only filter by floor if a floor is explicitly focused. Otherwise, render all floors stacked.
+    const shouldFilterByFloor = appState.selection.focusedType === 'floor';
+    const activeFloor = shouldFilterByFloor ? (this.activeFloorId || appState.ui.activeFloorId) : null;
     const filterForFloor = (arr) => {
       if (!activeFloor) return arr;
       return arr.filter(o => o.floorId == null || o.floorId === activeFloor);

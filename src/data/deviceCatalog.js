@@ -252,7 +252,7 @@ export function generateInterfaces(catalogEntry) {
 }
 
 export function createDeviceInstance(catalogId, position = { x: 0, y: 0, z: 0 }, opts = {}) {
-  const catalogEntry = switches[catalogId] || routers[catalogId] || endDevices[catalogId];
+  const catalogEntry = switches[catalogId] || routers[catalogId] || endDevices[catalogId] ;
   if (!catalogEntry) {
     throw new Error(`Unknown catalogId: ${catalogId}`);
   }
@@ -278,7 +278,7 @@ const deviceCatalog = {
   switches,
   routers,
   endDevices,
-  cables
+  cables,
 };
 
 export default deviceCatalog;

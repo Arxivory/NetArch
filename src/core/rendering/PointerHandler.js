@@ -3,6 +3,7 @@ export class PointerHandler {
     this.onPointerDown = opts.onPointerDown || null;
     this.onPointerMove = opts.onPointerMove || null;
     this.onPointerUp = opts.onPointerUp || null;
+    this.onRightClick = opts.onRightClick || null;
 
     this.isPointerDown = false;
     this.panStart = {
@@ -14,6 +15,7 @@ export class PointerHandler {
     this._pointerDownHandler = this._onPointerDown.bind(this);
     this._pointerMoveHandler = this._onPointerMove.bind(this);
     this._pointerUpHandler = this._onPointerUp.bind(this);
+    this._rightClickHandler = this._onRightClick.bind(this); // ADDED
   }
 
   attach(canvas) {
@@ -22,6 +24,7 @@ export class PointerHandler {
     canvas.addEventListener('pointerdown', this._pointerDownHandler);
     window.addEventListener('pointermove', this._pointerMoveHandler);
     window.addEventListener('pointerup', this._pointerUpHandler);
+    canvas.addEventListener('contextmenu', this._rightClickHandler); // ADDED
   }
 
   detach() {
@@ -29,6 +32,7 @@ export class PointerHandler {
     this.canvas.removeEventListener('pointerdown', this._pointerDownHandler);
     window.removeEventListener('pointermove', this._pointerMoveHandler);
     window.removeEventListener('pointerup', this._pointerUpHandler);
+        this.canvas.removeEventListener('contextmenu', this._rightClickHandler); // ADDED 
     this.canvas = null;
   }
 
@@ -43,10 +47,10 @@ export class PointerHandler {
 
     let x = clientX - rect.left;
     let y = clientY - rect.top;
-  
-    x = (x  - viewState.e) / zoom;
-    y = (y  - viewState.f) / zoom;
-    
+
+    x = (x - viewState.e) / zoom;
+    y = (y - viewState.f) / zoom;
+
     return { x, y };
   }
 
@@ -98,6 +102,14 @@ export class PointerHandler {
       this.onPointerUp(e);
     }
   }
+
+  _onRightClick(e) { 
+    e.preventDefault();
+    if (this.onRightClick) {
+      this.onRightClick(e);
+    }
+  }
+
 
   setCursor(cursorStyle) {
     if (this.canvas) {

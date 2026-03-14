@@ -1,6 +1,8 @@
 import appState from '../state/AppState.js';
 import LogicalLayout from '../core/layout/LogicalLayout.js';
 import { createDeviceInstance } from '../data/deviceCatalog';
+import { createFurnitureInstance } from '../data/furnitureCatalog';
+
 
 export class LogicalCanvasController {
   constructor(container, opts = {}) {
@@ -17,15 +19,18 @@ export class LogicalCanvasController {
       height: opts.height || 600,
       gridSize: opts.gridSize || 32,
       snap: opts.snap ?? true,
-      
+
       onRectangleCreated: (rect) => this._handleShapeCreated(rect, 'rectangle'),
       onCircleCreated: (circle) => this._handleShapeCreated(circle, 'circle'),
       onPolygonCreated: (poly) => this._handleShapeCreated(poly, 'polygon'),
+      onFreeformCreated: (freeform) => this._handleShapeCreated(freeform, 'freeform'),
       onWallCreated: (wall) => this._handleWallCreated(wall),
       onCableCreated: (cable) => this._handleCableCreated(cable),
       onDeviceAdded: (device) => this._handleDeviceAdded(device),
+      onFurnitureAdded: (furniture) => this._handleFurnitureAdded(furniture),
       onEntitySelected: (entity) => this._handleEntitySelected(entity),
-      onPortSelect: (device, x, y, callback) => this._handlePortSelect(device, x, y, callback)
+      onPortSelect: (device, x, y, callback) => this._handlePortSelect(device, x, y, callback),
+      onEntityChanged: (en) => this._handleEntityChanged(en)
     });
   }
 
@@ -64,6 +69,10 @@ export class LogicalCanvasController {
     this.layout?.startDrawPolygon(type);
   }
 
+  startDrawFreeform(type = '') {
+    this.layout?.startDrawFreeform(type);
+  }
+
   startDrawWall() {
     this.layout?.startDrawWall();
   }
@@ -99,6 +108,10 @@ export class LogicalCanvasController {
 addDevice(deviceData, x, y) {
     if (!this.layout) return;
 
+    if (deviceData.entityType === 'furniture') {
+        return this.addFurniture(deviceData, x, y);
+    }
+
     const catalogId = deviceData.modelId;
     if (!catalogId) {
         console.error("Missing modelId in deviceData", deviceData);
@@ -127,6 +140,44 @@ addDevice(deviceData, x, y) {
         console.log('Device added:', newDevice.id, 'with Catalog ID:', newDevice.catalogId);
     } catch (error) {
         console.error("Failed to add device:", error.message);
+    }
+}
+
+addFurniture(furnitureData, x, y) {
+  console.log('Adding furniture with data:', furnitureData, 'at position:', { x, y });
+    if (!this.layout) return;
+
+    const catalogId = furnitureData.modelId;
+    if (!catalogId) {
+        console.error("Missing modelId in furnitureData", furnitureData);
+        return;
+    }
+
+    try {
+        const newFurniture = createFurnitureInstance(catalogId, { x, y, z: 0 });
+        
+        newFurniture.catalogId = catalogId; 
+        
+        newFurniture.label = furnitureData.label || newFurniture.name;
+
+        console.log('Creating furniture instance with catalogId:', catalogId, 'and:', newFurniture);
+
+        this.layout.addFurniture({ ...newFurniture }, x, y);
+
+        if (appState.furniture?.addFurniture) {
+            appState.furniture.addFurniture(newFurniture);
+        }
+
+
+        if (this.physicalController) {
+            this.physicalController.createFurnitureGLTFMesh(newFurniture);
+        } else {
+            console.warn("Physical controller not ready yet (normal if in 2D mode).");
+        }
+
+        console.log('Furniture added:', newFurniture.id, 'with Catalog ID:', newFurniture.catalogId);
+    } catch (error) {
+        console.error("Failed to add furniture:", error.message);
     }
 }
 
@@ -193,17 +244,17 @@ addDevice(deviceData, x, y) {
       item.style.padding = '8px 16px';
       item.style.cursor = 'pointer';
       item.style.transition = 'background-color 0.1s';
-      
+
       item.onmouseenter = () => item.style.backgroundColor = '#f1f5f9';
       item.onmouseleave = () => item.style.backgroundColor = '#ffffff';
 
       item.onclick = (e) => {
-        e.stopPropagation(); 
+        e.stopPropagation();
         menu.remove();
         document.removeEventListener('pointerdown', outsideClickListener);
-        callback(port); 
+        callback(port);
       };
-      
+
       menu.appendChild(item);
     });
 
@@ -213,10 +264,10 @@ addDevice(deviceData, x, y) {
       if (!menu.contains(e.target)) {
         menu.remove();
         document.removeEventListener('pointerdown', outsideClickListener);
-        callback(null); 
+        callback(null);
       }
     };
-    
+
     setTimeout(() => {
       document.addEventListener('pointerdown', outsideClickListener);
     }, 10);
@@ -226,14 +277,14 @@ addDevice(deviceData, x, y) {
     const { structureType, id, x, y, w, h, r, points } = shapeData;
 
     if (structureType === 'Domain') {
-      appState.structural.addDomain({
-        id,
+      const data = {
+        ...shapeData,
         label: `Domain ${this.counters.domain++}`,
-        shapeType: shapeType,
-        x, y, w, h, r, points
-      });
-    } 
-    
+      };
+      console.log(data);
+      appState.structural.addDomain(data);
+    }
+
     else if (structureType === 'Site') {
       const selection = appState.selection;
       const selectedDomainId = selection.getFocusedId() || selection.getSelectedId?.();
@@ -254,7 +305,7 @@ addDevice(deviceData, x, y) {
 
     else if (structureType === 'Floor') {
       const selection = appState.selection;
-      const selectedSiteId = selection.getFocusedId() || selection.getSelectedId();
+      const selectedSiteId = selection.getFocusedId();
 
       if (!selectedSiteId) {
         console.warn('Floor creation failed: A Site must be selected.');
@@ -310,13 +361,17 @@ addDevice(deviceData, x, y) {
       );
     }
   }
-  
-  _handleZoomSelected(zoom){
+
+  _handleZoomSelected(zoom) {
     this.layout.setZoom(zoom);
   }
 
   _handleDeviceAdded(device) {
     this.addDevice(device, device.x, device.y);
+  }
+
+  _handleFurnitureAdded(furniture) {
+    this.addFurniture(furniture, furniture.x, furniture.y);
   }
   
   _handleEntitySelected(entity) {
@@ -326,6 +381,11 @@ addDevice(deviceData, x, y) {
     }
 
     appState.selection.selectDevice(entity.id, false);
+  }
+
+  _handleEntityChanged(en) {
+    //console.log("notified");
+    appState.selection.notify();
   }
 }
 

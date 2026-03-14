@@ -3,7 +3,8 @@ import ShapeCreator from './ShapeCreator.js';
 import ShapeRenderer from '../rendering/ShapeRenderer.js';
 import PointerHandler from '../rendering/PointerHandler.js';
 import { Selection } from '../editor/Selection.js';
-import applyEntityTransform from '../transform/EntityTransform.js';
+import EntityTransformer from './transform/EntityTransformer.js';
+import { System } from 'check2d';
 import appState from '../../state/AppState.js';
 
 export class LogicalLayout {
@@ -12,6 +13,8 @@ export class LogicalLayout {
     this.width = opts.width || 800;
     this.height = opts.height || 600;
     this.devicePixelRatio = window.devicePixelRatio || 1;
+
+    this.system = new System();
 
     this.grid = new Grid({
       gridSize: opts.gridSize || 32,
@@ -26,8 +29,10 @@ export class LogicalLayout {
       onRectangleCreated: opts.onRectangleCreated || null,
       onCircleCreated: opts.onCircleCreated || null,
       onPolygonCreated: opts.onPolygonCreated || null,
+      onFreeformCreated: opts.onFreeformCreated || null,
       onWallCreated: opts.onWallCreated || null,
-      onCableCreated: opts.onCableCreated || null
+      onCableCreated: opts.onCableCreated || null,
+      system: this.system
     });
 
     this.shapeRenderer = new ShapeRenderer({
@@ -38,11 +43,14 @@ export class LogicalLayout {
       onPointerDown: this._onPointerDown.bind(this),
       onPointerMove: this._onPointerMove.bind(this),
       onPointerUp: this._onPointerUp.bind(this),
+      onRightClick: this._onRightClick.bind(this)
     });
 
     this.selection = new Selection({
       dpr: this.devicePixelRatio
     });
+
+    this.entityTransformer = new EntityTransformer();
 
     this.selectedEntity = null;
     this.isResizing = false;
@@ -65,8 +73,10 @@ export class LogicalLayout {
     this.windows = [];
     this.roofs = [];
     this.freeforms = [];
+    this.currentFreeform = [];
     this.devices = [];
     this.cables = [];
+    this.furnitures = [];
 
     this.store = appState.selection;
 
@@ -83,10 +93,13 @@ export class LogicalLayout {
 
     this.onZoomSelected = opts.onZoomSelected || null;
     this.onDeviceAdded = opts.onDeviceAdded || null;
+    this.onFurnitureAdded = opts.onFurnitureAdded || null;
     this.onEntitySelected = opts.onEntitySelected || null;
+    this.onEntityChanged = opts.onEntityChanged || null;
     this.onPortSelect = opts.onPortSelect || null;
 
     this.selectedEntity = null;
+    this.originalEntity = null;
 
     this.interaction = {
       mode: null,
@@ -102,6 +115,7 @@ export class LogicalLayout {
       'server': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>`,
       'pc': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>`,
       'switch': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6" y2="6"/><line x1="6" y1="18" x2="6" y2="18"/></svg>`,
+      'desk': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-armchair-icon lucide-armchair"><path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/><path d="M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0z"/><path d="M5 18v2"/><path d="M19 18v2"/></svg>',
       'firewall': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>`
     };
 
@@ -180,6 +194,7 @@ export class LogicalLayout {
     this.windows = [];
     this.freeforms = [];
     this.devices = [];
+    this.furnitures = [];
     this.cables = [];
     this.mode = 'none';
     this.startPoint = null;
@@ -206,6 +221,13 @@ export class LogicalLayout {
 
   startDrawPolygon(structureType = '') {
     this.mode = 'polygon';
+    this.currentPolygon = [];
+    this.structureType = structureType;
+    this._updateCursor();
+  }
+
+  startDrawFreeform(structureType = '') {
+    this.mode = 'freeform';
     this.currentPolygon = [];
     this.structureType = structureType;
     this._updateCursor();
@@ -258,7 +280,7 @@ export class LogicalLayout {
     } else if (rawType.includes('firewall') || rawType.includes('asa')) {
       iconKey = 'firewall';
     } else if (rawType.includes('pc') || rawType.includes('desktop') || rawType.includes('computer') || rawType.includes('laptop')) {
-      iconKey = 'pc'; 
+      iconKey = 'pc';
     } else if (rawType.includes('phone')) {
       iconKey = 'pc';
     }
@@ -282,7 +304,7 @@ export class LogicalLayout {
       y,
       width: size,
       height: size,
-      icon: iconImage, 
+      icon: iconImage,
       transform: {
         position: { x, y, z: 0 },
         scale: 1,
@@ -300,6 +322,60 @@ export class LogicalLayout {
     this._render();
   }
 
+ addFurniture(furnitureData, x, y) {
+    console.log('Adding furniture with data:', furnitureData, 'from LogicalLaypout bsuiyti');
+    const size = this.shapeRenderer.gridSize * 1.5;
+
+    // Combine type and name to figure out what icon to show (if you have them)
+    const rawType = (furnitureData.type + ' ' + (furnitureData.name || furnitureData.label || '')).toLowerCase();
+
+    let iconKey = null;
+
+    if (rawType.includes('desk') || rawType.includes('table')) {
+      iconKey = 'desk';
+    } else if (rawType.includes('chair') || rawType.includes('seat')) {
+      iconKey = 'chair';
+    } else if (rawType.includes('cabinet') || rawType.includes('rack')) {
+      iconKey = 'cabinet';
+    }
+
+    // Assuming you might add a furnitureIcons dictionary in the future.
+    // If it's undefined, your render loop will likely just draw the bounding box/path, which is fine!
+    const iconImage = this.deviceIcons[iconKey];
+
+    const half = size / 2;
+    const px = x - half;
+    const py = y - half;
+    const path = new Path2D();
+    path.rect(px, py, size, size);
+
+    const furniture = {
+      id: `furniture_${Math.random().toString(36).slice(2, 9)}`,
+      type: furnitureData.type || 'furniture',
+      label: furnitureData.name || furnitureData.label || 'Furniture',
+      x,
+      y,
+      width: size,
+      height: size,
+      icon: iconImage, 
+      transform: {
+        position: { x, y, z: 0 },
+        scale: 1,
+        rotation: { x: 0, y: 0, z: 0 }
+      },
+      path,
+      hitTestMode: 'path'
+    };
+
+    this.furnitures.push(furniture);
+
+    if(this.onFurnitureAdded) {
+      
+      this.onFurnitureAdded(furniture);
+    }
+    this._render();
+  }
+ 
   getSnappedCanvasCoords(clientX, clientY) {
     const zoomFactor = this.pointerHandler.getZoom();
     const canvasPoint = this.pointerHandler.clientToWorld(clientX, clientY, this.viewState, zoomFactor);
@@ -311,6 +387,7 @@ export class LogicalLayout {
       'rectangle': 'crosshair',
       'circle': 'crosshair',
       'polygon': 'crosshair',
+      'freeform': 'crosshair',
       'wall': 'crosshair',
       'cable': 'crosshair',
       'pan': 'grab',
@@ -353,9 +430,9 @@ export class LogicalLayout {
               id: `cable_${Math.random().toString(36).slice(2, 9)}`,
               type: this.activeCableType,
               sourceId: this.pendingCableSource.id,
-              sourcePort: this.pendingCableSourcePort, 
+              sourcePort: this.pendingCableSourcePort,
               targetId: device.id,
-              targetPort: selectedPort,    
+              targetPort: selectedPort,
               properties: {
                 bandwidth: null,
                 latency: null,
@@ -385,6 +462,7 @@ export class LogicalLayout {
         // Clear focus when clicking on empty canvas
         appState.selection.focusedNode(null, null);
         return;
+        en.saveCurrentPosition();
       }
 
       const zoom = this.pointerHandler.getZoom();
@@ -405,7 +483,7 @@ export class LogicalLayout {
 
       for (const key in handles) {
         const [hx, hy] = handles[key];
-        if (Math.abs(p.x - hx) < size && Math.abs(p.y - hy) < size) {
+        if (Math.abs(p.x - hx) < size && Math.abs(p.y - hy) < size && en.type === 'rectangle') {
           this.interaction = {
             mode: 'resize',
             handle: key,
@@ -430,7 +508,8 @@ export class LogicalLayout {
     if (this.mode === 'polygon') {
       if (this.currentPolygon.length === 0) {
         this.currentPolygon.push(snapped);
-      } else {
+      }
+      else {
         const first = this.currentPolygon[0];
         const canClose = this.shapeCreator.canClosePolygon(
           first,
@@ -441,9 +520,12 @@ export class LogicalLayout {
         if (canClose && this.currentPolygon.length >= 3) {
           const polygon = this.shapeCreator.createPolygon(
             [...this.currentPolygon],
-            this.structureType
+            this.structureType, this.system
           );
-          if (polygon) {
+          if (!this._checkForOverlap(polygon, "creation")) {
+            if (this.shapeCreator.onPolygonCreated) {
+              this.shapeCreator.onPolygonCreated(polygon);
+            }
             this.polygons.push(polygon);
           }
           this.currentPolygon = [];
@@ -455,6 +537,13 @@ export class LogicalLayout {
         }
         this.currentPolygon.push(snapped);
       }
+      this.currentPoint = snapped;
+      this._render();
+      return;
+    }
+
+    if (this.mode === 'freeform') {
+      this.currentFreeform.push(snapped);
       this.currentPoint = snapped;
       this._render();
       return;
@@ -508,7 +597,7 @@ export class LogicalLayout {
       }
     }
 
-    if (this.mode === 'polygon') {
+    if (this.mode === 'polygon' || this.mode === 'freeform') {
       this.currentPoint = this.grid.snapToGrid(p);
       this._render();
       return;
@@ -537,42 +626,41 @@ export class LogicalLayout {
         const dx = p.x - this.interaction.start.x;
         const dy = p.y - this.interaction.start.y;
 
-        const wKey = en.w !== undefined ? "w" : "width";
-        const hKey = en.h !== undefined ? "h" : "height";
-
         if (this.interaction.mode === "move") {
-          en.x += dx;
-          en.y += dy;
+          en.move(dx, dy);
         }
 
-        if (this.interaction.mode === "resize") {
+        if (this.interaction.mode === "resize" && en.type === 'rectangle') {
+          let wKey = en.transform.scale.w;
+          let hKey = en.transform.scale.h;
           switch (this.interaction.handle) {
             case "se":
-              en[wKey] += dx;
-              en[hKey] += dy;
+              wKey += dx;
+              hKey += dy;
               break;
             case "nw":
-              en.x += dx;
-              en.y += dy;
-              en[wKey] -= dx;
-              en[hKey] -= dy;
+              en.move(dx, dy);
+              wKey -= dx;
+              hKey -= dy;
               break;
             case "ne":
-              en.y += dy;
-              en[wKey] += dx;
-              en[hKey] -= dy;
+              en.move(0, dy)
+              wKey += dx;
+              hKey -= dy;
               break;
             case "sw":
-              en.x += dx;
-              en[wKey] -= dx;
-              en[hKey] += dy;
+              en.move(dx, 0);
+              wKey -= dx;
+              hKey += dy;
               break;
             default:
               throw new Error();
           }
+          en.setWidthAndHeight(wKey, hKey);
         }
 
         this.interaction.start = { x: p.x, y: p.y };
+        this.onEntityChanged(en);
         this._render();
         return;
       }
@@ -591,6 +679,14 @@ export class LogicalLayout {
   }
 
   _onPointerUp(e) {
+    if (this.interaction.mode === 'move') {
+      if (this._checkForOverlap(this.selectedEntity, "transformation")) {
+        this.selectedEntity.restoreToSavedPosition();
+        this.onEntityChanged();
+        this._render();
+      }
+    }
+
     this.interaction = {
       mode: null,
       handle: null,
@@ -620,6 +716,26 @@ export class LogicalLayout {
     this._render();
   }
 
+  _onRightClick() {
+    if (this.currentFreeform.length > 1) {
+      const freeform = this.shapeCreator.createFreeform(
+        [...this.currentFreeform],
+        this.structureType, this.system
+      );
+      if (!this._checkForOverlap(freeform, "creation")) {
+        if (this.shapeCreator.onFreeformCreated) {
+          this.shapeCreator.onFreeformCreated(freeform);
+        }
+        this.freeforms.push(freeform);
+      }
+      this.currentFreeform = [];
+      this.mode = 'none';
+      this.currentPoint = null;
+      this._updateCursor();
+      this._render();
+    }
+  }
+
   _createShapeFromMode() {
     const activeFloor = appState.ui.activeFloorId;
 
@@ -627,19 +743,26 @@ export class LogicalLayout {
       const rect = this.shapeCreator.createRectangle(
         this.startPoint,
         this.currentPoint,
-        this.structureType
+        this.structureType,
       );
-      if (rect) {
+      if (!this._checkForOverlap(rect, "creation")) {
+        if (this.shapeCreator.onRectangleCreated) {
+          this.shapeCreator.onRectangleCreated(rect);
+        }
         rect.floorId = activeFloor || null;
         this.rectangles.push(rect);
       }
+
     } else if (this.mode === 'circle') {
       const circle = this.shapeCreator.createCircle(
         this.startPoint,
         this.currentPoint,
         this.structureType
       );
-      if (circle) {
+      if (!this._checkForOverlap(circle, "creation")) {
+        if (this.shapeCreator.onCircleCreated) {
+          this.shapeCreator.onCircleCreated(circle);
+        }
         circle.floorId = activeFloor || null;
         this.circles.push(circle);
       }
@@ -741,7 +864,7 @@ export class LogicalLayout {
     ctx.restore();
 
     ctx.setTransform(
-      scale, 
+      scale,
       0,
       0,
       scale,
@@ -765,16 +888,35 @@ export class LogicalLayout {
 
     this.shapeRenderer.renderRectangles(ctx, filterForFloor(this.rectangles));
     this.shapeRenderer.renderPolygons(ctx, filterForFloor(this.polygons));
+    this.shapeRenderer.renderFreeforms(ctx, this.freeforms);
     this.shapeRenderer.renderCircles(ctx, filterForFloor(this.circles));
     this.shapeRenderer.renderWalls(ctx, filterForFloor(this.walls));
     this._renderDeviceCables(ctx, activeFloor);
 
     ctx.save();
     for (const device of filterForFloor(this.devices)) {
-      const tileW = device.width + 32; 
+      const tileW = device.width + 32;
       const tileH = device.height + 45;
       const tx = device.x - tileW / 2;
       const ty = device.y - tileH / 2.5;
+
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 1;
+
+      ctx.beginPath();
+      ctx.roundRect(tx, ty, tileW, tileH, 8);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.save();
+    for (const furniture of this.furnitures) {
+      const tileW = furniture.width + 32; 
+      const tileH = furniture.height + 45;
+      const tx = furniture.x - tileW / 2;
+      const ty = furniture.y - tileH / 2.5;
 
       ctx.fillStyle = '#ffffff';
       ctx.strokeStyle = '#cbd5e1';
@@ -788,6 +930,7 @@ export class LogicalLayout {
     ctx.restore();
 
     this.shapeRenderer.renderDevices(ctx, filterForFloor(this.devices));
+    this.shapeRenderer.renderFurnitures(ctx, this.furnitures);
 
     if (this.selectedEntity && this.selectedEntity.sourceId) {
       const cable = this.selectedEntity;
@@ -809,19 +952,27 @@ export class LogicalLayout {
       }
     }
 
-    if (this.mode === 'polygon' && this.currentPolygon.length > 0 && this.currentPoint) {
+    if ((this.currentPolygon.length > 0 || this.currentFreeform.length > 0) && this.currentPoint) {
       ctx.save();
       ctx.strokeStyle = '#00ff00';
       ctx.fillStyle = 'rgba(0,255,0,0.08)';
       ctx.lineWidth = 1.5;
-      this.shapeRenderer.outlinePolygonInProgress(
+      let points;
+      if (this.mode === 'polygon') {
+        points = this.currentPolygon;
+      }
+      else if (this.mode === 'freeform') {
+        points = this.currentFreeform;
+      }
+      this.shapeRenderer.outlinePolygonOrFreeformInProgress(
         ctx,
-        this.currentPolygon,
+        points,
         this.currentPoint,
         this.grid.getSnapTolerance()
       );
       ctx.restore();
-    } else if (this.startPoint && this.currentPoint) {
+    }
+    else if (this.startPoint && this.currentPoint) {
       ctx.save();
       ctx.strokeStyle = '#00ff00';
       ctx.fillStyle = 'rgba(0,255,0,0.08)';
@@ -845,11 +996,11 @@ export class LogicalLayout {
       let x, y, w, h;
 
       if (en.interfaces !== undefined || en.icon !== undefined) {
-         w = en.width + 16;
-         h = en.height + 16;
-         x = en.x - w / 2;
-         y = en.y - h / 2;
-      } 
+        w = en.width + 16;
+        h = en.height + 16;
+        x = en.x - w / 2;
+        y = en.y - h / 2;
+      }
       else if (en.width !== undefined) {
         w = en.width;
         h = en.height;
@@ -885,7 +1036,7 @@ export class LogicalLayout {
       const en = this.pendingCableSource;
       const safeW = en.width !== undefined ? en.width : (en.w || 32);
       const safeH = en.height !== undefined ? en.height : (en.h || 32);
-      
+
       const w = safeW + 16;
       const h = safeH + 16;
       const x = en.x - w / 2;
@@ -903,10 +1054,10 @@ export class LogicalLayout {
 
     if (this.hoveredDevice && this.mode === 'cable') {
       const en = this.hoveredDevice;
-      
+
       const safeW = en.width !== undefined ? en.width : (en.w || 32);
       const safeH = en.height !== undefined ? en.height : (en.h || 32);
-      
+
       const w = safeW + 16;
       const h = safeH + 16;
       const x = en.x - w / 2;
@@ -950,9 +1101,17 @@ export class LogicalLayout {
     return null;
   }
 
+  removeEntityById(id) {
+    const lists = this.getAllSelectableEntities();
+    for (let arr of lists) {
+      arr = arr.filter(e => e.id !== id);
+    }
+    return null;
+  }
+
   updateEntityTransform(id, updates = {}) {
     const en = this.findEntityById(id);
-    if (applyEntityTransform(en, updates, this.shapeRenderer)) {
+    if (this.entityTransformer.applyEntityTransform(en, updates, this.shapeRenderer, this._checkForOverlap.bind(this))) {
       this._render();
       return true;
     }
@@ -1043,6 +1202,27 @@ export class LogicalLayout {
 
     return Math.sqrt(dx * dx + dy * dy);
   }
+
+  _checkForOverlap(currentEntity, action) {
+    if (currentEntity === null) return true;
+    if (currentEntity.checkIfOverlapping()) {
+      alert("Overlapping detected");
+      if (action === 'creation') {
+        if (currentEntity.type === 'freeform') {
+          for (const body of currentEntity.bodies) {
+            this.system.remove(body);
+          }
+        }
+        else {
+          this.system.remove(currentEntity.body);
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
+
 }
 
 export default LogicalLayout;

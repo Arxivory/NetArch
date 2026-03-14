@@ -6,7 +6,7 @@ export default function PropertiesPanel({ canvasController }) {
   const [selectedEntity, setSelectedEntity] = useState(null);
   const [transform, setTransform] = useState({
     position: { x: 0, y: 0, z: 0 },
-    scale: { x: 1, y: 1, z: 1 },
+    scale: { factor: 0, w: 0, h: 0 },
     rotation: { x: 0, y: 0, z: 0 }
   });
 
@@ -19,10 +19,10 @@ export default function PropertiesPanel({ canvasController }) {
         const entity = findEntityById(entityId);
         if (entity) {
           setSelectedEntity(entity);
-          setTransform(entity.transform || {
-            position: { x: entity.x || 0, y: entity.y || 0, z: 0 },
-            scale: { x: 1, y: 1, z: 1 },
-            rotation: { x: 0, y: 0, z: 0 }
+          setTransform({
+            position: { ...entity.transform.position },
+            scale: { ...entity.transform.scale },
+            rotation: { ...entity.transform.rotation }
           });
           return;
         }
@@ -38,24 +38,41 @@ export default function PropertiesPanel({ canvasController }) {
     return canvasController.layout.findEntityById(id);
   };
 
-  const handleTransformChange = (type, axis, value) => {
-    if (!selectedEntity || !canvasController) return;
+const handleTransformChange = (type, axis, value) => {
+  if (!selectedEntity || !canvasController) return;
 
-    const newTransform = JSON.parse(JSON.stringify(transform));
-    if (type === 'scale') {
-      newTransform.scale = parseFloat(value);
+  let numericValue = parseFloat(value);
+
+  if (numericValue < 0 || numericValue === null){
+    numericValue = 0;
+  }
+
+  const updates = {
+    [type]: {
+      ...selectedEntity.transform[type],
+      [axis]: numericValue
     }
-    else {
-      newTransform[type][axis] = parseFloat(value);
-    }
-    setTransform(newTransform);
-
-
-    const updates = {};
-    updates[type] = newTransform[type];
-    const cmd = new UpdateEntityTransformCommand(canvasController, appState, selectedEntity.id, updates);
-    cmd.execute();
   };
+
+  const cmd = new UpdateEntityTransformCommand(
+    canvasController,
+    appState,
+    selectedEntity.id,
+    updates
+  );
+
+  const success = cmd.execute();
+
+  // Always re-sync from actual entity state
+  const entity = findEntityById(selectedEntity.id);
+  if (entity) {
+    setTransform({
+      position: { ...entity.transform.position },
+      scale: { ...entity.transform.scale },
+      rotation: { ...entity.transform.rotation }
+    });
+  }
+};
 
   return (
     <div className="properties-panel">
@@ -124,8 +141,8 @@ export default function PropertiesPanel({ canvasController }) {
             <input
               type="number"
               className="field-input"
-              value={transform.scale}
-              onChange={(e) => handleTransformChange('scale', null, e.target.value)}
+              value={transform.scale.factor}
+              onChange={(e) => handleTransformChange('scale', 'factor', e.target.value)}
             />
             <input
               type="number"

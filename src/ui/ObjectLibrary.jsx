@@ -79,8 +79,8 @@
 // }
 
 import React from "react";
+import {createPortal} from "react-dom";
 import {
-
   Server,
   Network, // Router icon usually
   Router,
@@ -94,7 +94,6 @@ import {
 } from "lucide-react";
 import appState from "../state/AppState";
 import { StartDrawCableCommand } from "../core/editor/DrawingCommands";
-
 // 1. IMPORT YOUR CATALOG
 import deviceCatalog from "../data/deviceCatalog"; // Adjust path as needed
 
@@ -129,6 +128,15 @@ const categoryDetails = {
 const categories = Object.keys(categoryDetails);
 
 export default function ObjectLibrary({ canvasController }) {
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importError, setImportError] = useState(null);
+  const [importSuccess, setImportSuccess] = useState(null);
+  const [customDevices, setCustomDevices] = useState({
+    routers: {},
+    switches: {},
+    endDevices: {},
+    cables: {}
+  });
 
   // Updated to accept specific cable type
   const handleDrawCable = (cableType) => {

@@ -79,8 +79,8 @@
 // }
 
 import React from "react";
+import { createPortal } from "react-dom";
 import {
-
   Server,
   Network, // Router icon usually
   Router,
@@ -94,7 +94,6 @@ import {
 } from "lucide-react";
 import appState from "../state/AppState";
 import { StartDrawCableCommand } from "../core/editor/DrawingCommands";
-
 // 1. IMPORT YOUR CATALOG
 import deviceCatalog from "../data/deviceCatalog"; // Adjust path as needed
 
@@ -124,11 +123,30 @@ const categoryDetails = {
   Furniture: { name: "Furniture", icon: Armchair, dataKey: null },
 };
 
-
-
 const categories = Object.keys(categoryDetails);
 
 export default function ObjectLibrary({ canvasController }) {
+  const [showImportModal, setshowImportModal] = useState(false);
+  const [importErro, setImportError] = useState(null);
+  const [importSuccess, setImportSuccess] = useState(null);
+  const [customDevices, setCustomDevices] = useState({
+    routers: {},
+    switches: {},
+    endDevices: {},
+    cables: {}
+  });
+
+  const fileInputRef = useRef(null);
+
+  useEffect (() => {
+    if (showImportModal ) {
+      document.body.style.overflow = "hidden";
+
+    } else  {
+      document.body.style.overflow = "unset"; 
+    }
+
+  }, [showImportModal]);
 
   // Updated to accept specific cable type
   const handleDrawCable = (cableType) => {

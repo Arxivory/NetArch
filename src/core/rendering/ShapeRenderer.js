@@ -5,16 +5,12 @@ export class ShapeRenderer {
 
   renderRectangles(ctx, rectangles) {
     for (const rect of rectangles) {
-      const displayedWidth = rect.w * rect.transform.scale;
-      const displayedHeigth = rect.h * rect.transform.scale;
-      const path = new Path2D();
-      path.rect(rect.x, rect.y, displayedWidth, displayedHeigth);
-      rect.path = path;
+      rect.updatePath();
       ctx.fillStyle = 'rgba(174, 174, 174, 0.5)';
-      ctx.fillRect(rect.x, rect.y, displayedWidth, displayedHeigth);
+      ctx.fillRect(rect.x, rect.y, rect.transform.scale.w, rect.transform.scale.h);
       ctx.strokeStyle = '#000000ff';
       ctx.lineWidth = 4;
-      ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, displayedWidth, displayedHeigth);
+      ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.transform.scale.w, rect.transform.scale.h);
     }
   }
 
@@ -22,13 +18,10 @@ export class ShapeRenderer {
     ctx.strokeStyle = '#000000ff';
     ctx.lineWidth = 4;
     for (const circle of circles) {
-      const displayedRadius = circle.r * circle.transform.scale;
-      const path = new Path2D();
-      path.arc(circle.x + 0.5, circle.y + 0.5, displayedRadius, 0, Math.PI * 2);
-      circle.path = path;
+      circle.updatePath();
       ctx.beginPath();
       ctx.fillStyle = 'rgba(174, 174, 174, 0.5)';
-      ctx.arc(circle.x + 0.5, circle.y + 0.5, displayedRadius, 0, Math.PI * 2);
+      ctx.arc(circle.x + 0.5, circle.y + 0.5, circle.transform.scale.r, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
       ctx.closePath();
@@ -40,33 +33,18 @@ export class ShapeRenderer {
     ctx.fillStyle = 'rgba(150,150,150,0.4)';
     ctx.lineWidth = 4;
     for (const poly of polygons) {
-      const s = typeof poly.transform?.scale === 'number' ? poly.transform.scale : (poly.transform?.scale?.x ?? 1);
-      const pts = poly.points || [];
-      if (pts.length === 0) continue;
+      poly.updatePath();
+      ctx.fill(poly.path);
+      ctx.stroke(poly.path);
+    }
+  }
 
-      // compute centroid as anchor
-      let ax = 0, ay = 0;
-      for (let p of pts) { 
-        ax += p.x; 
-        ay += p.y; 
-      }
-      ax /= pts.length; ay /= pts.length;
-
-      const scaled = pts.map(p => ({ 
-        x: ax + (p.x - ax) * s, 
-        y: ay + (p.y - ay) * s 
-      }));
-
-      const path = new Path2D();
-      path.moveTo(scaled[0].x + 0.5, scaled[0].y + 0.5);
-      for (let i = 1; i < scaled.length; i++) {
-        path.lineTo(scaled[i].x + 0.5, scaled[i].y + 0.5);
-      }
-      path.closePath();
-      poly.path = path;
-
-      ctx.fill(path);
-      ctx.stroke(path);
+  renderFreeforms(ctx, freeforms) {
+    ctx.strokeStyle = '#000000ff';
+    ctx.lineWidth = 4;
+    for (const freeform of freeforms) {
+      freeform.updatePath();
+      ctx.stroke(freeform.path);
     }
   }
 
@@ -113,8 +91,7 @@ export class ShapeRenderer {
       ctx.stroke(path);
     }
   }
-
-
+  
 renderDevices(ctx, devices) {
     ctx.save();
     ctx.font = '12px sans-serif';
@@ -124,14 +101,14 @@ renderDevices(ctx, devices) {
     for (const dev of devices) {
       // 1. Calculate Size & Position
       // Check for scale (handling both simple numbers and vector objects)
-      const s = typeof dev.transform?.scale === 'number' 
-                ? dev.transform.scale 
-                : (dev.transform?.scale?.x ?? 1);
-      
+      const s = typeof dev.transform?.scale === 'number'
+        ? dev.transform.scale
+        : (dev.transform?.scale?.x ?? 1);
+
       const baseSize = this.gridSize * 1.5; // Made slightly larger for icons
       const size = baseSize * s;
       const halfSize = size / 2;
-      
+
       const x = dev.x - halfSize;
       const y = dev.y - halfSize;
 
@@ -254,11 +231,8 @@ renderDevices(ctx, devices) {
     ctx.stroke();
   }
 
-  outlinePolygonInProgress(ctx, polygonPoints, currentPoint, snapTolerance) {
+  outlinePolygonOrFreeformInProgress(ctx, polygonPoints, currentPoint, snapTolerance) {
     if (polygonPoints.length > 0) {
-      ctx.strokeStyle = '#00ff00';
-      ctx.lineWidth = 1.5;
-
       const pts = polygonPoints;
 
       ctx.beginPath();

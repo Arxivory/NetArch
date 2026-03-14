@@ -19,16 +19,18 @@ export class LogicalCanvasController {
       height: opts.height || 600,
       gridSize: opts.gridSize || 32,
       snap: opts.snap ?? true,
-      
+
       onRectangleCreated: (rect) => this._handleShapeCreated(rect, 'rectangle'),
       onCircleCreated: (circle) => this._handleShapeCreated(circle, 'circle'),
       onPolygonCreated: (poly) => this._handleShapeCreated(poly, 'polygon'),
+      onFreeformCreated: (freeform) => this._handleShapeCreated(freeform, 'freeform'),
       onWallCreated: (wall) => this._handleWallCreated(wall),
       onCableCreated: (cable) => this._handleCableCreated(cable),
       onDeviceAdded: (device) => this._handleDeviceAdded(device),
       onFurnitureAdded: (furniture) => this._handleFurnitureAdded(furniture),
       onEntitySelected: (entity) => this._handleEntitySelected(entity),
-      onPortSelect: (device, x, y, callback) => this._handlePortSelect(device, x, y, callback)
+      onPortSelect: (device, x, y, callback) => this._handlePortSelect(device, x, y, callback),
+      onEntityChanged: (en) => this._handleEntityChanged(en)
     });
   }
 
@@ -65,6 +67,10 @@ export class LogicalCanvasController {
 
   startDrawPolygon(type = '') {
     this.layout?.startDrawPolygon(type);
+  }
+
+  startDrawFreeform(type = '') {
+    this.layout?.startDrawFreeform(type);
   }
 
   startDrawWall() {
@@ -234,17 +240,17 @@ addFurniture(furnitureData, x, y) {
       item.style.padding = '8px 16px';
       item.style.cursor = 'pointer';
       item.style.transition = 'background-color 0.1s';
-      
+
       item.onmouseenter = () => item.style.backgroundColor = '#f1f5f9';
       item.onmouseleave = () => item.style.backgroundColor = '#ffffff';
 
       item.onclick = (e) => {
-        e.stopPropagation(); 
+        e.stopPropagation();
         menu.remove();
         document.removeEventListener('pointerdown', outsideClickListener);
-        callback(port); 
+        callback(port);
       };
-      
+
       menu.appendChild(item);
     });
 
@@ -254,10 +260,10 @@ addFurniture(furnitureData, x, y) {
       if (!menu.contains(e.target)) {
         menu.remove();
         document.removeEventListener('pointerdown', outsideClickListener);
-        callback(null); 
+        callback(null);
       }
     };
-    
+
     setTimeout(() => {
       document.addEventListener('pointerdown', outsideClickListener);
     }, 10);
@@ -267,14 +273,14 @@ addFurniture(furnitureData, x, y) {
     const { structureType, id, x, y, w, h, r, points } = shapeData;
 
     if (structureType === 'Domain') {
-      appState.structural.addDomain({
-        id,
+      const data = {
+        ...shapeData,
         label: `Domain ${this.counters.domain++}`,
-        shapeType: shapeType,
-        x, y, w, h, r, points
-      });
-    } 
-    
+      };
+      console.log(data);
+      appState.structural.addDomain(data);
+    }
+
     else if (structureType === 'Site') {
       const selection = appState.selection;
       const selectedDomainId = selection.getFocusedId() || selection.getSelectedId?.();
@@ -295,7 +301,7 @@ addFurniture(furnitureData, x, y) {
 
     else if (structureType === 'Floor') {
       const selection = appState.selection;
-      const selectedSiteId = selection.getFocusedId() || selection.getSelectedId();
+      const selectedSiteId = selection.getFocusedId();
 
       if (!selectedSiteId) {
         console.warn('Floor creation failed: A Site must be selected.');
@@ -351,8 +357,8 @@ addFurniture(furnitureData, x, y) {
       );
     }
   }
-  
-  _handleZoomSelected(zoom){
+
+  _handleZoomSelected(zoom) {
     this.layout.setZoom(zoom);
   }
 
@@ -371,6 +377,11 @@ addFurniture(furnitureData, x, y) {
     }
 
     appState.selection.selectDevice(entity.id, false);
+  }
+
+  _handleEntityChanged(en) {
+    //console.log("notified");
+    appState.selection.notify();
   }
 }
 

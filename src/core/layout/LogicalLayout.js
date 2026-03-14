@@ -3,7 +3,8 @@ import ShapeCreator from './ShapeCreator.js';
 import ShapeRenderer from '../rendering/ShapeRenderer.js';
 import PointerHandler from '../rendering/PointerHandler.js';
 import { Selection } from '../editor/Selection.js';
-import applyEntityTransform from '../transform/EntityTransform.js';
+import EntityTransformer from './transform/EntityTransformer.js';
+import { System } from 'check2d';
 import appState from '../../state/AppState.js';
 
 export class LogicalLayout {
@@ -12,6 +13,8 @@ export class LogicalLayout {
     this.width = opts.width || 800;
     this.height = opts.height || 600;
     this.devicePixelRatio = window.devicePixelRatio || 1;
+
+    this.system = new System();
 
     this.grid = new Grid({
       gridSize: opts.gridSize || 32,
@@ -26,8 +29,10 @@ export class LogicalLayout {
       onRectangleCreated: opts.onRectangleCreated || null,
       onCircleCreated: opts.onCircleCreated || null,
       onPolygonCreated: opts.onPolygonCreated || null,
+      onFreeformCreated: opts.onFreeformCreated || null,
       onWallCreated: opts.onWallCreated || null,
-      onCableCreated: opts.onCableCreated || null
+      onCableCreated: opts.onCableCreated || null,
+      system: this.system
     });
 
     this.shapeRenderer = new ShapeRenderer({
@@ -38,11 +43,14 @@ export class LogicalLayout {
       onPointerDown: this._onPointerDown.bind(this),
       onPointerMove: this._onPointerMove.bind(this),
       onPointerUp: this._onPointerUp.bind(this),
+      onRightClick: this._onRightClick.bind(this)
     });
 
     this.selection = new Selection({
       dpr: this.devicePixelRatio
     });
+
+    this.entityTransformer = new EntityTransformer();
 
     this.selectedEntity = null;
     this.isResizing = false;
@@ -65,6 +73,7 @@ export class LogicalLayout {
     this.windows = [];
     this.roofs = [];
     this.freeforms = [];
+    this.currentFreeform = [];
     this.devices = [];
     this.cables = [];
     this.furnitures = [];
@@ -85,9 +94,11 @@ export class LogicalLayout {
     this.onDeviceAdded = opts.onDeviceAdded || null;
     this.onFurnitureAdded = opts.onFurnitureAdded || null;
     this.onEntitySelected = opts.onEntitySelected || null;
+    this.onEntityChanged = opts.onEntityChanged || null;
     this.onPortSelect = opts.onPortSelect || null;
 
     this.selectedEntity = null;
+    this.originalEntity = null;
 
     this.interaction = {
       mode: null,
@@ -209,6 +220,13 @@ export class LogicalLayout {
     this._updateCursor();
   }
 
+  startDrawFreeform(structureType = '') {
+    this.mode = 'freeform';
+    this.currentPolygon = [];
+    this.structureType = structureType;
+    this._updateCursor();
+  }
+
   startDrawWall() {
     this.mode = 'wall';
     this._updateCursor();
@@ -256,7 +274,7 @@ export class LogicalLayout {
     } else if (rawType.includes('firewall') || rawType.includes('asa')) {
       iconKey = 'firewall';
     } else if (rawType.includes('pc') || rawType.includes('desktop') || rawType.includes('computer') || rawType.includes('laptop')) {
-      iconKey = 'pc'; 
+      iconKey = 'pc';
     } else if (rawType.includes('phone')) {
       iconKey = 'pc';
     }
@@ -280,7 +298,7 @@ export class LogicalLayout {
       y,
       width: size,
       height: size,
-      icon: iconImage, 
+      icon: iconImage,
       transform: {
         position: { x, y, z: 0 },
         scale: 1,
@@ -363,6 +381,7 @@ export class LogicalLayout {
       'rectangle': 'crosshair',
       'circle': 'crosshair',
       'polygon': 'crosshair',
+      'freeform': 'crosshair',
       'wall': 'crosshair',
       'cable': 'crosshair',
       'pan': 'grab',
@@ -405,9 +424,9 @@ export class LogicalLayout {
               id: `cable_${Math.random().toString(36).slice(2, 9)}`,
               type: this.activeCableType,
               sourceId: this.pendingCableSource.id,
-              sourcePort: this.pendingCableSourcePort, 
+              sourcePort: this.pendingCableSourcePort,
               targetId: device.id,
-              targetPort: selectedPort,    
+              targetPort: selectedPort,
               properties: {
                 bandwidth: null,
                 latency: null,
@@ -434,6 +453,7 @@ export class LogicalLayout {
     if (this.mode === 'select') {
       const en = this.identifyEntity(e.clientX, e.clientY);
       if (!en) return;
+      en.saveCurrentPosition();
 
       const zoom = this.pointerHandler.getZoom();
       const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
@@ -453,7 +473,7 @@ export class LogicalLayout {
 
       for (const key in handles) {
         const [hx, hy] = handles[key];
-        if (Math.abs(p.x - hx) < size && Math.abs(p.y - hy) < size) {
+        if (Math.abs(p.x - hx) < size && Math.abs(p.y - hy) < size && en.type === 'rectangle') {
           this.interaction = {
             mode: 'resize',
             handle: key,
@@ -478,7 +498,8 @@ export class LogicalLayout {
     if (this.mode === 'polygon') {
       if (this.currentPolygon.length === 0) {
         this.currentPolygon.push(snapped);
-      } else {
+      }
+      else {
         const first = this.currentPolygon[0];
         const canClose = this.shapeCreator.canClosePolygon(
           first,
@@ -489,9 +510,12 @@ export class LogicalLayout {
         if (canClose && this.currentPolygon.length >= 3) {
           const polygon = this.shapeCreator.createPolygon(
             [...this.currentPolygon],
-            this.structureType
+            this.structureType, this.system
           );
-          if (polygon) {
+          if (!this._checkForOverlap(polygon, "creation")) {
+            if (this.shapeCreator.onPolygonCreated) {
+              this.shapeCreator.onPolygonCreated(polygon);
+            }
             this.polygons.push(polygon);
           }
           this.currentPolygon = [];
@@ -503,6 +527,13 @@ export class LogicalLayout {
         }
         this.currentPolygon.push(snapped);
       }
+      this.currentPoint = snapped;
+      this._render();
+      return;
+    }
+
+    if (this.mode === 'freeform') {
+      this.currentFreeform.push(snapped);
       this.currentPoint = snapped;
       this._render();
       return;
@@ -556,7 +587,7 @@ export class LogicalLayout {
       }
     }
 
-    if (this.mode === 'polygon') {
+    if (this.mode === 'polygon' || this.mode === 'freeform') {
       this.currentPoint = this.grid.snapToGrid(p);
       this._render();
       return;
@@ -585,42 +616,41 @@ export class LogicalLayout {
         const dx = p.x - this.interaction.start.x;
         const dy = p.y - this.interaction.start.y;
 
-        const wKey = en.w !== undefined ? "w" : "width";
-        const hKey = en.h !== undefined ? "h" : "height";
-
         if (this.interaction.mode === "move") {
-          en.x += dx;
-          en.y += dy;
+          en.move(dx, dy);
         }
 
-        if (this.interaction.mode === "resize") {
+        if (this.interaction.mode === "resize" && en.type === 'rectangle') {
+          let wKey = en.transform.scale.w;
+          let hKey = en.transform.scale.h;
           switch (this.interaction.handle) {
             case "se":
-              en[wKey] += dx;
-              en[hKey] += dy;
+              wKey += dx;
+              hKey += dy;
               break;
             case "nw":
-              en.x += dx;
-              en.y += dy;
-              en[wKey] -= dx;
-              en[hKey] -= dy;
+              en.move(dx, dy);
+              wKey -= dx;
+              hKey -= dy;
               break;
             case "ne":
-              en.y += dy;
-              en[wKey] += dx;
-              en[hKey] -= dy;
+              en.move(0, dy)
+              wKey += dx;
+              hKey -= dy;
               break;
             case "sw":
-              en.x += dx;
-              en[wKey] -= dx;
-              en[hKey] += dy;
+              en.move(dx, 0);
+              wKey -= dx;
+              hKey += dy;
               break;
             default:
               throw new Error();
           }
+          en.setWidthAndHeight(wKey, hKey);
         }
 
         this.interaction.start = { x: p.x, y: p.y };
+        this.onEntityChanged(en);
         this._render();
         return;
       }
@@ -639,6 +669,14 @@ export class LogicalLayout {
   }
 
   _onPointerUp(e) {
+    if (this.interaction.mode === 'move') {
+      if (this._checkForOverlap(this.selectedEntity, "transformation")) {
+        this.selectedEntity.restoreToSavedPosition();
+        this.onEntityChanged();
+        this._render();
+      }
+    }
+
     this.interaction = {
       mode: null,
       handle: null,
@@ -668,6 +706,26 @@ export class LogicalLayout {
     this._render();
   }
 
+  _onRightClick() {
+    if (this.currentFreeform.length > 1) {
+      const freeform = this.shapeCreator.createFreeform(
+        [...this.currentFreeform],
+        this.structureType, this.system
+      );
+      if (!this._checkForOverlap(freeform, "creation")) {
+        if (this.shapeCreator.onFreeformCreated) {
+          this.shapeCreator.onFreeformCreated(freeform);
+        }
+        this.freeforms.push(freeform);
+      }
+      this.currentFreeform = [];
+      this.mode = 'none';
+      this.currentPoint = null;
+      this._updateCursor();
+      this._render();
+    }
+  }
+
   _createShapeFromMode() {
     const activeFloor = appState.ui.activeFloorId;
 
@@ -675,19 +733,26 @@ export class LogicalLayout {
       const rect = this.shapeCreator.createRectangle(
         this.startPoint,
         this.currentPoint,
-        this.structureType
+        this.structureType,
       );
-      if (rect) {
+      if (!this._checkForOverlap(rect, "creation")) {
+        if (this.shapeCreator.onRectangleCreated) {
+          this.shapeCreator.onRectangleCreated(rect);
+        }
         rect.floorId = activeFloor || null;
         this.rectangles.push(rect);
       }
+
     } else if (this.mode === 'circle') {
       const circle = this.shapeCreator.createCircle(
         this.startPoint,
         this.currentPoint,
         this.structureType
       );
-      if (circle) {
+      if (!this._checkForOverlap(circle, "creation")) {
+        if (this.shapeCreator.onCircleCreated) {
+          this.shapeCreator.onCircleCreated(circle);
+        }
         circle.floorId = activeFloor || null;
         this.circles.push(circle);
       }
@@ -784,7 +849,7 @@ export class LogicalLayout {
     ctx.restore();
 
     ctx.setTransform(
-      scale, 
+      scale,
       0,
       0,
       scale,
@@ -806,13 +871,14 @@ export class LogicalLayout {
 
     this.shapeRenderer.renderRectangles(ctx, filterForFloor(this.rectangles));
     this.shapeRenderer.renderPolygons(ctx, filterForFloor(this.polygons));
+    this.shapeRenderer.renderFreeforms(ctx, this.freeforms);
     this.shapeRenderer.renderCircles(ctx, filterForFloor(this.circles));
     this.shapeRenderer.renderWalls(ctx, filterForFloor(this.walls));
     this._renderDeviceCables(ctx);
 
     ctx.save();
     for (const device of this.devices) {
-      const tileW = device.width + 32; 
+      const tileW = device.width + 32;
       const tileH = device.height + 45;
       const tx = device.x - tileW / 2;
       const ty = device.y - tileH / 2.5;
@@ -820,9 +886,9 @@ export class LogicalLayout {
       ctx.fillStyle = '#ffffff';
       ctx.strokeStyle = '#cbd5e1';
       ctx.lineWidth = 1;
-      
+
       ctx.beginPath();
-      ctx.roundRect(tx, ty, tileW, tileH, 8); 
+      ctx.roundRect(tx, ty, tileW, tileH, 8);
       ctx.fill();
       ctx.stroke();
     }
@@ -869,19 +935,27 @@ export class LogicalLayout {
       }
     }
 
-    if (this.mode === 'polygon' && this.currentPolygon.length > 0 && this.currentPoint) {
+    if ((this.currentPolygon.length > 0 || this.currentFreeform.length > 0) && this.currentPoint) {
       ctx.save();
       ctx.strokeStyle = '#00ff00';
       ctx.fillStyle = 'rgba(0,255,0,0.08)';
       ctx.lineWidth = 1.5;
-      this.shapeRenderer.outlinePolygonInProgress(
+      let points;
+      if (this.mode === 'polygon') {
+        points = this.currentPolygon;
+      }
+      else if (this.mode === 'freeform') {
+        points = this.currentFreeform;
+      }
+      this.shapeRenderer.outlinePolygonOrFreeformInProgress(
         ctx,
-        this.currentPolygon,
+        points,
         this.currentPoint,
         this.grid.getSnapTolerance()
       );
       ctx.restore();
-    } else if (this.startPoint && this.currentPoint) {
+    }
+    else if (this.startPoint && this.currentPoint) {
       ctx.save();
       ctx.strokeStyle = '#00ff00';
       ctx.fillStyle = 'rgba(0,255,0,0.08)';
@@ -905,11 +979,11 @@ export class LogicalLayout {
       let x, y, w, h;
 
       if (en.interfaces !== undefined || en.icon !== undefined) {
-         w = en.width + 16;
-         h = en.height + 16;
-         x = en.x - w / 2;
-         y = en.y - h / 2;
-      } 
+        w = en.width + 16;
+        h = en.height + 16;
+        x = en.x - w / 2;
+        y = en.y - h / 2;
+      }
       else if (en.width !== undefined) {
         w = en.width;
         h = en.height;
@@ -945,7 +1019,7 @@ export class LogicalLayout {
       const en = this.pendingCableSource;
       const safeW = en.width !== undefined ? en.width : (en.w || 32);
       const safeH = en.height !== undefined ? en.height : (en.h || 32);
-      
+
       const w = safeW + 16;
       const h = safeH + 16;
       const x = en.x - w / 2;
@@ -963,10 +1037,10 @@ export class LogicalLayout {
 
     if (this.hoveredDevice && this.mode === 'cable') {
       const en = this.hoveredDevice;
-      
+
       const safeW = en.width !== undefined ? en.width : (en.w || 32);
       const safeH = en.height !== undefined ? en.height : (en.h || 32);
-      
+
       const w = safeW + 16;
       const h = safeH + 16;
       const x = en.x - w / 2;
@@ -1010,9 +1084,17 @@ export class LogicalLayout {
     return null;
   }
 
+  removeEntityById(id) {
+    const lists = this.getAllSelectableEntities();
+    for (let arr of lists) {
+      arr = arr.filter(e => e.id !== id);
+    }
+    return null;
+  }
+
   updateEntityTransform(id, updates = {}) {
     const en = this.findEntityById(id);
-    if (applyEntityTransform(en, updates, this.shapeRenderer)) {
+    if (this.entityTransformer.applyEntityTransform(en, updates, this.shapeRenderer, this._checkForOverlap.bind(this))) {
       this._render();
       return true;
     }
@@ -1103,6 +1185,27 @@ export class LogicalLayout {
 
     return Math.sqrt(dx * dx + dy * dy);
   }
+
+  _checkForOverlap(currentEntity, action) {
+    if (currentEntity === null) return true;
+    if (currentEntity.checkIfOverlapping()) {
+      alert("Overlapping detected");
+      if (action === 'creation') {
+        if (currentEntity.type === 'freeform') {
+          for (const body of currentEntity.bodies) {
+            this.system.remove(body);
+          }
+        }
+        else {
+          this.system.remove(currentEntity.body);
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
+
 }
 
 export default LogicalLayout;

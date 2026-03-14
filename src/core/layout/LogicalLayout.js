@@ -67,6 +67,7 @@ export class LogicalLayout {
     this.freeforms = [];
     this.devices = [];
     this.cables = [];
+    this.furnitures = [];
 
     this.store = appState.selection;
 
@@ -82,6 +83,7 @@ export class LogicalLayout {
 
     this.onZoomSelected = opts.onZoomSelected || null;
     this.onDeviceAdded = opts.onDeviceAdded || null;
+    this.onFurnitureAdded = opts.onFurnitureAdded || null;
     this.onEntitySelected = opts.onEntitySelected || null;
     this.onPortSelect = opts.onPortSelect || null;
 
@@ -101,6 +103,7 @@ export class LogicalLayout {
       'server': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>`,
       'pc': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>`,
       'switch': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6" y2="6"/><line x1="6" y1="18" x2="6" y2="18"/></svg>`,
+      'desk': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-armchair-icon lucide-armchair"><path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/><path d="M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0z"/><path d="M5 18v2"/><path d="M19 18v2"/></svg>',
       'firewall': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>`
     };
 
@@ -179,6 +182,7 @@ export class LogicalLayout {
     this.windows = [];
     this.freeforms = [];
     this.devices = [];
+    this.furnitures = [];
     this.cables = [];
     this.mode = 'none';
     this.startPoint = null;
@@ -294,6 +298,60 @@ export class LogicalLayout {
     this._render();
   }
 
+ addFurniture(furnitureData, x, y) {
+    console.log('Adding furniture with data:', furnitureData, 'from LogicalLaypout bsuiyti');
+    const size = this.shapeRenderer.gridSize * 1.5;
+
+    // Combine type and name to figure out what icon to show (if you have them)
+    const rawType = (furnitureData.type + ' ' + (furnitureData.name || furnitureData.label || '')).toLowerCase();
+
+    let iconKey = null;
+
+    if (rawType.includes('desk') || rawType.includes('table')) {
+      iconKey = 'desk';
+    } else if (rawType.includes('chair') || rawType.includes('seat')) {
+      iconKey = 'chair';
+    } else if (rawType.includes('cabinet') || rawType.includes('rack')) {
+      iconKey = 'cabinet';
+    }
+
+    // Assuming you might add a furnitureIcons dictionary in the future.
+    // If it's undefined, your render loop will likely just draw the bounding box/path, which is fine!
+    const iconImage = this.deviceIcons[iconKey];
+
+    const half = size / 2;
+    const px = x - half;
+    const py = y - half;
+    const path = new Path2D();
+    path.rect(px, py, size, size);
+
+    const furniture = {
+      id: `furniture_${Math.random().toString(36).slice(2, 9)}`,
+      type: furnitureData.type || 'furniture',
+      label: furnitureData.name || furnitureData.label || 'Furniture',
+      x,
+      y,
+      width: size,
+      height: size,
+      icon: iconImage, 
+      transform: {
+        position: { x, y, z: 0 },
+        scale: 1,
+        rotation: { x: 0, y: 0, z: 0 }
+      },
+      path,
+      hitTestMode: 'path'
+    };
+
+    this.furnitures.push(furniture);
+
+    if(this.onFurnitureAdded) {
+      
+      this.onFurnitureAdded(furniture);
+    }
+    this._render();
+  }
+ 
   getSnappedCanvasCoords(clientX, clientY) {
     const zoomFactor = this.pointerHandler.getZoom();
     const canvasPoint = this.pointerHandler.clientToWorld(clientX, clientY, this.viewState, zoomFactor);
@@ -770,7 +828,26 @@ export class LogicalLayout {
     }
     ctx.restore();
 
+    ctx.save();
+    for (const furniture of this.furnitures) {
+      const tileW = furniture.width + 32; 
+      const tileH = furniture.height + 45;
+      const tx = furniture.x - tileW / 2;
+      const ty = furniture.y - tileH / 2.5;
+
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 1;
+      
+      ctx.beginPath();
+      ctx.roundRect(tx, ty, tileW, tileH, 8); 
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+
     this.shapeRenderer.renderDevices(ctx, this.devices);
+    this.shapeRenderer.renderFurnitures(ctx, this.furnitures);
 
     if (this.selectedEntity && this.selectedEntity.sourceId) {
       const cable = this.selectedEntity;

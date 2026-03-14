@@ -113,6 +113,8 @@ export class ShapeRenderer {
       ctx.stroke(path);
     }
   }
+
+
 renderDevices(ctx, devices) {
     ctx.save();
     ctx.font = '12px sans-serif';
@@ -120,6 +122,54 @@ renderDevices(ctx, devices) {
     ctx.lineWidth = 1;
 
     for (const dev of devices) {
+      // 1. Calculate Size & Position
+      // Check for scale (handling both simple numbers and vector objects)
+      const s = typeof dev.transform?.scale === 'number' 
+                ? dev.transform.scale 
+                : (dev.transform?.scale?.x ?? 1);
+      
+      const baseSize = this.gridSize * 1.5; // Made slightly larger for icons
+      const size = baseSize * s;
+      const halfSize = size / 2;
+      
+      const x = dev.x - halfSize;
+      const y = dev.y - halfSize;
+
+      // 2. Create Hit Path (Invisible, used for clicking the device)
+      const path = new Path2D();
+      path.rect(x, y, size, size);
+      dev.path = path;
+
+      // 3. Draw: Icon OR Fallback Square
+      if (dev.icon && dev.icon.complete && dev.icon.naturalWidth !== 0) {
+        // --- DRAW IMAGE ---
+        try {
+          ctx.drawImage(dev.icon, x, y, size, size);
+        } catch (e) {
+          console.warn("Error drawing device icon:", e);
+          // Fallback if image fails
+          this._drawFallbackDevice(ctx, x, y, size);
+        }
+      } else {
+        // --- DRAW FALLBACK SQUARE ---
+        this._drawFallbackDevice(ctx, x, y, size);
+      }
+
+      // 4. Draw Label (Below the device)
+      ctx.fillStyle = '#000000';
+      // Adjust text position based on size
+      ctx.fillText(dev.label || 'Device', dev.x, dev.y + halfSize + 14);
+    }
+    ctx.restore();
+  }
+
+  renderFurnitures(ctx, furnitures) {
+    ctx.save();
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 1;
+
+    for (const dev of furnitures) {
       // 1. Calculate Size & Position
       // Check for scale (handling both simple numbers and vector objects)
       const s = typeof dev.transform?.scale === 'number' 

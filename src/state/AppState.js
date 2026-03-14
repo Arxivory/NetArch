@@ -5,6 +5,7 @@ import { SelectionStore } from './stores/SelectionStore.js';
 import { UIStore } from './stores/UIStore.js';
 import { CommandStore } from './stores/CommandStore.js';
 import { StructuralStore } from './stores/StructuralStore.js';
+import { FurnitureStore } from './stores/FurnitureStore.js';
 
 export class AppState {
   constructor() {
@@ -15,6 +16,7 @@ export class AppState {
     this.ui = new UIStore();
     this.commands = new CommandStore();
     this.structural = new StructuralStore();
+    this.furniture = new FurnitureStore();
 
     this.listeners = [];
 

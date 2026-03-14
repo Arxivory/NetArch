@@ -26,8 +26,10 @@ export default function FloorNavigator() {
         if (!list.find((f) => f.id === appState.ui.activeFloorId)) {
           if (list.length) {
             appState.ui.setActiveFloor(list[0].id);
+            setActiveFloorId(list[0].id);
           } else {
             appState.ui.setActiveFloor(null);
+            setActiveFloorId(null);
           }
         }
       } else {

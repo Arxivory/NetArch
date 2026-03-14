@@ -79,6 +79,7 @@ export class LogicalLayout {
 
     this.structureType = '';
     this.bgColor = opts.bgColor || '#ffffffff';
+    this.activeFloorId = null;
 
     this.onZoomSelected = opts.onZoomSelected || null;
     this.onDeviceAdded = opts.onDeviceAdded || null;
@@ -183,6 +184,11 @@ export class LogicalLayout {
     this.mode = 'none';
     this.startPoint = null;
     this.currentPoint = null;
+    this._render();
+  }
+
+  setActiveFloor(floorId) {
+    this.activeFloorId = floorId;
     this._render();
   }
 
@@ -661,7 +667,7 @@ export class LogicalLayout {
     this.pointerHandler.setPanStart(clientX, clientY);
   }
 
-  _renderDeviceCables(ctx) {
+  _renderDeviceCables(ctx, activeFloor) {
     ctx.save();
     ctx.lineWidth = 2;
 
@@ -671,6 +677,11 @@ export class LogicalLayout {
 
       if (!src || !dst) continue;
 
+      if (activeFloor) {
+        const srcOnFloor = src.floorId == null || src.floorId === activeFloor;
+        const dstOnFloor = dst.floorId == null || dst.floorId === activeFloor;
+        if (!srcOnFloor || !dstOnFloor) continue;
+      }
 
       ctx.beginPath();
 
@@ -740,7 +751,7 @@ export class LogicalLayout {
     this.grid.renderMinorGrids(ctx, w, h);
     this.grid.renderMajorGrids(ctx, w, h);
 
-    const activeFloor = appState.ui.activeFloorId;
+    const activeFloor = this.activeFloorId || appState.ui.activeFloorId;
     const filterForFloor = (arr) => {
       if (!activeFloor) return arr;
       return arr.filter(o => o.floorId == null || o.floorId === activeFloor);
@@ -750,10 +761,10 @@ export class LogicalLayout {
     this.shapeRenderer.renderPolygons(ctx, filterForFloor(this.polygons));
     this.shapeRenderer.renderCircles(ctx, filterForFloor(this.circles));
     this.shapeRenderer.renderWalls(ctx, filterForFloor(this.walls));
-    this._renderDeviceCables(ctx);
+    this._renderDeviceCables(ctx, activeFloor);
 
     ctx.save();
-    for (const device of this.devices) {
+    for (const device of filterForFloor(this.devices)) {
       const tileW = device.width + 32; 
       const tileH = device.height + 45;
       const tx = device.x - tileW / 2;
@@ -770,7 +781,7 @@ export class LogicalLayout {
     }
     ctx.restore();
 
-    this.shapeRenderer.renderDevices(ctx, this.devices);
+    this.shapeRenderer.renderDevices(ctx, filterForFloor(this.devices));
 
     if (this.selectedEntity && this.selectedEntity.sourceId) {
       const cable = this.selectedEntity;

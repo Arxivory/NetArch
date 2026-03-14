@@ -92,6 +92,10 @@ export class LogicalCanvasController {
     this.layout?.clear();
   }
 
+  setActiveFloor(floorId) {
+    this.layout?.setActiveFloor(floorId);
+  }
+
 addDevice(deviceData, x, y) {
     if (!this.layout) return;
 

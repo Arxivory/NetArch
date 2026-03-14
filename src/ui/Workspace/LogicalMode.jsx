@@ -1,5 +1,6 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import LogicalCanvasController from "../../core/LogicalCanvasController";
+import appState from "../../state/AppState";
 
 const LogicalMode = forwardRef(function LogicalMode(
   { className = "", style = {}, gridSize = 24, snap = true, canvasControllerRef },
@@ -39,6 +40,17 @@ const LogicalMode = forwardRef(function LogicalMode(
       controllerRef.current = null;
     };
   }, [gridSize, snap, canvasControllerRef]);
+
+  // Listen for active floor changes and update the canvas
+  useEffect(() => {
+    const unsubscribe = appState.ui.subscribe((store) => {
+      if (controllerRef.current) {
+        controllerRef.current.setActiveFloor(store.activeFloorId);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
 
   useImperativeHandle(ref, () => ({
     startDrawRectangle: (type) => controllerRef.current?.startDrawRectangle(type),

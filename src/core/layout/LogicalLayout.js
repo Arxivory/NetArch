@@ -77,6 +77,10 @@ export class LogicalLayout {
     this.devices = [];
     this.cables = [];
 
+    this.store = appState.selection;
+
+    this.store.subscribe(() => this.syncWithState());
+
     this.pendingCableSource = null;
     this.currentCableType = "straight";
     this.hoveredDevice = null;
@@ -85,7 +89,7 @@ export class LogicalLayout {
     this.structureType = '';
     this.bgColor = opts.bgColor || '#ffffffff';
 
-    this.onZoomSelected = opts.onZoomSelected || null;//
+    this.onZoomSelected = opts.onZoomSelected || null;
     this.onDeviceAdded = opts.onDeviceAdded || null;
     this.onEntitySelected = opts.onEntitySelected || null;
     this.onEntityChanged = opts.onEntityChanged || null;

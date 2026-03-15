@@ -745,11 +745,12 @@ export class LogicalLayout {
         this.currentPoint,
         this.structureType,
       );
+      rect.floorId = activeFloor || null;
+      if (rect.body) rect.body.floorId = activeFloor || null;
       if (!this._checkForOverlap(rect, "creation")) {
         if (this.shapeCreator.onRectangleCreated) {
           this.shapeCreator.onRectangleCreated(rect);
         }
-        rect.floorId = activeFloor || null;
         this.rectangles.push(rect);
       }
 
@@ -759,11 +760,12 @@ export class LogicalLayout {
         this.currentPoint,
         this.structureType
       );
+      circle.floorId = activeFloor || null;
+      if (circle.body) circle.body.floorId = activeFloor || null;
       if (!this._checkForOverlap(circle, "creation")) {
         if (this.shapeCreator.onCircleCreated) {
           this.shapeCreator.onCircleCreated(circle);
         }
-        circle.floorId = activeFloor || null;
         this.circles.push(circle);
       }
     } else if (this.mode === 'wall') {
@@ -782,7 +784,19 @@ export class LogicalLayout {
       const polygon = this.shapeCreator.createPolygon(this.currentPolygon, this.structureType);
       if (polygon) {
         polygon.floorId = activeFloor || null;
-        this.polygons.push(polygon);
+        if (polygon.body) polygon.body.floorId = activeFloor || null;
+        if (!this._checkForOverlap(polygon, "creation")) {
+          this.polygons.push(polygon);
+        } else {
+          // Remove polygon bodies if overlap check failed
+          if (polygon.bodies) {
+            for (const body of polygon.bodies) {
+              this.system.remove(body);
+            }
+          } else if (polygon.body) {
+            this.system.remove(polygon.body);
+          }
+        }
       }
     }
   }
@@ -1205,7 +1219,7 @@ export class LogicalLayout {
 
   _checkForOverlap(currentEntity, action) {
     if (currentEntity === null) return true;
-    if (currentEntity.checkIfOverlapping()) {
+    if (currentEntity.checkIfOverlapping(currentEntity.floorId)) {
       alert("Overlapping detected");
       if (action === 'creation') {
         if (currentEntity.type === 'freeform') {

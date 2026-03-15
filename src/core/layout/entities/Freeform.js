@@ -173,7 +173,7 @@ export class Freeform {
         this.updateBody();
     }
 
-    checkIfOverlapping() {
+    checkIfOverlapping(floorId) {
         const structMap = new Map();
         structMap.set("Site", "Domain");
         structMap.set("Space", "Site");
@@ -187,7 +187,10 @@ export class Freeform {
 
             this.system.checkOne(body, (other) => {
                 if (!this.bodies.includes(other)) {
-                    overlapping = true;
+                    // Only flag as overlapping if on the same floor
+                    if (other.b && other.b.floorId === floorId) {
+                        overlapping = true;
+                    }
                 }
                 const candidateStruct = other.b.structType;
                 if (structMap.get(ceStruct) === candidateStruct) {

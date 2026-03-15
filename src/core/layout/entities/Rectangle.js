@@ -116,7 +116,7 @@ export class Rectangle {
         this.body.setPosition(this.x, this.y, true);
     }
 
-    checkIfOverlapping() {
+    checkIfOverlapping(floorId) {
         const structMap = new Map();
         structMap.set("Site", "Domain");
         structMap.set("Space", "Site");
@@ -124,7 +124,10 @@ export class Rectangle {
         let overlapping = false;
         this.system.checkOne(this.body, (other) => {
             if (other !== this.body) {
-                overlapping = true;
+                // Only flag as overlapping if on the same floor
+                if (other.b && other.b.floorId === floorId) {
+                    overlapping = true;
+                }
             }
             const candidateStruct = other.b.structType;
             if (structMap.get(ceStruct) === candidateStruct){

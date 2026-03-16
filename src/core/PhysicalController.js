@@ -182,29 +182,8 @@ export class PhysicalController {
     }
 
     createRectangleSpaceMesh(space) {
-        const { x, y, width, height } = space.geometry;
-
-        const modifiedX = x * this.defaultScaler;
-        const modifiedY = y * this.defaultScaler;
-        const modifiedWidth = width * this.defaultScaler;
-        const modifiedHeight = height * this.defaultScaler;
-
-        const tallness = 50;
-
-        const modTallness = tallness * this.defaultScaler;
-
-        const geometry = new THREE.BoxGeometry(modifiedWidth, modTallness, modifiedHeight);
-        const material = new THREE.MeshBasicMaterial({ 
-            color: 0x909090,
-            side: THREE.DoubleSide
-        });
-
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(
-            modifiedX + (modifiedWidth / 2),
-            (modTallness / 2),
-            modifiedY + (modifiedHeight / 2)
-        )
+        const rectSpace = new SpaceMesh(space, this.defaultScaler);
+        const mesh = rectSpace.getRectangularForm();
 
         this.scene.add(mesh);
         this.spaceMeshes.set(space.id, mesh);

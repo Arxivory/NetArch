@@ -69,7 +69,7 @@ export default class SpaceMesh {
         const rectMesh = new THREE.Mesh(rectGeometry, [wallTopMat, wallSideMat]);
         rectMesh.rotation.x = -Math.PI / 2;
 
-        rectMesh.position.set(this.x * this.scaler, 0, this.z * this.scaler);
+        rectMesh.position.set((this.x * this.scaler) + (width / 2), 0, ((this.z * this.scaler) + (depth / 2)));
 
         return rectMesh;
     }

@@ -45,7 +45,7 @@ export default class SiteMesh {
             rectShape.lineTo(points[i].x, points[i].z);
         rectShape.closePath();
 
-        const thickness = 0.2;
+        const thickness = 0.5;
         const holePath = new THREE.Path();
         holePath.moveTo(points[0].x + thickness, points[0].z + thickness);
         holePath.lineTo(points[1].x - thickness, points[1].z + thickness);
@@ -69,7 +69,7 @@ export default class SiteMesh {
         const rectMesh = new THREE.Mesh(rectGeometry, [wallTopMat, wallSideMat]);
         rectMesh.rotation.x = -Math.PI / 2;
 
-        rectMesh.position.set(this.x * this.scaler, 0, this.z * this.scaler);
+        rectMesh.position.set((this.x * this.scaler) + (width / 2), 0, ((this.z * this.scaler) + (depth / 2)));
 
         return rectMesh;
     }

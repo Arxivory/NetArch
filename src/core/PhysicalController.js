@@ -174,29 +174,8 @@ export class PhysicalController {
     }
 
     createRectangleSiteMesh(site) {
-        const { x, y, width, height } = site.geometry;
-
-        const modifiedX = x * this.defaultScaler;
-        const modifiedY = y * this.defaultScaler;
-        const modifiedWidth = width * this.defaultScaler;
-        const modifiedHeight = height * this.defaultScaler;
-
-        const tallness = 50;
-
-        const modTallness = tallness * this.defaultScaler;
-
-        const geometry = new THREE.BoxGeometry(modifiedWidth, modTallness, modifiedHeight);
-        const material = new THREE.MeshBasicMaterial({ 
-            color: 0x909090,
-            side: THREE.DoubleSide
-        });
-
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(
-            modifiedX + (modifiedWidth / 2),
-            0.1 + (modTallness / 2),
-            modifiedY + (modifiedHeight / 2)
-        )
+        const rectSite = new SiteMesh(site, this.defaultScaler);
+        const mesh = rectSite.getRectangularForm();
 
         this.scene.add(mesh);
         this.siteMeshes.set(site.id, mesh);

@@ -45,7 +45,7 @@ export default class SiteMesh {
             rectShape.lineTo(points[i].x, points[i].z);
         rectShape.closePath();
 
-        const thickness = 0.5;
+        const thickness = 0.7;
         const holePath = new THREE.Path();
         holePath.moveTo(points[0].x + thickness, points[0].z + thickness);
         holePath.lineTo(points[1].x - thickness, points[1].z + thickness);

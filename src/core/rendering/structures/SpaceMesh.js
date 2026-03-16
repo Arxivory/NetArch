@@ -29,8 +29,8 @@ export default class SpaceMesh {
         if (!this.geometry.rectangular)
             throw Error("The Space is not Rectangular. Try getting other forms.");
 
-        const width = this.rectangular.width * this.scaler;
-        const depth = this.rectangular.depth * this.scaler;
+        const width = this.geometry.rectangular.width * this.scaler;
+        const depth = this.geometry.rectangular.depth * this.scaler;
 
         const points = [
             { x: -width / 2, z: -depth / 2 },

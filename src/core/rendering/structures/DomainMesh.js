@@ -29,14 +29,14 @@ export default class DomainMesh {
         if (!this.geometry.rectangular) 
             throw Error("The Domain is not Rectangular. Try getting other forms.");
 
-        const width = this.rectangular.width * this.scaler;
-        const depth = this.rectangular.depth * this.scaler;
+        const width = this.geometry.rectangular.width * this.scaler;
+        const depth = this.geometry.rectangular.depth * this.scaler;
 
         const scaledX = this.x * this.scaler;
         const scaledZ = this.z * this.scaler;
 
-        const x = scaledX * (width / 2);
-        const z = scaledZ * (depth / 2);
+        const x = scaledX + (width / 2);
+        const z = scaledZ + (depth / 2);
 
         const rectangularGeometry = new THREE.BoxGeometry(
             width,
@@ -51,6 +51,11 @@ export default class DomainMesh {
         });
 
         const rectangularMesh = new THREE.Mesh(rectangularGeometry, rectangularMaterial);
+        rectangularMesh.position.set(
+            x,
+            0.1,
+            z
+        )
 
         return rectangularMesh;
     }

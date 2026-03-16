@@ -3,6 +3,9 @@ import appState from '../state/AppState';
 import deviceCatalog from '../data/deviceCatalog';
 import furnitureCatalog from '../data/furnitureCatalog';
 import { GLTFLoader, MTLLoader, OBJLoader } from 'three/examples/jsm/Addons.js';
+import DomainMesh from './rendering/structures/DomainMesh';
+import SiteMesh from './rendering/structures/SiteMesh';
+import SpaceMesh from './rendering/structures/SpaceMesh';
 
 export class PhysicalController {
     constructor(scene) {
@@ -51,7 +54,7 @@ export class PhysicalController {
 
             switch (domain.shapeType) {
                 case 'rectangle':
-                    this.createDomainMesh(domain);
+                    this.createRectangularDomainMesh(domain);
                     break;
                 case 'polygon':
                     this.createPolygonalDomainMesh(domain);
@@ -129,23 +132,9 @@ export class PhysicalController {
         }
     }
 
-    createDomainMesh(domain) {
-        const { x, y, width, height } = domain.geometry;
-
-        const modifiedX = x * this.defaultScaler;
-        const modifiedY = y * this.defaultScaler;
-        const modifiedWidth = width * this.defaultScaler;
-        const modifiedHeight = height * this.defaultScaler;
-
-        const geometry = new THREE.BoxGeometry(modifiedWidth, 1, modifiedHeight);
-        const material = new THREE.MeshBasicMaterial({ color: 0x858585 });
-
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(
-            modifiedX + (modifiedWidth / 2),
-            0.1,
-            modifiedY + (modifiedHeight / 2)
-        )
+    createRectangularDomainMesh(domain) {
+        const rectDomain = new DomainMesh(domain, this.defaultScaler);
+        const mesh = rectDomain.getRectangularForm();
 
         this.scene.add(mesh);
         this.domainMeshes.set(domain.id, mesh);

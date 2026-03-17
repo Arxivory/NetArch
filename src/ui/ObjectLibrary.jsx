@@ -77,7 +77,9 @@
 //     </div>
 //   );
 // }
+
 import React, {useState, useRef, useEffect} from "react";
+import { createPortal } from "react-dom";
 import {
   Server,
   Network,
@@ -154,7 +156,6 @@ export default function ObjectLibrary({ canvasController }) {
   useEffect (() => {
     if (showImportModal ) {
       document.body.style.overflow = "hidden";
-
     } else  {
       document.body.style.overflow = "unset"; 
     }
@@ -249,16 +250,16 @@ export default function ObjectLibrary({ canvasController }) {
 
   const ModalPortal = () => {
     return createPortal(
-      <div className="import-modal-overlay" onClick={() => setShowImportModal(false)}>
+      <div className="import-modal-overlay" onClick={() => setshowImportModal(false)}>
         <div className="import-modal" onClick={(e) => e.stopPropagation()}>
           <div className="import-modal-header">
-            <button className="close-btn" onClick={() => setShowImportModal(false)}>
-              <X size={20} />
+            <button className="close-btn" onClick={() => setshowImportModal(false)}>
+              
             </button>
           </div>
 
           <div className="import-modal-content">
-            {importError && <div className="import-alert error">{importError}</div>}
+            {importErro && <div className="import-alert error">{importErro}</div>}
             {importSuccess && <div className="import-alert success">{importSuccess}</div>}
 
             <div 
@@ -294,9 +295,47 @@ export default function ObjectLibrary({ canvasController }) {
         </button>
       </div>
 
-      <hr className="header-separator" />
+      <hr className="header-separator" /> 
+      
+      <div className="library-scroll-area">
+        {Object.keys(categoryDetails).map((catKey) => {
+          const { name, icon: IconComponent, dataKey } = categoryDetails[catKey];
+          const catalogItems = dataKey && deviceCatalog[dataKey] ? Object.values(deviceCatalog[dataKey]) : [];
+          const importedItems = dataKey && customDevices[dataKey] ? Object.values(customDevices[dataKey]) : [];
+          const items = [...catalogItems, ...importedItems];
 
-      {categories.map((catKey) => {
+          if (items.length === 0) return null;
+
+          return (
+            <div key={catKey} className="device-category">
+              <p className="category-label">{catKey}</p>
+              <div className="device-grid">
+                {items.map((device) => (
+                  <div
+                    key={device.modelId || device.id}
+                    draggable={catKey !== "Cables"}
+                    onDragStart={catKey !== "Cables" ? (e) => onDragStart(e, name, device) : undefined}
+                    onClick={catKey === "Cables" ? () => handleDrawCable(device.id) : undefined}
+                    className="device-tile draggable-tile"
+                  >
+                    <div className="device-icon">
+                      <IconComponent size={32} />
+                    </div>
+                    <p className="device-type">{device.displayName || device.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {showImportModal && <ModalPortal />}
+    </div>
+  );
+}
+
+      {/* {categories.map((catKey) => {
         const { name, icon: IconComponent, dataKey, catalog, entityType } = categoryDetails[catKey];
         
         // 4. DYNAMICALLY PULL FROM THE CORRECT CATALOG
@@ -354,5 +393,8 @@ export default function ObjectLibrary({ canvasController }) {
         );
       })}
     </div>
+
+    {showImportModal && <ModalPortal />}
+    </div>
   );
-}
+} */}

@@ -5,7 +5,18 @@ const switches = {
     family: "switch",
     vendor: "cisco",
     portCount: 24,
-    interfaceTemplate: "GigabitEthernet1/0/{n}",
+    portGroups: [
+      {
+        template: "Console",
+        count: 1,
+        startIndex: 0
+      },
+      {
+        template: "GigabitEthernet1/0/{n}",
+        count: 24,
+        startIndex: 1 
+      }
+    ],
     model3D: "/models/switch-1200.glb",
   },
   "1300": {
@@ -14,16 +25,42 @@ const switches = {
     family: "switch",
     vendor: "cisco",
     portCount: 24,
-    interfaceTemplate: "GigabitEthernet1/0/{n}",
+    portGroups: [
+      {
+        template: "Console",
+        count: 1,
+        startIndex: 0
+      },
+      {
+        template: "GigabitEthernet1/0/{n}",
+        count: 24,
+        startIndex: 1 
+      }
+    ],
     model3D: "/models/switch-1300.glb",
   },
-  "2960": {
+"2960": {
     modelId: "2960",
     displayName: "2960",
     family: "switch",
     vendor: "cisco",
-    portCount: 24,
-    interfaceTemplate: "FastEthernet0/{n}",
+    portGroups: [
+      {
+        template: "Console",
+        count: 1,
+        startIndex: 0
+      },
+      {
+        template: "FastEthernet0/{n}",
+        count: 24,
+        startIndex: 1 
+      },
+      {
+        template: "GigabitEthernet0/{n}",
+        count: 2,
+        startIndex: 1 
+      }
+    ],
     model3D: "/objects/devices/switches/2960.glb",
   },
   "9200": {
@@ -32,7 +69,18 @@ const switches = {
     family: "switch",
     vendor: "cisco",
     portCount: 48,
-    interfaceTemplate: "GigabitEthernet1/0/{n}",
+    portGroups: [
+      {
+        template: "Console",
+        count: 1,
+        startIndex: 0
+      },
+      {
+        template: "GigabitEthernet1/0/{n}",
+        count: 48,
+        startIndex: 1 
+      }
+    ],
     model3D: "/models/switch-9200.glb",
   },
   "9300": {
@@ -41,7 +89,18 @@ const switches = {
     family: "switch",
     vendor: "cisco",
     portCount: 48,
-    interfaceTemplate: "GigabitEthernet1/0/{n}",
+    portGroups: [
+      {
+        template: "Console",
+        count: 1,
+        startIndex: 0
+      },
+      {
+        template: "GigabitEthernet1/0/{n}",
+        count: 48,
+        startIndex: 1 
+      }
+    ],
     model3D: "/models/switch-9300.glb",
   },
   "9400": {
@@ -50,7 +109,18 @@ const switches = {
     family: "switch",
     vendor: "cisco",
     portCount: 48,
-    interfaceTemplate: "TenGigabitEthernet1/0/{n}",
+    portGroups: [
+      {
+        template: "Console",
+        count: 1,
+        startIndex: 0
+      },
+      {
+        template: "GigabitEthernet1/0/{n}",
+        count: 48,
+        startIndex: 1 
+      }
+    ],
     model3D: "/models/switch-9400.glb",
   },
   "9500": {
@@ -59,7 +129,18 @@ const switches = {
     family: "switch",
     vendor: "cisco",
     portCount: 48,
-    interfaceTemplate: "TenGigabitEthernet1/0/{n}",
+    portGroups: [
+      {
+        template: "Console",
+        count: 1,
+        startIndex: 0
+      },
+      {
+        template: "TenGigabitEthernet1/0/{n}",
+        count: 48,
+        startIndex: 1 
+      }
+    ],
     model3D: "/models/switch-9500.glb",
   },
   "9600": {
@@ -68,7 +149,18 @@ const switches = {
     family: "switch",
     vendor: "cisco",
     portCount: 48,
-    interfaceTemplate: "TenGigabitEthernet1/0/{n}",
+    portGroups: [
+      {
+        template: "Console",
+        count: 1,
+        startIndex: 0
+      },
+      {
+        template: "TenGigabitEthernet1/0/{n}",
+        count: 48,
+        startIndex: 1 
+      }
+    ],
     model3D: "/models/switch-9600.glb",
   },
   "110": {
@@ -77,7 +169,18 @@ const switches = {
     family: "switch",
     vendor: "cisco",
     portCount: 8,
-    interfaceTemplate: "GigabitEthernet0/{n}",
+    portGroups: [
+      {
+        template: "Console",
+        count: 1,
+        startIndex: 0
+      },
+      {
+        template: "FastEthernet0/{n}",
+        count: 8,
+        startIndex: 1 
+      }
+    ],
     model3D: "/models/switch-110.glb",
   },
   "220": {
@@ -86,7 +189,18 @@ const switches = {
     family: "switch",
     vendor: "cisco",
     portCount: 24,
-    interfaceTemplate: "GigabitEthernet0/{n}",
+    portGroups: [
+      {
+        template: "Console",
+        count: 1,
+        startIndex: 0
+      },
+      {
+        template: "FastEthernet0/{n}",
+        count: 24,
+        startIndex: 1 
+      }
+    ],
     model3D: "/objects/devices/switches/220.glb",
   },
   "350": {
@@ -95,7 +209,18 @@ const switches = {
     family: "switch",
     vendor: "cisco",
     portCount: 48,
-    interfaceTemplate: "GigabitEthernet0/{n}",
+    portGroups: [
+      {
+        template: "Console",
+        count: 1,
+        startIndex: 0
+      },
+      {
+        template: "FastEthernet0/{n}",
+        count: 48,
+        startIndex: 1 
+      }
+    ],
     model3D: "/models/switch-350.glb",
   }
 };
@@ -246,9 +371,27 @@ export const cables = {
 };
 
 export function generateInterfaces(catalogEntry) {
-  const ports = catalogEntry && catalogEntry.portCount ? catalogEntry.portCount : 0;
-  const tmpl = catalogEntry && catalogEntry.interfaceTemplate ? catalogEntry.interfaceTemplate : "Eth{n}";
-  return Array.from({ length: ports }, (_, i) => tmpl.replace(/{n}/g, i + 1));
+  const interfaces = [];
+
+  if (!catalogEntry) return interfaces;
+  if (catalogEntry.portGroups) {
+    catalogEntry.portGroups.forEach(group => {
+      const start = group.startIndex || 1;
+      const end = start + group.count - 1;
+      
+      for (let i = start; i <= end; i++) {
+        interfaces.push(group.template.replace(/{n}/g, i));
+      }
+    });
+  } 
+  else if (catalogEntry.portCount) {
+    const tmpl = catalogEntry.interfaceTemplate || "Eth{n}";
+    for (let i = 1; i <= catalogEntry.portCount; i++) {
+      interfaces.push(tmpl.replace(/{n}/g, i));
+    }
+  }
+
+  return interfaces;
 }
 
 export function createDeviceInstance(catalogId, position = { x: 0, y: 0, z: 0 }, opts = {}) {

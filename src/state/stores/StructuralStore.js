@@ -111,6 +111,13 @@ export class StructuralStore {
             return null;
         }
 
+        if (floor.altitude === undefined || floor.altitude === null) {
+            const existingFloorsForSite = this.floors.filter(f => f.siteId === floor.siteId);
+            const DEFAULT_FLOOR_HEIGHT = 50.0; 
+            floor.altitude = existingFloorsForSite.length * DEFAULT_FLOOR_HEIGHT;
+            console.log(`Auto-calculated floor altitude: ${floor.altitude} for floor ${floor.id}`);
+        }
+
         const newFloor = new Floor(floor);
         this.floors.push(newFloor);
         this.notify();

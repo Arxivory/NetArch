@@ -6,6 +6,7 @@ import { GLTFLoader, MTLLoader, OBJLoader } from 'three/examples/jsm/Addons.js';
 import DomainMesh from './rendering/structures/DomainMesh';
 import SiteMesh from './rendering/structures/SiteMesh';
 import SpaceMesh from './rendering/structures/SpaceMesh';
+import FloorMesh from './rendering/structures/FloorMesh';
 import FurnitureMesh from './rendering/furnitures/FurnitureMesh';
 
 export class PhysicalController {
@@ -16,6 +17,7 @@ export class PhysicalController {
         this.furnitureStore = appState.furniture;
         this.meshes = new Map();
         this.defaultScaler = 0.7;
+        this.defaultFloorHeight = 3.0; // Height per floor in meters
 
         this.objLoader = new OBJLoader();
         this.mtlLoader = new MTLLoader();
@@ -23,6 +25,7 @@ export class PhysicalController {
 
         this.domainMeshes = new Map();
         this.siteMeshes = new Map();
+        this.floorMeshes = new Map(); // New: floor-level meshes
         this.spaceMeshes = new Map();
         this.deviceMeshes =  new Map();
         this.furnitureMeshes = new Map();
@@ -38,16 +41,21 @@ export class PhysicalController {
     syncWithState() {
         const domains = this.store.domains;
         const sites = this.store.sites;
+        const floors = this.store.floors;
         const spaces = this.store.spaces;
         const devices = this.networkStore.devices;
         const furnitures = this.furnitureStore.furnitures;
 
+        console.log(`[PhysicalController.syncWithState] Domains: ${domains.length}, Sites: ${sites.length}, Floors: ${floors.length}, Spaces: ${spaces.length}`);
+
         const activeDomainIds = new Set();
         const activeSiteIds = new Set();
+        const activeFloorIds = new Set();
         const activeSpaceIds = new Set();
         const activeDeviceIds = new Set();
         const activeFurnitureIds = new Set();
 
+        // Process domains
         for (const domain of domains) {
             activeDomainIds.add(domain.id);
 
@@ -78,6 +86,18 @@ export class PhysicalController {
                 default:
                     break;
             }
+        }
+
+        for (const floor of floors) {
+            activeFloorIds.add(floor.id);
+
+            if (this.floorMeshes.has(floor.id)) {
+                console.log(`Floor ${floor.id} already rendered, skipping`);
+                continue;
+            }
+
+            console.log(`Processing new floor ${floor.id} with altitude ${floor.altitude}`);
+            this.createFloorMesh(floor);
         }
 
         for (const space of spaces) {
@@ -123,8 +143,16 @@ export class PhysicalController {
             }
         }
 
+        for (const [id, mesh] of this.floorMeshes) {
+            if (!activeFloorIds.has(id)) {
+                this.scene.remove(mesh);
+                this.floorMeshes.delete(id);
+            }
+        }
+
         for (const [id, mesh] of this.spaceMeshes) {
-            if (!activeSiteIds.has(id)) {
+            if (!activeSpaceIds.has(id)) {
+                this.scene.remove(mesh);
                 this.spaceMeshes.delete(id);
             }
         }
@@ -132,7 +160,7 @@ export class PhysicalController {
         for (const [id, mesh] of this.deviceMeshes) {
             if (!activeDeviceIds.has(id)) {
                 this.scene.remove(mesh);
-                this.siteMeshes.delete(id);
+                this.deviceMeshes.delete(id);
             }
         }
     }
@@ -187,11 +215,40 @@ export class PhysicalController {
     }
 
     createRectangleSpaceMesh(space) {
+        const floor = this.store.floors.find(f => f.id === space.floorId);
+        const altitude = floor ? floor.altitude || 0 : 0;
+
+        console.log(`Creating space ${space.id} on floor ${space.floorId} at altitude ${altitude}`);
+
         const rectSpace = new SpaceMesh(space, this.defaultScaler);
         const mesh = rectSpace.getRectangularForm();
 
+        mesh.position.y = altitude;
+
+        console.log(`Space mesh positioned at Y=${mesh.position.y}`);
+
         this.scene.add(mesh);
         this.spaceMeshes.set(space.id, mesh);
+    }
+
+    createFloorMesh(floor) {
+        const site = this.store.sites.find(s => s.id === floor.siteId);
+        if (!site) {
+            console.warn(`Site not found for floor ${floor.id}`);
+            return;
+        }
+
+        console.log(`Creating floor ${floor.id} with altitude ${floor.altitude}`);
+
+        const floorMesh = new FloorMesh(site, this.defaultScaler);
+        const mesh = floorMesh.getRectangularForm();
+
+        mesh.position.y = floor.altitude || 0;
+
+        console.log(`Floor mesh positioned at Y=${mesh.position.y}`);
+
+        this.scene.add(mesh);
+        this.floorMeshes.set(floor.id, mesh);
     }
 
     createDeviceGLTFMesh(device) {

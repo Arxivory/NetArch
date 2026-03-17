@@ -6,6 +6,7 @@ import { GLTFLoader, MTLLoader, OBJLoader } from 'three/examples/jsm/Addons.js';
 import DomainMesh from './rendering/structures/DomainMesh';
 import SiteMesh from './rendering/structures/SiteMesh';
 import SpaceMesh from './rendering/structures/SpaceMesh';
+import FurnitureMesh from './rendering/furnitures/FurnitureMesh';
 
 export class PhysicalController {
     constructor(scene) {
@@ -25,6 +26,8 @@ export class PhysicalController {
         this.spaceMeshes = new Map();
         this.deviceMeshes =  new Map();
         this.furnitureMeshes = new Map();
+
+        this.furnitureCatalog = furnitureCatalog.furnitures;
 
         this.unsubscribe = this.store.subscribe(() => this.syncWithState());
         this.unsubscribeNetwork = this.networkStore.subscribe(() => this.syncWithState());
@@ -101,7 +104,9 @@ export class PhysicalController {
         for ( const furniture of furnitures) {
             console.log('Processing furniture for rendering:', furniture);
             activeFurnitureIds.add(furniture.id);
-            this.createFurnitureGLTFMesh(furniture);
+            this.createFurnitureGLTFMesh(furniture).catch(err => 
+                console.error(`Failed to load furniture ${furniture.id}:`, err)
+            );
         }
 
         for (const [id, mesh] of this.domainMeshes) {
@@ -237,50 +242,12 @@ export class PhysicalController {
         (err) => console.error("GLB Load Error. Path tried:", modelPath, err));
     }
 
-        createFurnitureGLTFMesh(furniture) {
-        const { furnitures } = furnitureCatalog;
-        
-        const cId = furniture.type;
-        
-        const catalogEntry = furnitures[cId];
+    async createFurnitureGLTFMesh(furniture) {
+        const newFurniture = new FurnitureMesh(furniture, this.defaultScaler);
+        const furnitureMesh = await newFurniture.getMesh(this.gltfLoader, this.furnitureCatalog);
 
-        if (!catalogEntry) {
-            console.warn(`Lookup failed for ID: ${cId}. Falling back to default.`);
-        }
-
-        let modelPath = catalogEntry.model3D;
-
-        if (modelPath.endsWith('.obj')) {
-            console.warn(`Redirecting ${modelPath} to .glb for GLTFLoader`);
-            modelPath = modelPath.replace('.obj', '.glb'); 
-        }
-
-        this.gltfLoader.load(modelPath, (gltf) => {
-            const model = gltf.scene;
-
-            const modX = furniture.transform.position.x * this.defaultScaler;
-            const modZ = furniture.transform.position.y * this.defaultScaler;
-            
-            model.position.set(modX, 2.5, modZ); 
-            model.scale.set(7, 7, 7); 
-
-            model.traverse((child) => {
-                if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                    if (child.material) {
-                        child.material.metalness = 0.5; 
-                    }
-                }
-            });
-
-            this.scene.add(model);
-            this.furnitureMeshes.set(furniture.id, model);
-            
-            console.log(`Successfully loaded ${cId} from: ${modelPath}`);
-        }, 
-        undefined, 
-        (err) => console.error("GLB Load Error. Path tried:", modelPath, err));
+        this.scene.add(furnitureMesh);
+        this.furnitureMeshes.set(furniture.id, furnitureMesh);
     }
     
     updateDomainMesh(domain) {

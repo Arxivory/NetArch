@@ -14,7 +14,17 @@ export class FurnitureStore {
             return null;
         }
     
-        const newFurniture = new Furniture(furniture);
+        const newFurnitureData = {
+            id: furniture.id,
+            type: furniture.catalogId,
+            transform: {
+                position: { x: furniture.position.x, y: 0, z: furniture.position.y },
+                rotation: { x: 0, y: 0, z: 1 },
+                scale: { x: 1, y: 1, z: 1 }
+            }
+        }
+
+        const newFurniture = new Furniture(newFurnitureData);
         newFurniture.type = furniture.catalogId;
 
         this.furnitures.push(newFurniture);

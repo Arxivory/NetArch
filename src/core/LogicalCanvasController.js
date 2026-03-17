@@ -164,6 +164,8 @@ addFurniture(furnitureData, x, y) {
 
         console.log('Creating furniture instance with catalogId:', catalogId, 'and:', newFurniture);
 
+        
+
         this.layout.addFurniture({ ...newFurniture }, x, y);
 
         if (appState.furniture?.addFurniture) {

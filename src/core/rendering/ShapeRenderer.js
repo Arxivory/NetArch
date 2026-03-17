@@ -99,23 +99,18 @@ renderDevices(ctx, devices) {
     ctx.lineWidth = 1;
 
     for (const dev of devices) {
-      // 1. Calculate Size & Position
-      // Check for scale (handling both simple numbers and vector objects)
-      const s = typeof dev.transform?.scale === 'number'
-        ? dev.transform.scale
-        : (dev.transform?.scale?.x ?? 1);
 
-      const baseSize = this.gridSize * 1.5; // Made slightly larger for icons
+      const s = dev.transform.scale.factor;
+
+      const baseSize = this.gridSize * 1.5;
       const size = baseSize * s;
       const halfSize = size / 2;
 
       const x = dev.x - halfSize;
       const y = dev.y - halfSize;
 
-      // 2. Create Hit Path (Invisible, used for clicking the device)
-      const path = new Path2D();
-      path.rect(x, y, size, size);
-      dev.path = path;
+
+      dev.updatePath(x,y, size);
 
       // 3. Draw: Icon OR Fallback Square
       if (dev.icon && dev.icon.complete && dev.icon.naturalWidth !== 0) {

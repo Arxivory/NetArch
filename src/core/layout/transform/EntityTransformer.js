@@ -12,10 +12,10 @@ export class EntityTransformer {
 
       const deviceTypes = [
         'device',
-        'Routers',
-        'Switches',
-        'Cables',
-        'EndDevices',
+        'router',
+        'switch',
+        'cables',
+        'end-device',
         'Wireless',
         'Furniture'
       ]
@@ -38,14 +38,10 @@ export class EntityTransformer {
         en.body.setPosition(en.x, en.y, true);
       }
       else if (deviceTypes.includes(en.type)) {
-        const size = shapeRenderer.gridSize * 1.3;
-        const halfSize = size / 2;
-        const px = nx - halfSize;
-        const py = ny - halfSize;
+        console.log('in here');
         en.x = nx;
         en.y = ny;
-        en.path = new Path2D();
-        en.path.rect(px + 0.5, py + 0.5, size, size);
+        en.body.setPosition(en.x, en.y, true);
       }
       else if (en.type === 'wall' || en.type === 'cable') {
         console.log(nx, ny);

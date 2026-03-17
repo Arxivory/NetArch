@@ -3,6 +3,7 @@ import { Rectangle } from './entities/Rectangle.js';
 import { Circle } from './entities/Circle.js';
 import { Polygon } from './entities/Polygon.js';
 import { Freeform } from './entities/Freeform.js';
+import { Device } from './entities/Device.js';
 
 export class ShapeCreator {
   constructor(opts = {}) {
@@ -125,6 +126,12 @@ export class ShapeCreator {
     }
 
     return null;
+  }
+
+  createDevice(deviceData, x, y, size) {
+    const device = new Device(deviceData, x, y, size, this.system);
+    device.id = this._genId(device.type + " ");
+    return device;
   }
 
   canClosePolygon(firstPoint, currentPoint, snapTolerance) {

@@ -32,10 +32,10 @@ export default class FurnitureMesh {
                 const model = gltf.scene;
 
                 const modX = this.transform.position.x * this.scaler;
-                const modZ = this.transform.position.y * this.scaler;
+                const modZ = this.transform.position.z * this.scaler;
 
-                model.position.set(modX, 2.5, modZ);
-                model.scale.set(7, 7, 7);
+                model.position.set(modX, 0, modZ);
+                model.scale.set(5, 5, 5);
 
                 model.traverse((child) => {
                     if (child.isMesh) {

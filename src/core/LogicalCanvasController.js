@@ -224,7 +224,6 @@ _handlePortSelect(device, x, y, callback) {
 
     const menu = document.createElement('div');
     menu.id = 'canvas-port-menu';
-    // ... (Your existing styling code here) ...
     menu.style.position = 'fixed';
     menu.style.left = `${x}px`;
     menu.style.top = `${y}px`;
@@ -253,30 +252,20 @@ _handlePortSelect(device, x, y, callback) {
 
 item.onclick = (e) => {
         e.stopPropagation();
-
-        // 1. Look for the specific cable we saved in ObjectLibrary!
-        // Fallback to activeTool just in case.
         let activeCable = appState.ui.selectedCable || appState.tools.activeTool;
 
-        // 2. Normalize names if needed
         if (activeCable === 'straight') activeCable = 'copper-straight';
         if (activeCable === 'crossover') activeCable = 'copper-crossover';
-
-        // 3. Validate! (We ignore it if the state somehow still just says 'cable')
         if (activeCable && activeCable !== 'cable') {
             const validation = validatePortSelection(activeCable, port);
-
             if (!validation.valid) {
               showErrorModal(validation.error, "Connection Error");
-              
               menu.remove();
               document.removeEventListener('pointerdown', outsideClickListener);
               callback(null); 
               return; 
             }
         }
-
-        // 4. Proceed as normal
         menu.remove();
         document.removeEventListener('pointerdown', outsideClickListener);
         callback(port);

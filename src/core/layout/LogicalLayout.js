@@ -745,28 +745,31 @@ export class LogicalLayout {
         this.currentPoint,
         this.structureType,
       );
-      rect.floorId = activeFloor || null;
-      if (rect.body) rect.body.floorId = activeFloor || null;
-      if (!this._checkForOverlap(rect, "creation")) {
-        if (this.shapeCreator.onRectangleCreated) {
-          this.shapeCreator.onRectangleCreated(rect);
+      if (rect) {
+        rect.floorId = activeFloor || null;
+        if (rect.body) rect.body.floorId = activeFloor || null;
+        if (!this._checkForOverlap(rect, "creation")) {
+          if (this.shapeCreator.onRectangleCreated) {
+            this.shapeCreator.onRectangleCreated(rect);
+          }
+          this.rectangles.push(rect);
         }
-        this.rectangles.push(rect);
       }
-
     } else if (this.mode === 'circle') {
       const circle = this.shapeCreator.createCircle(
         this.startPoint,
         this.currentPoint,
         this.structureType
       );
-      circle.floorId = activeFloor || null;
-      if (circle.body) circle.body.floorId = activeFloor || null;
-      if (!this._checkForOverlap(circle, "creation")) {
-        if (this.shapeCreator.onCircleCreated) {
-          this.shapeCreator.onCircleCreated(circle);
+      if (circle) {
+        circle.floorId = activeFloor || null;
+        if (circle.body) circle.body.floorId = activeFloor || null;
+        if (!this._checkForOverlap(circle, "creation")) {
+          if (this.shapeCreator.onCircleCreated) {
+            this.shapeCreator.onCircleCreated(circle);
+          }
+          this.circles.push(circle);
         }
-        this.circles.push(circle);
       }
     } else if (this.mode === 'wall') {
       const wall = this.shapeCreator.createWall(this.startPoint, this.currentPoint);
@@ -1218,7 +1221,16 @@ export class LogicalLayout {
   }
 
   _checkForOverlap(currentEntity, action) {
-    if (currentEntity === null) return true;
+    if (currentEntity === null) {
+      return true;
+    }
+
+    // Only check for overlap on entities that support it (like structures),
+    // and ignore others (like devices, furniture, walls, etc.).
+    if (typeof currentEntity.checkIfOverlapping !== 'function') {
+      return false;
+    }
+
     if (currentEntity.checkIfOverlapping(currentEntity.floorId)) {
       alert("Overlapping detected");
       if (action === 'creation') {

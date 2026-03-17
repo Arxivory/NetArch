@@ -89,6 +89,7 @@ export class LogicalLayout {
 
     this.structureType = '';
     this.bgColor = opts.bgColor || '#ffffffff';
+    this.activeFloorId = null;
 
     this.onZoomSelected = opts.onZoomSelected || null;
     this.onDeviceAdded = opts.onDeviceAdded || null;
@@ -201,6 +202,11 @@ export class LogicalLayout {
     this._render();
   }
 
+  setActiveFloor(floorId) {
+    this.activeFloorId = floorId;
+    this._render();
+  }
+
   startDrawRectangle(structureType = '') {
     this.mode = 'rectangle';
     this.structureType = structureType;
@@ -260,54 +266,7 @@ export class LogicalLayout {
 
   addDevice(deviceData, x, y) {
     const size = this.shapeRenderer.gridSize * 1.5;
-
-    const rawType = (deviceData.type + ' ' + deviceData.name).toLowerCase();
-
-    let iconKey = null;
-
-    if (rawType.includes('router') || rawType.includes('gateway') || rawType.includes('1941')) {
-      iconKey = 'router';
-    } else if (rawType.includes('switch') || rawType.includes('catalyst') || rawType.includes('2960') || rawType.includes('9200')) {
-      iconKey = 'switch';
-    } else if (rawType.includes('server')) {
-      iconKey = 'server';
-    } else if (rawType.includes('firewall') || rawType.includes('asa')) {
-      iconKey = 'firewall';
-    } else if (rawType.includes('pc') || rawType.includes('desktop') || rawType.includes('computer') || rawType.includes('laptop')) {
-      iconKey = 'pc';
-    } else if (rawType.includes('phone')) {
-      iconKey = 'pc';
-    }
-
-    const iconImage = this.deviceIcons[iconKey];
-
-    const half = size / 2;
-    const px = x - half;
-    const py = y - half;
-    const path = new Path2D();
-    path.rect(px, py, size, size);
-
-    const device = {
-      id: `device_${Math.random().toString(36).slice(2, 9)}`,
-      type: deviceData.type || 'device',
-      label: deviceData.name || 'Device',
-
-      interfaces: deviceData.interfaces || [],
-
-      x,
-      y,
-      width: size,
-      height: size,
-      icon: iconImage,
-      transform: {
-        position: { x, y, z: 0 },
-        scale: 1,
-        rotation: { x: 0, y: 0, z: 0 }
-      },
-      path,
-      hitTestMode: 'path'
-    };
-
+    const device = this.shapeCreator.createDevice(deviceData, x, y, size);
     this.devices.push(device);
 
     if (this.onDeviceAdded) {
@@ -452,7 +411,12 @@ export class LogicalLayout {
 
     if (this.mode === 'select') {
       const en = this.identifyEntity(e.clientX, e.clientY);
-      if (!en) return;
+      if (!en) {
+        // Clear focus when clicking on empty canvas
+        appState.selection.focusedNode(null, null);
+        return;
+      }
+
       en.saveCurrentPosition();
 
       const zoom = this.pointerHandler.getZoom();
@@ -735,26 +699,31 @@ export class LogicalLayout {
         this.currentPoint,
         this.structureType,
       );
-      if (!this._checkForOverlap(rect, "creation")) {
-        if (this.shapeCreator.onRectangleCreated) {
-          this.shapeCreator.onRectangleCreated(rect);
-        }
+      if (rect) {
         rect.floorId = activeFloor || null;
-        this.rectangles.push(rect);
+        if (rect.body) rect.body.floorId = activeFloor || null;
+        if (!this._checkForOverlap(rect, "creation")) {
+          if (this.shapeCreator.onRectangleCreated) {
+            this.shapeCreator.onRectangleCreated(rect);
+          }
+          this.rectangles.push(rect);
+        }
       }
-
     } else if (this.mode === 'circle') {
       const circle = this.shapeCreator.createCircle(
         this.startPoint,
         this.currentPoint,
         this.structureType
       );
-      if (!this._checkForOverlap(circle, "creation")) {
-        if (this.shapeCreator.onCircleCreated) {
-          this.shapeCreator.onCircleCreated(circle);
-        }
+      if (circle) {
         circle.floorId = activeFloor || null;
-        this.circles.push(circle);
+        if (circle.body) circle.body.floorId = activeFloor || null;
+        if (!this._checkForOverlap(circle, "creation")) {
+          if (this.shapeCreator.onCircleCreated) {
+            this.shapeCreator.onCircleCreated(circle);
+          }
+          this.circles.push(circle);
+        }
       }
     } else if (this.mode === 'wall') {
       const wall = this.shapeCreator.createWall(this.startPoint, this.currentPoint);
@@ -772,7 +741,19 @@ export class LogicalLayout {
       const polygon = this.shapeCreator.createPolygon(this.currentPolygon, this.structureType);
       if (polygon) {
         polygon.floorId = activeFloor || null;
-        this.polygons.push(polygon);
+        if (polygon.body) polygon.body.floorId = activeFloor || null;
+        if (!this._checkForOverlap(polygon, "creation")) {
+          this.polygons.push(polygon);
+        } else {
+          // Remove polygon bodies if overlap check failed
+          if (polygon.bodies) {
+            for (const body of polygon.bodies) {
+              this.system.remove(body);
+            }
+          } else if (polygon.body) {
+            this.system.remove(polygon.body);
+          }
+        }
       }
     }
   }
@@ -784,7 +765,7 @@ export class LogicalLayout {
     this.pointerHandler.setPanStart(clientX, clientY);
   }
 
-  _renderDeviceCables(ctx) {
+  _renderDeviceCables(ctx, activeFloor) {
     ctx.save();
     ctx.lineWidth = 2;
 
@@ -794,6 +775,11 @@ export class LogicalLayout {
 
       if (!src || !dst) continue;
 
+      if (activeFloor) {
+        const srcOnFloor = src.floorId == null || src.floorId === activeFloor;
+        const dstOnFloor = dst.floorId == null || dst.floorId === activeFloor;
+        if (!srcOnFloor || !dstOnFloor) continue;
+      }
 
       ctx.beginPath();
 
@@ -863,7 +849,9 @@ export class LogicalLayout {
     this.grid.renderMinorGrids(ctx, w, h);
     this.grid.renderMajorGrids(ctx, w, h);
 
-    const activeFloor = appState.ui.activeFloorId;
+    // Only filter by floor if a floor is explicitly focused. Otherwise, render all floors stacked.
+    const shouldFilterByFloor = appState.selection.focusedType === 'floor';
+    const activeFloor = shouldFilterByFloor ? (this.activeFloorId || appState.ui.activeFloorId) : null;
     const filterForFloor = (arr) => {
       if (!activeFloor) return arr;
       return arr.filter(o => o.floorId == null || o.floorId === activeFloor);
@@ -874,12 +862,12 @@ export class LogicalLayout {
     this.shapeRenderer.renderFreeforms(ctx, this.freeforms);
     this.shapeRenderer.renderCircles(ctx, filterForFloor(this.circles));
     this.shapeRenderer.renderWalls(ctx, filterForFloor(this.walls));
-    this._renderDeviceCables(ctx);
+    this._renderDeviceCables(ctx, activeFloor);
 
     ctx.save();
-    for (const device of this.devices) {
-      const tileW = device.width + 32;
-      const tileH = device.height + 45;
+    for (const device of filterForFloor(this.devices)) {
+      const tileW = device.transform.scale.w + 32;
+      const tileH = device.transform.scale.h + 45;
       const tx = device.x - tileW / 2;
       const ty = device.y - tileH / 2.5;
 
@@ -912,7 +900,7 @@ export class LogicalLayout {
     }
     ctx.restore();
 
-    this.shapeRenderer.renderDevices(ctx, this.devices);
+    this.shapeRenderer.renderDevices(ctx, filterForFloor(this.devices));
     this.shapeRenderer.renderFurnitures(ctx, this.furnitures);
 
     if (this.selectedEntity && this.selectedEntity.sourceId) {
@@ -1140,14 +1128,14 @@ export class LogicalLayout {
 
   _findDeviceAt(x, y) {
     for (const device of this.devices) {
-      const dx = device.x - device.width / 2;
-      const dy = device.y - device.height / 2;
+      const dx = device.x - device.w / 2;
+      const dy = device.y - device.h / 2;
 
       if (
         x >= dx &&
-        x <= dx + device.width &&
+        x <= dx + device.w &&
         y >= dy &&
-        y <= dy + device.height
+        y <= dy + device.h
       ) {
         return device;
       }
@@ -1187,8 +1175,17 @@ export class LogicalLayout {
   }
 
   _checkForOverlap(currentEntity, action) {
-    if (currentEntity === null) return true;
-    if (currentEntity.checkIfOverlapping()) {
+    if (currentEntity === null) {
+      return true;
+    }
+
+    // Only check for overlap on entities that support it (like structures),
+    // and ignore others (like devices, furniture, walls, etc.).
+    if (typeof currentEntity.checkIfOverlapping !== 'function') {
+      return false;
+    }
+
+    if (currentEntity.checkIfOverlapping(currentEntity.floorId)) {
       alert("Overlapping detected");
       if (action === 'creation') {
         if (currentEntity.type === 'freeform') {

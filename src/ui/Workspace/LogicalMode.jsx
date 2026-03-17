@@ -1,5 +1,6 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import LogicalCanvasController from "../../core/LogicalCanvasController";
+import appState from "../../state/AppState";
 
 const LogicalMode = forwardRef(function LogicalMode(
   { className = "", style = {}, gridSize = 24, snap = true, canvasControllerRef },
@@ -39,6 +40,29 @@ const LogicalMode = forwardRef(function LogicalMode(
       controllerRef.current = null;
     };
   }, [gridSize, snap, canvasControllerRef]);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      if (controllerRef.current) {
+        const isFocusedOnFloor = appState.selection.focusedType === 'floor';
+        const floorId = isFocusedOnFloor ? appState.ui.activeFloorId : null;
+        controllerRef.current.setActiveFloor(floorId);
+      }
+    };
+
+    const unsubUi = appState.ui.subscribe(() => {
+      handleUpdate();
+    });
+
+    const unsubSel = appState.selection.subscribe(() => {
+      handleUpdate();
+    });
+
+    return () => {
+      unsubUi();
+      unsubSel();
+    };
+  }, []);
 
   useImperativeHandle(ref, () => ({
     startDrawRectangle: (type) => controllerRef.current?.startDrawRectangle(type),

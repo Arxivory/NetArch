@@ -1,3 +1,4 @@
+import React from "react";
 // import {
 //   Server,
 //   Network,
@@ -133,9 +134,9 @@ const categoryDetails = {
   Furniture: { 
     name: "Furniture", 
     icon: Armchair, 
-    dataKey: "furnitures", // Make sure your furnitureCatalog exports an object with this key!
+    dataKey: "furnitures",
     catalog: furnitureCatalog,
-    entityType: "furniture" // <--- This will tell the canvas what to do!
+    entityType: "furniture"
   },
 };
 
@@ -163,9 +164,12 @@ export default function ObjectLibrary({ canvasController }) {
 
   }, [showImportModal]);
 
-  const handleDrawCable = (cableType) => {
+const handleDrawCable = (cableType) => {
     if (!canvasController) return;
     console.log("Selected cable:", cableType); 
+
+    appState.ui.selectedCable = cableType; 
+
     const cmd = new StartDrawCableCommand(canvasController, appState, cableType);
     cmd.execute();
   };
@@ -370,7 +374,7 @@ export default function ObjectLibrary({ canvasController }) {
                   draggable={!isCableCategory}
                   onDragStart={
                     !isCableCategory 
-                      ? (event) => onDragStart(event, name, item, entityType) // Pass entityType here!
+                      ? (event) => onDragStart(event, name, item, entityType)
                       : undefined
                   }
                   onClick={

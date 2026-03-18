@@ -90,7 +90,8 @@ import {
   Armchair,
   Import,
   MonitorSmartphone,
-  Cpu
+  Cpu,
+  X
 } from "lucide-react";
 import appState from "../state/AppState";
 import { StartDrawCableCommand } from "../core/editor/DrawingCommands";
@@ -142,7 +143,7 @@ const categories = Object.keys(categoryDetails);
 
 export default function ObjectLibrary({ canvasController }) {
   const [showImportModal, setshowImportModal] = useState(false);
-  const [importErro, setImportError] = useState(null);
+  const [importError, setImportError] = useState(null);
   const [importSuccess, setImportSuccess] = useState(null);
   const [customDevices, setCustomDevices] = useState({
     routers: {},
@@ -185,7 +186,7 @@ export default function ObjectLibrary({ canvasController }) {
 
   const parseModelFilename = (filename) => {
     const nameWithoutExt = filename.replace(/\.(obj|glb|fbx|)$/i, '');
-    const parts = nameWithoutExt.toLoweCase().split(/[_-]+/);
+    const parts = nameWithoutExt.toLowerCase().split(/[_-]+/);
     let vendor = "Unknown";
     let family = "endDevice";
     let modelId = nameWithoutExt;
@@ -222,11 +223,12 @@ export default function ObjectLibrary({ canvasController }) {
 
   const processFile = (file) => {
     if (!file) return;
-    const validExtensions = ['obj', 'glb', 'fbx'];
+    const validExtensions = ['.obj', '.glb', '.fbx'];
     const fileExt = '.' + file.name.split('.').pop().toLowerCase();
 
     if (!validExtensions.includes(fileExt)) {
       setImportError (`Unsupported file type: ${fileExt}. Please upload .obj, .glb, or .fbx files.`);
+      setImportSuccess(null);
       return;
     }
 
@@ -254,13 +256,14 @@ export default function ObjectLibrary({ canvasController }) {
         <div className="import-modal" onClick={(e) => e.stopPropagation()}>
           <div className="import-modal-header">
             <button className="close-btn" onClick={() => setshowImportModal(false)}>
-              
+              < X size={16} />
             </button>
           </div>
 
           <div className="import-modal-content">
-            {importErro && <div className="import-alert error">{importErro}</div>}
+            {importError && <div className="import-alert error-container">{importError}</div>}
             {importSuccess && <div className="import-alert success">{importSuccess}</div>}
+          
 
             <div 
               className="import-drop-zone"
@@ -289,7 +292,7 @@ export default function ObjectLibrary({ canvasController }) {
     <div className="object-library">
       <div className="panel-header-container">
         <h3 className="panel-header-title">Object Library</h3>
-        <button className="import-btn" onClick={() => console.log("Import clicked")}>
+        <button className="import-btn" onClick={() => setshowImportModal(true)}>
           <Import size={16} />
           Import
         </button>

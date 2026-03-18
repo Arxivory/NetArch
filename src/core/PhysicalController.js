@@ -17,7 +17,7 @@ export class PhysicalController {
         this.furnitureStore = appState.furniture;
         this.meshes = new Map();
         this.defaultScaler = 0.7;
-        this.defaultFloorHeight = 3.0; // Height per floor in meters
+        this.defaultFloorHeight = 3.0; 
 
         this.objLoader = new OBJLoader();
         this.mtlLoader = new MTLLoader();
@@ -25,7 +25,7 @@ export class PhysicalController {
 
         this.domainMeshes = new Map();
         this.siteMeshes = new Map();
-        this.floorMeshes = new Map(); // New: floor-level meshes
+        this.floorMeshes = new Map(); 
         this.spaceMeshes = new Map();
         this.deviceMeshes =  new Map();
         this.furnitureMeshes = new Map();
@@ -55,7 +55,6 @@ export class PhysicalController {
         const activeDeviceIds = new Set();
         const activeFurnitureIds = new Set();
 
-        // Process domains
         for (const domain of domains) {
             activeDomainIds.add(domain.id);
 

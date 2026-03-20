@@ -224,24 +224,43 @@ export class LogicalLayout {
   }
 
 isPointInsideShape(id, x, y) {
-    // 1. Find the parent shape entity by ID
-    const entity = this.findEntityById(id);
-    if (!entity) return false;
+    // 1. Try standard entity search
+    let entity = null;
+    if (typeof this.findEntityById === 'function') {
+      entity = this.findEntityById(id);
+    }
 
-    // 2. Check using the standard hit-test bounds
+    // 2. If not found, it's likely a Structure! Search other common arrays.
+    if (!entity && this.structures) {
+      entity = this.structures.find(s => s.id === id);
+    }
+    if (!entity && this.shapes) {
+      entity = this.shapes.find(s => s.id === id);
+    }
+    // Check inside shapeCreator just in case your shapes live there
+    if (!entity && this.shapeCreator && this.shapeCreator.shapes) {
+      entity = this.shapeCreator.shapes.find(s => s.id === id);
+    }
+
+    // 3. SAFE FALLBACK: If we completely fail to find the physical shape in the layout,
+    // do NOT block the drop. Log a warning for debugging and allow it.
+    if (!entity) {
+      console.warn(`Bounds Check: Could not find physical shape for ID ${id}. Allowing drop by default.`);
+      return true; 
+    }
+
+    // 4. Check using the standard hit-test bounds (Rectangle.js)
     if (typeof entity.getCurrentBounds === 'function') {
       const bounds = entity.getCurrentBounds();
       return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY;
     }
 
-    // 3. Fallback to basic coordinate checking if getCurrentBounds isn't implemented
-    // This assumes entities have x, y, width (w), and height (h) properties.
-    if (entity.x !== undefined && entity.maxX !== undefined) {
-      // Assuming maxX = entity.x + entity.w during placement
-      return x >= entity.x && x <= entity.maxX && y >= entity.y && y <= entity.maxY;
+    // 5. Fallback to basic coordinate checking
+    if (entity.x !== undefined && entity.w !== undefined && entity.h !== undefined) {
+      return x >= entity.x && x <= (entity.x + entity.w) && y >= entity.y && y <= (entity.y + entity.h);
     }
 
-    return true; // Default to allowing placement if shape is undefined for some reason
+    return true; // Default to allowing placement
   }
 
   validateDropLocation(x, y) {

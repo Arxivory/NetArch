@@ -146,7 +146,6 @@ addDevice(deviceData, x, y) {
         const droppedInsideSpace = spacesOnFloor.find(space => 
             this.layout.isPointInsideShape(space.id, x, y)
         );
-
         if (droppedInsideSpace) {
             showErrorModal(
                 `You dropped the device inside "${droppedInsideSpace.label}".\n\nTo place a device inside a Space, you must explicitly select that Space in the Hierarchy Panel first.`, 
@@ -155,8 +154,6 @@ addDevice(deviceData, x, y) {
             return; 
         }
     }
-    // =========================================================
-
     const catalogId = deviceData.modelId;
     if (!catalogId) {
         console.error("Missing modelId in deviceData", deviceData);

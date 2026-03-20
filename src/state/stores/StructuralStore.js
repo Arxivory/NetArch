@@ -202,46 +202,89 @@ export class StructuralStore {
     }
 
     // ============= Hierarchy Tree Builder =============
-    getHierarchyTree() {
+    getHierarchyTree(networkStore = null) {
         return this.domains.map(domain => ({
             id: domain.id,
             label: domain.label || `Domain ${domain.id}`,
             type: 'domain',
-            children: this._buildSiteChildren(domain.id)
+            children: this._buildSiteChildren(domain.id, networkStore)
         }));
     }
 
-    _buildSiteChildren(domainId) {
+    _buildSiteChildren(domainId, networkStore = null) {
         const sites = this.sites.filter(s => String(s.domainId) === String(domainId));
         return sites.map(site => ({
             id: site.id,
             label: site.label || `Site ${site.id}`,
             type: 'site',
             domainId: site.domainId,
-            children: this._buildFloorChildren(site.id)
+            children: this._buildFloorChildren(site.id, networkStore)
         }));
     }
 
-    _buildFloorChildren(siteId) {
+    _buildFloorChildren(siteId, networkStore = null) {
         const floors = this.floors.filter(f => String(f.siteId) === String(siteId));
         return floors.map(floor => ({
             id: floor.id,
             label: floor.label || `Floor ${floor.id}`,
             type: 'floor',
             siteId: floor.siteId,
-            children: this._buildSpaceChildren(floor.id)
+            children: this._buildFloorItemChildren(floor.id, networkStore)
         }));
     }
 
-    _buildSpaceChildren(floorId) {
+    _buildFloorItemChildren(floorId, networkStore = null) {
+        const spaces = this._buildSpaceChildren(floorId, networkStore);
+        
+        const devicesWithoutSpace = [];
+        if (networkStore) {
+            const allDevices = networkStore.getAllDevices();
+            devicesWithoutSpace.push(...allDevices
+                .filter(d => d.floorId === floorId && !d.spaceId)
+                .map(device => ({
+                    id: device.id,
+                    label: device.label || device.hostname || `Device ${device.id}`,
+                    type: 'device',
+                    floorId: device.floorId,
+                    deviceId: device.id,
+                    children: []
+                }))
+            );
+        }
+        
+        return [...spaces, ...devicesWithoutSpace];
+    }
+
+    _buildSpaceChildren(floorId, networkStore = null) {
         const spaces = this.spaces.filter(s => String(s.floorId) === String(floorId));
         return spaces.map(space => ({
             id: space.id,
             label: space.label || `Space ${space.id}`,
             type: 'space',
             floorId: space.floorId,
-            children: []
+            children: this._buildSpaceItemChildren(space.id, networkStore)
         }));
+    }
+
+    _buildSpaceItemChildren(spaceId, networkStore = null) {
+        const devicesInSpace = [];
+        
+        if (networkStore) {
+            const allDevices = networkStore.getAllDevices();
+            devicesInSpace.push(...allDevices
+                .filter(d => d.spaceId === spaceId)
+                .map(device => ({
+                    id: device.id,
+                    label: device.label || device.hostname || `Device ${device.id}`,
+                    type: 'device',
+                    spaceId: device.spaceId,
+                    deviceId: device.id,
+                    children: []
+                }))
+            );
+        }
+        
+        return devicesInSpace;
     }
 
     subscribe(callback) {

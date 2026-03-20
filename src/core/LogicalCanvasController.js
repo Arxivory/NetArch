@@ -114,6 +114,21 @@ addDevice(deviceData, x, y) {
         return this.addFurniture(deviceData, x, y);
     }
 
+    const focusedType = appState.selection.focusedType;
+    const focusedId = appState.selection.focusedId;
+
+    if (focusedType !== 'floor' && focusedType !== 'space') {
+        console.error("Cannot add device: A floor or space must be selected in the hierarchy");
+        alert('Please select a floor or space in the hierarchy before adding a device.');
+        return;
+    }
+
+    if (!focusedId) {
+        console.error("Cannot add device: No floor or space is focused");
+        alert('Please select a floor or space in the hierarchy before adding a device.');
+        return;
+    }
+
     const catalogId = deviceData.modelId;
     if (!catalogId) {
         console.error("Missing modelId in deviceData", deviceData);
@@ -122,6 +137,7 @@ addDevice(deviceData, x, y) {
 
     try {
         const newDevice = createDeviceInstance(catalogId, { x, y, z: 0 });
+<<<<<<< HEAD
         newDevice.catalogId = catalogId;
 
         const baseName = newDevice.name;
@@ -138,6 +154,21 @@ addDevice(deviceData, x, y) {
 
         newDevice.label = newLabel;
         newDevice.name = newLabel;
+=======
+        
+        newDevice.catalogId = catalogId; 
+        newDevice.label = deviceData.label || newDevice.name;
+>>>>>>> 9c25684187c1886a81c5d3546bb113a072e51bea
+
+        if (focusedType === 'space') {
+            newDevice.spaceId = focusedId;
+            const space = appState.structural.spaces.find(s => s.id === focusedId);
+            if (space) {
+                newDevice.floorId = space.floorId;
+            }
+        } else if (focusedType === 'floor') {
+            newDevice.floorId = focusedId;
+        }
 
         this.layout.addDevice({ ...newDevice }, x, y);
 
@@ -151,7 +182,7 @@ addDevice(deviceData, x, y) {
             console.error("Physical controller reference not found.");
         }
 
-        console.log('Device added:', newDevice.id, 'with Catalog ID:', newDevice.catalogId);
+        console.log('Device added:', newDevice.id, 'with Catalog ID:', newDevice.catalogId, 'to floor/space:', focusedId);
     } catch (error) {
         console.error("Failed to add device:", error.message);
     }
@@ -175,8 +206,6 @@ addFurniture(furnitureData, x, y) {
         newFurniture.label = furnitureData.label || newFurniture.name;
 
         console.log('Creating furniture instance with catalogId:', catalogId, 'and:', newFurniture);
-
-        
 
         this.layout.addFurniture({ ...newFurniture }, x, y);
 

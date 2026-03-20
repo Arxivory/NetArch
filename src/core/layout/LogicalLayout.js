@@ -436,7 +436,9 @@ export class LogicalLayout {
         return;
       }
 
-      en.saveCurrentPosition();
+      if (en.saveCurrentPosition) {
+        en.saveCurrentPosition();
+      }
 
       const zoom = this.pointerHandler.getZoom();
       const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);

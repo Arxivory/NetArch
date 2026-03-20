@@ -258,7 +258,7 @@ export class StructuralStore {
                 .filter(f => f.floorId === floorId && !f.spaceId)
                 .map(furniture => ({
                     id: furniture.id,
-                    label: furniture.id,
+                    label: furniture.label || furniture.type || `Furniture ${furniture.id}`,
                     type: 'furniture',
                     floorId: furniture.floorId,
                     furnitureId: furniture.id,
@@ -305,7 +305,7 @@ export class StructuralStore {
                 .filter(f => f.spaceId === spaceId)
                 .map(furniture => ({
                     id: furniture.id,
-                    label: furniture.id,
+                    label: furniture.label || furniture.type || `Furniture ${furniture.id}`,
                     type: 'furniture',
                     spaceId: furniture.spaceId,
                     furnitureId: furniture.id,

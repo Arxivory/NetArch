@@ -18,6 +18,7 @@ export class FurnitureStore {
         const newFurnitureData = {
             id: furniture.id,
             type: furniture.catalogId,
+            label: furniture.label || furniture.name || null,
             floorId: furniture.floorId || null,
             spaceId: furniture.spaceId || null,
             transform: {

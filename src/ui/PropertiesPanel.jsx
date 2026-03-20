@@ -6,23 +6,28 @@ export default function PropertiesPanel({ canvasController }) {
   const [selectedEntity, setSelectedEntity] = useState(null);
   const [transform, setTransform] = useState({
     position: { x: 0, y: 0, z: 0 },
-    scale: { factor: 0, w: 0, h: 0 },
+    scale: { x: 1, y: 1, z: 1 },
     rotation: { x: 0, y: 0, z: 0 }
   });
 
 
   useEffect(() => {
     const unsubscribe = appState.selection.subscribe(() => {
-      const ids = appState.selection.getSelectedDeviceIds();
+      let ids = appState.selection.getSelectedDeviceIds();
+      if (!ids || ids.length === 0) {
+        const focused = appState.selection.getFocusedId();
+        if (focused) ids = [focused];
+      }
+
       if (ids && ids.length > 0) {
         const entityId = ids[0];
         const entity = findEntityById(entityId);
         if (entity) {
           setSelectedEntity(entity);
-          setTransform({
-            position: { ...entity.transform.position },
-            scale: { ...entity.transform.scale },
-            rotation: { ...entity.transform.rotation }
+          setTransform(entity.transform || {
+            position: { x: entity.x || 0, y: entity.y || 0, z: 0 },
+            scale: { x: 1, y: 1, z: 1 },
+            rotation: { x: 0, y: 0, z: 0 }
           });
           return;
         }
@@ -38,68 +43,246 @@ export default function PropertiesPanel({ canvasController }) {
     return canvasController.layout.findEntityById(id);
   };
 
-const handleTransformChange = (type, axis, value) => {
-  if (!selectedEntity || !canvasController) return;
+  const getDeviceLabel = (id) => {
+    if (!canvasController?.layout?.devices) return id;
 
-  let numericValue = parseFloat(value);
+    const d = canvasController.layout.devices.find(
+      x => x.id === id
+    );
 
-  if (numericValue < 0 || numericValue === null){
-    numericValue = 0;
-  }
-
-  const updates = {
-    [type]: {
-      ...selectedEntity.transform[type],
-      [axis]: numericValue
-    }
+    return d?.label || d?.name || id;
   };
 
-  const cmd = new UpdateEntityTransformCommand(
-    canvasController,
-    appState,
-    selectedEntity.id,
-    updates
-  );
+  const isDevice =
+    selectedEntity &&
+    selectedEntity.interfaces !== undefined;
 
-  const success = cmd.execute();
+  const isCable =
+    selectedEntity &&
+    selectedEntity.sourceId !== undefined &&
+    selectedEntity.targetId !== undefined;
 
-  // Always re-sync from actual entity state
-  const entity = findEntityById(selectedEntity.id);
-  if (entity) {
-    setTransform({
-      position: { ...entity.transform.position },
-      scale: { ...entity.transform.scale },
-      rotation: { ...entity.transform.rotation }
-    });
-  }
-};
+  const isWall =
+    selectedEntity &&
+    selectedEntity.type === "wall";
+
+  const isStructure =
+    selectedEntity &&
+    (
+      selectedEntity.structureType === "Domain" ||
+      selectedEntity.structureType === "Site" ||
+      selectedEntity.structureType === "Floor" ||
+      selectedEntity.structureType === "Space" ||
+      selectedEntity.type === "space" ||
+      selectedEntity.type === "site" ||
+      selectedEntity.type === "domain" ||
+      selectedEntity.type === "floor"
+    );
+
+  const isFurniture =
+    selectedEntity &&
+    !isDevice &&
+    !isCable &&
+    !isWall &&
+    !isStructure;
+
+  const handleTransformChange = (type, axis, value) => {
+    if (!selectedEntity || !canvasController) return;
+
+    const newTransform = JSON.parse(JSON.stringify(transform));
+    if (type === 'scale') {
+      newTransform.scale = parseFloat(value);
+    }
+    else {
+      newTransform[type][axis] = parseFloat(value);
+    }
+    setTransform(newTransform);
+
+
+    const updates = {};
+    updates[type] = newTransform[type];
+    const cmd = new UpdateEntityTransformCommand(canvasController, appState, selectedEntity.id, updates);
+    cmd.execute();
+  };
 
   return (
     <div className="properties-panel">
       <h3>Properties</h3>
+        {isCable && (
+        <div className="properties-group">
+
+          <div>
+            <label>Cable Type</label>
+            <input
+              className="field-input"
+              value={selectedEntity.type || ""}
+              readOnly
+            />
+          </div>
+
+          <div>
+            <label>Source Device</label>
+            <input
+              className="field-input"
+              value={getDeviceLabel(selectedEntity.sourceId)}
+              readOnly
+            />
+          </div>
+
+          <div>
+            <label>Source Port</label>
+            <input
+              className="field-input"
+              value={selectedEntity.sourcePort || ""}
+              readOnly
+            />
+          </div>
+
+          <div>
+            <label>Target Device</label>
+            <input
+              className="field-input"
+              value={getDeviceLabel(selectedEntity.targetId)}
+              readOnly
+            />
+          </div>
+
+          <div>
+            <label>Target Port</label>
+            <input
+              className="field-input"
+              value={selectedEntity.targetPort || ""}
+              readOnly
+            />
+          </div>
+
+        </div>
+      )}
+
+      {isWall && (
+        <div className="properties-group">
+
+          <div>
+            <label>Wall Name</label>
+            <input
+              className="field-input"
+              value={selectedEntity.label || "Wall"}
+              readOnly
+            />
+          </div>
+
+          <div>
+            <label>Material</label>
+            <select className="field-input">
+              <option>Concrete</option>
+              <option>Wood</option>
+              <option>Glass</option>
+              <option>Metal</option>
+            </select>
+          </div>
+
+        </div>
+      )}
       <hr className="header-separator" />
 
-      <div className="properties-group">
-        <div>
-          <label>Device Name</label>
-          <input className="field-input" defaultValue="Sw1-Room-100" />
-        </div>
+  {isDevice && (
+    <div className="properties-group">
 
-        <div>
-          <label>IP Address</label>
-          <input className="field-input" defaultValue="192.168.1.2" />
-        </div>
-
-        <div>
-          <label>Subnet Mask</label>
-          <input className="field-input" defaultValue="255.255.255.0" />
-        </div>
-
-        <div>
-          <label>Default Gateway</label>
-          <input className="field-input" defaultValue="192.168.1.1" />
-        </div>
+      <div>
+        <label>Device Name</label>
+        <input
+          className="field-input"
+          value={selectedEntity?.label || ""}
+          readOnly
+        />
       </div>
+
+      <div>
+        <label>IP Address</label>
+        <input
+          className="field-input"
+          value={
+            selectedEntity?.interfaces?.[0]?.ipv4?.address || ""
+          }
+          readOnly
+        />
+      </div>
+
+      <div>
+        <label>Subnet Mask</label>
+        <input
+          className="field-input"
+          value={
+            selectedEntity?.interfaces?.[0]?.ipv4?.subnetMask || ""
+          }
+          readOnly
+        />
+      </div>
+
+      <div>
+        <label>Default Gateway</label>
+        <input
+          className="field-input"
+          value={selectedEntity?.defaultGateway || ""}
+          readOnly
+        />
+      </div>
+
+      <button
+        className="floor-specifier-btn"
+        style={{ marginTop: "6px" }}
+        onClick={() => {
+          console.log("Advanced config", selectedEntity);
+        }}
+      >
+        Advanced Configuration
+      </button>
+
+    </div>
+  )}
+
+  {isStructure && (
+    <div className="properties-group">
+
+      <div>
+        <label>Name</label>
+        <input
+          className="field-input"
+          value={
+            selectedEntity.label ||
+            selectedEntity.name ||
+            selectedEntity.structureType ||
+            ""
+          }
+          readOnly
+        />
+      </div>
+
+      <div>
+        <label>Type</label>
+        <input
+          className="field-input"
+          value={
+            selectedEntity.structureType ||
+            selectedEntity.type ||
+            ""
+          }
+          readOnly
+        />
+      </div>
+
+      <div>
+        <label>Material</label>
+        <select className="field-input">
+          <option>Concrete</option>
+          <option>Wood</option>
+          <option>Tile</option>
+          <option>Carpet</option>
+        </select>
+      </div>
+
+    </div>
+  )}
 
       <hr className="header-separator" />
 
@@ -141,8 +324,8 @@ const handleTransformChange = (type, axis, value) => {
             <input
               type="number"
               className="field-input"
-              value={transform.scale.factor}
-              onChange={(e) => handleTransformChange('scale', 'factor', e.target.value)}
+              value={transform.scale}
+              onChange={(e) => handleTransformChange('scale', null, e.target.value)}
             />
             <input
               type="number"

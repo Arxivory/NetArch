@@ -2,7 +2,9 @@ import appState from '../state/AppState.js';
 import LogicalLayout from '../core/layout/LogicalLayout.js';
 import { createDeviceInstance } from '../data/deviceCatalog';
 import { createFurnitureInstance } from '../data/furnitureCatalog';
-
+import { validateConnection } from '../data/deviceCatalog';
+import { validatePortSelection } from '../data/deviceCatalog';
+import { showErrorModal } from '../util/ErrorHandling.js';
 
 export class LogicalCanvasController {
   constructor(container, opts = {}) {
@@ -213,7 +215,7 @@ addFurniture(furnitureData, x, y) {
   // STATE MANAGEMENT HANDLERS
   // =========================================================
 
-  _handlePortSelect(device, x, y, callback) {
+_handlePortSelect(device, x, y, callback) {
     const existingMenu = document.getElementById('canvas-port-menu');
     if (existingMenu) existingMenu.remove();
 
@@ -252,7 +254,7 @@ addFurniture(furnitureData, x, y) {
     menu.style.backgroundColor = '#ffffff';
     menu.style.border = '1px solid #94a3b8';
     menu.style.borderRadius = '4px';
-    menu.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
+    menu.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
     menu.style.padding = '4px 0';
     menu.style.zIndex = '9999';
     menu.style.minWidth = '140px';
@@ -272,8 +274,22 @@ addFurniture(furnitureData, x, y) {
       item.onmouseenter = () => item.style.backgroundColor = '#f1f5f9';
       item.onmouseleave = () => item.style.backgroundColor = '#ffffff';
 
-      item.onclick = (e) => {
+item.onclick = (e) => {
         e.stopPropagation();
+        let activeCable = appState.ui.selectedCable || appState.tools.activeTool;
+
+        if (activeCable === 'straight') activeCable = 'copper-straight';
+        if (activeCable === 'crossover') activeCable = 'copper-crossover';
+        if (activeCable && activeCable !== 'cable') {
+            const validation = validatePortSelection(activeCable, port);
+            if (!validation.valid) {
+              showErrorModal(validation.error, "Connection Error");
+              menu.remove();
+              document.removeEventListener('pointerdown', outsideClickListener);
+              callback(null); 
+              return; 
+            }
+        }
         menu.remove();
         document.removeEventListener('pointerdown', outsideClickListener);
         callback(port);
@@ -377,12 +393,67 @@ addFurniture(furnitureData, x, y) {
   }
 
   _handleCableCreated(cableData) {
-    if (appState.network?.connectDevices && cableData.sourceId && cableData.targetId) {
-      appState.network.connectDevices(
-        cableData.sourceId,
-        cableData.targetId,
-        cableData.cableType || 'ethernet'
+    console.log("🔌 Finalizing connection with data:", cableData);
+
+    if (cableData.sourceId && cableData.targetId) {
+      
+      const sourceDevice = appState.getDevice(cableData.sourceId) || this.layout.devices.find(d => d.id === cableData.sourceId);
+      const targetDevice = appState.getDevice(cableData.targetId) || this.layout.devices.find(d => d.id === cableData.targetId);
+
+      if (!sourceDevice || !targetDevice) {
+         console.error("Could not find source or target device.");
+         return;
+      }
+
+      const possibleTypes = [
+        appState.ui?.selectedCable, 
+        appState.tools?.activeTool, 
+        cableData.cableType, 
+        cableData.type
+      ];
+
+      let actualCableId = possibleTypes.find(type => type && type !== 'cable');     
+      if (actualCableId === 'straight') actualCableId = 'copper-straight';
+      if (actualCableId === 'crossover') actualCableId = 'copper-crossover';
+      if (!actualCableId) actualCableId = 'copper-straight';
+      
+      const validation = validateConnection(
+        actualCableId, 
+        cableData.sourcePort, 
+        cableData.targetPort,
+        sourceDevice.type,
+        targetDevice.type
       );
+
+      if (!validation.valid) {
+       showErrorModal(validation.error, "Connection Error");    
+        if (this.layout && this.layout.cables) {
+            this.layout.cables = this.layout.cables.filter(c => c.id !== cableData.id);
+            if (typeof this.layout.render === 'function') {
+                this.layout.render();
+            } else if (typeof this.layout._render === 'function') {
+                this.layout._render();
+            }
+        }
+        return; 
+      }
+      
+      if (appState.network && typeof appState.network.connectDevices === 'function') {
+        appState.network.connectDevices(
+          cableData.sourceId,
+          cableData.targetId,
+          actualCableId 
+        );
+      } else {
+        appState.addLink({
+          id: cableData.id,
+          sourceId: cableData.sourceId,
+          targetId: cableData.targetId,
+          sourcePort: cableData.sourcePort,
+          targetPort: cableData.targetPort,
+          type: actualCableId
+        });
+      }
     }
   }
 

@@ -71,7 +71,28 @@ export default class SpaceMesh {
 
         rectMesh.position.set((this.x * this.scaler) + (width / 2), 0, ((this.z * this.scaler) + (depth / 2)));
 
-        return rectMesh;
+        const ceilingGeometry = new THREE.PlaneGeometry(width - (thickness * 2), depth - (thickness * 2));
+        const ceilingMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0xf5f5f5,
+            roughness: 0.8,
+            metalness: 0.0
+        });
+        
+        const ceilingMesh = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
+        ceilingMesh.rotation.x = Math.PI / 2;
+        ceilingMesh.position.set(
+            (this.x * this.scaler) + (width / 2),
+            this.defaultHeight,
+            (this.z * this.scaler) + (depth / 2)
+        );
+        ceilingMesh.userData = { type: 'ceiling', id: this.id };
+
+        const group = new THREE.Group();
+        group.add(rectMesh);
+        group.add(ceilingMesh);
+        group.userData = { type: 'space', id: this.id };
+
+        return group;
     }
 
     getCircularForm() {

@@ -266,54 +266,7 @@ export class LogicalLayout {
 
   addDevice(deviceData, x, y) {
     const size = this.shapeRenderer.gridSize * 1.5;
-
-    const rawType = (deviceData.type + ' ' + deviceData.name).toLowerCase();
-
-    let iconKey = null;
-
-    if (rawType.includes('router') || rawType.includes('gateway') || rawType.includes('1941')) {
-      iconKey = 'router';
-    } else if (rawType.includes('switch') || rawType.includes('catalyst') || rawType.includes('2960') || rawType.includes('9200')) {
-      iconKey = 'switch';
-    } else if (rawType.includes('server')) {
-      iconKey = 'server';
-    } else if (rawType.includes('firewall') || rawType.includes('asa')) {
-      iconKey = 'firewall';
-    } else if (rawType.includes('pc') || rawType.includes('desktop') || rawType.includes('computer') || rawType.includes('laptop')) {
-      iconKey = 'pc';
-    } else if (rawType.includes('phone')) {
-      iconKey = 'pc';
-    }
-
-    const iconImage = this.deviceIcons[iconKey];
-
-    const half = size / 2;
-    const px = x - half;
-    const py = y - half;
-    const path = new Path2D();
-    path.rect(px, py, size, size);
-
-    const device = {
-      id: `device_${Math.random().toString(36).slice(2, 9)}`,
-      type: deviceData.type || 'device',
-      label: deviceData.name || 'Device',
-
-      interfaces: deviceData.interfaces || [],
-
-      x,
-      y,
-      width: size,
-      height: size,
-      icon: iconImage,
-      transform: {
-        position: { x, y, z: 0 },
-        scale: 1,
-        rotation: { x: 0, y: 0, z: 0 }
-      },
-      path,
-      hitTestMode: 'path'
-    };
-
+    const device = this.shapeCreator.createDevice(deviceData, x, y, size);
     this.devices.push(device);
 
     if (this.onDeviceAdded) {
@@ -462,8 +415,9 @@ export class LogicalLayout {
         // Clear focus when clicking on empty canvas
         appState.selection.focusedNode(null, null);
         return;
-        en.saveCurrentPosition();
       }
+
+      en.saveCurrentPosition();
 
       const zoom = this.pointerHandler.getZoom();
       const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
@@ -745,28 +699,31 @@ export class LogicalLayout {
         this.currentPoint,
         this.structureType,
       );
-      rect.floorId = activeFloor || null;
-      if (rect.body) rect.body.floorId = activeFloor || null;
-      if (!this._checkForOverlap(rect, "creation")) {
-        if (this.shapeCreator.onRectangleCreated) {
-          this.shapeCreator.onRectangleCreated(rect);
+      if (rect) {
+        rect.floorId = activeFloor || null;
+        if (rect.body) rect.body.floorId = activeFloor || null;
+        if (!this._checkForOverlap(rect, "creation")) {
+          if (this.shapeCreator.onRectangleCreated) {
+            this.shapeCreator.onRectangleCreated(rect);
+          }
+          this.rectangles.push(rect);
         }
-        this.rectangles.push(rect);
       }
-
     } else if (this.mode === 'circle') {
       const circle = this.shapeCreator.createCircle(
         this.startPoint,
         this.currentPoint,
         this.structureType
       );
-      circle.floorId = activeFloor || null;
-      if (circle.body) circle.body.floorId = activeFloor || null;
-      if (!this._checkForOverlap(circle, "creation")) {
-        if (this.shapeCreator.onCircleCreated) {
-          this.shapeCreator.onCircleCreated(circle);
+      if (circle) {
+        circle.floorId = activeFloor || null;
+        if (circle.body) circle.body.floorId = activeFloor || null;
+        if (!this._checkForOverlap(circle, "creation")) {
+          if (this.shapeCreator.onCircleCreated) {
+            this.shapeCreator.onCircleCreated(circle);
+          }
+          this.circles.push(circle);
         }
-        this.circles.push(circle);
       }
     } else if (this.mode === 'wall') {
       const wall = this.shapeCreator.createWall(this.startPoint, this.currentPoint);
@@ -909,8 +866,8 @@ export class LogicalLayout {
 
     ctx.save();
     for (const device of filterForFloor(this.devices)) {
-      const tileW = device.width + 32;
-      const tileH = device.height + 45;
+      const tileW = device.transform.scale.w + 32;
+      const tileH = device.transform.scale.h + 45;
       const tx = device.x - tileW / 2;
       const ty = device.y - tileH / 2.5;
 
@@ -1171,14 +1128,14 @@ export class LogicalLayout {
 
   _findDeviceAt(x, y) {
     for (const device of this.devices) {
-      const dx = device.x - device.width / 2;
-      const dy = device.y - device.height / 2;
+      const dx = device.x - device.w / 2;
+      const dy = device.y - device.h / 2;
 
       if (
         x >= dx &&
-        x <= dx + device.width &&
+        x <= dx + device.w &&
         y >= dy &&
-        y <= dy + device.height
+        y <= dy + device.h
       ) {
         return device;
       }
@@ -1218,7 +1175,16 @@ export class LogicalLayout {
   }
 
   _checkForOverlap(currentEntity, action) {
-    if (currentEntity === null) return true;
+    if (currentEntity === null) {
+      return true;
+    }
+
+    // Only check for overlap on entities that support it (like structures),
+    // and ignore others (like devices, furniture, walls, etc.).
+    if (typeof currentEntity.checkIfOverlapping !== 'function') {
+      return false;
+    }
+
     if (currentEntity.checkIfOverlapping(currentEntity.floorId)) {
       alert("Overlapping detected");
       if (action === 'creation') {

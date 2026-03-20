@@ -77,7 +77,9 @@
 //     </div>
 //   );
 // }
-import React from "react";
+
+import React, {useState, useRef, useEffect} from "react";
+import { createPortal } from "react-dom";
 import {
   Server,
   Network,
@@ -88,7 +90,8 @@ import {
   Armchair,
   Import,
   MonitorSmartphone,
-  Cpu
+  Cpu,
+  X
 } from "lucide-react";
 import appState from "../state/AppState";
 import { StartDrawCableCommand } from "../core/editor/DrawingCommands";
@@ -130,19 +133,42 @@ const categoryDetails = {
   Furniture: { 
     name: "Furniture", 
     icon: Armchair, 
-    dataKey: "furnitures", // Make sure your furnitureCatalog exports an object with this key!
+    dataKey: "furnitures",
     catalog: furnitureCatalog,
-    entityType: "furniture" // <--- This will tell the canvas what to do!
+    entityType: "furniture"
   },
 };
 
 const categories = Object.keys(categoryDetails);
 
 export default function ObjectLibrary({ canvasController }) {
+  const [showImportModal, setshowImportModal] = useState(false);
+  const [importError, setImportError] = useState(null);
+  const [importSuccess, setImportSuccess] = useState(null);
+  const [customDevices, setCustomDevices] = useState({
+    routers: {},
+    switches: {},
+    endDevices: {},
+    cables: {}
+  });
 
-  const handleDrawCable = (cableType) => {
+  const fileInputRef = useRef(null);
+
+  useEffect (() => {
+    if (showImportModal ) {
+      document.body.style.overflow = "hidden";
+    } else  {
+      document.body.style.overflow = "unset"; 
+    }
+
+  }, [showImportModal]);
+
+const handleDrawCable = (cableType) => {
     if (!canvasController) return;
     console.log("Selected cable:", cableType); 
+
+    appState.ui.selectedCable = cableType; 
+
     const cmd = new StartDrawCableCommand(canvasController, appState, cableType);
     cmd.execute();
   };
@@ -161,19 +187,161 @@ export default function ObjectLibrary({ canvasController }) {
     event.dataTransfer.effectAllowed = "move";
   };
 
+  const parseModelFilename = (filename) => {
+    const nameWithoutExt = filename.replace(/\.(obj|glb|fbx|)$/i, '');
+    const parts = nameWithoutExt.toLowerCase().split(/[_-]+/);
+    let vendor = "Unknown";
+    let family = "endDevice";
+    let modelId = nameWithoutExt;
+
+    if (parts.length >= 3) {
+      vendor = parts [0].charAt(0).toUpperCase() + parts[0].slice(1);
+      family = parts [1];
+      modelId = parts.slice(2).join('-');
+
+    }
+
+    const familyMap = {
+      'switch': 'switches',
+      'router': 'routers',
+      'host': 'endDevices',
+      'server': 'endDevices',
+      'endDevice': 'endDevices',
+
+    };
+
+    const targetKey = familyMap[family] || 'endDevices';
+
+    return  {
+      device: {
+        modelId: modelId.toUpperCase(),
+        displayName: nameWithoutExt.replace(/[_-]+/g, ' ').toUpperCase(),
+        family: family,
+        vendor,
+        model3D: `/models/${filename}`
+      },
+      targetKey
+    };
+  };
+
+  const processFile = (file) => {
+    if (!file) return;
+    const validExtensions = ['.obj', '.glb', '.fbx'];
+    const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+
+    if (!validExtensions.includes(fileExt)) {
+      setImportError (`Unsupported file type: ${fileExt}. Please upload .obj, .glb, or .fbx files.`);
+      setImportSuccess(null);
+      return;
+    }
+
+    const { device, targetKey } = parseModelFilename(file.name);
+    setCustomDevices(prev => ({
+      ...prev,
+      [targetKey]: {
+        ...prev[targetKey],
+        [device.modelId]: device
+      }
+    }));
+
+    setImportSuccess(`Successfully imported ${device.displayName} as a ${targetKey.slice(0, -1)}.`);
+    setTimeout(() => {
+      setshowImportModal(false);
+      setImportSuccess(null);
+
+    }, 3000);
+
+  };
+
+  const ModalPortal = () => {
+    return createPortal(
+      <div className="import-modal-overlay" onClick={() => setshowImportModal(false)}>
+        <div className="import-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="import-modal-header">
+            <button className="close-btn" onClick={() => setshowImportModal(false)}>
+              < X size={16} />
+            </button>
+          </div>
+
+          <div className="import-modal-content">
+            {importError && <div className="import-alert error-container">{importError}</div>}
+            {importSuccess && <div className="import-alert success">{importSuccess}</div>}
+          
+
+            <div 
+              className="import-drop-zone"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); processFile(e.dataTransfer.files[0]); }}
+            >
+              
+              <label className="import-file-label">
+                <h1>Import Devices</h1>
+                <input type="file" onChange={(e) => processFile(e.target.files[0])} hidden />
+              </label>
+            </div>
+
+            <div className="import-format-info">
+              <p><strong>Supported:</strong> .obj, .glb, .fbx</p>
+              <pre className="format-example">vendor-family-model.obj</pre>
+            </div>
+          </div>
+        </div>
+      </div>,
+      document.body // This pushes it to the end of the body tag
+    );
+  };
+
   return (
     <div className="object-library">
       <div className="panel-header-container">
         <h3 className="panel-header-title">Object Library</h3>
-        <button className="import-btn" onClick={() => console.log("Import clicked")}>
+        <button className="import-btn" onClick={() => setshowImportModal(true)}>
           <Import size={16} />
           Import
         </button>
       </div>
 
-      <hr className="header-separator" />
+      <hr className="header-separator" /> 
+      
+      <div className="library-scroll-area">
+        {Object.keys(categoryDetails).map((catKey) => {
+          const { name, icon: IconComponent, dataKey } = categoryDetails[catKey];
+          const catalogItems = dataKey && deviceCatalog[dataKey] ? Object.values(deviceCatalog[dataKey]) : [];
+          const importedItems = dataKey && customDevices[dataKey] ? Object.values(customDevices[dataKey]) : [];
+          const items = [...catalogItems, ...importedItems];
 
-      {categories.map((catKey) => {
+          if (items.length === 0) return null;
+
+          return (
+            <div key={catKey} className="device-category">
+              <p className="category-label">{catKey}</p>
+              <div className="device-grid">
+                {items.map((device) => (
+                  <div
+                    key={device.modelId || device.id}
+                    draggable={catKey !== "Cables"}
+                    onDragStart={catKey !== "Cables" ? (e) => onDragStart(e, name, device) : undefined}
+                    onClick={catKey === "Cables" ? () => handleDrawCable(device.id) : undefined}
+                    className="device-tile draggable-tile"
+                  >
+                    <div className="device-icon">
+                      <IconComponent size={32} />
+                    </div>
+                    <p className="device-type">{device.displayName || device.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {showImportModal && <ModalPortal />}
+    </div>
+  );
+}
+
+      {/* {categories.map((catKey) => {
         const { name, icon: IconComponent, dataKey, catalog, entityType } = categoryDetails[catKey];
         
         // 4. DYNAMICALLY PULL FROM THE CORRECT CATALOG
@@ -205,7 +373,7 @@ export default function ObjectLibrary({ canvasController }) {
                   draggable={!isCableCategory}
                   onDragStart={
                     !isCableCategory 
-                      ? (event) => onDragStart(event, name, item, entityType) // Pass entityType here!
+                      ? (event) => onDragStart(event, name, item, entityType)
                       : undefined
                   }
                   onClick={
@@ -231,5 +399,8 @@ export default function ObjectLibrary({ canvasController }) {
         );
       })}
     </div>
+
+    {showImportModal && <ModalPortal />}
+    </div>
   );
-}
+} */}

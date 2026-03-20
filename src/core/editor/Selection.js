@@ -1,5 +1,4 @@
-import appState from "../../state/AppState";
-
+import  appState  from "../../state/AppState";
 export class Selection {
     constructor(opts) {
         this.dpr = opts.dpr || 1;

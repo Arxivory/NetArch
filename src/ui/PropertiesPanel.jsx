@@ -10,32 +10,44 @@ export default function PropertiesPanel({ canvasController }) {
     rotation: { x: 0, y: 0, z: 0 }
   });
 
+    useEffect(() => {
+  const unsubscribe = appState.selection.subscribe(() => {
+    // 1. Try to get selected IDs (from canvas clicks)
+    let ids = appState.selection.getSelectedDeviceIds(); 
+    
+    // 2. If empty, try to get the Focused ID (from Hierarchy clicks)
+    if (!ids || ids.length === 0) {
+      const focused = appState.selection.getFocusedId();
+      if (focused) ids = [focused];
+    }
 
-  useEffect(() => {
-    const unsubscribe = appState.selection.subscribe(() => {
-      let ids = appState.selection.getSelectedDeviceIds();
-      if (!ids || ids.length === 0) {
-        const focused = appState.selection.getFocusedId();
-        if (focused) ids = [focused];
+    if (ids && ids.length > 0) {
+      const entityId = ids[0];
+      const entity = findEntityById(entityId); // This uses your layout search
+      
+      if (entity) {
+        setSelectedEntity(entity);
+        
+        // Logically map the entity data to the transform state
+        // This ensures the input boxes show the correct numbers immediately
+        setTransform({
+          position: { 
+            x: entity.x || 0, 
+            y: entity.y || 0, 
+            z: entity.transform?.position?.z || 0 
+          },
+          scale: entity.transform?.scale || 1,
+          rotation: entity.transform?.rotation || { x: 0, y: 0, z: 0 }
+        });
+        return;
       }
+    }
+    
+    // If nothing is found, reset the panel
+    setSelectedEntity(null);
+  });
 
-      if (ids && ids.length > 0) {
-        const entityId = ids[0];
-        const entity = findEntityById(entityId);
-        if (entity) {
-          setSelectedEntity(entity);
-          setTransform(entity.transform || {
-            position: { x: entity.x || 0, y: entity.y || 0, z: 0 },
-            scale: { x: 1, y: 1, z: 1 },
-            rotation: { x: 0, y: 0, z: 0 }
-          });
-          return;
-        }
-      }
-      setSelectedEntity(null);
-    });
-
-    return () => unsubscribe && unsubscribe();
+  return () => unsubscribe && unsubscribe();
   }, [canvasController]);
 
   const findEntityById = (id) => {
@@ -239,7 +251,29 @@ export default function PropertiesPanel({ canvasController }) {
       </button>
 
     </div>
-  )}
+  )} 
+
+  {isFurniture && (
+        <div className="properties-group">
+          <div>
+            <label>Furniture Name</label>
+            <input 
+              className="field-input" 
+              value={selectedEntity.label || selectedEntity.name || "Generic Furniture"} 
+              readOnly 
+            />
+          </div>
+          <div>
+            <label>Category</label>
+            <input 
+              className="field-input" 
+              value={selectedEntity.type || "Furniture"} 
+              style={{ textTransform: 'capitalize' }}
+              readOnly 
+            />
+          </div>
+        </div>
+      )}
 
   {isStructure && (
     <div className="properties-group">

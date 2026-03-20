@@ -322,10 +322,21 @@ export class LogicalLayout {
     const path = new Path2D();
     path.rect(px, py, size, size);
 
+    const updateFurniturePath = (entity) => {
+      const halfW = entity.width / 2;
+      const halfH = entity.height / 2;
+      const updatedPath = new Path2D();
+      updatedPath.rect(entity.x - halfW, entity.y - halfH, entity.width, entity.height);
+      entity.path = updatedPath;
+    };
+
     const furniture = {
       id: `furniture_${Math.random().toString(36).slice(2, 9)}`,
       type: furnitureData.type || 'furniture',
       label: furnitureData.name || furnitureData.label || 'Furniture',
+      catalogId: furnitureData.catalogId,
+      floorId: furnitureData.floorId || null,
+      spaceId: furnitureData.spaceId || null, 
       x,
       y,
       width: size,
@@ -337,7 +348,23 @@ export class LogicalLayout {
         rotation: { x: 0, y: 0, z: 0 }
       },
       path,
-      hitTestMode: 'path'
+      hitTestMode: 'path',
+      move(dx, dy) {
+        this.x += dx;
+        this.y += dy;
+        this.transform.position = { ...this.transform.position, x: this.x, y: this.y };
+        updateFurniturePath(this);
+      },
+      saveCurrentPosition() {
+        this._savedPosition = { x: this.x, y: this.y };
+      },
+      restoreToSavedPosition() {
+        if (!this._savedPosition) return;
+        this.x = this._savedPosition.x;
+        this.y = this._savedPosition.y;
+        this.transform.position = { ...this.transform.position, x: this.x, y: this.y };
+        updateFurniturePath(this);
+      }
     };
 
     this.furnitures.push(furniture);
@@ -1071,6 +1098,7 @@ export class LogicalLayout {
     return [
       this.cables,
       this.devices,
+      this.furnitures,
       this.rectangles,
       this.polygons,
       this.circles,

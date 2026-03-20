@@ -306,7 +306,7 @@ const handleDrawCable = (cableType) => {
       
       <div className="library-scroll-area">
         {Object.keys(categoryDetails).map((catKey) => {
-          const { name, icon: IconComponent, dataKey, catalog } = categoryDetails[catKey];
+          const { name, icon: IconComponent, dataKey, catalog, entityType } = categoryDetails[catKey];
           const catalogItems = dataKey && catalog[dataKey] ? Object.values(catalog[dataKey]) : [];
           const importedItems = dataKey && customDevices[dataKey] ? Object.values(customDevices[dataKey]) : [];
           const items = [...catalogItems, ...importedItems];
@@ -321,7 +321,7 @@ const handleDrawCable = (cableType) => {
                   <div
                     key={device.modelId || device.id}
                     draggable={catKey !== "Cables"}
-                    onDragStart={catKey !== "Cables" ? (e) => onDragStart(e, name, device) : undefined}
+                    onDragStart={catKey !== "Cables" ? (e) => onDragStart(e, name, device, entityType) : undefined}
                     onClick={catKey === "Cables" ? () => handleDrawCable(device.id) : undefined}
                     className="device-tile draggable-tile"
                   >

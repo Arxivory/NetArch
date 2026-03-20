@@ -3,6 +3,7 @@ import Furniture from "../../core/furniture/Furniture"
 export class FurnitureStore {
     constructor() {
         this.furnitures = [];
+        this.listeners = [];
     };
 
     addFurniture(furniture) {
@@ -32,6 +33,7 @@ export class FurnitureStore {
         newFurniture.spaceId = furniture.spaceId || null;
 
         this.furnitures.push(newFurniture);
+        this.notify();
         return newFurniture;
     };
 
@@ -42,10 +44,29 @@ export class FurnitureStore {
             return false;
         }
         this.furnitures.splice(index, 1);
+        this.notify();
         return true;
     }
 
     getFurniture(furnitureId) {
         return this.furnitures.find(f => f.id === furnitureId) || null;
+    }
+
+    notify() {
+        for (const listener of this.listeners) {
+            listener(this);
+        }
+    }
+
+    subscribe(callback) {
+        if (typeof callback !== 'function') {
+            console.error('Listener must be a function');
+            return () => {};
+        }
+
+        this.listeners.push(callback);
+        return () => {
+            this.listeners = this.listeners.filter(l => l !== callback);
+        };
     }
 };

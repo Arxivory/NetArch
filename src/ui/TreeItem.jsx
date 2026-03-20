@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import appState from "../state/AppState"; 
-import { Mountain, Grid, ChevronRight, ChevronDown, Building, Server, Box, Layers, CopyPlus } from "lucide-react";
+import { Mountain, Grid, ChevronRight, ChevronDown, Building, Server, Box, Layers, CopyPlus, Wifi } from "lucide-react";
 import FloorSpecifier from "./FloorSpecifier";
 
 const icons = {
@@ -9,7 +9,7 @@ const icons = {
   floor: Box,
   space: Grid,
   rack: Server,
-  device: Box,
+  device: Wifi,
 };
 
 export default function TreeItem({ node }) {
@@ -30,6 +30,7 @@ export default function TreeItem({ node }) {
 
   const handleRowClick = (e) => {
     appState.selection.focusedNode(node.id, node.type);
+    
     // maintain active floor when clicking sites or floors
     if (node.type === "floor") {
       appState.ui.setActiveFloor(node.id);
@@ -39,6 +40,11 @@ export default function TreeItem({ node }) {
         appState.ui.setActiveFloor(floors[0].id);
       } else {
         appState.ui.setActiveFloor(null);
+      }
+    } else if (node.type === "device") {
+      // When clicking a device, set the active floor to its floor
+      if (node.floorId) {
+        appState.ui.setActiveFloor(node.floorId);
       }
     } else {
       // Clear active floor when clicking domain, space, or other types

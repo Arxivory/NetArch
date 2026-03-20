@@ -114,6 +114,21 @@ addDevice(deviceData, x, y) {
         return this.addFurniture(deviceData, x, y);
     }
 
+    const focusedType = appState.selection.focusedType;
+    const focusedId = appState.selection.focusedId;
+
+    if (focusedType !== 'floor' && focusedType !== 'space') {
+        console.error("Cannot add device: A floor or space must be selected in the hierarchy");
+        alert('Please select a floor or space in the hierarchy before adding a device.');
+        return;
+    }
+
+    if (!focusedId) {
+        console.error("Cannot add device: No floor or space is focused");
+        alert('Please select a floor or space in the hierarchy before adding a device.');
+        return;
+    }
+
     const catalogId = deviceData.modelId;
     if (!catalogId) {
         console.error("Missing modelId in deviceData", deviceData);
@@ -122,10 +137,33 @@ addDevice(deviceData, x, y) {
 
     try {
         const newDevice = createDeviceInstance(catalogId, { x, y, z: 0 });
-        
-        newDevice.catalogId = catalogId; 
-        
-        newDevice.label = deviceData.label || newDevice.name;
+       newDevice.catalogId = catalogId;
+
+        // AUTO NUMBER DEVICE NAME
+        const baseName = newDevice.name;
+
+        const existing = this.layout.devices.filter(
+          d => d.name === baseName || d.label?.startsWith(baseName)
+        );
+
+        let newLabel = baseName;
+
+        if (existing.length > 0) {
+          newLabel = baseName + " (" + (existing.length + 1) + ")";
+        }
+
+        newDevice.label = newLabel;
+        newDevice.name = newLabel;
+
+        if (focusedType === 'space') {
+            newDevice.spaceId = focusedId;
+            const space = appState.structural.spaces.find(s => s.id === focusedId);
+            if (space) {
+                newDevice.floorId = space.floorId;
+            }
+        } else if (focusedType === 'floor') {
+            newDevice.floorId = focusedId;
+        }
 
         this.layout.addDevice({ ...newDevice }, x, y);
 
@@ -139,7 +177,7 @@ addDevice(deviceData, x, y) {
             console.error("Physical controller reference not found.");
         }
 
-        console.log('Device added:', newDevice.id, 'with Catalog ID:', newDevice.catalogId);
+        console.log('Device added:', newDevice.id, 'with Catalog ID:', newDevice.catalogId, 'to floor/space:', focusedId);
     } catch (error) {
         console.error("Failed to add device:", error.message);
     }
@@ -163,8 +201,6 @@ addFurniture(furnitureData, x, y) {
         newFurniture.label = furnitureData.label || newFurniture.name;
 
         console.log('Creating furniture instance with catalogId:', catalogId, 'and:', newFurniture);
-
-        
 
         this.layout.addFurniture({ ...newFurniture }, x, y);
 
@@ -291,24 +327,38 @@ item.onclick = (e) => {
     }, 10);
   }
 
-  _handleShapeCreated(shapeData, shapeType) {
+_handleShapeCreated(shapeData, shapeType) {
     const { structureType, id, x, y, w, h, r, points } = shapeData;
+
+const removeInvalidShape = () => {
+
+      setTimeout(() => {
+        if (this.layout && typeof this.layout.removeShapeById === 'function') {
+           this.layout.removeShapeById(id);
+        }
+      }, 10);
+  
+      if (appState.tools) {
+          appState.tools.setActiveTool('pointer');
+      }
+    };
 
     if (structureType === 'Domain') {
       const data = {
         ...shapeData,
         label: `Domain ${this.counters.domain++}`,
       };
-      console.log(data);
+      console.log("Creating Domain:", data);
       appState.structural.addDomain(data);
     }
 
     else if (structureType === 'Site') {
       const selection = appState.selection;
-      const selectedDomainId = selection.getFocusedId() || selection.getSelectedId?.();
+      const selectedDomainId = selection.focusedType === 'domain' ? selection.focusedId : null;
 
       if (!selectedDomainId) {
-        console.warn('Site creation failed: A Domain must be selected.');
+        showErrorModal("A Domain must be selected from the Hierarchy panel before creating a Site.", "Invalid Hierarchy");
+        removeInvalidShape(); 
         return;
       }
 
@@ -323,10 +373,11 @@ item.onclick = (e) => {
 
     else if (structureType === 'Floor') {
       const selection = appState.selection;
-      const selectedSiteId = selection.getFocusedId();
+      const selectedSiteId = selection.focusedType === 'site' ? selection.focusedId : null;
 
       if (!selectedSiteId) {
-        console.warn('Floor creation failed: A Site must be selected.');
+        showErrorModal("A Site must be selected from the Hierarchy panel before creating a Floor.", "Invalid Hierarchy");
+        removeInvalidShape(); 
         return;
       }
 
@@ -339,12 +390,13 @@ item.onclick = (e) => {
       });
       appState.ui.setActiveFloor(id);
     }
-    
-    else if (structureType === 'Space') {
-      const selectedFloorId = appState.ui?.activeFloorId || appState.selection?.getFocusedId?.();
-
+else if (structureType === 'Space') {
+      const selection = appState.selection;
+      const selectedFloorId = selection.focusedType === 'floor' ? selection.focusedId : null;
+      
       if (!selectedFloorId) {
-        console.warn('Space creation failed: A Floor must be selected.');
+        showErrorModal("A Floor must be selected from the Hierarchy panel before creating a Space.", "Invalid Hierarchy");
+        removeInvalidShape(); 
         return;
       }
 

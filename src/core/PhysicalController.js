@@ -8,6 +8,7 @@ import SiteMesh from './rendering/structures/SiteMesh';
 import SpaceMesh from './rendering/structures/SpaceMesh';
 import FloorMesh from './rendering/structures/FloorMesh';
 import FurnitureMesh from './rendering/furnitures/FurnitureMesh';
+import DeviceMesh from './rendering/devices/DeviceMesh';
 
 export class PhysicalController {
     constructor(scene) {
@@ -116,6 +117,7 @@ export class PhysicalController {
 
 
         for (const device of devices) {
+            console.log('Processing device for rendering: ', device);
             activeDeviceIds.add(device.id);
             this.createDeviceGLTFMesh(device);
         }
@@ -250,52 +252,12 @@ export class PhysicalController {
         this.floorMeshes.set(floor.id, mesh);
     }
 
-    createDeviceGLTFMesh(device) {
-        const { switches, routers, endDevices } = deviceCatalog;
-        
-        const cId = device.catalogId || device.hostname || device.name; 
-        
-        const catalogEntry = switches[cId] || routers[cId] || endDevices[cId] ;
+    async createDeviceGLTFMesh(device) {
+        const newDevice = new DeviceMesh(device, this.defaultScaler);
+        const deviceMesh = await newDevice.getMesh(this.gltfLoader, deviceCatalog);
 
-        if (!catalogEntry) {
-            console.warn(`Lookup failed for ID: ${cId}. Falling back to default.`);
-        }
-
-        let modelPath = (catalogEntry && catalogEntry.model3D) 
-            ? catalogEntry.model3D 
-            : 'objects/devices/routers/1941.glb';
-
-        if (modelPath.endsWith('.obj')) {
-            console.warn(`Redirecting ${modelPath} to .glb for GLTFLoader`);
-            modelPath = modelPath.replace('.obj', '.glb'); 
-        }
-
-        this.gltfLoader.load(modelPath, (gltf) => {
-            const model = gltf.scene;
-
-            const modX = device.transform.position.x * this.defaultScaler;
-            const modZ = device.transform.position.y * this.defaultScaler;
-            
-            model.position.set(modX, 2.5, modZ); 
-            model.scale.set(7, 7, 7); 
-
-            model.traverse((child) => {
-                if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                    if (child.material) {
-                        child.material.metalness = 0.5; 
-                    }
-                }
-            });
-
-            this.scene.add(model);
-            this.deviceMeshes.set(device.id, model);
-            
-            console.log(`Successfully loaded ${cId} from: ${modelPath}`);
-        }, 
-        undefined, 
-        (err) => console.error("GLB Load Error. Path tried:", modelPath, err));
+        this.scene.add(deviceMesh);
+        this.deviceMeshes.set(device.id, deviceMesh);
     }
 
     async createFurnitureGLTFMesh(furniture) {

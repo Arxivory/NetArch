@@ -40,6 +40,9 @@ export default function TreeItem({ node }) {
       } else {
         appState.ui.setActiveFloor(null);
       }
+    } else {
+      // Clear active floor when clicking domain, space, or other types
+      appState.ui.setActiveFloor(null);
     }
   };
 

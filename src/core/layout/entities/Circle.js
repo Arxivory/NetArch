@@ -86,19 +86,16 @@ export class Circle {
         this.body.setPosition(this.x, this.y, true);
     }
 
-    checkIfOverlapping() {
-        const structMap = new Map();
-        structMap.set("Site", "Domain");
-        structMap.set("Space", "Site");
+    checkIfOverlapping(floorId) {
         const ceStruct = this.structureType;
         let overlapping = false;
         this.system.checkOne(this.body, (other) => {
             if (other !== this.body) {
-                overlapping = true;
-            }
-            const candidateStruct = other.b.structType;
-            if (structMap.get(ceStruct) === candidateStruct){
-                overlapping = false;
+                const otherFloorId = other.b?.floorId ?? null;
+                const currentFloorId = floorId ?? null;
+                if (other.b && otherFloorId === currentFloorId && other.b.structType === ceStruct) {
+                    overlapping = true;
+                }
             }
         }); 
         return overlapping;

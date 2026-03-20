@@ -9,11 +9,8 @@ export default function FloorSpecifier({ parentId, onCloseModal, floorCount }) {
     const handleAdd = () => {
         const n = parseInt(count, 10);
         if (isNaN(n) || n <= 0) return;
-        let lastId = null;
         for (let i = 0; i < n; i++) {
-            const id = Date.now() + i;
-            addNode(parentId, "floor", `Floor ${floorCount}`);
-            lastId = id;
+            addNode(parentId, "floor", `Floor ${floorCount + i}`);
         }
         setCount(1);
     };

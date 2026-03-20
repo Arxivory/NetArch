@@ -1,13 +1,18 @@
 import * as THREE from 'three';
 import appState from '../state/AppState';
 import deviceCatalog from '../data/deviceCatalog';
+import furnitureCatalog from '../data/furnitureCatalog';
 import { GLTFLoader, MTLLoader, OBJLoader } from 'three/examples/jsm/Addons.js';
+import DomainMesh from './rendering/structures/DomainMesh';
+import SiteMesh from './rendering/structures/SiteMesh';
+import SpaceMesh from './rendering/structures/SpaceMesh';
 
 export class PhysicalController {
     constructor(scene) {
         this.scene = scene;
         this.store = appState.structural;
         this.networkStore = appState.network;
+        this.furnitureStore = appState.furniture;
         this.meshes = new Map();
         this.defaultScaler = 0.7;
 
@@ -19,6 +24,7 @@ export class PhysicalController {
         this.siteMeshes = new Map();
         this.spaceMeshes = new Map();
         this.deviceMeshes =  new Map();
+        this.furnitureMeshes = new Map();
 
         this.unsubscribe = this.store.subscribe(() => this.syncWithState());
         this.unsubscribeNetwork = this.networkStore.subscribe(() => this.syncWithState());
@@ -31,11 +37,13 @@ export class PhysicalController {
         const sites = this.store.sites;
         const spaces = this.store.spaces;
         const devices = this.networkStore.devices;
+        const furnitures = this.furnitureStore.furnitures;
 
         const activeDomainIds = new Set();
         const activeSiteIds = new Set();
         const activeSpaceIds = new Set();
         const activeDeviceIds = new Set();
+        const activeFurnitureIds = new Set();
 
         for (const domain of domains) {
             activeDomainIds.add(domain.id);
@@ -46,7 +54,7 @@ export class PhysicalController {
 
             switch (domain.shapeType) {
                 case 'rectangle':
-                    this.createDomainMesh(domain);
+                    this.createRectangularDomainMesh(domain);
                     break;
                 case 'polygon':
                     this.createPolygonalDomainMesh(domain);
@@ -84,9 +92,16 @@ export class PhysicalController {
             }
         }
 
+
         for (const device of devices) {
             activeDeviceIds.add(device.id);
             this.createDeviceGLTFMesh(device);
+        }
+
+        for ( const furniture of furnitures) {
+            console.log('Processing furniture for rendering:', furniture);
+            activeFurnitureIds.add(furniture.id);
+            this.createFurnitureGLTFMesh(furniture);
         }
 
         for (const [id, mesh] of this.domainMeshes) {
@@ -117,23 +132,9 @@ export class PhysicalController {
         }
     }
 
-    createDomainMesh(domain) {
-        const { x, y, width, height } = domain.geometry;
-
-        const modifiedX = x * this.defaultScaler;
-        const modifiedY = y * this.defaultScaler;
-        const modifiedWidth = width * this.defaultScaler;
-        const modifiedHeight = height * this.defaultScaler;
-
-        const geometry = new THREE.BoxGeometry(modifiedWidth, 1, modifiedHeight);
-        const material = new THREE.MeshBasicMaterial({ color: 0x858585 });
-
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(
-            modifiedX + (modifiedWidth / 2),
-            0.1,
-            modifiedY + (modifiedHeight / 2)
-        )
+    createRectangularDomainMesh(domain) {
+        const rectDomain = new DomainMesh(domain, this.defaultScaler);
+        const mesh = rectDomain.getRectangularForm();
 
         this.scene.add(mesh);
         this.domainMeshes.set(domain.id, mesh);
@@ -173,58 +174,16 @@ export class PhysicalController {
     }
 
     createRectangleSiteMesh(site) {
-        const { x, y, width, height } = site.geometry;
-
-        const modifiedX = x * this.defaultScaler;
-        const modifiedY = y * this.defaultScaler;
-        const modifiedWidth = width * this.defaultScaler;
-        const modifiedHeight = height * this.defaultScaler;
-
-        const tallness = 50;
-
-        const modTallness = tallness * this.defaultScaler;
-
-        const geometry = new THREE.BoxGeometry(modifiedWidth, modTallness, modifiedHeight);
-        const material = new THREE.MeshBasicMaterial({ 
-            color: 0x909090,
-            side: THREE.DoubleSide
-        });
-
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(
-            modifiedX + (modifiedWidth / 2),
-            0.1 + (modTallness / 2),
-            modifiedY + (modifiedHeight / 2)
-        )
+        const rectSite = new SiteMesh(site, this.defaultScaler);
+        const mesh = rectSite.getRectangularForm();
 
         this.scene.add(mesh);
         this.siteMeshes.set(site.id, mesh);
     }
 
     createRectangleSpaceMesh(space) {
-        const { x, y, width, height } = space.geometry;
-
-        const modifiedX = x * this.defaultScaler;
-        const modifiedY = y * this.defaultScaler;
-        const modifiedWidth = width * this.defaultScaler;
-        const modifiedHeight = height * this.defaultScaler;
-
-        const tallness = 50;
-
-        const modTallness = tallness * this.defaultScaler;
-
-        const geometry = new THREE.BoxGeometry(modifiedWidth, modTallness, modifiedHeight);
-        const material = new THREE.MeshBasicMaterial({ 
-            color: 0x909090,
-            side: THREE.DoubleSide
-        });
-
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(
-            modifiedX + (modifiedWidth / 2),
-            (modTallness / 2),
-            modifiedY + (modifiedHeight / 2)
-        )
+        const rectSpace = new SpaceMesh(space, this.defaultScaler);
+        const mesh = rectSpace.getRectangularForm();
 
         this.scene.add(mesh);
         this.spaceMeshes.set(space.id, mesh);
@@ -235,7 +194,7 @@ export class PhysicalController {
         
         const cId = device.catalogId || device.hostname || device.name; 
         
-        const catalogEntry = switches[cId] || routers[cId] || endDevices[cId];
+        const catalogEntry = switches[cId] || routers[cId] || endDevices[cId] ;
 
         if (!catalogEntry) {
             console.warn(`Lookup failed for ID: ${cId}. Falling back to default.`);
@@ -271,6 +230,52 @@ export class PhysicalController {
 
             this.scene.add(model);
             this.deviceMeshes.set(device.id, model);
+            
+            console.log(`Successfully loaded ${cId} from: ${modelPath}`);
+        }, 
+        undefined, 
+        (err) => console.error("GLB Load Error. Path tried:", modelPath, err));
+    }
+
+        createFurnitureGLTFMesh(furniture) {
+        const { furnitures } = furnitureCatalog;
+        
+        const cId = furniture.type;
+        
+        const catalogEntry = furnitures[cId];
+
+        if (!catalogEntry) {
+            console.warn(`Lookup failed for ID: ${cId}. Falling back to default.`);
+        }
+
+        let modelPath = catalogEntry.model3D;
+
+        if (modelPath.endsWith('.obj')) {
+            console.warn(`Redirecting ${modelPath} to .glb for GLTFLoader`);
+            modelPath = modelPath.replace('.obj', '.glb'); 
+        }
+
+        this.gltfLoader.load(modelPath, (gltf) => {
+            const model = gltf.scene;
+
+            const modX = furniture.transform.position.x * this.defaultScaler;
+            const modZ = furniture.transform.position.y * this.defaultScaler;
+            
+            model.position.set(modX, 2.5, modZ); 
+            model.scale.set(7, 7, 7); 
+
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    if (child.material) {
+                        child.material.metalness = 0.5; 
+                    }
+                }
+            });
+
+            this.scene.add(model);
+            this.furnitureMeshes.set(furniture.id, model);
             
             console.log(`Successfully loaded ${cId} from: ${modelPath}`);
         }, 

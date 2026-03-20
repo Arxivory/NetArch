@@ -173,10 +173,7 @@ export class Freeform {
         this.updateBody();
     }
 
-    checkIfOverlapping() {
-        const structMap = new Map();
-        structMap.set("Site", "Domain");
-        structMap.set("Space", "Site");
+    checkIfOverlapping(floorId) {
         const ceStruct = this.structureType;
         for (const body of this.bodies) {
             this.system.remove(body);
@@ -187,17 +184,17 @@ export class Freeform {
 
             this.system.checkOne(body, (other) => {
                 if (!this.bodies.includes(other)) {
-                    overlapping = true;
-                }
-                const candidateStruct = other.b.structType;
-                if (structMap.get(ceStruct) === candidateStruct) {
-                    overlapping = false;
+                    const otherFloorId = other.b?.floorId ?? null;
+                    const currentFloorId = floorId ?? null;
+                    if (other.b && otherFloorId === currentFloorId && other.b.structType === ceStruct) {
+                        overlapping = true;
+                    }
                 }
             });
 
             if (overlapping) {
-                for (const body of this.bodies) {
-                    this.system.insert(body);
+                for (const bodyToReinsert of this.bodies) {
+                    this.system.insert(bodyToReinsert);
                 }
                 return true;
             }

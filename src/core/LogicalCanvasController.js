@@ -137,8 +137,9 @@ addDevice(deviceData, x, y) {
 
     try {
         const newDevice = createDeviceInstance(catalogId, { x, y, z: 0 });
-        newDevice.catalogId = catalogId;
+       newDevice.catalogId = catalogId;
 
+        // AUTO NUMBER DEVICE NAME
         const baseName = newDevice.name;
 
         const existing = this.layout.devices.filter(

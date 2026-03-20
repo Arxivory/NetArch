@@ -203,6 +203,25 @@ export class LogicalLayout {
     this._render();
   }
 
+  removeShapeById(id) {
+    const entity = this.findEntityById(id);
+    if (entity) {
+      if (entity.body) {
+         this.system.remove(entity.body);
+      } else if (entity.bodies) {
+         for (const body of entity.bodies) {
+            this.system.remove(body);
+         }
+      }
+    }
+    this.rectangles = this.rectangles.filter(e => e.id !== id);
+    this.polygons = this.polygons.filter(e => e.id !== id);
+    this.circles = this.circles.filter(e => e.id !== id);
+    this.freeforms = this.freeforms.filter(e => e.id !== id);
+    
+    this._render();
+  }
+
   setActiveFloor(floorId) {
     this.activeFloorId = floorId;
     this._render();
@@ -418,7 +437,9 @@ export class LogicalLayout {
         return;
       }
 
-      en.saveCurrentPosition();
+      if (en.saveCurrentPosition) {
+        en.saveCurrentPosition();
+      }
 
       const zoom = this.pointerHandler.getZoom();
       const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);

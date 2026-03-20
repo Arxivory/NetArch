@@ -1,6 +1,7 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import LogicalCanvasController from "../../core/LogicalCanvasController";
 import appState from "../../state/AppState";
+import { showErrorModal } from "../../util/ErrorHandling"; 
 
 const LogicalMode = forwardRef(function LogicalMode(
   { className = "", style = {}, gridSize = 24, snap = true, canvasControllerRef },
@@ -64,12 +65,48 @@ const LogicalMode = forwardRef(function LogicalMode(
     };
   }, []);
 
-  useImperativeHandle(ref, () => ({
-    startDrawRectangle: (type) => controllerRef.current?.startDrawRectangle(type),
+ useImperativeHandle(ref, () => ({
+    startDrawRectangle: (type) => {
+      const currentFocusType = appState.selection.focusedType;
+
+      if (type === 'site' && currentFocusType !== 'domain') {
+        showErrorModal("You must select a Domain from the Hierarchy panel first before drawing a Site.", "Invalid Hierarchy");
+        return; 
+      }
+      if (type === 'floor' && currentFocusType !== 'site') {
+        showErrorModal("You must select a Site from the Hierarchy panel first before drawing a Floor.", "Invalid Hierarchy");
+        return;
+      }
+      if (type === 'space' && currentFocusType !== 'floor') {
+        showErrorModal("You must select a Floor from the Hierarchy panel first before drawing a Space.", "Invalid Hierarchy");
+        return;
+      }
+
+      controllerRef.current?.startDrawRectangle(type);
+    },
+
+    startDrawPolygon: (type) => {
+      const currentFocusType = appState.selection.focusedType;
+
+      if (type === 'site' && currentFocusType !== 'domain') {
+        showErrorModal("You must select a Domain from the Hierarchy panel first before drawing a Site.", "Invalid Hierarchy");
+        return;
+      }
+      if (type === 'floor' && currentFocusType !== 'site') {
+        showErrorModal("You must select a Site from the Hierarchy panel first before drawing a Floor.", "Invalid Hierarchy");
+        return;
+      }
+      if (type === 'space' && currentFocusType !== 'floor') {
+        showErrorModal("You must select a Floor from the Hierarchy panel first before drawing a Space.", "Invalid Hierarchy");
+        return;
+      }
+
+      controllerRef.current?.startDrawPolygon(type);
+    },
+
     startDrawCircle: (type) => controllerRef.current?.startDrawCircle(type),
     startDrawWall: () => controllerRef.current?.startDrawWall(),
     startDrawCable: () => controllerRef.current?.startDrawCable(),
-    startDrawPolygon: (type) => controllerRef.current?.startDrawPolygon(type),
     cancelDrawing: () => controllerRef.current?.cancelDrawing(),
     addDevice: (data, x, y) => controllerRef.current?.addDevice(data, x, y),
     enableSnap: (v) => controllerRef.current?.enableSnap(v),
@@ -77,7 +114,6 @@ const LogicalMode = forwardRef(function LogicalMode(
     clear: () => controllerRef.current?.clear(),
     getSnappedCoords: (x, y) => controllerRef.current?.getSnappedCoords(x, y),
   }));
-
   const onDragOver = (event) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
@@ -85,20 +121,27 @@ const LogicalMode = forwardRef(function LogicalMode(
 
 const onDrop = (event) => {
   event.preventDefault();
-  
+
   const dataString = event.dataTransfer.getData("application/reactflow");
   if (!dataString) return;
 
   try {
     const data = JSON.parse(dataString);
-    // data is now: { type: "Switches", modelId: "2960", label: "Cisco Catalyst 2960" }
     console.log('Dropped data:', data);
 
+    const currentFocusType = appState.selection.focusedType;
+
+    if (currentFocusType !== 'floor' && currentFocusType !== 'space') {
+      showErrorModal(
+        `You cannot place a ${data.entityType || 'device'} here.\nPlease select a Floor or Space from the Hierarchy Panel first.`, 
+        "Placement Error"
+      );
+      return;
+    }
+
     const coords = controllerRef.current?.getSnappedCoords(event.clientX, event.clientY);
-    
+
     if (coords && controllerRef.current) {
-      // Pass the WHOLE data object so the controller can access 'modelId'
-      //console.log('From Logical Mode Data: ', data.label);
       if (data.entityType === "furniture")
         controllerRef.current.addFurniture(data, coords.x, coords.y);
       else

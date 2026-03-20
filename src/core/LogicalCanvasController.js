@@ -137,9 +137,23 @@ addDevice(deviceData, x, y) {
 
     try {
         const newDevice = createDeviceInstance(catalogId, { x, y, z: 0 });
-        
-        newDevice.catalogId = catalogId; 
-        newDevice.label = deviceData.label || newDevice.name;
+       newDevice.catalogId = catalogId;
+
+        // AUTO NUMBER DEVICE NAME
+        const baseName = newDevice.name;
+
+        const existing = this.layout.devices.filter(
+          d => d.name === baseName || d.label?.startsWith(baseName)
+        );
+
+        let newLabel = baseName;
+
+        if (existing.length > 0) {
+          newLabel = baseName + " (" + (existing.length + 1) + ")";
+        }
+
+        newDevice.label = newLabel;
+        newDevice.name = newLabel;
 
         if (focusedType === 'space') {
             newDevice.spaceId = focusedId;
@@ -336,24 +350,38 @@ item.onclick = (e) => {
     }, 10);
   }
 
-  _handleShapeCreated(shapeData, shapeType) {
+_handleShapeCreated(shapeData, shapeType) {
     const { structureType, id, x, y, w, h, r, points } = shapeData;
+
+const removeInvalidShape = () => {
+
+      setTimeout(() => {
+        if (this.layout && typeof this.layout.removeShapeById === 'function') {
+           this.layout.removeShapeById(id);
+        }
+      }, 10);
+  
+      if (appState.tools) {
+          appState.tools.setActiveTool('pointer');
+      }
+    };
 
     if (structureType === 'Domain') {
       const data = {
         ...shapeData,
         label: `Domain ${this.counters.domain++}`,
       };
-      console.log(data);
+      console.log("Creating Domain:", data);
       appState.structural.addDomain(data);
     }
 
     else if (structureType === 'Site') {
       const selection = appState.selection;
-      const selectedDomainId = selection.getFocusedId() || selection.getSelectedId?.();
+      const selectedDomainId = selection.focusedType === 'domain' ? selection.focusedId : null;
 
       if (!selectedDomainId) {
-        console.warn('Site creation failed: A Domain must be selected.');
+        showErrorModal("A Domain must be selected from the Hierarchy panel before creating a Site.", "Invalid Hierarchy");
+        removeInvalidShape(); 
         return;
       }
 
@@ -368,10 +396,11 @@ item.onclick = (e) => {
 
     else if (structureType === 'Floor') {
       const selection = appState.selection;
-      const selectedSiteId = selection.getFocusedId();
+      const selectedSiteId = selection.focusedType === 'site' ? selection.focusedId : null;
 
       if (!selectedSiteId) {
-        console.warn('Floor creation failed: A Site must be selected.');
+        showErrorModal("A Site must be selected from the Hierarchy panel before creating a Floor.", "Invalid Hierarchy");
+        removeInvalidShape(); 
         return;
       }
 
@@ -384,12 +413,13 @@ item.onclick = (e) => {
       });
       appState.ui.setActiveFloor(id);
     }
-    
-    else if (structureType === 'Space') {
-      const selectedFloorId = appState.ui?.activeFloorId || appState.selection?.getFocusedId?.();
-
+else if (structureType === 'Space') {
+      const selection = appState.selection;
+      const selectedFloorId = selection.focusedType === 'floor' ? selection.focusedId : null;
+      
       if (!selectedFloorId) {
-        console.warn('Space creation failed: A Floor must be selected.');
+        showErrorModal("A Floor must be selected from the Hierarchy panel before creating a Space.", "Invalid Hierarchy");
+        removeInvalidShape(); 
         return;
       }
 

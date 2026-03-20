@@ -7,15 +7,23 @@ export function HierarchyProvider({ children }) {
   const [hierarchy, setHierarchy] = useState([]);
 
   useEffect(() => {
-    const tree = appState.structural.getHierarchyTree();
+    const tree = appState.structural.getHierarchyTree(appState.network);
     setHierarchy(tree);
 
-    const unsubscribe = appState.structural.subscribe(() => {
-      const updatedTree = appState.structural.getHierarchyTree();
+    const unsubscribeStructural = appState.structural.subscribe(() => {
+      const updatedTree = appState.structural.getHierarchyTree(appState.network);
       setHierarchy(updatedTree);
     });
 
-    return unsubscribe;
+    const unsubscribeNetwork = appState.network.subscribe(() => {
+      const updatedTree = appState.structural.getHierarchyTree(appState.network);
+      setHierarchy(updatedTree);
+    });
+
+    return () => {
+      unsubscribeStructural();
+      unsubscribeNetwork();
+    };
   }, []);
 
   const selectNode = (id, type) => {

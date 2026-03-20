@@ -30,6 +30,8 @@ export class NetworkStore {
         type: deviceData.type,
         hostname: deviceData.name || deviceData.label || deviceData.hostname,
         siteId: deviceData.siteId,
+        floorId: deviceData.floorId,
+        spaceId: deviceData.spaceId,
         domainId: deviceData.domainId,
         transform: {
             position: deviceData.position || { x: 0, y: 0, z: 0 }

@@ -137,9 +137,9 @@ addDevice(deviceData, x, y) {
 
     try {
         const newDevice = createDeviceInstance(catalogId, { x, y, z: 0 });
-<<<<<<< HEAD
-        newDevice.catalogId = catalogId;
+       newDevice.catalogId = catalogId;
 
+        // AUTO NUMBER DEVICE NAME
         const baseName = newDevice.name;
 
         const existing = this.layout.devices.filter(
@@ -154,11 +154,6 @@ addDevice(deviceData, x, y) {
 
         newDevice.label = newLabel;
         newDevice.name = newLabel;
-=======
-        
-        newDevice.catalogId = catalogId; 
-        newDevice.label = deviceData.label || newDevice.name;
->>>>>>> 9c25684187c1886a81c5d3546bb113a072e51bea
 
         if (focusedType === 'space') {
             newDevice.spaceId = focusedId;

@@ -117,6 +117,7 @@ addDevice(deviceData, x, y) {
     const focusedType = appState.selection.focusedType;
     const focusedId = appState.selection.focusedId;
 
+    // (Existing Logical Checks)
     if (focusedType !== 'floor' && focusedType !== 'space') {
         console.error("Cannot add device: A floor or space must be selected in the hierarchy");
         alert('Please select a floor or space in the hierarchy before adding a device.');
@@ -127,6 +128,26 @@ addDevice(deviceData, x, y) {
         console.error("Cannot add device: No floor or space is focused");
         alert('Please select a floor or space in the hierarchy before adding a device.');
         return;
+    }
+
+    // =========================================================
+    // --- NEW: Physical Bounds Validation ---
+    // Prevent the device from being placed outside the physical 
+    // area of the selected hierarchy parent.
+    // =========================================================
+
+    if (this.layout && typeof this.layout.isPointInsideShape === 'function') {
+        const dropIsInsideParent = this.layout.isPointInsideShape(focusedId, x, y);
+        
+        if (!dropIsInsideParent) {
+            const prettyTypeName = focusedType.charAt(0).toUpperCase() + focusedType.slice(1);
+            
+            showErrorModal(
+                `Placement Failed.\nYou dropped the item outside the physical area of the selected ${prettyTypeName}.\n\nPlease ensure you drop the device INSIDE the selected region on the canvas.`, 
+                "Out of Bounds Error"
+            );
+            return; 
+        }
     }
 
     const catalogId = deviceData.modelId;

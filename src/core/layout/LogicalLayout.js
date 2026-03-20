@@ -6,6 +6,7 @@ import { Selection } from '../editor/Selection.js';
 import EntityTransformer from './transform/EntityTransformer.js';
 import { System } from 'check2d';
 import appState from '../../state/AppState.js';
+import { showErrorModal } from '../../util/ErrorHandling.js';
 
 export class LogicalLayout {
   constructor(opts = {}) {
@@ -220,6 +221,40 @@ export class LogicalLayout {
     this.freeforms = this.freeforms.filter(e => e.id !== id);
     
     this._render();
+  }
+
+isPointInsideShape(id, x, y) {
+    // 1. Find the parent shape entity by ID
+    const entity = this.findEntityById(id);
+    if (!entity) return false;
+
+    // 2. Check using the standard hit-test bounds
+    if (typeof entity.getCurrentBounds === 'function') {
+      const bounds = entity.getCurrentBounds();
+      return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY;
+    }
+
+    // 3. Fallback to basic coordinate checking if getCurrentBounds isn't implemented
+    // This assumes entities have x, y, width (w), and height (h) properties.
+    if (entity.x !== undefined && entity.maxX !== undefined) {
+      // Assuming maxX = entity.x + entity.w during placement
+      return x >= entity.x && x <= entity.maxX && y >= entity.y && y <= entity.maxY;
+    }
+
+    return true; // Default to allowing placement if shape is undefined for some reason
+  }
+
+  validateDropLocation(x, y) {
+    const selection = appState.selection;
+    const targetId = selection.focusedId;
+    
+    // If nothing is selected, or layout is missing, fail the check
+    if (!targetId || !this.layout) return false;
+
+    if (typeof this.layout.isPointInsideShape === 'function') {
+      return this.layout.isPointInsideShape(targetId, x, y);
+    }
+    return true; 
   }
 
   setActiveFloor(floorId) {

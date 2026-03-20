@@ -3,12 +3,14 @@ export default class Device {
         id,
         type,
         hostname,
+        catalogId = null,
         siteId = null, floorId = null, spaceId = null, domainId = null,
         transform = {}
     }) {
         this.id = id;
         this.type = type;
         this.hostname = hostname;
+        this.catalogId = catalogId;
 
         this.siteId = siteId;
         this.floorId = floorId;

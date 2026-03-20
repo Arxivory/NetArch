@@ -131,21 +131,41 @@ const onDrop = (event) => {
 
     const currentFocusType = appState.selection.focusedType;
 
+    // --- 1. LOGICAL CHECK (Hierarchy) ---
     if (currentFocusType !== 'floor' && currentFocusType !== 'space') {
       showErrorModal(
         `You cannot place a ${data.entityType || 'device'} here.\nPlease select a Floor or Space from the Hierarchy Panel first.`, 
         "Placement Error"
       );
-      return;
+      return; // Stop immediately
     }
 
     const coords = controllerRef.current?.getSnappedCoords(event.clientX, event.clientY);
 
     if (coords && controllerRef.current) {
-      if (data.entityType === "furniture")
+      // --- 2. PHYSICAL CHECK (Bounds) ---
+      if (typeof controllerRef.current.validateDropLocation === 'function') {
+        const isInside = controllerRef.current.validateDropLocation(coords.x, coords.y);
+        
+        if (!isInside) {
+          // Capitalize the word (e.g. 'floor' -> 'Floor') for a prettier error
+          const typeName = currentFocusType.charAt(0).toUpperCase() + currentFocusType.slice(1);
+          
+          showErrorModal(
+            `You dropped the item outside the physical boundaries of the selected ${typeName}. Please drop it inside the shape.`, 
+            "Out of Bounds"
+          );
+          return; // Stop the drop process immediately!
+        }
+      }
+
+      // --- 3. FINAL PLACEMENT ---
+      // If it passes both checks, we finally add it to the canvas
+      if (data.entityType === "furniture") {
         controllerRef.current.addFurniture(data, coords.x, coords.y);
-      else
+      } else {
         controllerRef.current.addDevice(data, coords.x, coords.y);
+      }
     }
   } catch (err) {
     console.error("Error dropping device:", err);

@@ -116,21 +116,27 @@ export class Rectangle {
         this.body.setPosition(this.x, this.y, true);
     }
 
-    checkIfOverlapping(floorId) {
+    checkIfOverlapping(floorId) { // function isnt applied yet to other entities.
         const structMap = new Map();
         structMap.set("Site", "Domain");
-        structMap.set("Space", "Site");
-        const requiredParent =  structMap.get(this.structureType);
+        structMap.set("Floor", "Site");   
+        structMap.set("Space", "Floor");  
+        const requiredParent = structMap.get(this.structureType);
         let overlapping = false;
+
         this.system.checkOne(this.body, (other) => {
             if (other !== this.body) {
                 const otherFloorId = other.b?.floorId ?? null;
                 const currentFloorId = floorId ?? null;
-                if (other.b && otherFloorId === currentFloorId && requiredParent !== other.b.structType) {
-                    overlapping = true;
+
+                if (other.b) {
+                    if (this.structureType === other.b.structType) {
+                        overlapping = true;
+                    }
                 }
             }
         }); 
+        
         return overlapping;
     }
 }

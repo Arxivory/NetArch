@@ -149,7 +149,8 @@ export default function ObjectLibrary({ canvasController }) {
     routers: {},
     switches: {},
     endDevices: {},
-    cables: {}
+    cables: {},
+    furnitures: {}
   });
 
   const fileInputRef = useRef(null);
@@ -305,8 +306,8 @@ const handleDrawCable = (cableType) => {
       
       <div className="library-scroll-area">
         {Object.keys(categoryDetails).map((catKey) => {
-          const { name, icon: IconComponent, dataKey } = categoryDetails[catKey];
-          const catalogItems = dataKey && deviceCatalog[dataKey] ? Object.values(deviceCatalog[dataKey]) : [];
+          const { name, icon: IconComponent, dataKey, catalog } = categoryDetails[catKey];
+          const catalogItems = dataKey && catalog[dataKey] ? Object.values(catalog[dataKey]) : [];
           const importedItems = dataKey && customDevices[dataKey] ? Object.values(customDevices[dataKey]) : [];
           const items = [...catalogItems, ...importedItems];
 

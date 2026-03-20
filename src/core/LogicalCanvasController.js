@@ -173,6 +173,21 @@ addFurniture(furnitureData, x, y) {
   console.log('Adding furniture with data:', furnitureData, 'at position:', { x, y });
     if (!this.layout) return;
 
+    const focusedType = appState.selection.focusedType;
+    const focusedId = appState.selection.focusedId;
+
+    if (focusedType !== 'floor' && focusedType !== 'space') {
+        console.error("Cannot add furniture: A floor or space must be selected in the hierarchy");
+        alert('Please select a floor or space in the hierarchy before adding furniture.');
+        return;
+    }
+
+    if (!focusedId) {
+        console.error("Cannot add furniture: No floor or space is focused");
+        alert('Please select a floor or space in the hierarchy before adding furniture.');
+        return;
+    }
+
     const catalogId = furnitureData.modelId;
     if (!catalogId) {
         console.error("Missing modelId in furnitureData", furnitureData);
@@ -183,8 +198,17 @@ addFurniture(furnitureData, x, y) {
         const newFurniture = createFurnitureInstance(catalogId, { x, y, z: 0 });
         
         newFurniture.catalogId = catalogId; 
-        
         newFurniture.label = furnitureData.label || newFurniture.name;
+
+        if (focusedType === 'space') {
+            newFurniture.spaceId = focusedId;
+            const space = appState.structural.spaces.find(s => s.id === focusedId);
+            if (space) {
+                newFurniture.floorId = space.floorId;
+            }
+        } else if (focusedType === 'floor') {
+            newFurniture.floorId = focusedId;
+        }
 
         console.log('Creating furniture instance with catalogId:', catalogId, 'and:', newFurniture);
 
@@ -193,7 +217,6 @@ addFurniture(furnitureData, x, y) {
         if (appState.furniture?.addFurniture) {
             appState.furniture.addFurniture(newFurniture);
         }
-
 
         if (this.physicalController) {
             this.physicalController.createFurnitureGLTFMesh(newFurniture);

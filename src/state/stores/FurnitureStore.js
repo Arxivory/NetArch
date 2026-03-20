@@ -17,6 +17,8 @@ export class FurnitureStore {
         const newFurnitureData = {
             id: furniture.id,
             type: furniture.catalogId,
+            floorId: furniture.floorId || null,
+            spaceId: furniture.spaceId || null,
             transform: {
                 position: { x: furniture.position.x, y: 0, z: furniture.position.y },
                 rotation: { x: 0, y: 0, z: 1 },
@@ -26,6 +28,8 @@ export class FurnitureStore {
 
         const newFurniture = new Furniture(newFurnitureData);
         newFurniture.type = furniture.catalogId;
+        newFurniture.floorId = furniture.floorId || null;
+        newFurniture.spaceId = furniture.spaceId || null;
 
         this.furnitures.push(newFurniture);
         return newFurniture;

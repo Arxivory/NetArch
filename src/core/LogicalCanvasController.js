@@ -543,13 +543,32 @@ else if (structureType === 'Space') {
     this.addFurniture(furniture, furniture.x, furniture.y);
   }
   
-  _handleEntitySelected(entity) {
+_handleEntitySelected(entity) {
     if (!entity || !entity.id) {
       appState.selection.clearSelection?.();
       return;
     }
 
-    appState.selection.selectDevice(entity.id, false);
+    if (entity.structureType) {
+        const typeStr = entity.structureType.toLowerCase(); 
+      
+        appState.selection.focusedId = entity.id;
+        appState.selection.focusedType = typeStr;
+        appState.selection.notify?.(); 
+    } 
+    else if (entity.entityType === 'furniture' || entity.type === 'furniture') {
+        if (typeof appState.selection.selectFurniture === 'function') {
+            appState.selection.selectFurniture(entity.id);
+        } else {
+            appState.selection.focusedId = entity.id;
+            appState.selection.focusedType = 'furniture';
+            appState.selection.notify?.();
+        }
+    }
+
+    else {
+        appState.selection.selectDevice?.(entity.id, false);
+    }
   }
 
   _handleEntityChanged(en) {

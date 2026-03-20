@@ -8,6 +8,7 @@ export class UIStore {
     this.snapEnabled = true;
     this.gridSize = 24;
     this.layerVisibility = {};
+    this.activeFloorId = null;  // currently selected floor for 2D mode
     this.listeners = [];
   }
 
@@ -85,6 +86,16 @@ export class UIStore {
     return false;
   }
 
+  setActiveFloor(floorId) {
+    this.activeFloorId = floorId;
+    this.notify();
+    return floorId;
+  }
+
+  getActiveFloor() {
+    return this.activeFloorId;
+  }
+
   getGridSize() {
     return this.gridSize;
   }
@@ -107,9 +118,9 @@ export class UIStore {
     this.snapEnabled = true;
     this.gridSize = 24;
     this.layerVisibility = {};
+    this.activeFloorId = null;
     this.notify();
   }
-
   subscribe(callback) {
     if (typeof callback !== 'function') {
       console.error('Listener must be a function');

@@ -1,15 +1,23 @@
 import * as THREE from 'three';
 import appState from '../state/AppState';
 import deviceCatalog from '../data/deviceCatalog';
+import furnitureCatalog from '../data/furnitureCatalog';
 import { GLTFLoader, MTLLoader, OBJLoader } from 'three/examples/jsm/Addons.js';
+import DomainMesh from './rendering/structures/DomainMesh';
+import SiteMesh from './rendering/structures/SiteMesh';
+import SpaceMesh from './rendering/structures/SpaceMesh';
+import FloorMesh from './rendering/structures/FloorMesh';
+import FurnitureMesh from './rendering/furnitures/FurnitureMesh';
 
 export class PhysicalController {
     constructor(scene) {
         this.scene = scene;
         this.store = appState.structural;
         this.networkStore = appState.network;
+        this.furnitureStore = appState.furniture;
         this.meshes = new Map();
         this.defaultScaler = 0.7;
+        this.defaultFloorHeight = 3.0; // Height per floor in meters
 
         this.objLoader = new OBJLoader();
         this.mtlLoader = new MTLLoader();
@@ -17,8 +25,12 @@ export class PhysicalController {
 
         this.domainMeshes = new Map();
         this.siteMeshes = new Map();
+        this.floorMeshes = new Map(); // New: floor-level meshes
         this.spaceMeshes = new Map();
         this.deviceMeshes =  new Map();
+        this.furnitureMeshes = new Map();
+
+        this.furnitureCatalog = furnitureCatalog.furnitures;
 
         this.unsubscribe = this.store.subscribe(() => this.syncWithState());
         this.unsubscribeNetwork = this.networkStore.subscribe(() => this.syncWithState());
@@ -29,14 +41,21 @@ export class PhysicalController {
     syncWithState() {
         const domains = this.store.domains;
         const sites = this.store.sites;
+        const floors = this.store.floors;
         const spaces = this.store.spaces;
         const devices = this.networkStore.devices;
+        const furnitures = this.furnitureStore.furnitures;
+
+        console.log(`[PhysicalController.syncWithState] Domains: ${domains.length}, Sites: ${sites.length}, Floors: ${floors.length}, Spaces: ${spaces.length}`);
 
         const activeDomainIds = new Set();
         const activeSiteIds = new Set();
+        const activeFloorIds = new Set();
         const activeSpaceIds = new Set();
         const activeDeviceIds = new Set();
+        const activeFurnitureIds = new Set();
 
+        // Process domains
         for (const domain of domains) {
             activeDomainIds.add(domain.id);
 
@@ -46,7 +65,7 @@ export class PhysicalController {
 
             switch (domain.shapeType) {
                 case 'rectangle':
-                    this.createDomainMesh(domain);
+                    this.createRectangularDomainMesh(domain);
                     break;
                 case 'polygon':
                     this.createPolygonalDomainMesh(domain);
@@ -69,6 +88,18 @@ export class PhysicalController {
             }
         }
 
+        for (const floor of floors) {
+            activeFloorIds.add(floor.id);
+
+            if (this.floorMeshes.has(floor.id)) {
+                console.log(`Floor ${floor.id} already rendered, skipping`);
+                continue;
+            }
+
+            console.log(`Processing new floor ${floor.id} with altitude ${floor.altitude}`);
+            this.createFloorMesh(floor);
+        }
+
         for (const space of spaces) {
             activeSpaceIds.add(space.id);
 
@@ -84,9 +115,18 @@ export class PhysicalController {
             }
         }
 
+
         for (const device of devices) {
             activeDeviceIds.add(device.id);
             this.createDeviceGLTFMesh(device);
+        }
+
+        for ( const furniture of furnitures) {
+            console.log('Processing furniture for rendering:', furniture);
+            activeFurnitureIds.add(furniture.id);
+            this.createFurnitureGLTFMesh(furniture).catch(err => 
+                console.error(`Failed to load furniture ${furniture.id}:`, err)
+            );
         }
 
         for (const [id, mesh] of this.domainMeshes) {
@@ -103,8 +143,16 @@ export class PhysicalController {
             }
         }
 
+        for (const [id, mesh] of this.floorMeshes) {
+            if (!activeFloorIds.has(id)) {
+                this.scene.remove(mesh);
+                this.floorMeshes.delete(id);
+            }
+        }
+
         for (const [id, mesh] of this.spaceMeshes) {
-            if (!activeSiteIds.has(id)) {
+            if (!activeSpaceIds.has(id)) {
+                this.scene.remove(mesh);
                 this.spaceMeshes.delete(id);
             }
         }
@@ -112,28 +160,14 @@ export class PhysicalController {
         for (const [id, mesh] of this.deviceMeshes) {
             if (!activeDeviceIds.has(id)) {
                 this.scene.remove(mesh);
-                this.siteMeshes.delete(id);
+                this.deviceMeshes.delete(id);
             }
         }
     }
 
-    createDomainMesh(domain) {
-        const { x, y, width, height } = domain.geometry;
-
-        const modifiedX = x * this.defaultScaler;
-        const modifiedY = y * this.defaultScaler;
-        const modifiedWidth = width * this.defaultScaler;
-        const modifiedHeight = height * this.defaultScaler;
-
-        const geometry = new THREE.BoxGeometry(modifiedWidth, 1, modifiedHeight);
-        const material = new THREE.MeshBasicMaterial({ color: 0x858585 });
-
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(
-            modifiedX + (modifiedWidth / 2),
-            0.1,
-            modifiedY + (modifiedHeight / 2)
-        )
+    createRectangularDomainMesh(domain) {
+        const rectDomain = new DomainMesh(domain, this.defaultScaler);
+        const mesh = rectDomain.getRectangularForm();
 
         this.scene.add(mesh);
         this.domainMeshes.set(domain.id, mesh);
@@ -173,118 +207,69 @@ export class PhysicalController {
     }
 
     createRectangleSiteMesh(site) {
-        const { x, y, width, height } = site.geometry;
-
-        const modifiedX = x * this.defaultScaler;
-        const modifiedY = y * this.defaultScaler;
-        const modifiedWidth = width * this.defaultScaler;
-        const modifiedHeight = height * this.defaultScaler;
-
-        const tallness = 50;
-
-        const modTallness = tallness * this.defaultScaler;
-
-        const geometry = new THREE.BoxGeometry(modifiedWidth, modTallness, modifiedHeight);
-        const material = new THREE.MeshBasicMaterial({ 
-            color: 0x909090,
-            side: THREE.DoubleSide
-        });
-
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(
-            modifiedX + (modifiedWidth / 2),
-            0.1 + (modTallness / 2),
-            modifiedY + (modifiedHeight / 2)
-        )
+        const rectSite = new SiteMesh(site, this.defaultScaler);
+        const mesh = rectSite.getRectangularForm();
 
         this.scene.add(mesh);
         this.siteMeshes.set(site.id, mesh);
     }
 
     createRectangleSpaceMesh(space) {
-        const { x, y, width, height } = space.geometry;
+        const floor = this.store.floors.find(f => f.id === space.floorId);
+        const altitude = floor ? floor.altitude || 0 : 0;
 
-        const modifiedX = x * this.defaultScaler;
-        const modifiedY = y * this.defaultScaler;
-        const modifiedWidth = width * this.defaultScaler;
-        const modifiedHeight = height * this.defaultScaler;
+        console.log(`Creating space ${space.id} on floor ${space.floorId} at altitude ${altitude}`);
 
-        const tallness = 50;
+        const rectSpace = new SpaceMesh(space, this.defaultScaler);
+        const mesh = rectSpace.getRectangularForm();
 
-        const modTallness = tallness * this.defaultScaler;
+        mesh.position.y = altitude;
 
-        const geometry = new THREE.BoxGeometry(modifiedWidth, modTallness, modifiedHeight);
-        const material = new THREE.MeshBasicMaterial({ 
-            color: 0x909090,
-            side: THREE.DoubleSide
-        });
-
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(
-            modifiedX + (modifiedWidth / 2),
-            (modTallness / 2),
-            modifiedY + (modifiedHeight / 2)
-        )
+        console.log(`Space mesh positioned at Y=${mesh.position.y}`);
 
         this.scene.add(mesh);
         this.spaceMeshes.set(space.id, mesh);
     }
 
-    createDeviceMesh(device) {
-        const isSwitch = device.type === 'switch';
-        
-        const modelPath = isSwitch 
-            ? 'objects/devices/switches/2960.obj' 
-            : 'objects/devices/routers/1941.obj';
-            
-        const mtlPath = isSwitch 
-            ? 'materials/devices/switches/2960.mtl' 
-            : 'materials/devices/routers/1941.mtl';
+    createFloorMesh(floor) {
+        const site = this.store.sites.find(s => s.id === floor.siteId);
+        if (!site) {
+            console.warn(`Site not found for floor ${floor.id}`);
+            return;
+        }
 
-        const mtlLoader = new MTLLoader();
+        console.log(`Creating floor ${floor.id} with altitude ${floor.altitude}`);
 
-        mtlLoader.load(mtlPath, (materials) => {
-            materials.preload(); 
+        const floorMesh = new FloorMesh(site, this.defaultScaler);
+        const mesh = floorMesh.getRectangularForm();
 
-            Object.values(materials.materials).forEach(material => {
-                material.transparent = false;
-                material.opacity = 1.0;
-                material.side = THREE.DoubleSide;
-            });
+        mesh.position.y = floor.altitude || 0;
 
-            this.objLoader.setMaterials(materials);
+        console.log(`Floor mesh positioned at Y=${mesh.position.y}`);
 
-            this.objLoader.load(modelPath, (obj) => {
-                const modX = device.transform.position.x * this.defaultScaler;
-                const modZ = device.transform.position.y * this.defaultScaler;
-
-                obj.position.set(modX, 2.0, modZ); 
-                obj.scale.set(1, 1, 1); 
-
-                this.scene.add(obj);
-                this.deviceMeshes.set(device.id, obj);
-                
-                console.log(`${device.type} loaded with materials from ${mtlPath}`);
-            }, 
-            undefined, 
-            (err) => console.error("Error loading OBJ:", err));
-            
-        }, undefined, (err) => {
-            console.warn("MTL failed to load, falling back to basic OBJ:", err);
-            this.objLoader.setMaterials(null);
-            this.objLoader.load(modelPath, (obj) => {
-                this.scene.add(obj);
-                this.deviceMeshes.set(device.id, obj);
-            });
-        });
+        this.scene.add(mesh);
+        this.floorMeshes.set(floor.id, mesh);
     }
 
     createDeviceGLTFMesh(device) {
-        const isSwitch = device.type === 'switch';
+        const { switches, routers, endDevices } = deviceCatalog;
+        
+        const cId = device.catalogId || device.hostname || device.name; 
+        
+        const catalogEntry = switches[cId] || routers[cId] || endDevices[cId] ;
 
-        const modelPath = isSwitch 
-            ? 'objects/devices/switches/2960glb.glb' 
-            : 'objects/devices/routers/1941glb.glb';
+        if (!catalogEntry) {
+            console.warn(`Lookup failed for ID: ${cId}. Falling back to default.`);
+        }
+
+        let modelPath = (catalogEntry && catalogEntry.model3D) 
+            ? catalogEntry.model3D 
+            : 'objects/devices/routers/1941.glb';
+
+        if (modelPath.endsWith('.obj')) {
+            console.warn(`Redirecting ${modelPath} to .glb for GLTFLoader`);
+            modelPath = modelPath.replace('.obj', '.glb'); 
+        }
 
         this.gltfLoader.load(modelPath, (gltf) => {
             const model = gltf.scene;
@@ -293,14 +278,12 @@ export class PhysicalController {
             const modZ = device.transform.position.y * this.defaultScaler;
             
             model.position.set(modX, 2.5, modZ); 
-
             model.scale.set(7, 7, 7); 
 
             model.traverse((child) => {
                 if (child.isMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
-                    
                     if (child.material) {
                         child.material.metalness = 0.5; 
                     }
@@ -310,12 +293,20 @@ export class PhysicalController {
             this.scene.add(model);
             this.deviceMeshes.set(device.id, model);
             
-            console.log(`Successfully loaded GLB: ${device.type}`);
+            console.log(`Successfully loaded ${cId} from: ${modelPath}`);
         }, 
         undefined, 
-        (err) => console.error("GLB Load Error:", err));
+        (err) => console.error("GLB Load Error. Path tried:", modelPath, err));
     }
 
+    async createFurnitureGLTFMesh(furniture) {
+        const newFurniture = new FurnitureMesh(furniture, this.defaultScaler);
+        const furnitureMesh = await newFurniture.getMesh(this.gltfLoader, this.furnitureCatalog);
+
+        this.scene.add(furnitureMesh);
+        this.furnitureMeshes.set(furniture.id, furnitureMesh);
+    }
+    
     updateDomainMesh(domain) {
         const { x, y, width, height } = domain.geometry;
 

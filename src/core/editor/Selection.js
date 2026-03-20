@@ -1,5 +1,4 @@
-import appState from "../../state/AppState";
-
+import  appState  from "../../state/AppState";
 export class Selection {
     constructor(opts) {
         this.dpr = opts.dpr || 1;
@@ -8,17 +7,31 @@ export class Selection {
     identifyEntity(x, y, entities, ctx) {
         x *= this.dpr;
         y *= this.dpr;
+        
+        const priorityMap = { 'Space': 3, 'Site': 2, 'Domain': 1 };
+        
+        let bestMatch = null;
+        let bestPriority = -1;
+        
         for (const arr of entities) {
             for (const en of arr) {
                 if (!en || !en.path) continue;
                 if (this.wasHit(en, x, y, ctx)) {
-                    console.log('Entity identified:', en);
-
-                    appState.selection.focusedNode(en.id, en.type);
-                    return en;
+                    const priority = priorityMap[en.structureType] || 0;
+                    if (priority > bestPriority) {
+                        bestMatch = en;
+                        bestPriority = priority;
+                    }
                 }
             }
         }
+        
+        if (bestMatch) {
+            console.log('Entity identified:', bestMatch);
+            appState.selection.focusedNode(bestMatch.id, bestMatch.type);
+            return bestMatch;
+        }
+        return null;
     }
 
     wasHit(en, x, y, ctx) {

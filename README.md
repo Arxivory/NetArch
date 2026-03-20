@@ -1,70 +1,39 @@
-# Getting Started with Create React App
+# NetArch-3D
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+> **A Spatially-Aware, ML-Driven Network Simulation Platform**
 
-## Available Scripts
+NetArch-3D is a high-fidelity network designer and simulator designed to bridge the gap between abstract 2D logical diagrams and 3D physical constraints. Inspired by the architecture of professional CAD tools like Sketchup and SolidWorks, it allows network engineers to validate designs within a realistic 3D environment, preventing costly physical deployment errors.
 
-In the project directory, you can run:
+## Project Overview
 
-### `npm start`
+Traditional network tools often ignore spatial reality. NetArch-3D integrates **CAD-based modeling** with **functional network logic**, allowing users to define rectangular/polygonal domains (campuses, offices) and place networking hardware with centimeter-level precision.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### Key Features
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+- **Dual-Mode Workflow:** Toggle between **Logical Mode** (topology mapping) and **Physical Mode** (3D spatial placement).
+- **Spatially-Aware Simulation:** Real-time connectivity testing that accounts for physical cable lengths and environmental boundaries (Walls/Rooms).
+- **Hierarchical Navigation:** Navigate through a site-folder structure to manage complex environments.
+- **Undo/Redo Command System:** Robust history management for non-destructive design editing.
 
-### `npm test`
+---
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Tech Stack
 
-### `npm run build`
+- **Frontend Library:** React JS
+- **3D Engine:** Three JS (WebGL)
+- **Desktop Container:** Electron JS
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+---
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## Setup & Installation
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Follow these steps to get your development environment running:
 
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+**Step 1:** Clone the repository.\
+**Step 2:** For QA and Testing go to the branch entitled '**qa**'\
+**Step 3:** enter `npm install` or `npm i` to install dependencies on the terminal.\
+**Step 4:** To run the software, enter `npm run start` for development mode (software will run on browser), on the other hand, enter `npm run electron-build` for production mode (software will run on the dedicated container using electron).\
+**Step 5:** If there are any issues regarding running the software, run these commands in your terminal in order: \
+`Remove-Item -Recurse -Force node_modules`\
+`Remove-Item package-lock.json`\
+`npm install`

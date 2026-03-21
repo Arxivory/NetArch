@@ -97,39 +97,43 @@ export default function ConsolePanel() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto bg-white min-h-0 flex flex-col">
-        {(isTableEmpty || isFilterEmpty) ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-10">
-            <p className="text-gray-400 text-[12px] font-medium">
-              {isTableEmpty ? "No logs yet — start the project to see activity here." : "No matches found"}
-            </p>
-          </div>
-        ) : (
-          <div className="flex-1">
-            <table className="w-full border-collapse table-fixed bg-white">
-              <tbody>
-                {filteredLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-blue-50/50 h-9 transition-colors group border-b border-gray-100">
-                    <td className="px-3 py-1 text-[11px] text-gray-700 truncate w-[12%]">{log.device}</td>
-                    <td className="px-3 py-1 text-[11px] text-gray-700 truncate font-medium w-[15%]">{log.deviceName}</td>
-                    <td className="px-3 py-1 text-[11px] text-gray-700 truncate italic w-[33%]">{highlightText(log.message, search)}</td>
-                    <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[10%]">{log.time}</td>
-                    <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[10%]">{log.date}</td>
-                    <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[15%]">{log.location}</td>
-                    <td className="px-4 py-1 text-center w-10">
-                      <Trash2 
-                        className="text-gray-300 cursor-pointer inline-block transition-colors hover:text-red-500" 
-                        size={14} 
-                        onClick={() => deleteLog(log.id)} 
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {/* Content */}
+<div className="flex-1 overflow-y-auto bg-white min-h-0 flex flex-col">
+  {filteredLogs.length === 0 ? (
+    /* Force this div to take up 100% of the available height */
+    <div className="flex-1 flex flex-col items-center justify-center w-full h-full min-h-[150px] bg-white">
+      <p className="text-gray-400 text-[12px] font-medium text-center px-10">
+        {logData.length === 0 
+          ? "No logs yet — start the project to see activity here." 
+          : "No matches found"}
+      </p>
+    </div>
+  ) : (
+    <div className="w-full">
+      <table className="w-full border-collapse table-fixed bg-white">
+        <tbody>
+          {filteredLogs.map((log) => (
+            <tr key={log.id} className="hover:bg-blue-50/50 h-9 transition-colors group border-b border-gray-100">
+              <td className="px-3 py-1 text-[11px] text-gray-700 truncate w-[12%]">{log.device}</td>
+              <td className="px-3 py-1 text-[11px] text-gray-700 truncate font-medium w-[15%]">{log.deviceName}</td>
+              <td className="px-3 py-1 text-[11px] text-gray-700 truncate italic w-[33%]">{highlightText(log.message, search)}</td>
+              <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[10%]">{log.time}</td>
+              <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[10%]">{log.date}</td>
+              <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[15%]">{log.location}</td>
+              <td className="px-4 py-1 text-center w-10">
+                <Trash2 
+                  className="text-gray-300 cursor-pointer inline-block transition-colors hover:text-red-500" 
+                  size={14} 
+                  onClick={() => deleteLog(log.id)} 
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+</div>
 
       {/* Filter Modal */}
       {showFilters && (

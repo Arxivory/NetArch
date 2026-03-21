@@ -484,13 +484,16 @@ item.onclick = (e) => {
   }
   
   _handleEntitySelected(entity) {
-    if (!entity || !entity.id) {
-      appState.selection.clearSelection?.();
-      return;
-    }
-
-    appState.selection.selectDevice(entity.id, false);
+  if (!entity || !entity.id) {
+    appState.selection.clearSelection?.();
+    appState.selection.notify?.();
+    return;
   }
+
+  appState.selection.selectDevice?.(entity.id, false);
+  appState.selection.setFocusedId?.(entity.id);
+  appState.selection.notify?.();
+}
 
   _handleEntityChanged(en) {
     //console.log("notified");

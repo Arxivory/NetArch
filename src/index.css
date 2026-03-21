@@ -575,13 +575,14 @@ html,
   margin-bottom: 6px;
 }
 
+
 .console-simulation-logs {
   position: relative;
   display: flex;
   flex-direction: column;
   background: #fafafa;
   border-top: 1px solid #d1d1d1;
-  z-index: 10;
+  z-index: 5;
   width: 100%;
   height: 120px;
   border-radius: 7px 7px 0 0;
@@ -804,10 +805,12 @@ html,
   border-top: 1px solid #d1d1d1;
   border-radius: 7px 7px 0 0;
   width: 100%;
-  max-height: 250px;
+  height: 100%;
+  height: 250px;
   overflow: hidden;
+  position:relative;
+  z-index: 10;
 }
-
 
 .console-panel-header {
   display: flex;
@@ -967,8 +970,11 @@ html,
   font-size: 0.875rem;
 }
 
-.panel-table-wrapper {
-  overflow-x: auto;
+.panel-table-wrapper 
+.flex-1.overflow-y-auto {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .panel-table {
@@ -1008,8 +1014,101 @@ html,
   color: #dc2626;
 } 
 
+.config-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.4); 
+  display: flex; 
+  align-items: center; 
+  justify-content: center;
+  z-index: 9999;
+}
 
-/* inline widget for adding floors under a site node */
+.config-modal-content {
+  background: #ffffff; 
+  color: #333333;
+  padding: 10px 16px;      
+  border-radius: 6px;
+  width: 640px;             
+  max-width: 95vw;
+  max-height: 85vh;         
+  overflow-y: auto;         
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  border: 1px solid #ddd;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr); 
+  gap: 6px;                 
+  margin-bottom: 8px;
+}
+
+.config-item-card {
+  background: #fcfcfc;
+  padding: 6px;             
+  border-radius: 4px;
+  border: 1px solid #ececec;
+  cursor: pointer; 
+  transition: all 0.2s ease;
+  display: flex; 
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60px;        
+}
+
+.config-item-card:hover { 
+  background: #ffffff;
+  border-color: #007bff; 
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.config-icon { 
+  font-size: 18px;         
+  margin-bottom: 2px; 
+}
+
+.config-label { 
+  font-weight: 600; 
+  font-size: 10px;          
+  color: #111;
+  text-align: center;
+}
+
+.config-desc { 
+  font-size: 8px;           
+  color: #888;
+  text-align: center;
+  margin-top: 1px;
+  line-height: 1;
+}
+
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;      
+  border-bottom: 1px solid #f0f0f0;
+  padding-bottom: 4px;      
+}
+
+.modal-header h2 {
+  font-size: 13px;         
+  margin: 0;
+  color: #555;
+}
+
+.close-btn {
+  font-size: 18px;         
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #999;
+}
+
+
 .floor-specifier-container {
   margin: 4px 0 4px 16px;
   padding: 8px;

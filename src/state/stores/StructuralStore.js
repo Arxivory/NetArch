@@ -202,39 +202,39 @@ export class StructuralStore {
     }
 
     // ============= Hierarchy Tree Builder =============
-    getHierarchyTree(networkStore = null) {
+    getHierarchyTree(networkStore = null, furnitureStore = null) {
         return this.domains.map(domain => ({
             id: domain.id,
             label: domain.label || `Domain ${domain.id}`,
             type: 'domain',
-            children: this._buildSiteChildren(domain.id, networkStore)
+            children: this._buildSiteChildren(domain.id, networkStore, furnitureStore)
         }));
     }
 
-    _buildSiteChildren(domainId, networkStore = null) {
+    _buildSiteChildren(domainId, networkStore = null, furnitureStore = null) {
         const sites = this.sites.filter(s => String(s.domainId) === String(domainId));
         return sites.map(site => ({
             id: site.id,
             label: site.label || `Site ${site.id}`,
             type: 'site',
             domainId: site.domainId,
-            children: this._buildFloorChildren(site.id, networkStore)
+            children: this._buildFloorChildren(site.id, networkStore, furnitureStore)
         }));
     }
 
-    _buildFloorChildren(siteId, networkStore = null) {
+    _buildFloorChildren(siteId, networkStore = null, furnitureStore = null) {
         const floors = this.floors.filter(f => String(f.siteId) === String(siteId));
         return floors.map(floor => ({
             id: floor.id,
             label: floor.label || `Floor ${floor.id}`,
             type: 'floor',
             siteId: floor.siteId,
-            children: this._buildFloorItemChildren(floor.id, networkStore)
+            children: this._buildFloorItemChildren(floor.id, networkStore, furnitureStore)
         }));
     }
 
-    _buildFloorItemChildren(floorId, networkStore = null) {
-        const spaces = this._buildSpaceChildren(floorId, networkStore);
+    _buildFloorItemChildren(floorId, networkStore = null, furnitureStore = null) {
+        const spaces = this._buildSpaceChildren(floorId, networkStore, furnitureStore);
         
         const devicesWithoutSpace = [];
         if (networkStore) {
@@ -251,22 +251,37 @@ export class StructuralStore {
                 }))
             );
         }
+
+        const furnituresWithoutSpace = [];
+        if (furnitureStore) {
+            furnituresWithoutSpace.push(...furnitureStore.furnitures
+                .filter(f => f.floorId === floorId && !f.spaceId)
+                .map(furniture => ({
+                    id: furniture.id,
+                    label: furniture.label || furniture.type || `Furniture ${furniture.id}`,
+                    type: 'furniture',
+                    floorId: furniture.floorId,
+                    furnitureId: furniture.id,
+                    children: []
+                }))
+            );
+        }
         
-        return [...spaces, ...devicesWithoutSpace];
+        return [...spaces, ...devicesWithoutSpace, ...furnituresWithoutSpace];
     }
 
-    _buildSpaceChildren(floorId, networkStore = null) {
+    _buildSpaceChildren(floorId, networkStore = null, furnitureStore = null) {
         const spaces = this.spaces.filter(s => String(s.floorId) === String(floorId));
         return spaces.map(space => ({
             id: space.id,
             label: space.label || `Space ${space.id}`,
             type: 'space',
             floorId: space.floorId,
-            children: this._buildSpaceItemChildren(space.id, networkStore)
+            children: this._buildSpaceItemChildren(space.id, networkStore, furnitureStore)
         }));
     }
 
-    _buildSpaceItemChildren(spaceId, networkStore = null) {
+    _buildSpaceItemChildren(spaceId, networkStore = null, furnitureStore = null) {
         const devicesInSpace = [];
         
         if (networkStore) {
@@ -283,8 +298,23 @@ export class StructuralStore {
                 }))
             );
         }
+
+        const furnituresInSpace = [];
+        if (furnitureStore) {
+            furnituresInSpace.push(...furnitureStore.furnitures
+                .filter(f => f.spaceId === spaceId)
+                .map(furniture => ({
+                    id: furniture.id,
+                    label: furniture.label || furniture.type || `Furniture ${furniture.id}`,
+                    type: 'furniture',
+                    spaceId: furniture.spaceId,
+                    furnitureId: furniture.id,
+                    children: []
+                }))
+            );
+        }
         
-        return devicesInSpace;
+        return [...devicesInSpace, ...furnituresInSpace];
     }
 
     subscribe(callback) {

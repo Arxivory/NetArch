@@ -118,16 +118,44 @@ addDevice(deviceData, x, y) {
     const focusedId = appState.selection.focusedId;
 
     if (focusedType !== 'floor' && focusedType !== 'space') {
-        console.error("Cannot add device: A floor or space must be selected in the hierarchy");
-        alert('Please select a floor or space in the hierarchy before adding a device.');
+        // ... (existing error handling)
         return;
     }
 
-    if (!focusedId) {
-        console.error("Cannot add device: No floor or space is focused");
-        alert('Please select a floor or space in the hierarchy before adding a device.');
-        return;
+    // =========================================================
+    // 1. Physical Bounds Validation (The code we just wrote!)
+    // =========================================================
+    if (this.layout && typeof this.layout.isPointInsideShape === 'function') {
+        const dropIsInsideParent = this.layout.isPointInsideShape(focusedId, x, y);
+        if (!dropIsInsideParent) {
+            const prettyTypeName = focusedType.charAt(0).toUpperCase() + focusedType.slice(1);
+            showErrorModal(
+                `Placement Failed.\nYou dropped the item outside the physical area of the selected ${prettyTypeName}.`, 
+                "Out of Bounds Error"
+            );
+            return; 
+        }
     }
+
+    // =========================================================
+    // --- NEW: 2. Smart Space Interception ---
+    // Prevent dropping ON a Space when only the Floor is selected
+    // =========================================================
+    if (focusedType === 'floor' && appState.structural && appState.structural.spaces) {
+        const spacesOnFloor = appState.structural.spaces.filter(s => s.floorId === focusedId);
+        const droppedInsideSpace = spacesOnFloor.find(space => 
+            this.layout.isPointInsideShape(space.id, x, y)
+        );
+
+        if (droppedInsideSpace) {
+            showErrorModal(
+                `You dropped the device inside "${droppedInsideSpace.label}".\n\nTo place a device inside a Space, you must explicitly select that Space in the Hierarchy Panel first.`, 
+                "Specific Placement Required"
+            );
+            return; 
+        }
+    }
+    // =========================================================
 
     const catalogId = deviceData.modelId;
     if (!catalogId) {
@@ -187,6 +215,21 @@ addFurniture(furnitureData, x, y) {
   console.log('Adding furniture with data:', furnitureData, 'at position:', { x, y });
     if (!this.layout) return;
 
+    const focusedType = appState.selection.focusedType;
+    const focusedId = appState.selection.focusedId;
+
+    if (focusedType !== 'floor' && focusedType !== 'space') {
+        console.error("Cannot add furniture: A floor or space must be selected in the hierarchy");
+        alert('Please select a floor or space in the hierarchy before adding furniture.');
+        return;
+    }
+
+    if (!focusedId) {
+        console.error("Cannot add furniture: No floor or space is focused");
+        alert('Please select a floor or space in the hierarchy before adding furniture.');
+        return;
+    }
+
     const catalogId = furnitureData.modelId;
     if (!catalogId) {
         console.error("Missing modelId in furnitureData", furnitureData);
@@ -197,8 +240,17 @@ addFurniture(furnitureData, x, y) {
         const newFurniture = createFurnitureInstance(catalogId, { x, y, z: 0 });
         
         newFurniture.catalogId = catalogId; 
-        
         newFurniture.label = furnitureData.label || newFurniture.name;
+
+        if (focusedType === 'space') {
+            newFurniture.spaceId = focusedId;
+            const space = appState.structural.spaces.find(s => s.id === focusedId);
+            if (space) {
+                newFurniture.floorId = space.floorId;
+            }
+        } else if (focusedType === 'floor') {
+            newFurniture.floorId = focusedId;
+        }
 
         console.log('Creating furniture instance with catalogId:', catalogId, 'and:', newFurniture);
 
@@ -207,7 +259,6 @@ addFurniture(furnitureData, x, y) {
         if (appState.furniture?.addFurniture) {
             appState.furniture.addFurniture(newFurniture);
         }
-
 
         if (this.physicalController) {
             this.physicalController.createFurnitureGLTFMesh(newFurniture);
@@ -327,24 +378,38 @@ item.onclick = (e) => {
     }, 10);
   }
 
-  _handleShapeCreated(shapeData, shapeType) {
+_handleShapeCreated(shapeData, shapeType) {
     const { structureType, id, x, y, w, h, r, points } = shapeData;
+
+const removeInvalidShape = () => {
+
+      setTimeout(() => {
+        if (this.layout && typeof this.layout.removeShapeById === 'function') {
+           this.layout.removeShapeById(id);
+        }
+      }, 10);
+  
+      if (appState.tools) {
+          appState.tools.setActiveTool('pointer');
+      }
+    };
 
     if (structureType === 'Domain') {
       const data = {
         ...shapeData,
         label: `Domain ${this.counters.domain++}`,
       };
-      console.log(data);
+      console.log("Creating Domain:", data);
       appState.structural.addDomain(data);
     }
 
     else if (structureType === 'Site') {
       const selection = appState.selection;
-      const selectedDomainId = selection.getFocusedId() || selection.getSelectedId?.();
+      const selectedDomainId = selection.focusedType === 'domain' ? selection.focusedId : null;
 
       if (!selectedDomainId) {
-        console.warn('Site creation failed: A Domain must be selected.');
+        showErrorModal("A Domain must be selected from the Hierarchy panel before creating a Site.", "Invalid Hierarchy");
+        removeInvalidShape(); 
         return;
       }
 
@@ -359,10 +424,11 @@ item.onclick = (e) => {
 
     else if (structureType === 'Floor') {
       const selection = appState.selection;
-      const selectedSiteId = selection.getFocusedId();
+      const selectedSiteId = selection.focusedType === 'site' ? selection.focusedId : null;
 
       if (!selectedSiteId) {
-        console.warn('Floor creation failed: A Site must be selected.');
+        showErrorModal("A Site must be selected from the Hierarchy panel before creating a Floor.", "Invalid Hierarchy");
+        removeInvalidShape(); 
         return;
       }
 
@@ -375,12 +441,13 @@ item.onclick = (e) => {
       });
       appState.ui.setActiveFloor(id);
     }
-    
-    else if (structureType === 'Space') {
-      const selectedFloorId = appState.ui?.activeFloorId || appState.selection?.getFocusedId?.();
-
+else if (structureType === 'Space') {
+      const selection = appState.selection;
+      const selectedFloorId = selection.focusedType === 'floor' ? selection.focusedId : null;
+      
       if (!selectedFloorId) {
-        console.warn('Space creation failed: A Floor must be selected.');
+        showErrorModal("A Floor must be selected from the Hierarchy panel before creating a Space.", "Invalid Hierarchy");
+        removeInvalidShape(); 
         return;
       }
 
@@ -490,10 +557,27 @@ item.onclick = (e) => {
     return;
   }
 
-  appState.selection.selectDevice?.(entity.id, false);
-  appState.selection.setFocusedId?.(entity.id);
-  appState.selection.notify?.();
-}
+    if (entity.structureType) {
+        const typeStr = entity.structureType.toLowerCase(); 
+      
+        appState.selection.focusedId = entity.id;
+        appState.selection.focusedType = typeStr;
+        appState.selection.notify?.(); 
+    } 
+    else if (entity.entityType === 'furniture' || entity.type === 'furniture') {
+        if (typeof appState.selection.selectFurniture === 'function') {
+            appState.selection.selectFurniture(entity.id);
+        } else {
+            appState.selection.focusedId = entity.id;
+            appState.selection.focusedType = 'furniture';
+            appState.selection.notify?.();
+        }
+    }
+
+    else {
+        appState.selection.selectDevice?.(entity.id, false);
+    }
+  }
 
   _handleEntityChanged(en) {
     //console.log("notified");

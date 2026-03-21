@@ -253,16 +253,26 @@ export class PhysicalController {
     }
 
     async createDeviceGLTFMesh(device) {
+        const floor = this.store.floors.find(f => f.id === device.floorId);
+        const floorAltitude = floor ? floor.altitude : 0;
+
         const newDevice = new DeviceMesh(device, this.defaultScaler);
         const deviceMesh = await newDevice.getMesh(this.gltfLoader, deviceCatalog);
+
+        deviceMesh.position.y = floorAltitude;
 
         this.scene.add(deviceMesh);
         this.deviceMeshes.set(device.id, deviceMesh);
     }
 
     async createFurnitureGLTFMesh(furniture) {
+        const floor = this.store.floors.find(f => f.id === furniture.floorId);
+        const floorAltitude = floor ? floor.altitude : 0;
+
         const newFurniture = new FurnitureMesh(furniture, this.defaultScaler);
         const furnitureMesh = await newFurniture.getMesh(this.gltfLoader, this.furnitureCatalog);
+
+        furnitureMesh.position.y = floorAltitude;
 
         this.scene.add(furnitureMesh);
         this.furnitureMeshes.set(furniture.id, furnitureMesh);

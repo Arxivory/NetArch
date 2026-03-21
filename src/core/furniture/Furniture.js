@@ -2,11 +2,13 @@ export default class Furniture {
     constructor({
         id,
         type,
+        label = null,
         siteId = null, floorId = null, spaceId = null, domainId = null,
         transform = {}
     }) {
         this.id = id;
         this.type = type;
+        this.label = label;
 
         this.siteId = siteId;
         this.floorId = floorId;

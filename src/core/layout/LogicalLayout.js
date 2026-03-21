@@ -6,6 +6,7 @@ import { Selection } from '../editor/Selection.js';
 import EntityTransformer from './transform/EntityTransformer.js';
 import { System } from 'check2d';
 import appState from '../../state/AppState.js';
+import { showErrorModal } from '../../util/ErrorHandling.js';
 
 export class LogicalLayout {
   constructor(opts = {}) {
@@ -116,6 +117,7 @@ export class LogicalLayout {
       'pc': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>`,
       'switch': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6" y2="6"/><line x1="6" y1="18" x2="6" y2="18"/></svg>`,
       'desk': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-armchair-icon lucide-armchair"><path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/><path d="M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0z"/><path d="M5 18v2"/><path d="M19 18v2"/></svg>',
+      'chair': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-armchair-icon lucide-armchair"><path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/><path d="M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0z"/><path d="M5 18v2"/><path d="M19 18v2"/></svg>',
       'firewall': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>`
     };
 
@@ -200,6 +202,78 @@ export class LogicalLayout {
     this.startPoint = null;
     this.currentPoint = null;
     this._render();
+  }
+
+  removeShapeById(id) {
+    const entity = this.findEntityById(id);
+    if (entity) {
+      if (entity.body) {
+         this.system.remove(entity.body);
+      } else if (entity.bodies) {
+         for (const body of entity.bodies) {
+            this.system.remove(body);
+         }
+      }
+    }
+    this.rectangles = this.rectangles.filter(e => e.id !== id);
+    this.polygons = this.polygons.filter(e => e.id !== id);
+    this.circles = this.circles.filter(e => e.id !== id);
+    this.freeforms = this.freeforms.filter(e => e.id !== id);
+    
+    this._render();
+  }
+
+isPointInsideShape(id, x, y) {
+    // 1. Try standard entity search
+    let entity = null;
+    if (typeof this.findEntityById === 'function') {
+      entity = this.findEntityById(id);
+    }
+
+    // 2. If not found, it's likely a Structure! Search other common arrays.
+    if (!entity && this.structures) {
+      entity = this.structures.find(s => s.id === id);
+    }
+    if (!entity && this.shapes) {
+      entity = this.shapes.find(s => s.id === id);
+    }
+    // Check inside shapeCreator just in case your shapes live there
+    if (!entity && this.shapeCreator && this.shapeCreator.shapes) {
+      entity = this.shapeCreator.shapes.find(s => s.id === id);
+    }
+
+    // 3. SAFE FALLBACK: If we completely fail to find the physical shape in the layout,
+    // do NOT block the drop. Log a warning for debugging and allow it.
+    if (!entity) {
+      console.warn(`Bounds Check: Could not find physical shape for ID ${id}. Allowing drop by default.`);
+      return true; 
+    }
+
+    // 4. Check using the standard hit-test bounds (Rectangle.js)
+    if (typeof entity.getCurrentBounds === 'function') {
+      const bounds = entity.getCurrentBounds();
+      return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY;
+    }
+
+    // 5. Fallback to basic coordinate checking
+    if (entity.x !== undefined && entity.w !== undefined && entity.h !== undefined) {
+      return x >= entity.x && x <= (entity.x + entity.w) && y >= entity.y && y <= (entity.y + entity.h);
+    }
+
+    return true; // Default to allowing placement
+  }
+
+  validateDropLocation(x, y) {
+    const selection = appState.selection;
+    const targetId = selection.focusedId;
+    
+    // If nothing is selected, or layout is missing, fail the check
+    if (!targetId || !this.layout) return false;
+
+    if (typeof this.layout.isPointInsideShape === 'function') {
+      return this.layout.isPointInsideShape(targetId, x, y);
+    }
+    return true; 
   }
 
   setActiveFloor(floorId) {
@@ -903,7 +977,7 @@ export class LogicalLayout {
     ctx.restore();
 
     this.shapeRenderer.renderDevices(ctx, filterForFloor(this.devices));
-    this.shapeRenderer.renderFurnitures(ctx, this.furnitures);
+    this.shapeRenderer.renderFurnitures(ctx, filterForFloor(this.furnitures));
 
     if (this.selectedEntity && this.selectedEntity.sourceId) {
       const cable = this.selectedEntity;

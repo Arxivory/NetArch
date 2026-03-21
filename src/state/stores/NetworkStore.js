@@ -29,6 +29,7 @@ export class NetworkStore {
         id: deviceData.id,
         type: deviceData.type,
         hostname: deviceData.name || deviceData.label || deviceData.hostname,
+        catalogId: deviceData.catalogId,
         siteId: deviceData.siteId,
         floorId: deviceData.floorId,
         spaceId: deviceData.spaceId,

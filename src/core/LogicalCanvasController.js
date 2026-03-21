@@ -118,16 +118,44 @@ addDevice(deviceData, x, y) {
     const focusedId = appState.selection.focusedId;
 
     if (focusedType !== 'floor' && focusedType !== 'space') {
-        console.error("Cannot add device: A floor or space must be selected in the hierarchy");
-        alert('Please select a floor or space in the hierarchy before adding a device.');
+        // ... (existing error handling)
         return;
     }
 
-    if (!focusedId) {
-        console.error("Cannot add device: No floor or space is focused");
-        alert('Please select a floor or space in the hierarchy before adding a device.');
-        return;
+    // =========================================================
+    // 1. Physical Bounds Validation (The code we just wrote!)
+    // =========================================================
+    if (this.layout && typeof this.layout.isPointInsideShape === 'function') {
+        const dropIsInsideParent = this.layout.isPointInsideShape(focusedId, x, y);
+        if (!dropIsInsideParent) {
+            const prettyTypeName = focusedType.charAt(0).toUpperCase() + focusedType.slice(1);
+            showErrorModal(
+                `Placement Failed.\nYou dropped the item outside the physical area of the selected ${prettyTypeName}.`, 
+                "Out of Bounds Error"
+            );
+            return; 
+        }
     }
+
+    // =========================================================
+    // --- NEW: 2. Smart Space Interception ---
+    // Prevent dropping ON a Space when only the Floor is selected
+    // =========================================================
+    if (focusedType === 'floor' && appState.structural && appState.structural.spaces) {
+        const spacesOnFloor = appState.structural.spaces.filter(s => s.floorId === focusedId);
+        const droppedInsideSpace = spacesOnFloor.find(space => 
+            this.layout.isPointInsideShape(space.id, x, y)
+        );
+
+        if (droppedInsideSpace) {
+            showErrorModal(
+                `You dropped the device inside "${droppedInsideSpace.label}".\n\nTo place a device inside a Space, you must explicitly select that Space in the Hierarchy Panel first.`, 
+                "Specific Placement Required"
+            );
+            return; 
+        }
+    }
+    // =========================================================
 
     const catalogId = deviceData.modelId;
     if (!catalogId) {
@@ -523,12 +551,32 @@ else if (structureType === 'Space') {
   }
   
   _handleEntitySelected(entity) {
-    if (!entity || !entity.id) {
-      appState.selection.clearSelection?.();
-      return;
+  if (!entity || !entity.id) {
+    appState.selection.clearSelection?.();
+    appState.selection.notify?.();
+    return;
+  }
+
+    if (entity.structureType) {
+        const typeStr = entity.structureType.toLowerCase(); 
+      
+        appState.selection.focusedId = entity.id;
+        appState.selection.focusedType = typeStr;
+        appState.selection.notify?.(); 
+    } 
+    else if (entity.entityType === 'furniture' || entity.type === 'furniture') {
+        if (typeof appState.selection.selectFurniture === 'function') {
+            appState.selection.selectFurniture(entity.id);
+        } else {
+            appState.selection.focusedId = entity.id;
+            appState.selection.focusedType = 'furniture';
+            appState.selection.notify?.();
+        }
     }
 
-    appState.selection.selectDevice(entity.id, false);
+    else {
+        appState.selection.selectDevice?.(entity.id, false);
+    }
   }
 
   _handleEntityChanged(en) {

@@ -29,7 +29,10 @@ export class NetworkStore {
         id: deviceData.id,
         type: deviceData.type,
         hostname: deviceData.name || deviceData.label || deviceData.hostname,
+        catalogId: deviceData.catalogId,
         siteId: deviceData.siteId,
+        floorId: deviceData.floorId,
+        spaceId: deviceData.spaceId,
         domainId: deviceData.domainId,
         transform: {
             position: deviceData.position || { x: 0, y: 0, z: 0 }

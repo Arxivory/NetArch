@@ -27,6 +27,7 @@ export class AppState {
     this.ui.subscribe(() => this.notifyListeners());
     this.commands.subscribe(() => this.notifyListeners());
     this.structural.subscribe(() => this.notifyListeners());
+    this.furniture.subscribe(() => this.notifyListeners());
   }
 
   // ============================================================================

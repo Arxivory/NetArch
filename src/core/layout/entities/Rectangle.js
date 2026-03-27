@@ -120,17 +120,20 @@ export class Rectangle {
         const structMap = new Map();
         structMap.set("Site", "Domain");
         structMap.set("Space", "Site");
-        const requiredParent =  structMap.get(this.structureType);
+        const requiredParent = structMap.get(this.structureType);
         let overlapping = false;
         this.system.checkOne(this.body, (other) => {
             if (other !== this.body) {
                 const otherFloorId = other.b?.floorId ?? null;
                 const currentFloorId = floorId ?? null;
-                if (other.b && otherFloorId === currentFloorId && requiredParent !== other.b.structType) {
+                if (!other.b.structType) {
+                    overlapping = other.b && otherFloorId === currentFloorId;
+                }
+                else if (other.b && otherFloorId === currentFloorId && requiredParent !== other.b.structType) {
                     overlapping = true;
                 }
             }
-        }); 
+        });
         return overlapping;
     }
 }

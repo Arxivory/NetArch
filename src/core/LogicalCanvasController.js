@@ -457,7 +457,6 @@ item.onclick = (e) => {
   }
 
   _handleEntityChanged(en) {
-    //console.log("notified");
     appState.selection.notify();
   }
 }

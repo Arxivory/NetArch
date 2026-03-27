@@ -186,7 +186,10 @@ export class Polygon {
             if (other !== this.body) {
                 const otherFloorId = other.b?.floorId ?? null;
                 const currentFloorId = floorId ?? null;
-                if (other.b && otherFloorId === currentFloorId && requiredParent !== other.b.structType) {
+                if (!other.b.structType) {
+                    overlapping = other.b && otherFloorId === currentFloorId;
+                }
+                else if (other.b && otherFloorId === currentFloorId && requiredParent !== other.b.structType) {
                     overlapping = true;
                 }
             }

@@ -1,6 +1,6 @@
 export class EntityTransformer {
 
-  applyEntityTransform(en, updates, shapeRenderer, checkForOverlap) {
+  applyEntityTransform(en, updates, checkForOverlap) {
     if (!en) return false;
     if (updates.position) {
       const nx = updates.position.x;
@@ -16,8 +16,8 @@ export class EntityTransformer {
         'switch',
         'cables',
         'end-device',
-        'Wireless',
-        'Furniture'
+        'wireless',
+        'furniture'
       ]
       if (en.type === 'rectangle') {
         en.x = nx;
@@ -38,13 +38,13 @@ export class EntityTransformer {
         en.body.setPosition(en.x, en.y, true);
       }
       else if (deviceTypes.includes(en.type)) {
-        console.log('in here');
-        en.x = nx;
-        en.y = ny;
-        en.body.setPosition(en.x, en.y, true);
+        const cx = en.tileX + en.tileWidth / 2;
+        const cy = en.tileY + en.tileHeight / 2;
+        en.x = cx - en.renderWidth / 2;
+        en.y = cy - en.renderHeight / 2;
+        en.body.setPosition(en.tileX, en.tileY, true);
       }
       else if (en.type === 'wall' || en.type === 'cable') {
-        console.log(nx, ny);
         const dx = nx - en.x1;
         const dy = ny - en.y1;
         en.x1 += dx;

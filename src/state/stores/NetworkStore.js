@@ -82,12 +82,12 @@ export class NetworkStore {
   }
 
   addLink(linkData) {
-    if (!linkData.id || !linkData.sourceDevice || !linkData.targetDevice) {
+    if (!linkData.id || !linkData.sourceId || !linkData.targetId) {
       console.error('Invalid link data', linkData);
       return null;
     }
 
-    if (!this.getDevice(linkData.sourceDevice) || !this.getDevice(linkData.targetDevice)) {
+    if (!this.getDevice(linkData.sourceId) || !this.getDevice(linkData.targetId)) {
       console.error('One or both devices do not exist');
       return null;
     }

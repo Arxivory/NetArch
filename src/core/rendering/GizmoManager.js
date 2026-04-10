@@ -19,15 +19,16 @@ export class GizmoManager {
   }
 
   _setupEventListeners() {
+    
     this.control.addEventListener('change', () => {
       this._syncTransformToStore();
     });
 
     window.addEventListener('keydown', (event) => {
       switch (event.key) {
-        case 't': this.control.setMode('translate'); break;
+        case 'p': this.control.setMode('translate'); break;
         case 'r': this.control.setMode('rotate'); break;
-        case 's': this.control.setMode('scale'); break;
+        case 'm': this.control.setMode('scale'); break;
         default: this.control.setMode('translate'); break;
       }
     });
@@ -38,40 +39,39 @@ export class GizmoManager {
   }
 
   _onPointerDown(event) {
-  if (event.button !== 0) return; // left click only
+    if (event.button !== 0) return;
 
-  const rect = this.canvas.getBoundingClientRect();
-  this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const rect = this.canvas.getBoundingClientRect();
+    this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-  this.raycaster.setFromCamera(this.pointer, this.camera);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
 
-  const intersects = this.raycaster.intersectObjects(
-    this.scene.children.filter(obj => obj !== this.control),
-    true
-  );
+    const intersects = this.raycaster.intersectObjects(
+        this.scene.children.filter(obj => obj !== this.control),
+        true
+    );
 
-  if (intersects.length > 0) {
-    let object = intersects[0].object;
+    if (intersects.length > 0) {
+        let object = intersects[0].object;
 
-    // Walk up until we find a parent with userData.id
-    while (object && !object.userData?.id && object.parent) {
-      object = object.parent;
+        while (object && !object.userData?.id && object.parent) {
+            object = object.parent;
+        }
+
+        if (object && object.userData?.id) {
+            if (object.userData.type === 'device') {
+                appState.selection.selectDevice(object.userData.id);
+            } else if (object.userData.type === 'furniture') {
+                appState.selection.focusedNode(object.userData.id, 'furniture');
+            }
+            console.log("Object selected with ID:", object.userData.id);
+        }
+        } else {
+            this.detach();
+            appState.selection.clearSelection();
+        }
     }
-
-    if (object && object.userData?.id) {
-      if (object.userData.type === 'device') {
-        appState.selection.selectDevice(object.userData.id);
-      } else if (object.userData.type === 'furniture') {
-        appState.selection.focusedNode(object.userData.id, 'furniture');
-      }
-      console.log("Object selected with ID:", object.userData.id);
-    }
-  } else {
-    this.detach();
-    appState.selection.clearSelection();
-  }
-}
 
   attach(object) {
     if (!this.initialized) {

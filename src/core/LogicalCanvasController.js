@@ -547,11 +547,12 @@ else if (structureType === 'Space') {
     this.addFurniture(furniture, furniture.x, furniture.y);
   }
   
-_handleEntitySelected(entity) {
-    if (!entity || !entity.id) {
-      appState.selection.clearSelection?.();
-      return;
-    }
+  _handleEntitySelected(entity) {
+  if (!entity || !entity.id) {
+    appState.selection.clearSelection?.();
+    appState.selection.notify?.();
+    return;
+  }
 
     if (entity.structureType) {
         const typeStr = entity.structureType.toLowerCase(); 
@@ -576,7 +577,6 @@ _handleEntitySelected(entity) {
   }
 
   _handleEntityChanged(en) {
-    //console.log("notified");
     appState.selection.notify();
   }
 }

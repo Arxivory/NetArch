@@ -129,14 +129,16 @@ export class Rectangle {
                 const otherFloorId = other.b?.floorId ?? null;
                 const currentFloorId = floorId ?? null;
 
-                if (other.b) {
-                    if (this.structureType === other.b.structType) {
-                        overlapping = true;
-                    }
+                if (!other.b.structType) {
+                    overlapping = other.b && otherFloorId === currentFloorId;
+                }
+                else if (other.b && 
+                         otherFloorId === currentFloorId && 
+                         requiredParent !== other.b.structType) {
+                    overlapping = true;
                 }
             }
-        }); 
-        
+        });    
         return overlapping;
     }
 }

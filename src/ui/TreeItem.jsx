@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import appState from "../state/AppState"; 
 import { Mountain, Grid, ChevronRight, ChevronDown, Building, Server, Box, Layers, CopyPlus, Wifi, Armchair } from "lucide-react";
 import FloorSpecifier from "./FloorSpecifier";
@@ -19,6 +19,11 @@ export default function TreeItem({ node }) {
   const [specifierOpen, setSpecifierOpen] = useState(false);
   const [floorSpecifierCount, setFloorSpecifierCount] = useState(0);
 
+  // --- NEW: Rename State ---
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(node.label);
+  const inputRef = useRef(null);
+
   useEffect(() => {
     const unsubscribe = appState.selection.subscribe((store) => {
       setIsFocused(store.isFocused(node.id));
@@ -26,10 +31,21 @@ export default function TreeItem({ node }) {
     return unsubscribe;
   }, [node.id]);
 
+  // Focus the input automatically when editing starts
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
   const Icon = icons[node.type] || Box;
   const hasChildren = node.children && node.children.length > 0;
 
   const handleRowClick = (e) => {
+    // Prevent standard click if we are currently typing a new name
+    if (isEditing) return; 
+
     appState.selection.focusedNode(node.id, node.type);
     
     if (node.type === "floor") {
@@ -55,6 +71,33 @@ export default function TreeItem({ node }) {
     setOpen(!open);
   };
 
+  // --- NEW: Rename Handlers ---
+  const handleDoubleClick = (e) => {
+    e.stopPropagation();
+    // Only allow renaming of structures right now
+    if (['domain', 'site', 'floor', 'space'].includes(node.type)) {
+      setIsEditing(true);
+      setEditValue(node.label);
+    }
+  };
+
+  const submitRename = () => {
+    if (editValue.trim() !== "" && editValue !== node.label) {
+      appState.structural.renameStructure(node.id, editValue, node.type);
+    } else {
+      setEditValue(node.label); // revert if empty
+    }
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') submitRename();
+    if (e.key === 'Escape') {
+      setIsEditing(false);
+      setEditValue(node.label);
+    }
+  };
+
   return (
     <div className={`tree-item ${isFocused ? "focused" : ""}`}>
       <div 
@@ -71,9 +114,23 @@ export default function TreeItem({ node }) {
               )}
             </div>
 
-          
             {Icon && <Icon size={14} className="tree-icon" />}
-            <span className="item-label">{node.label}</span>
+            
+            {/* --- NEW: Render Input or Span based on editing state --- */}
+            {isEditing ? (
+              <input
+                ref={inputRef}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={submitRename}
+                onKeyDown={handleKeyDown}
+                onClick={(e) => e.stopPropagation()}
+                style={{ background: 'transparent', border: '1px solid #007bff', color: 'inherit', outline: 'none', marginLeft: '4px', width: '80%', padding: '0 2px' }}
+              />
+            ) : (
+              <span className="item-label" onDoubleClick={handleDoubleClick}>{node.label}</span>
+            )}
+            
           </div>
 
           {node.type === 'site' && <CopyPlus size={12} onClick={() => setSpecifierOpen(!specifierOpen)}/>}

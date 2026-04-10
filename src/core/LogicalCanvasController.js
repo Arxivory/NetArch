@@ -46,6 +46,81 @@ export class LogicalCanvasController {
   // =========================================================
   // PUBLIC API
   // =========================================================
+  // =========================================================
+  // PUBLIC API
+  // =========================================================
+
+  removeEntity(id) {
+    if (!this.layout) return;
+
+    // 1. Try removing it as a structural shape (Domain, Site, Floor, Space)
+    if (typeof this.layout.removeShapeById === 'function') {
+      this.layout.removeShapeById(id);
+    }
+
+    // 2. Try removing it as a Device or Furniture
+    if (typeof this.layout.removeDevice === 'function') {
+      this.layout.removeDevice(id);
+    }
+    if (typeof this.layout.removeFurniture === 'function') {
+      this.layout.removeFurniture(id);
+    }
+    
+    // 3. Generic fallback just in case your layout engine uses a unified method
+    if (typeof this.layout.removeEntity === 'function') {
+      this.layout.removeEntity(id);
+    }
+
+    // 4. Force the canvas to re-draw so the shape instantly disappears
+    if (typeof this.layout.render === 'function') {
+      this.layout.render();
+    } else if (typeof this.layout._render === 'function') {
+      this.layout._render();
+    }
+  }
+
+executeDelete(idToDelete) {
+    let deletedIds = [];
+
+    // 1. Try deleting from structural state by finding the specific type
+    if (appState.structural) {
+        const st = appState.structural;
+        
+        if (st.domains && st.domains.some(d => d.id === idToDelete)) {
+            deletedIds = st.removeDomain(idToDelete) || [idToDelete];
+        } else if (st.sites && st.sites.some(s => s.id === idToDelete)) {
+            deletedIds = st.removeSite(idToDelete) || [idToDelete];
+        } else if (st.floors && st.floors.some(f => f.id === idToDelete)) {
+            deletedIds = st.removeFloor(idToDelete) || [idToDelete];
+        } else if (st.spaces && st.spaces.some(s => s.id === idToDelete)) {
+            deletedIds = st.removeSpace(idToDelete) || [idToDelete];
+        }
+    }
+
+    // 2. If it wasn't a structure, try devices
+    if (deletedIds.length === 0 && appState.devices && appState.devices.removeDevice) {
+        appState.devices.removeDevice(idToDelete); 
+        deletedIds = [idToDelete];
+    }
+
+    // 3. Try furniture (just in case!)
+    if (deletedIds.length === 0 && appState.furniture && appState.furniture.removeFurniture) {
+        appState.furniture.removeFurniture(idToDelete);
+        deletedIds = [idToDelete];
+    }
+
+    // 4. Clear the visual objects from the canvas
+    if (deletedIds.length > 0) {
+        deletedIds.forEach(deletedId => {
+            this.removeEntity(deletedId);
+        });
+        
+        if (appState.selection && appState.selection.clearSelection) {
+            appState.selection.clearSelection();
+            appState.selection.notify?.();
+        }
+    }
+  }
 
   setSize(w, h) {
     this.layout?.setSize(w, h);
@@ -376,84 +451,181 @@ item.onclick = (e) => {
   }
 
 _handleShapeCreated(shapeData, shapeType) {
-    const { structureType, id, x, y, w, h, r, points } = shapeData;
+    const { structureType, id, r, points } = shapeData;
 
-const removeInvalidShape = () => {
+    // --- 1. TOP-LEVEL HIERARCHY PRE-CHECK ---
+    // Stop invalid Domain creation BEFORE overlap or bounds logic runs
+    if (structureType === 'Domain') {
+      const selectedType = appState.selection?.focusedType;
+      
+      if (selectedType === 'site' || selectedType === 'floor' || selectedType === 'space') {
+        showErrorModal(
+          `You cannot create a Domain while a ${selectedType} is selected. Domains are top-level structures. Please click the canvas background to deselect before drawing.`, 
+          "Invalid Hierarchy"
+        );
+        
+        // Remove the invalid shape immediately
+        setTimeout(() => {
+          if (this.layout && typeof this.layout.removeShapeById === 'function') {
+             this.layout.removeShapeById(id);
+          }
+        }, 10);
+        if (appState.tools) appState.tools.setActiveTool('pointer');
+        
+        return; // Halt the function completely so overlap checks don't run
+      }
+    }
 
+    // --- 2. BULLETPROOF BOUNDS EXTRACTOR ---
+    // Safely extracts coordinates, forces them to be numbers, and handles missing widths
+    const getBounds = (shape) => {
+      if (!shape) return null;
+      // Handle both raw shape data and state-wrapped shapes (like geometry)
+      const src = shape.geometry || shape;
+      
+      let x = Number(src.x ?? src.left ?? 0);
+      let y = Number(src.y ?? src.top ?? 0);
+      let w = Number(src.w ?? src.width ?? 0);
+      let h = Number(src.h ?? src.height ?? 0);
+      
+      // If width/height are missing, calculate them from maxX/maxY
+      if (!w && src.maxX !== undefined) w = Number(src.maxX) - x;
+      if (!h && src.maxY !== undefined) h = Number(src.maxY) - y;
+
+      return {
+        minX: Math.min(x, x + w), maxX: Math.max(x, x + w),
+        minY: Math.min(y, y + h), maxY: Math.max(y, y + h),
+        w: Math.abs(w), h: Math.abs(h), x, y
+      };
+    };
+
+    // Prepare child coordinates for boundary checks and saving
+    const cBounds = getBounds(shapeData);
+    const x = cBounds.x, y = cBounds.y, w = cBounds.w, h = cBounds.h;
+    const maxX = cBounds.maxX, maxY = cBounds.maxY;
+
+    const removeInvalidShape = () => {
       setTimeout(() => {
         if (this.layout && typeof this.layout.removeShapeById === 'function') {
            this.layout.removeShapeById(id);
         }
       }, 10);
-  
-      if (appState.tools) {
-          appState.tools.setActiveTool('pointer');
-      }
+      if (appState.tools) appState.tools.setActiveTool('pointer');
     };
 
-    if (structureType === 'Domain') {
-      const data = {
-        ...shapeData,
-        label: `Domain ${this.counters.domain++}`,
-      };
-      console.log("Creating Domain:", data);
-      appState.structural.addDomain(data);
-    }
-
-    else if (structureType === 'Site') {
-      const selection = appState.selection;
-      const selectedDomainId = selection.focusedType === 'domain' ? selection.focusedId : null;
-
-      if (!selectedDomainId) {
-        showErrorModal("A Domain must be selected from the Hierarchy panel before creating a Site.", "Invalid Hierarchy");
-        removeInvalidShape(); 
-        return;
+    // --- 3. BOUNDARY CHECKING LOGIC ---
+    const checkParentBounds = (parentId, parentType) => {
+      let parent = null;
+      const st = appState.structural;
+      
+      if (parentType === 'domain') {
+        parent = (st.domains || []).find(d => d.id === parentId);
+      } 
+      else if (parentType === 'site') {
+        parent = (st.sites || []).find(s => s.id === parentId);
+      } 
+      else if (parentType === 'floor') {
+        parent = (st.floors || []).find(f => f.id === parentId);
+        
+        // --- AUTO-GENERATED FLOOR FALLBACK ---
+        // If the floor exists but has no intrinsic width/height because it was auto-generated,
+        // we borrow the exact dimensions from the Site it belongs to.
+        if (parent) {
+          const tempBounds = getBounds(parent);
+          if (tempBounds.w === 0 || tempBounds.h === 0) {
+            const parentSite = (st.sites || []).find(s => s.id === parent.siteId);
+            if (parentSite) {
+              console.log(`Borrowing bounds from Site (ID: ${parentSite.id}) for auto-generated Floor.`);
+              parent = parentSite; 
+            } else {
+              console.warn("Could not find the parent Site to borrow bounds from!");
+            }
+          }
+        }
       }
 
+      if (!parent) {
+        console.error(`Bounds Check: Parent ${parentType} (ID: ${parentId}) not found in state.`);
+        return false; 
+      }
+
+      const pBounds = getBounds(parent);
+
+      // We only flag stale state if BOTH the floor AND its fallback site have 0 dimensions
+      if (pBounds.w === 0 || pBounds.h === 0) {
+         console.warn(`Bounds Check: The selected ${parentType} has 0 width/height in state. It was likely drawn before the code fix. Please delete it and redraw it.`);
+         return false; 
+      }
+
+      const tol = 5; 
+
+      if (
+        cBounds.minX < pBounds.minX - tol || 
+        cBounds.minY < pBounds.minY - tol || 
+        cBounds.maxX > pBounds.maxX + tol || 
+        cBounds.maxY > pBounds.maxY + tol
+      ) {
+        console.error("Out of Bounds Mathematical Failure:");
+        console.table({
+           "Parent Limits (Borrowed from Site)": { MinX: pBounds.minX, MinY: pBounds.minY, MaxX: pBounds.maxX, MaxY: pBounds.maxY },
+           "Child Limits (Space)": { MinX: cBounds.minX, MinY: cBounds.minY, MaxX: cBounds.maxX, MaxY: cBounds.maxY }
+        });
+        return false; 
+      }
+      return true; 
+    };
+
+    // --- 4. SHAPE ROUTING ---
+    if (structureType === 'Domain') {
+      appState.structural.addDomain({
+        ...shapeData, label: `Domain ${this.counters.domain++}`,
+        x, y, w, h, maxX, maxY 
+      });
+    }
+    else if (structureType === 'Site') {
+      const parentId = appState.selection.focusedType === 'domain' ? appState.selection.focusedId : null;
+      if (!parentId) {
+        showErrorModal("A Domain must be selected from the Hierarchy panel before creating a Site.", "Invalid Hierarchy");
+        return removeInvalidShape();
+      }
+      if (!checkParentBounds(parentId, 'domain')) {
+        showErrorModal("The Site exceeds the physical boundaries of the selected Domain.", "Out of Bounds Error");
+        return removeInvalidShape();
+      }
       appState.structural.addSite({
-        id,
-        domainId: selectedDomainId,
-        label: `Site ${this.counters.site++}`,
-        shapeType: shapeType,
-        x, y, w, h, r, points
+        id, domainId: parentId, label: `Site ${this.counters.site++}`,
+        shapeType, x, y, w, h, maxX, maxY, r, points 
       });
     } 
-
     else if (structureType === 'Floor') {
-      const selection = appState.selection;
-      const selectedSiteId = selection.focusedType === 'site' ? selection.focusedId : null;
-
-      if (!selectedSiteId) {
+      const parentId = appState.selection.focusedType === 'site' ? appState.selection.focusedId : null;
+      if (!parentId) {
         showErrorModal("A Site must be selected from the Hierarchy panel before creating a Floor.", "Invalid Hierarchy");
-        removeInvalidShape(); 
-        return;
+        return removeInvalidShape();
       }
-
+      if (!checkParentBounds(parentId, 'site')) {
+        showErrorModal("The Floor exceeds the physical boundaries of the selected Site.", "Out of Bounds Error");
+        return removeInvalidShape();
+      }
       appState.structural.addFloor({
-        id,
-        siteId: selectedSiteId,
-        label: `Floor ${this.counters.floor++}`,
-        shapeType: shapeType,
-        x, y, w, h, r, points
+        id, siteId: parentId, label: `Floor ${this.counters.floor++}`,
+        shapeType, x, y, w, h, maxX, maxY, r, points 
       });
       appState.ui.setActiveFloor(id);
     }
-else if (structureType === 'Space') {
-      const selection = appState.selection;
-      const selectedFloorId = selection.focusedType === 'floor' ? selection.focusedId : null;
-      
-      if (!selectedFloorId) {
+    else if (structureType === 'Space') {
+      const parentId = appState.selection.focusedType === 'floor' ? appState.selection.focusedId : null;
+      if (!parentId) {
         showErrorModal("A Floor must be selected from the Hierarchy panel before creating a Space.", "Invalid Hierarchy");
-        removeInvalidShape(); 
-        return;
+        return removeInvalidShape();
       }
-
+      if (!checkParentBounds(parentId, 'floor')) {
+        showErrorModal("The Space exceeds the physical boundaries of the selected Floor.", "Out of Bounds Error");
+        return removeInvalidShape();
+      }
       appState.structural.addSpace({
-        id,
-        floorId: selectedFloorId,
-        label: `Space ${this.counters.space++}`,
-        shapeType: shapeType,
-        x, y, w, h, r, points
+        id, floorId: parentId, label: `Space ${this.counters.space++}`,
+        shapeType, x, y, w, h, maxX, maxY, r, points 
       });
     }
   }
@@ -547,12 +719,27 @@ else if (structureType === 'Space') {
     this.addFurniture(furniture, furniture.x, furniture.y);
   }
   
-  _handleEntitySelected(entity) {
-  if (!entity || !entity.id) {
-    appState.selection.clearSelection?.();
-    appState.selection.notify?.();
-    return;
-  }
+_handleEntitySelected(entity) {
+    if (!entity || !entity.id) {
+      appState.selection.clearSelection?.();
+      appState.selection.notify?.();
+      return;
+    }
+
+    // --- Intercept clicks for Delete Mode safely ---
+    if (appState.tools && appState.tools.activeTool === 'delete') {
+        // Wait for the user to physically release the mouse button
+        window.addEventListener('pointerup', () => {
+            // Push the deletion to the very end of the Javascript event queue
+            setTimeout(() => {
+                if (this.executeDelete) {
+                    this.executeDelete(entity.id);
+                }
+            }, 0);
+        }, { once: true }); 
+        
+        return; 
+    }
 
     if (entity.structureType) {
         const typeStr = entity.structureType.toLowerCase(); 
@@ -570,7 +757,6 @@ else if (structureType === 'Space') {
             appState.selection.notify?.();
         }
     }
-
     else {
         appState.selection.selectDevice?.(entity.id, false);
     }

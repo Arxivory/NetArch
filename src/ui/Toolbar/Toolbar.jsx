@@ -1,6 +1,6 @@
 import {
   Mountain, Building, Grid, RectangleHorizontal, House, DoorOpen,
-  Square, Play, File, FilePlus, Save, MousePointer, Hand, ZoomIn, ZoomOut
+  Square, Play, File, FilePlus, Save, MousePointer, Hand, ZoomIn, ZoomOut, Trash2 // <-- Added Trash2
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import appState from "../../state/AppState";
@@ -27,6 +27,34 @@ export default function Toolbar({ canvasController }) {
   };
 
   const isActive = (mode) => activeTool === mode;
+
+const handleDelete = () => {
+    if (!appState || !appState.selection) return;
+
+    let ids = appState.selection.getSelectedDeviceIds();
+    if (!ids || ids.length === 0) {
+      const focused = appState.selection.getFocusedId();
+      if (focused) ids = [focused];
+    }
+
+    if (ids && ids.length > 0) {
+      // BEHAVIOR 1: Something is selected. Delete it instantly!
+      if (canvasController && canvasController.executeDelete) {
+          canvasController.executeDelete(ids[0]);
+      }
+    } else {
+      // BEHAVIOR 2: Nothing is selected. Toggle "Delete Mode" on/off!
+      if (appState.tools) {
+          const isDeleteMode = appState.tools.activeTool === 'delete';
+          const newTool = isDeleteMode ? 'pointer' : 'delete';
+          
+          appState.tools.setActiveTool(newTool);
+          
+          // Optional: If your UI supports it, this is a great place to show a toast notification
+          console.log(`Canvas tool set to: ${newTool}`); 
+      }
+    }
+  };
 
   const handleStructuralShape = (structureType, shape) => {
     if (!canvasController) return;
@@ -75,6 +103,10 @@ export default function Toolbar({ canvasController }) {
           >
             <MousePointer size={16} /> Select
           </button>
+          <button onClick={handleDelete} className="toolbar-btn" title="Delete Selected">
+            <Trash2 size={16} /> Delete
+          </button>
+
           <button
             onClick={() => executeCommand(StartPanCommand)}
             className={`toolbar-btn ${isActive("pan") ? "active" : ""}`}
@@ -82,16 +114,16 @@ export default function Toolbar({ canvasController }) {
             <Hand size={16} /> Pan
           </button>
           <button
-            onClick={() => {
-              executeCommand(StartZoomInCommand);
-            }}
+            onClick={() => executeCommand(StartZoomInCommand)}
             className={`toolbar-btn ${isActive("zoom in") ? "active" : ""}`}>
-            <ZoomIn size={16} /> Zoom in</button>
+            <ZoomIn size={16} /> Zoom in
+          </button>
           <button
-            onClick={() => {executeCommand(StartZoomOutCommand);
-            }}
+            onClick={() => executeCommand(StartZoomOutCommand)}
             className={`toolbar-btn ${isActive("zoom out") ? "active" : ""}`}>
-            <ZoomOut size={16} /> Zoom out</button>
+            <ZoomOut size={16} /> Zoom out
+          </button>
+          
         </div>
         <span className="toolbar-label">Controls</span>
       </div>
@@ -102,21 +134,15 @@ export default function Toolbar({ canvasController }) {
         <div className="toolbar-row">
           <StructuralOption
             label="Domain" icon={Mountain} isActive={activeTool === "domain"}
-            onSelectShape={(shape) => {
-              handleStructuralShape('Domain', shape);
-            }}
+            onSelectShape={(shape) => handleStructuralShape('Domain', shape)}
           />
           <StructuralOption
             label="Site" icon={Building} isActive={activeTool === "site"}
-            onSelectShape={(shape) => {
-              handleStructuralShape('Site', shape);
-            }}
+            onSelectShape={(shape) => handleStructuralShape('Site', shape)}
           />
           <StructuralOption
             label="Space" icon={Grid} isActive={activeTool === "space"}
-            onSelectShape={(shape) => {
-              handleStructuralShape('Space', shape);
-            }}
+            onSelectShape={(shape) => handleStructuralShape('Space', shape)}
           />
         </div>
         <span className="toolbar-label">Structure</span>

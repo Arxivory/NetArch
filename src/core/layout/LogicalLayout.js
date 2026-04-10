@@ -1256,6 +1256,13 @@ isPointInsideShape(id, x, y) {
       return true;
     }
 
+    // Devices and furniture are intended to be placed within structural elements (Spaces/Floors).
+    // We skip the structural overlap check for these assets to avoid false positive alerts.
+    const isAsset = currentEntity.interfaces !== undefined || currentEntity.catalogId !== undefined || currentEntity.type === 'furniture' || currentEntity.id?.startsWith('furniture');
+    if (isAsset) {
+      return false;
+    }
+
     // Only check for overlap on entities that support it (like structures),
     // and ignore others (like devices, furniture, walls, etc.).
     if (typeof currentEntity.checkIfOverlapping !== 'function') {

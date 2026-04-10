@@ -91,49 +91,46 @@ export class ShapeRenderer {
       ctx.stroke(path);
     }
   }
-  
-renderDevices(ctx, devices) {
+
+  renderDevices(ctx, devices) {
     ctx.save();
     ctx.font = '12px sans-serif';
     ctx.textAlign = 'center';
     ctx.lineWidth = 1;
 
     for (const dev of devices) {
-
-      const s = dev.transform.scale.factor;
-
-      const baseSize = this.gridSize * 1.5;
-      const size = baseSize * s;
-      const halfSize = size / 2;
-
-      const x = dev.x - halfSize;
-      const y = dev.y - halfSize;
+      const cx = dev.x + dev.renderWidth / 2;
+      const cy = dev.y + dev.renderHeight / 2;
 
 
-      dev.updatePath(x,y, size);
+      const w = dev.renderWidth;
+      const h = dev.renderHeight;
 
-      // 3. Draw: Icon OR Fallback Square
+      const x = dev.x;
+      const y = dev.y;
+
+      dev.updatePath();
+
+      // --- DRAW IMAGE ---
       if (dev.icon && dev.icon.complete && dev.icon.naturalWidth !== 0) {
-        // --- DRAW IMAGE ---
         try {
-          ctx.drawImage(dev.icon, x, y, size, size);
+          ctx.drawImage(dev.icon, x, y, w, h);
         } catch (e) {
           console.warn("Error drawing device icon:", e);
-          // Fallback if image fails
-          this._drawFallbackDevice(ctx, x, y, size);
+          this._drawFallbackDevice(ctx, x, y, w);
         }
       } else {
-        // --- DRAW FALLBACK SQUARE ---
-        this._drawFallbackDevice(ctx, x, y, size);
+        this._drawFallbackDevice(ctx, x, y, w);
       }
 
-      // 4. Draw Label (Below the device)
+      // --- LABEL ---
       ctx.fillStyle = '#000000';
-      // Adjust text position based on size
-      ctx.fillText(dev.label || 'Device', dev.x, dev.y + halfSize + 14);
+      ctx.fillText(dev.label || 'Device', cx, cy + (h / 2) + 12);
     }
+
     ctx.restore();
   }
+
 
   renderFurnitures(ctx, furnitures) {
     ctx.save();
@@ -144,14 +141,12 @@ renderDevices(ctx, devices) {
     for (const dev of furnitures) {
       // 1. Calculate Size & Position
       // Check for scale (handling both simple numbers and vector objects)
-      const s = typeof dev.transform?.scale === 'number' 
-                ? dev.transform.scale 
-                : (dev.transform?.scale?.x ?? 1);
-      
+      const s = dev.transform.scale.factor;
+
       const baseSize = this.gridSize * 1.5; // Made slightly larger for icons
       const size = baseSize * s;
       const halfSize = size / 2;
-      
+
       const x = dev.x - halfSize;
       const y = dev.y - halfSize;
 
@@ -164,7 +159,7 @@ renderDevices(ctx, devices) {
       if (dev.icon && dev.icon.complete && dev.icon.naturalWidth !== 0) {
         // --- DRAW IMAGE ---
         try {
-          ctx.drawImage(dev.icon, x, y, size, size);
+          ctx.drawImage(dev.icon, x, y, dev.renderWidth, dev.renderHeight);
         } catch (e) {
           console.warn("Error drawing device icon:", e);
           // Fallback if image fails

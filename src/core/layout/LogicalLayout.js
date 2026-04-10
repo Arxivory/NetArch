@@ -341,15 +341,20 @@ isPointInsideShape(id, x, y) {
   addDevice(deviceData, x, y) {
     const size = this.shapeRenderer.gridSize * 1.5;
     const device = this.shapeCreator.createDevice(deviceData, x, y, size);
-    this.devices.push(device);
+    const activeFloor = appState.ui.activeFloorId;
+    device.floorId = activeFloor || null;
 
-    if (this.onDeviceAdded) {
-      this.onDeviceAdded(device);
+    if (!this._checkForOverlap(device, "creation")) {
+      if (this.onDeviceAdded) {
+        this.devices.push(device);
+        this.onDeviceAdded(device);
+      }
+
+      this._render();
     }
-    this._render();
   }
 
- addFurniture(furnitureData, x, y) {
+  addFurniture(furnitureData, x, y) {
     console.log('Adding furniture with data:', furnitureData, 'from LogicalLaypout bsuiyti');
     const size = this.shapeRenderer.gridSize * 1.5;
 
@@ -395,7 +400,7 @@ isPointInsideShape(id, x, y) {
       y,
       width: size,
       height: size,
-      icon: iconImage, 
+      icon: iconImage,
       transform: {
         position: { x, y, z: 0 },
         scale: 1,
@@ -423,13 +428,13 @@ isPointInsideShape(id, x, y) {
 
     this.furnitures.push(furniture);
 
-    if(this.onFurnitureAdded) {
-      
+    if (this.onFurnitureAdded) {
+
       this.onFurnitureAdded(furniture);
     }
     this._render();
   }
- 
+
   getSnappedCanvasCoords(clientX, clientY) {
     const zoomFactor = this.pointerHandler.getZoom();
     const canvasPoint = this.pointerHandler.clientToWorld(clientX, clientY, this.viewState, zoomFactor);
@@ -969,17 +974,18 @@ isPointInsideShape(id, x, y) {
 
     ctx.save();
     for (const device of filterForFloor(this.devices)) {
-      const tileW = device.transform.scale.w + 32;
-      const tileH = device.transform.scale.h + 45;
-      const tx = device.x - tileW / 2;
-      const ty = device.y - tileH / 2.5;
-
       ctx.fillStyle = '#ffffff';
       ctx.strokeStyle = '#cbd5e1';
       ctx.lineWidth = 1;
 
       ctx.beginPath();
-      ctx.roundRect(tx, ty, tileW, tileH, 8);
+      ctx.roundRect(
+        device.tileX,
+        device.tileY,
+        device.tileWidth,
+        device.tileHeight,
+        8
+      );
       ctx.fill();
       ctx.stroke();
     }
@@ -987,7 +993,7 @@ isPointInsideShape(id, x, y) {
 
     ctx.save();
     for (const furniture of this.furnitures) {
-      const tileW = furniture.width + 32; 
+      const tileW = furniture.width + 32;
       const tileH = furniture.height + 45;
       const tx = furniture.x - tileW / 2;
       const ty = furniture.y - tileH / 2.5;
@@ -995,9 +1001,9 @@ isPointInsideShape(id, x, y) {
       ctx.fillStyle = '#ffffff';
       ctx.strokeStyle = '#cbd5e1';
       ctx.lineWidth = 1;
-      
+
       ctx.beginPath();
-      ctx.roundRect(tx, ty, tileW, tileH, 8); 
+      ctx.roundRect(tx, ty, tileW, tileH, 8);
       ctx.fill();
       ctx.stroke();
     }
@@ -1108,13 +1114,11 @@ isPointInsideShape(id, x, y) {
 
     if (this.pendingCableSource) {
       const en = this.pendingCableSource;
-      const safeW = en.width !== undefined ? en.width : (en.w || 32);
-      const safeH = en.height !== undefined ? en.height : (en.h || 32);
 
-      const w = safeW + 16;
-      const h = safeH + 16;
-      const x = en.x - w / 2;
-      const y = en.y - h / 2;
+      const w = en.renderWidth + 4;
+      const h = en.renderHeight + 4;
+      const x = en.x - 2;
+      const y = en.y - 2;
 
       ctx.save();
       ctx.strokeStyle = "#ff9900";
@@ -1129,13 +1133,10 @@ isPointInsideShape(id, x, y) {
     if (this.hoveredDevice && this.mode === 'cable') {
       const en = this.hoveredDevice;
 
-      const safeW = en.width !== undefined ? en.width : (en.w || 32);
-      const safeH = en.height !== undefined ? en.height : (en.h || 32);
-
-      const w = safeW + 16;
-      const h = safeH + 16;
-      const x = en.x - w / 2;
-      const y = en.y - h / 2;
+      const w = en.renderWidth + 4;
+      const h = en.renderHeight + 4;
+      const x = en.x - 2;
+      const y = en.y - 2;
 
       ctx.save();
       ctx.strokeStyle = "#00ff00";
@@ -1186,7 +1187,7 @@ isPointInsideShape(id, x, y) {
 
   updateEntityTransform(id, updates = {}) {
     const en = this.findEntityById(id);
-    if (this.entityTransformer.applyEntityTransform(en, updates, this.shapeRenderer, this._checkForOverlap.bind(this))) {
+    if (this.entityTransformer.applyEntityTransform(en, updates, this._checkForOverlap.bind(this))) {
       this._render();
       return true;
     }
@@ -1232,8 +1233,8 @@ isPointInsideShape(id, x, y) {
 
   _findDeviceAt(x, y) {
     for (const device of this.devices) {
-      const dx = device.x - device.w / 2;
-      const dy = device.y - device.h / 2;
+      const dx = device.x;
+      const dy = device.y;
 
       if (
         x >= dx &&

@@ -580,7 +580,6 @@ else if (structureType === 'Space') {
   }
 
   _handleEntityChanged(en) {
-    //console.log("notified");
     appState.selection.notify();
   }
 }

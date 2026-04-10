@@ -9,6 +9,8 @@ import SpaceMesh from './rendering/structures/SpaceMesh';
 import FloorMesh from './rendering/structures/FloorMesh';
 import FurnitureMesh from './rendering/furnitures/FurnitureMesh';
 import DeviceMesh from './rendering/devices/DeviceMesh';
+import { GizmoManager } from './rendering/GizmoManager.js';
+import { getScene, getCamera, getRenderer } from './rendering/SceneAccess';
 
 export class PhysicalController {
     constructor(scene) {
@@ -35,6 +37,9 @@ export class PhysicalController {
 
         this.unsubscribe = this.store.subscribe(() => this.syncWithState());
         this.unsubscribeNetwork = this.networkStore.subscribe(() => this.syncWithState());
+
+        
+        this.gizmoManager = new GizmoManager(getCamera(), getRenderer().domElement, getScene());
 
         this.syncWithState();
     }
@@ -164,6 +169,21 @@ export class PhysicalController {
                 this.deviceMeshes.delete(id);
             }
         }
+
+        appState.selection.subscribe((selectionStore) => {
+            const focusedId = selectionStore.getFocusedId();
+            console.log("Focused ID changed:", focusedId);
+    
+            if (focusedId) {
+                const selectedMesh = this.getMeshById(focusedId);
+                console.log("Selected mesh:", selectedMesh);
+                if (selectedMesh) {
+                    this.gizmoManager.attach(selectedMesh);
+                }
+            } else {
+                this.gizmoManager.detach();
+            }
+        });
     }
 
     createRectangularDomainMesh(domain) {
@@ -259,6 +279,8 @@ export class PhysicalController {
         const newDevice = new DeviceMesh(device, this.defaultScaler);
         const deviceMesh = await newDevice.getMesh(this.gltfLoader, deviceCatalog);
 
+        deviceMesh.userData = { id: device.id, type: 'device' };
+
         deviceMesh.position.y = floorAltitude;
 
         this.scene.add(deviceMesh);
@@ -271,6 +293,8 @@ export class PhysicalController {
 
         const newFurniture = new FurnitureMesh(furniture, this.defaultScaler);
         const furnitureMesh = await newFurniture.getMesh(this.gltfLoader, this.furnitureCatalog);
+
+        furnitureMesh.userData = { id: furniture.id, type: 'furniture' };
 
         furnitureMesh.position.y = floorAltitude;
 
@@ -289,5 +313,15 @@ export class PhysicalController {
         const mesh = this.domainMeshes.get(domain.id);
         mesh.scale.set(modifiedWidth, 1, modifiedHeight);
         mesh.position.set(modifiedX, 0.1, modifiedY);
+    }
+
+    getMeshById(id) {
+        if (this.domainMeshes.has(id)) return this.domainMeshes.get(id);
+        if (this.siteMeshes.has(id)) return this.siteMeshes.get(id);
+        if (this.floorMeshes.has(id)) return this.floorMeshes.get(id);
+        if (this.spaceMeshes.has(id)) return this.spaceMeshes.get(id);
+        if (this.deviceMeshes.has(id)) return this.deviceMeshes.get(id);
+        if (this.furnitureMeshes.has(id)) return this.furnitureMeshes.get(id);
+        return null;
     }
 }

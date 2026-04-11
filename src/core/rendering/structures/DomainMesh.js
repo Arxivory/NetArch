@@ -60,10 +60,42 @@ export default class DomainMesh {
         return rectangularMesh;
     }
 
-    getCircularForm() {
-        if (!this.geometry.circular)
-            throw Error("The Domain is not Circular. Try getting other forms.");
-    }
+ getCircularForm() {
+    const { radius: r } = this.geometry.circular;
+    
+    // Apply scaler consistent with rectangular
+    const scaledR = r * this.scaler;
+    const height = 0.5; 
+    
+    // Create Three.js Geometry
+    // Note: No rotation needed, Cylinder defaults to standing upright on the Y-axis
+    const geometry = new THREE.CylinderGeometry(scaledR, scaledR, height, 64);
+    
+    // Set Material (Transparent light blue)
+    const material = new THREE.MeshStandardMaterial({
+        color: 0x3498db,
+        transparent: false,
+        opacity: 0.3,
+        depthWrite: false,
+        roughness: 0.9,
+        metalness: 0.3
+    });
+    
+    const mesh = new THREE.Mesh(geometry, material);
+    
+    // Position: Use scaled center coordinates. 
+    // Assuming this.x and this.z represent the center of the logical circle.
+    mesh.position.set(
+        this.x * this.scaler, 
+        height / 2, 
+        this.z * this.scaler
+    );
+    
+    // Attach metadata
+    mesh.userData = { id: this.id, type: 'domain', shape: 'circle' };
+    
+    return mesh;
+}
 
     getPolygonalForm() {
         if (!this.geometry.polygonal)

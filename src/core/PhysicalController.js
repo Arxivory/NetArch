@@ -1,14 +1,14 @@
 import * as THREE from 'three';
-import appState from '../state/AppState';
-import deviceCatalog from '../data/deviceCatalog';
-import furnitureCatalog from '../data/furnitureCatalog';
+import appState from '../state/AppState.js';
+import deviceCatalog from '../data/deviceCatalog.js';
+import furnitureCatalog from '../data/furnitureCatalog.js';
 import { GLTFLoader, MTLLoader, OBJLoader } from 'three/examples/jsm/Addons.js';
-import DomainMesh from './rendering/structures/DomainMesh';
-import SiteMesh from './rendering/structures/SiteMesh';
-import SpaceMesh from './rendering/structures/SpaceMesh';
-import FloorMesh from './rendering/structures/FloorMesh';
-import FurnitureMesh from './rendering/furnitures/FurnitureMesh';
-import DeviceMesh from './rendering/devices/DeviceMesh';
+import DomainMesh from './rendering/structures/DomainMesh.js';
+import SiteMesh from './rendering/structures/SiteMesh.js';
+import SpaceMesh from './rendering/structures/SpaceMesh.js';
+import FloorMesh from './rendering/structures/FloorMesh.js';
+import FurnitureMesh from './rendering/furnitures/FurnitureMesh.js';
+import DeviceMesh from './rendering/devices/DeviceMesh.js';
 
 export class PhysicalController {
     constructor(scene) {
@@ -22,7 +22,7 @@ export class PhysicalController {
 
         this.objLoader = new OBJLoader();
         this.mtlLoader = new MTLLoader();
-        this.gltfLoader = new GLTFLoader();
+        this.gltfLoader = GLTFLoader;
 
         this.domainMeshes = new Map();
         this.siteMeshes = new Map();
@@ -69,6 +69,9 @@ export class PhysicalController {
                     break;
                 case 'polygon':
                     this.createPolygonalDomainMesh(domain);
+                    break;
+                case 'circle':
+                    this.createCircularDomainMesh(domain);
                     break;
             }
         }
@@ -203,6 +206,14 @@ export class PhysicalController {
 
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.set(modifiedX, 0.1, modifiedY);
+        this.scene.add(mesh);
+        this.domainMeshes.set(domain.id, mesh);
+    }
+
+    createCircularDomainMesh(domain) {
+        const domainMesh = new DomainMesh(domain, this.defaultScaler);
+        const mesh = domainMesh.getCircularForm();
+
         this.scene.add(mesh);
         this.domainMeshes.set(domain.id, mesh);
     }

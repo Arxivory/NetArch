@@ -1,23 +1,21 @@
 import { Box } from "check2d";
 
 export class Device {
-    constructor(deviceData, x, y, size, system) {
-        console.log(deviceData);
-        this.x = x;
-        this.y = y;
+    constructor(deviceData, cx, cy, size, system) {
+        this.x = cx - size / 2;
+        this.y = cy - size / 2;
         this.w = size;
         this.h = size;
-        this.size = size;
         this.type = deviceData.type || 'device';
         this.label = deviceData.name || 'Device';
         this.interfaces = deviceData.interfaces || [];
         this.system = system;
         this.hitTestMode = 'path';
         this.initDeviceIcons();
-        this.initIconImage(deviceData)
+        this.initIconImage(deviceData);
+        this.initTransform();
         this.initPath(size);
         this.initBody();
-        this.initTransform();
     }
 
     initDeviceIcons() {
@@ -32,7 +30,6 @@ export class Device {
         Object.keys(svgs).forEach(key => {
             const img = new Image();
             img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgs[key]);
-            console.log(img.src);
             this.deviceIcons[key] = img;
         });
     }
@@ -40,7 +37,7 @@ export class Device {
     initIconImage(deviceData) {
         const rawType = (deviceData.type + ' ' + deviceData.name).toLowerCase();
 
-        let iconKey = null;     
+        let iconKey = null;
 
         if (rawType.includes('router') || rawType.includes('gateway') || rawType.includes('1941')) {
             iconKey = 'router';
@@ -58,45 +55,72 @@ export class Device {
         this.icon = this.deviceIcons[iconKey];
     }
 
-    initPath(size) {
-        const half = size / 2;
-        const px = this.x - half;
-        const py = this.y - half;
+    initPath() {
         this.path = new Path2D();
-        this.path.rect(px, py, size, size);
+        this.path.rect(this.tileX, this.tileY, this.tileWidth, this.tileHeight);
     }
 
     initBody() {
         const margin = 0.0001;
+        const w = this.tileWidth;
+        const h = this.tileHeight;
         this.body = new Box(
-            { x: this.x + margin, y: this.y + margin },
-            this.w - 2 * margin,
-            this.h - 2 * margin
+            { x: this.tileX + margin, y: this.tileY + margin },
+            w - 2 * margin,
+            h - 2 * margin
         );
-        this.body.structType = this.structureType;
         this.system.insert(this.body);
     }
 
     initTransform() {
         this.transform = {
-            position: { x: this.x, y: this.y, z: 0 },
-            scale: { factor: 1, w: this.w, h: this.h },
+            position: {
+                x: this.x - 17,
+                y: this.y - 20,
+                z: 0
+            },
+            scale: { factor: 1 },
             rotation: { x: 0, y: 0, z: 0 }
         };
     }
 
-    updatePath(x, y, size) {
-        const path = new Path2D();
-        path.rect(x, y, size, size);
-        this.path = path;
+
+
+    get renderWidth() {
+        return this.w * this.transform.scale.factor;
+    }
+
+    get renderHeight() {
+        return this.h * this.transform.scale.factor;
+    }
+
+    get tileWidth() {
+        return this.renderWidth + 34;
+    }
+
+    get tileHeight() {
+        return this.renderHeight + 41;
+    }
+
+    get tileX() {
+        return this.transform.position.x;
+    }
+
+    get tileY() {
+        return this.transform.position.y;
+    }
+
+
+    updatePath() {
+        this.path = new Path2D();
+        this.path.rect(this.tileX, this.tileY, this.tileWidth, this.tileHeight);
     }
 
     setScale(newScale) {
         this.transform.scale.factor = newScale.factor;
-        this.transform.scale.w = this.w * newScale.factor;
-        this.transform.scale.h = this.h * newScale.factor;
-        this.size *= newScale.factor;
         this.body.setScale(newScale.factor, newScale.factor);
+        this.body.width = this.tileWidth;
+        this.body.height = this.tileHeight;
     }
 
     saveCurrentScale() {
@@ -105,14 +129,23 @@ export class Device {
 
     restoreToSavedScale() {
         this.setScale(this.savedScale);
-        this.body.setScale(this.transform.scale.factor, this.transform.scale.factor);
     }
 
     saveCurrentPosition() {
         this.savedPosition = {
             x: this.x,
             y: this.y,
-        }
+            tx: this.transform.position.x,
+            ty: this.transform.position.y
+        };
+    }
+
+    restoreToSavedPosition() {
+        this.x = this.savedPosition.x;
+        this.y = this.savedPosition.y;
+        this.transform.position.x = this.savedPosition.tx;
+        this.transform.position.y = this.savedPosition.ty;
+        this.body.setPosition(this.transform.position.x, this.transform.position.y,);
     }
 
     move(dx, dy) {
@@ -120,11 +153,21 @@ export class Device {
         this.y += dy;
         this.transform.position.x += dx;
         this.transform.position.y += dy;
-        this.body.setPosition(this.x, this.y, true);
+        this.body.setPosition(this.tileX, this.tileY, true);
     }
 
-    checkIfOverlapping() {
-
+    checkIfOverlapping(floorId) {
+        let overlapping = false;
+        this.system.checkOne(this.body, (other) => {
+            if (other !== this.body) {
+                const otherFloorId = other.b?.floorId ?? null;
+                const currentFloorId = floorId ?? null;
+                if (other.b && otherFloorId === currentFloorId) {
+                    overlapping = true;
+                }
+            }
+        });
+        return overlapping;
     }
 }
 

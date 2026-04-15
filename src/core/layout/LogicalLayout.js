@@ -810,7 +810,12 @@ isPointInsideShape(id, x, y) {
       const wall = this.shapeCreator.createWall(this.startPoint, this.currentPoint);
       if (wall) {
         wall.floorId = activeFloor || null;
-        this.walls.push(wall);
+        if (!this._checkForOverlap(wall, "creation")) {
+          if (this.shapeCreator.onWallCreated) {
+            this.shapeCreator.onWallCreated(wall);
+          }
+          this.walls.push(wall);
+        }
       }
     } else if (this.mode === 'cable') {
       const cable = this.shapeCreator.createCable(this.startPoint, this.currentPoint);

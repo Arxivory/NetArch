@@ -55,7 +55,7 @@ export default function PropertiesPanel({ canvasController }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [transform, setTransform] = useState({
     position: { x: 0, y: 0, z: 0 },
-    scale: { x: 1, y: 1, z: 1 },
+    scale: { factor: 1 },
     rotation: { x: 0, y: 0, z: 0 }
   });
 
@@ -72,10 +72,10 @@ export default function PropertiesPanel({ canvasController }) {
         const entity = findEntityById(entityId);
         if (entity) {
           setSelectedEntity(entity);
-          setTransform(entity.transform || {
-            position: { x: entity.x || 0, y: entity.y || 0, z: 0 },
-            scale: { x: 1, y: 1, z: 1 },
-            rotation: { x: 0, y: 0, z: 0 }
+          setTransform({
+            position: { ...entity.transform.position },
+            scale: { ...entity.transform.scale },
+            rotation: { ...entity.transform.rotation }
           });
           return;
         }
@@ -95,21 +95,21 @@ export default function PropertiesPanel({ canvasController }) {
     if (!canvasController?.layout?.devices) return id;
 
     const d = canvasController.layout.devices.find(x => x.id === id);
-    
+
     return d?.label || d?.name || id;
   };
 
- const getDeviceType = () => {
+  const getDeviceType = () => {
     if (!selectedEntity) return null;
-    
+
     const typeStr = (selectedEntity.type || "").toLowerCase();
     const labelStr = (selectedEntity.label || "").toLowerCase().replace(/\s/g, '');
-    
+
     if (typeStr.includes('router') || labelStr.includes('router')) return 'router';
     if (typeStr.includes('switch') || labelStr.includes('switch')) return 'switch';
     if (typeStr.includes('phone') || labelStr.includes('phone')) return 'smartphone';
-    
-    return "pc"; 
+
+    return "pc";
   };
 
   const deviceType = getDeviceType();
@@ -120,21 +120,21 @@ export default function PropertiesPanel({ canvasController }) {
     }
   ];
 
-  const isDevice = 
-    selectedEntity && 
+  const isDevice =
+    selectedEntity &&
     selectedEntity.interfaces !== undefined;
-  
-    const isCable = 
-      selectedEntity && 
-      selectedEntity.sourceId !== undefined && 
-      selectedEntity.targetId !== undefined;
 
-   const isWall = 
-    selectedEntity && 
+  const isCable =
+    selectedEntity &&
+    selectedEntity.sourceId !== undefined &&
+    selectedEntity.targetId !== undefined;
+
+  const isWall =
+    selectedEntity &&
     selectedEntity.type === "wall";
 
-   const isStructure = 
-    selectedEntity && 
+  const isStructure =
+    selectedEntity &&
     (
       selectedEntity.structureType === "Domain" ||
       selectedEntity.structureType === "Site" ||
@@ -146,30 +146,45 @@ export default function PropertiesPanel({ canvasController }) {
       selectedEntity.type === "floor"
     );
 
-    const isFurniture =
+  const isFurniture =
     selectedEntity &&
     !isDevice &&
     !isCable &&
     !isWall &&
     !isStructure;
 
-  // 1. Keep handleTransformChange separate
   const handleTransformChange = (type, axis, value) => {
     if (!selectedEntity || !canvasController) return;
+    let numericValue = parseFloat(value);
 
-    const newTransform = JSON.parse(JSON.stringify(transform));
-    if (type === 'scale') {
-      newTransform.scale.x = parseFloat(value);
-    } else {
-      newTransform[type][axis] = parseFloat(value);
+    if (numericValue < 0 || numericValue === null) {
+      numericValue = 0;
     }
-    setTransform(newTransform);
 
-    const updates = {};
-    updates[type] = newTransform[type];
-    const cmd = new UpdateEntityTransformCommand(canvasController, appState, selectedEntity.id, updates);
+    const updates = {
+      [type]: {
+        ...selectedEntity.transform[type],
+        [axis]: numericValue
+      }
+    };
+
+    const cmd = new UpdateEntityTransformCommand(
+      canvasController,
+      appState,
+      selectedEntity.id,
+      updates
+    );
+    
     cmd.execute();
-  };
+    const entity = findEntityById(selectedEntity.id);
+    if (entity) {
+      setTransform({
+        position: { ...entity.transform.position },
+        scale: { ...entity.transform.scale },
+        rotation: { ...entity.transform.rotation }
+      });
+    }
+  }
 
   // 2. Define handleDeviceChange AFTER the closing bracket of the previous function
   const handleDeviceChange = (field, value) => {
@@ -186,48 +201,48 @@ export default function PropertiesPanel({ canvasController }) {
   return (
     <div className="properties-panel">
       <h3>Properties</h3>
-      
+
       {isCable && (
         <div className="properties-group">
           <div><label>Cable Type</label>
-          <input 
-            className="field-input" 
-            value={selectedEntity.type || ""} 
-            readOnly
-          />
-        </div>
+            <input
+              className="field-input"
+              value={selectedEntity.type || ""}
+              readOnly
+            />
+          </div>
 
           <div><label>Source Device</label>
-          <input 
-            className="field-input" 
-            value={getDeviceLabel(selectedEntity.sourceId)} 
-            readOnly
+            <input
+              className="field-input"
+              value={getDeviceLabel(selectedEntity.sourceId)}
+              readOnly
             />
           </div>
 
           <div><label>Source Port</label>
-          <input 
-            className="field-input" 
-            value={selectedEntity.sourcePort || ""} 
-            readOnly
+            <input
+              className="field-input"
+              value={selectedEntity.sourcePort || ""}
+              readOnly
             />
           </div>
 
           <div><label>Target Device</label>
-          <input 
-            className="field-input" 
-            value={getDeviceLabel(selectedEntity.targetId)} 
-            readOnly
+            <input
+              className="field-input"
+              value={getDeviceLabel(selectedEntity.targetId)}
+              readOnly
             />
           </div>
 
           <div><label>Target Port</label>
-          <input 
-            className="field-input" 
-            value={selectedEntity.targetPort || ""} 
-            readOnly /></div>
+            <input
+              className="field-input"
+              value={selectedEntity.targetPort || ""}
+              readOnly /></div>
         </div>
-        
+
       )}
 
       {isWall && (
@@ -249,38 +264,38 @@ export default function PropertiesPanel({ canvasController }) {
         <div className="properties-group">
           <hr className="header-separator" />
           <div><label>Device Name</label>
-          <input 
-            className="field-input" 
-            value={selectedEntity?.label || ""} 
-            onChange={(e) => handleDeviceChange('label', e.target.value)}
-           />
+            <input
+              className="field-input"
+              value={selectedEntity?.label || ""}
+              onChange={(e) => handleDeviceChange('label', e.target.value)}
+            />
           </div>
 
           <div><label>IP Address</label>
-          <input 
-            className="field-input" 
-            value={selectedEntity?.interfaces?.[0]?.ipv4?.address || ""} 
-            onChange={(e) => handleDeviceChange('ipAddress', e.target.value)}
-             />
+            <input
+              className="field-input"
+              value={selectedEntity?.interfaces?.[0]?.ipv4?.address || ""}
+              onChange={(e) => handleDeviceChange('ipAddress', e.target.value)}
+            />
           </div>
 
           <div><label>Subnet Mask</label>
-          <input 
-            className="field-input" value={selectedEntity?.interfaces?.[0]?.ipv4?.subnetMask || ""} 
-            onChange={(e) => handleDeviceChange('subnetMask', e.target.value)} 
+            <input
+              className="field-input" value={selectedEntity?.interfaces?.[0]?.ipv4?.subnetMask || ""}
+              onChange={(e) => handleDeviceChange('subnetMask', e.target.value)}
             />
           </div>
 
           <div><label>Default Gateway</label>
-          <input 
-            className="field-input" 
-            value={selectedEntity?.defaultGateway || ""} 
-              onChange={(e) => handleDeviceChange('defaultGateway', e.target.value)} 
-          />
+            <input
+              className="field-input"
+              value={selectedEntity?.defaultGateway || ""}
+              onChange={(e) => handleDeviceChange('defaultGateway', e.target.value)}
+            />
           </div>
-          <button 
-            className="floor-specifier-btn" 
-            style={{ marginTop: "12px", width: "100%" }} 
+          <button
+            className="floor-specifier-btn"
+            style={{ marginTop: "12px", width: "100%" }}
             onClick={() => setIsModalOpen(true)}
           >
             Advanced Configuration
@@ -319,7 +334,7 @@ export default function PropertiesPanel({ canvasController }) {
           </div>
           <div className="transform-grid">
             <label>Scale</label>
-            <input type="number" className="field-input" value={transform.scale.x} onChange={(e) => handleTransformChange('scale', 'x', e.target.value)} />
+            <input type="number" className="field-input" value={transform.scale.factor} onChange={(e) => handleTransformChange('scale', 'factor', e.target.value)} />
             <input type="number" className="field-input" defaultValue={0} disabled />
             <input type="number" className="field-input" defaultValue={0} disabled />
           </div>

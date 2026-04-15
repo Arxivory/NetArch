@@ -6,6 +6,8 @@ export default class Floor {
         this.id = data.id || `floor-${Math.random().toString(36).substr(2, 9)}`;
         this.siteId = data.siteId;
         this.label = data.label || 'Floor';
+        this.structureType = data.structureType || 'Floor';
+        this.type = data.type || 'floor';
         this.altitude = data.altitude || 0; 
         
         this.spaces = data.spaces ? data.spaces.map(s => new Space(s)) : [];

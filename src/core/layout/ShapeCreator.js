@@ -50,7 +50,7 @@ export class ShapeCreator {
   }
 
   createFreeform(points, structureType = '') {
-    if (!points || points.length <= 1) {
+    if (!points || points.length < 3) {
       return null;
     }
     const freeform = new Freeform(points, structureType, this.system);

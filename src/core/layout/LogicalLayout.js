@@ -302,7 +302,7 @@ isPointInsideShape(id, x, y) {
 
   startDrawFreeform(structureType = '') {
     this.mode = 'freeform';
-    this.currentPolygon = [];
+    this.currentFreeform = [];
     this.structureType = structureType;
     this._updateCursor();
   }
@@ -578,7 +578,36 @@ isPointInsideShape(id, x, y) {
     }
 
     if (this.mode === 'freeform') {
-      this.currentFreeform.push(snapped);
+      if (this.currentFreeform.length === 0) {
+        this.currentFreeform.push(snapped);
+      } else {
+        const first = this.currentFreeform[0];
+        const canClose = this.shapeCreator.canClosePolygon(
+          first,
+          snapped,
+          this.grid.getSnapTolerance()
+        );
+
+        if (canClose && this.currentFreeform.length >= 3) {
+          const freeform = this.shapeCreator.createFreeform(
+            [...this.currentFreeform],
+            this.structureType, this.system
+          );
+          if (freeform && !this._checkForOverlap(freeform, "creation")) {
+            if (this.shapeCreator.onFreeformCreated) {
+              this.shapeCreator.onFreeformCreated(freeform);
+            }
+            this.freeforms.push(freeform);
+          }
+          this.currentFreeform = [];
+          this.mode = 'none';
+          this.currentPoint = null;
+          this._updateCursor();
+          this._render();
+          return;
+        }
+        this.currentFreeform.push(snapped);
+      }
       this.currentPoint = snapped;
       this._render();
       return;

@@ -116,6 +116,12 @@ export class PhysicalController {
                 case 'rectangle':
                     this.createRectangleSpaceMesh(space);
                     break;
+                case 'polygon':
+                    this.createPolygonalDomainMesh(space);
+                    break;
+                    case 'circle':
+                    this.createCircularDomainMesh(space);
+                    break;
                 default:
                     break;
             }

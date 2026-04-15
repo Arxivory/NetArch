@@ -59,8 +59,31 @@ export default class DomainMesh {
 
         return rectangularMesh;
     }
-
- getCircularForm() {
+    getPolygonalForm() {
+        if (!this.geometry.polygonal) 
+            throw Error("The Domain is not Polygonal. Try getting other forms.");
+        const points = this.geometry.polygonal.points.map(p => new THREE.Vector2(
+            p.x * this.scaler, 
+            p.y * this.scaler
+        ));
+        const shape = new THREE.Shape(points);
+        const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.5, bevelEnabled: false });
+        const material = new THREE.MeshStandardMaterial({
+            color: 0xfffff,
+            roughness: 0.9,
+            metalness: 0.3
+        });
+        
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(
+            this.x * this.scaler,
+            0.1,
+            this.z * this.scaler
+        );
+        mesh.userData = { id: this.id, type: 'domain', shape: 'polygon' };
+        return mesh;
+        }
+    getCircularForm() {
     const { radius: r } = this.geometry.circular;
     
     // Apply scaler consistent with rectangular

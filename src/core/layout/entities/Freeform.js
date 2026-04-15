@@ -1,4 +1,4 @@
-import { Polygon } from "check2d";
+import { Polygon as SystemPolygon } from "check2d";
 
 export class Freeform {
     constructor(points, structureType, system) {
@@ -13,10 +13,10 @@ export class Freeform {
         this.points = [...points];
         this.type = 'freeform';
         this.structureType = structureType;
-        this.hitTestMode = 'stroke';
+        this.hitTestMode = 'path';
         this.initPath(points);
-        this.initTransform();
         this.initBody();
+        this.initTransform();
     }
 
 
@@ -26,40 +26,34 @@ export class Freeform {
         for (let i = 1; i < points.length; i++) {
             path.lineTo(points[i].x, points[i].y);
         }
+        path.closePath();
         this.path = path;
     }
 
     initBody() {
-        const thickness = 0.5;
-        this.bodies = [];
+        const margin = 0.0001;
+        const cx = this.points.reduce((s, p) => s + p.x, 0) / this.points.length;
+        const cy = this.points.reduce((s, p) => s + p.y, 0) / this.points.length;
 
-        for (let i = 0; i < this.transform.scale.points.length - 1; i++) {
-            const a = this.transform.scale.points[i];
-            const b = this.transform.scale.points[i + 1];
-
-            const dx = b.x - a.x;
-            const dy = b.y - a.y;
+        const pointsWithMargin = this.points.map(p => {
+            const dx = p.x - cx;
+            const dy = p.y - cy;
             const len = Math.hypot(dx, dy);
+            const scale = (len - margin) / len;
+            return {
+                x: cx + dx * scale,
+                y: cy + dy * scale
+            };
+        });
 
-            const nx = -dy / len * thickness;
-            const ny = dx / len * thickness;
+        const localPoints = pointsWithMargin.map(p => ({
+            x: p.x - cx,
+            y: p.y - cy
+        }));
 
-            const cx = (a.x + b.x) / 2;
-            const cy = (a.y + b.y) / 2;
-
-            const localPoints = [
-                { x: -dx / 2 + nx, y: -dy / 2 + ny },
-                { x: dx / 2 + nx, y: dy / 2 + ny },
-                { x: dx / 2 - nx, y: dy / 2 - ny },
-                { x: -dx / 2 - nx, y: -dy / 2 - ny }
-            ];
-
-            const body = new Polygon({ x: cx, y: cy }, localPoints);
-            body.structType = this.structureType;
-            this.system.insert(body);
-            this.bodies.push(body);
-
-        }
+        this.body = new SystemPolygon({ x: cx, y: cy }, localPoints);
+        this.body.structType = this.structureType;
+        this.system.insert(this.body);
     }
 
     initTransform() {
@@ -77,6 +71,7 @@ export class Freeform {
         for (let i = 1; i < scaled.length; i++) {
             path.lineTo(scaled[i].x + 0.5, scaled[i].y + 0.5);
         }
+        path.closePath();
         this.path = path;
     }
 
@@ -111,10 +106,17 @@ export class Freeform {
     }
 
     updateBody() {
-        for (const body of this.bodies) {
-            this.system.remove(body);
-        }
-        this.initBody();
+        const scaled = this.transform.scale.points;
+        const cx = (this.x + this.maxX) / 2;
+        const cy = (this.y + this.maxY) / 2;
+        const localPoints = scaled.map(p => ({
+            x: p.x - cx,
+            y: p.y - cy
+        }));
+        this.system.remove(this.body);
+        this.body.setPosition(cx, cy);
+        this.body.setPoints(localPoints);
+        this.system.insert(this.body);
     }
 
     setScale(newScale) {
@@ -171,46 +173,28 @@ export class Freeform {
         this.transform.position.x = this.x;
         this.transform.position.y = this.y;
         this.updateBody();
+        //this.system.updateBody(this.body);
     }
 
     checkIfOverlapping(floorId) {
-        const ceStruct = this.structureType;
-        for (const body of this.bodies) {
-            this.system.remove(body);
-        }
-
-        for (const body of this.bodies) {
-            const structMap = new Map();
-            structMap.set("Site", "Domain");
-            structMap.set("Space", "Site");
-            const requiredParent = structMap.get(this.structureType);
-            let overlapping = false;
-            this.system.checkOne(body, (other) => {
-                if (!this.bodies.includes(other)) {
-                    const otherFloorId = other.b?.floorId ?? null;
-                    const currentFloorId = floorId ?? null;
-                    if (!other.b.structType) {
-                        overlapping = other.b && otherFloorId === currentFloorId;
-                    }
-                    else if (other.b && otherFloorId === currentFloorId && requiredParent !== other.b.structType) {
-                        overlapping = true;
-                    }
+        const structMap = new Map();
+        structMap.set("Site", "Domain");
+        structMap.set("Space", "Site");
+        const requiredParent =  structMap.get(this.structureType);
+        let overlapping = false;
+        this.system.checkOne(this.body, (other) => {
+            if (other !== this.body) {
+                const otherFloorId = other.b?.floorId ?? null;
+                const currentFloorId = floorId ?? null;
+                if (!other.b.structType) {
+                    overlapping = other.b && otherFloorId === currentFloorId;
                 }
-            });
-
-            if (overlapping) {
-                for (const bodyToReinsert of this.bodies) {
-                    this.system.insert(bodyToReinsert);
+                else if (other.b && otherFloorId === currentFloorId && requiredParent !== other.b.structType) {
+                    overlapping = true;
                 }
-                return true;
             }
-        }
-
-        for (const body of this.bodies) {
-            this.system.insert(body);
-        }
-
-        return false;
+        });
+        return overlapping;
     }
 }
 

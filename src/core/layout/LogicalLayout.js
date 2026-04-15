@@ -6,7 +6,6 @@ import { Selection } from '../editor/Selection.js';
 import EntityTransformer from './transform/EntityTransformer.js';
 import { System } from 'check2d';
 import appState from '../../state/AppState.js';
-import { showErrorModal } from '../../util/ErrorHandling.js';
 
 export class LogicalLayout {
   constructor(opts = {}) {
@@ -662,6 +661,7 @@ isPointInsideShape(id, x, y) {
         const dy = p.y - this.interaction.start.y;
 
         if (this.interaction.mode === "move") {
+          console.log(`📦 MOVE: en.id=${en.id}, en.structureType=${en.structureType}, dx=${dx}, dy=${dy}`);
           en.move(dx, dy);
         }
 
@@ -695,7 +695,13 @@ isPointInsideShape(id, x, y) {
         }
 
         this.interaction.start = { x: p.x, y: p.y };
-        this.onEntityChanged(en);
+        if (this.onEntityChanged) {
+            // Debug: Log the delta being passed to controller
+            if (dx !== 0 || dy !== 0) {
+                console.log(`📍 onEntityChanged called with dx=${dx}, dy=${dy} for ${en.id}`);
+            }
+            this.onEntityChanged(en, dx, dy);
+        }
         this._render();
         return;
       }
@@ -713,12 +719,37 @@ isPointInsideShape(id, x, y) {
 
   }
 
-  _onPointerUp(e) {
-    if (this.interaction.mode === 'move') {
+_onPointerUp(e) {
+    console.log('[LogicalLayout] _onPointerUp', {
+      mode: this.mode,
+      pointerDown: this.pointerHandler.getIsPointerDown(),
+      startPoint: this.startPoint,
+      currentPoint: this.currentPoint
+    });
+
+    const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !== 'none';
+    const hasValidDrawPoints = this.startPoint && this.currentPoint;
+
+    if (isDrawMode && hasValidDrawPoints) {
+      console.log('[LogicalLayout] finalizing draw mode on pointer up');
+      this._createShapeFromMode();
+    }
+
+    if (this.interaction.mode === 'move' && this.selectedEntity) {
+      let restoreDx = 0;
+      let restoreDy = 0;
+      const hasSavedPosition = this.selectedEntity.savedPosition !== undefined;
+
       if (this._checkForOverlap(this.selectedEntity, "transformation")) {
-        this.selectedEntity.restoreToSavedPosition();
-        this.onEntityChanged();
-        this._render();
+        if (hasSavedPosition && typeof this.selectedEntity.restoreToSavedPosition === 'function') {
+          restoreDx = this.selectedEntity.savedPosition.x - this.selectedEntity.x;
+          restoreDy = this.selectedEntity.savedPosition.y - this.selectedEntity.y;
+          this.selectedEntity.restoreToSavedPosition();
+        }
+      }
+
+      if (this.onEntityChanged) {
+        this.onEntityChanged(this.selectedEntity, restoreDx, restoreDy);
       }
     }
 
@@ -730,21 +761,11 @@ isPointInsideShape(id, x, y) {
     this.isResizing = false;
     this.resizeStart = null;
 
-    if (!this.pointerHandler.getIsPointerDown()) return;
-
     if (this.mode === 'pan') {
       this.pointerHandler.setCursor('grab');
     }
 
     this.pointerHandler.setPointerDown(false);
-
-    if (!this.startPoint || !this.currentPoint) {
-      this.startPoint = null;
-      this.currentPoint = null;
-      return;
-    }
-
-    this._createShapeFromMode();
 
     this.startPoint = null;
     this.currentPoint = null;
@@ -783,6 +804,7 @@ isPointInsideShape(id, x, y) {
       if (rect) {
         rect.floorId = activeFloor || null;
         if (rect.body) rect.body.floorId = activeFloor || null;
+        console.log(`📦 Created canvas rectangle with ID: ${rect.id}, Type: ${this.structureType}`);
         if (!this._checkForOverlap(rect, "creation")) {
           if (this.shapeCreator.onRectangleCreated) {
             this.shapeCreator.onRectangleCreated(rect);
@@ -1133,19 +1155,24 @@ isPointInsideShape(id, x, y) {
       this.doors,
       this.windows,
       this.roofs,
-      this.freeforms
+      this.freeforms,
+      this.furnitures
     ];
   }
 
   findEntityById(id) {
     const lists = this.getAllSelectableEntities();
-    for (const arr of lists) {
+    for (let i = 0; i < lists.length; i++) {
+      const arr = lists[i];
+      if (!arr) continue;
       for (const en of arr) {
         if (en && en.id === id) {
           return en;
         }
       }
     }
+    // If entity not found in layout, log for debugging
+    console.log(`⚠️ No canvas entity found in layout with id: ${id}`);
     return null;
   }
 
@@ -1157,9 +1184,15 @@ isPointInsideShape(id, x, y) {
     return null;
   }
 
-  updateEntityTransform(id, updates = {}) {
+updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {
     const en = this.findEntityById(id);
-    if (this.entityTransformer.applyEntityTransform(en, updates, this._checkForOverlap.bind(this))) {
+    if (!en) return false;
+
+    // If skipOverlapCheck is true, we provide a dummy function that always returns false (no overlap).
+    // Otherwise, we bind the strict physical overlap checker.
+    const overlapValidator = skipOverlapCheck ? () => false : this._checkForOverlap.bind(this);
+
+    if (this.entityTransformer.applyEntityTransform(en, updates, overlapValidator)) {
       this._render();
       return true;
     }

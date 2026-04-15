@@ -1,3 +1,4 @@
+import { Undo2, Redo2 } from "lucide-react"; // Add to existing lucide-react imports
 import {
   Mountain, Building, Grid, RectangleHorizontal, House, DoorOpen,
   Square, Play, File, FilePlus, Save, MousePointer, Hand, ZoomIn, ZoomOut, Trash2 // <-- Added Trash2
@@ -12,6 +13,36 @@ import StructuralOption from "./StructuralOption";
 
 export default function Toolbar({ canvasController }) {
   const [activeTool, setActiveTool] = useState("select");
+
+  // 1. Update the state hooks
+const [canUndo, setCanUndo] = useState(false);
+const [canRedo, setCanRedo] = useState(false);
+
+useEffect(() => {
+  // 2. Subscribe directly to the global appState
+  // Your AppState calls notifyListeners() whenever this.commands updates
+  const unsubscribe = appState.subscribe((state) => {
+    setCanUndo(state.canUndo()); // Uses the delegation methods in your AppState.js
+    setCanRedo(state.canRedo());
+  });
+
+  // Set initial state
+  setCanUndo(appState.canUndo());
+  setCanRedo(appState.canRedo());
+
+  return unsubscribe;
+}, []);
+
+// 3. Update the handler functions to use your AppState delegation
+const handleUndo = () => {
+  const cmd = appState.undo();
+  if (cmd && cmd.undo) cmd.undo();
+};
+
+const handleRedo = () => {
+  const cmd = appState.redo();
+  if (cmd && cmd.execute) cmd.execute();
+};
 
   useEffect(() => {
     const unsubscribe = appState.tools.subscribe(() => {
@@ -89,6 +120,24 @@ const handleDelete = () => {
           <button className="toolbar-btn"><FilePlus size={16} /> New</button>
           <button className="toolbar-btn"><File size={16} /> Open</button>
           <button className="toolbar-btn"><Save size={16} /> Save</button>
+
+          {/* INSERT IT HERE */}
+          <div className="toolbar-v-separator" /> 
+          <button 
+  className="toolbar-btn-icon" 
+  onClick={handleUndo}
+  title="Undo (Ctrl+Z)"
+>
+  <Undo2 size={16} className={!canUndo ? "opacity-20" : ""} />
+</button>
+
+<button 
+  className="toolbar-btn-icon" 
+  onClick={handleRedo} 
+  title="Redo (Ctrl+Y)"
+>
+  <Redo2 size={16} className={!canRedo ? "opacity-20" : ""} />
+</button>
         </div>
         <span className="toolbar-label">Files</span>
       </div>

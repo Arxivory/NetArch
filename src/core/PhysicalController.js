@@ -37,9 +37,23 @@ export class PhysicalController {
 
         this.unsubscribe = this.store.subscribe(() => this.syncWithState());
         this.unsubscribeNetwork = this.networkStore.subscribe(() => this.syncWithState());
-
         
         this.gizmoManager = new GizmoManager(getCamera(), getRenderer().domElement, getScene());
+        
+        appState.selection.subscribe((selectionStore) => {
+            const focusedId = selectionStore.getFocusedId();
+            console.log("Focused ID changed:", focusedId);
+    
+            if (focusedId) {
+                const selectedMesh = this.getMeshById(focusedId);
+                console.log("Selected mesh:", selectedMesh);
+                if (selectedMesh) {
+                    this.gizmoManager.attach(selectedMesh);
+                }
+            } else {
+                this.gizmoManager.detach();
+            }
+        });
 
         this.syncWithState();
     }
@@ -126,7 +140,7 @@ export class PhysicalController {
 
             if (this.deviceMeshes.has(device.id)) {
                 const deviceMesh = this.deviceMeshes.get(device.id);
-                if (deviceMesh.transform) {
+                if (device.transform) {
                     deviceMesh.position.set(device.transform.position.x, device.transform.position.y, device.transform.position.z);
                     deviceMesh.rotation.set(device.transform.rotation.x, device.transform.rotation.y, device.transform.rotation.z);
                     deviceMesh.scale.set(device.transform.scale.x, device.transform.scale.y, device.transform.scale.z);
@@ -180,21 +194,6 @@ export class PhysicalController {
                 this.deviceMeshes.delete(id);
             }
         }
-
-        appState.selection.subscribe((selectionStore) => {
-            const focusedId = selectionStore.getFocusedId();
-            console.log("Focused ID changed:", focusedId);
-    
-            if (focusedId) {
-                const selectedMesh = this.getMeshById(focusedId);
-                console.log("Selected mesh:", selectedMesh);
-                if (selectedMesh) {
-                    this.gizmoManager.attach(selectedMesh);
-                }
-            } else {
-                this.gizmoManager.detach();
-            }
-        });
     }
 
     createRectangularDomainMesh(domain) {

@@ -353,20 +353,7 @@ useEffect(() => {
         </div>
       )}
 
-<<<<<<< HEAD
-      {isFurniture && (
-        <div className="properties-group">
-          <div>
-            <label>Name</label>
-            <input className="field-input" value={selectedEntity.label || ""} readOnly />
-          </div>
-        </div>
-      )}
-
-      {isStructure && (
-=======
 {isStructure && (
->>>>>>> 2319bdc2017ea4facbb303465967faae612359f1
         <div className="properties-group">
           <hr className="header-separator" />
           <div>

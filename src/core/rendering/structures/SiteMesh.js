@@ -95,10 +95,70 @@ export default class SiteMesh {
         return group;
     }
 
-    getCircularForm() {
-        if (!this.geometry.circular)
-            throw Error("The Site is not Circular. Try getting other forms.");
-    }
+getCircularForm() {
+    if (!this.geometry.circular)
+        throw Error("The Site is not Circular.");
+
+    const radius = this.geometry.circular.radius * this.scaler;
+    const thickness = 0.7;
+    const innerRadius = radius - thickness;
+    const height = this.defaultHeight;
+
+    // 1. Create the Ring Shape (Centered at 0,0)
+    const circleShape = new THREE.Shape();
+    circleShape.absarc(0, 0, radius, 0, Math.PI * 2, false);
+
+    const holePath = new THREE.Path();
+    holePath.absarc(0, 0, innerRadius, 0, Math.PI * 2, true);
+    circleShape.holes.push(holePath);
+
+    const extrudeSettings = {
+        depth: height,
+        bevelEnabled: true,
+        bevelThickness: 0.05,
+        bevelSize: 0.05,
+        bevelSegments: 2,
+        curveSegments: 64 // Smoother circle
+    };
+
+    // 2. Setup Materials
+    const wallSideMat = new THREE.MeshStandardMaterial({ color: 0xcccccc });
+    const wallTopMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+
+    // 3. The Wall Mesh
+    const circleMesh = new THREE.Mesh(
+        new THREE.ExtrudeGeometry(circleShape, extrudeSettings), 
+        [wallTopMat, wallSideMat]
+    );
+    circleMesh.rotation.x = -Math.PI / 2; // Lay flat
+    circleMesh.position.set(0, 0, 0);    // Keep at group center
+
+    // 4. The Ceiling Mesh
+    const ceilingGeometry = new THREE.CircleGeometry(innerRadius, 64);
+    const ceilingMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0xf5f5f5,
+        roughness: 0.8
+    });
+    const ceilingMesh = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
+    ceilingMesh.rotation.x = -Math.PI / 2;
+    ceilingMesh.position.y = height;    // Sit on top of the walls
+
+    // 5. Positioning the Group
+    const group = new THREE.Group();
+    group.add(circleMesh);
+    group.add(ceilingMesh);
+
+    // CRITICAL: Align with the center of the Domain
+    // If your Domain is centered at (x, z), the Site must be too.
+    group.position.set(
+        (this.x * this.scaler), 
+        0, 
+        (this.z * this.scaler)
+    );
+
+    group.userData = { type: 'site', id: this.id };
+    return group;
+}
 
     getPolygonalForm() {
         if (!this.geometry.polygonal)

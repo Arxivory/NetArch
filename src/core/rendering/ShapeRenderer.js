@@ -41,9 +41,11 @@ export class ShapeRenderer {
 
   renderFreeforms(ctx, freeforms) {
     ctx.strokeStyle = '#000000ff';
+    ctx.fillStyle = 'rgba(150,150,150,0.4)';
     ctx.lineWidth = 4;
     for (const freeform of freeforms) {
       freeform.updatePath();
+      ctx.fill(freeform.path);
       ctx.stroke(freeform.path);
     }
   }

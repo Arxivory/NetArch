@@ -1,25 +1,40 @@
 import { Trash2, BrushCleaning, FunnelPlus, X } from "lucide-react";
 import { useState, useMemo } from "react";
 
-export default function ConsolePanel() {
-  const [logData, setLogData] = useState([
-    { id: 1, device: "Switch", deviceName: "Sw-3", message: "Interface Vlan 1 state is set to up", time: "2:34PM", date: "9/20/25", location: "Room 102" },
-    { id: 2, device: "Switch", deviceName: "Sw-4", message: "Added password for line console 0", time: "2:40PM", date: "9/20/25", location: "Room 801" },
-    { id: 3, device: "Switch", deviceName: "Sw-Core-01", message: "%SYS-5-CONFIG_I: Configured from console by admin", time: "02:58AM", date: "9/20/25", location: "Server Room" },
-    { id: 4, device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to down", time: "3:15PM", date: "9/21/25", location: "Room 305" },
-    { id: 5, device: "Router", deviceName: "R-5", message: "Interface GigabitEthernet0/2, changed state to up", time: "4:05PM", date: "9/21/25", location: "Room 305" },
-    { id: 6, device: "End Device", deviceName: "Laptop-1", message: "Connected to WiFi 'OfficeNet'", time: "8:20AM", date: "9/22/25", location: "Room 102" },
-    { id: 7, device: "End Device", deviceName: "Printer-3", message: "Paper jam detected in Tray 2", time: "11:45AM", date: "9/22/25", location: "Room 801" },
-    { id: 8, device: "Switch", deviceName: "Sw-2", message: "Port 5 disabled due to security violation", time: "1:30PM", date: "9/23/25", location: "Room 102" },
-    { id: 9, device: "Router", deviceName: "R-3", message: "OSPF adjacency with R-4 established", time: "9:10AM", date: "9/23/25", location: "Server Room" },
-    { id: 10, device: "End Device", deviceName: "Desktop-7", message: "Disconnected from network", time: "5:50PM", date: "9/23/25", location: "Room 305" },
-  ]);
+const INITIAL_LOGS = [
+  { id: 1, device: "End Device", deviceName: "PC-1", message: "ICMP Echo Request sent to 192.168.1.254", time: "10:00AM", date: "10-01-25", location: "Lab A" },
+  { id: 2, device: "Switch", deviceName: "Sw-1", message: "ARP request broadcasted on all ports (Vlan 10)", time: "10:00AM", date: "10-01-25", location: "Lab A" },
+  { id: 3, device: "Router", deviceName: "R-1", message: "Packet routed via Fa0/0 to Next Hop 10.0.0.2", time: "10:01AM", date: "10-01-25", location: "Data Center" },
+  { id: 4, device: "Server", deviceName: "SRV-Web", message: "TCP Three-way handshake established with Client-7", time: "10:05AM", date: "10-01-25", location: "Server Room" },
+  { id: 5, device: "Router", deviceName: "R-Core", message: "DHCP Discover received from MAC 00:0A:95:9D:68:16", time: "10:12AM", date: "10-01-25", location: "Server Room" },
+  { id: 6, device: "End Device", deviceName: "Laptop-5", message: "DNS Query for 'google.com' resolved to 8.8.8.8", time: "10:15AM", date: "10-01-25", location: "Room 202" },
+  { id: 7, device: "Switch", deviceName: "Sw-3", message: "STP: Blocking port Gi0/1 to prevent loop", time: "11:20AM", date: "10-01-25", location: "Room 405" },
+  { id: 8, device: "Router", deviceName: "R-2", message: "NAT translation: 192.168.1.5 -> 203.0.113.10", time: "11:45AM", date: "110-01-25", location: "Room 305" },
+  { id: 9, device: "End Device", deviceName: "PC-3", message: "Ping timeout: Destination Host Unreachable", time: "1:10PM", date: "10-01-25", location: "Lab B" },
+  { id: 10, device: "Switch", deviceName: "Sw-Core", message: "VTP: Domain 'Office' revision updated to 5", time: "2:30PM", date: "10-01-255", location: "Server Room" },
+  { id: 11, device: "Router", deviceName: "R-Edge", message: "ACL Deny: Traffic from 172.16.0.4 dropped on Serial 0/0", time: "3:15PM", date: "10-01-25", location: "Entrance" },
+  { id: 12, device: "End Device", deviceName: "Tablet-2", message: "Authentication successful via WPA2-Enterprise", time: "4:00PM", date: "10-01-25", location: "Lobby" },
+  { id: 13, device: "Router", deviceName: "R-3", message: "RIPv2 update sent to neighbors on Se0/1/0", time: "9:05AM", date: "10-01-25", location: "Room 305" },
+  { id: 14, device: "End Device", deviceName: "Printer-1", message: "SNMP trap sent: Toner low level (10%)", time: "11:30AM", date: "10-01-25", location: "Office 1" },
+  { id: 15, device: "Switch", deviceName: "Sw-Dist-1", message: "EtherChannel group 1 state changed to UP", time: "1:45PM", date: "10-01-25", location: "IDF-1" },
+  { id: 16, device: "Server", deviceName: "SRV-DB", message: "High CPU usage detected: 95% utilization", time: "3:00PM", date: "10-01-25", location: "Data Center" },
+  { id: 17, device: "Router", deviceName: "R-4", message: "OSPF adjacency established with R-5 on Fa0/1", time: "4:20PM", date: "10-01-25", location: "Room 305" },
+];
 
+const EMPTY_FILTERS = {
+  device: "",
+  deviceName: "",
+  location: "",
+  date: "",
+};
+
+export default function ConsolePanel() {
+  const [logData, setLogData] = useState(INITIAL_LOGS);
   const [search, setSearch] = useState("");
   const [showClearModal, setShowClearModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [tempFilters, setTempFilters] = useState({ device: "", deviceName: "", location: "", date: "" });
-  const [appliedFilters, setAppliedFilters] = useState({ device: "", deviceName: "", location: "", date: "" });
+  const [tempFilters, setTempFilters] = useState(EMPTY_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
 
   const filteredLogs = useMemo(() => {
     return logData.filter((log) => {
@@ -28,144 +43,166 @@ export default function ConsolePanel() {
       const deviceNameMatch = !appliedFilters.deviceName || log.deviceName.toLowerCase().includes(appliedFilters.deviceName.toLowerCase());
       const locationMatch = !appliedFilters.location || log.location.toLowerCase().includes(appliedFilters.location.toLowerCase());
       const dateMatch = !appliedFilters.date || log.date === appliedFilters.date;
+
       return searchMatch && deviceMatch && deviceNameMatch && locationMatch && dateMatch;
     });
   }, [logData, search, appliedFilters]);
 
-  const handleApplyFilters = () => { setAppliedFilters(tempFilters); setShowFilters(false); };
-  const handleResetFilters = () => {
-    const empty = { device: "", deviceName: "", location: "", date: "" };
-    setTempFilters(empty);
-    setAppliedFilters(empty);
+  const handleApplyFilters = () => {
+    setAppliedFilters(tempFilters);
+    setShowFilters(false);
+    setTempFilters(EMPTY_FILTERS);
   };
-  const clearAllLogs = () => { setLogData([]); setShowClearModal(false); };
-  const deleteLog = (id) => setLogData(prev => prev.filter(log => log.id !== id));
+
+  const clearAllLogs = () => {
+    setLogData([]);
+    setShowClearModal(false);
+  };
+
+  const deleteLog = (id) => {
+    setLogData((prev) => prev.filter((log) => log.id !== id));
+  };
 
   const highlightText = (text, highlight) => {
     if (!highlight.trim()) return text;
+
     const parts = text.split(new RegExp(`(${highlight})`, "gi"));
+
     return (
       <span>
         {parts.map((part, i) =>
           part.toLowerCase() === highlight.toLowerCase() ? (
-            <mark key={i} className="bg-blue-300 text-black rounded-sm px-0.5">{part}</mark>
-          ) : ( part )
+            <mark key={i} className="highlight">{part}</mark>
+          ) : (
+            part
+          )
         )}
       </span>
     );
   };
 
-  const isTableEmpty = logData.length === 0;
-  const isFilterEmpty = logData.length > 0 && filteredLogs.length === 0;
-
   return (
-    <div className="console-panel flex flex-col h-full w-full bg-white border border-gray-300">
-      
-      {/* Header */}
-      <div className="panel-header flex justify-between items-center h-7 px-3 bg-gray-50 border-b border-gray-300 flex-shrink-0">
-        <h3 className="font-bold text-gray-700 text-sm">Logs</h3>
-        <div className="flex items-center space-x-2">
+    <div className="console-panel">
+      <div className="console-panel-header">
+        <h3 className="panel-header-title">Logs</h3>
+        <div className="console-panel-controls">
           <input
-            type="text" placeholder="Search message..." value={search}
+            type="text"
+            placeholder="Search message..."
+            value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="border border-gray-300 rounded px-2 py-1 h-5 text-[10px] w-40 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+            className="console-panel-input"
           />
-          <button onClick={() => setShowClearModal(true)} className="flex items-center space-x-1 p-1 text-black hover:bg-gray-200 rounded transition-colors">
-            <BrushCleaning size={12} /> <span className="text-[11px] font-medium">Clear</span>
+
+          <button onClick={() => setShowClearModal(true)} className="console-panel-btn">
+            <BrushCleaning size={12} className="console-panel-icon" />
+            <span>Clear</span>
           </button>
-          <button onClick={() => setShowFilters(true)} className="flex items-center space-x-1 p-1 text-black hover:bg-gray-200 rounded transition-colors">
-            <FunnelPlus size={12} /> <span className="text-[11px] font-medium">Filter</span>
+
+          <button
+            onClick={() => {
+              setTempFilters(EMPTY_FILTERS);
+              setShowFilters(true);
+            }}
+            className="console-panel-btn"
+          >
+            <FunnelPlus size={12} className="console-panel-icon" />
+            <span>Filter</span>
           </button>
         </div>
       </div>
 
-      {/* Table Header */}
-      <div className="bg-gray-50 border-b border-gray-300 flex-shrink-0">
-        <table className="w-full table-fixed">
-          <thead>
-            <tr className="text-gray-600 h-7">
-              <th className="px-3 py-1 font-bold text-left text-[10px] w-[12%]">Device</th>
-              <th className="px-3 py-1 font-bold text-left text-[10px] w-[15%]">Name</th>
-              <th className="px-2 py-1 font-bold text-left text-[10px] w-[33%]">Message</th>
-              <th className="px-2 py-1 font-bold text-left text-[10px] w-[10%]">Time</th>
-              <th className="px-2 py-1 font-bold text-left text-[10px] w-[10%]">Date</th>
-              <th className="px-2 py-1 font-bold text-left text-[10px] w-[15%]">Location</th>
-              <th className="w-10"></th>
-            </tr>
-          </thead>
-        </table>
+      <div className="panel-content">
+        <div className="panel-table-wrapper">
+          <table className="console-panel-table">
+            <thead>
+              <tr>
+                <th className="col-device">Device</th>
+                <th className="col-name">Name</th>
+                <th className="col-msg">Message</th>
+                <th className="col-time">Time</th>
+                <th className="col-date">Date</th>
+                <th className="col-loc">Location</th>
+                <th className="col-action"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredLogs.map((log) => (
+                <tr key={log.id}>
+                  <td className="col-device">{log.device}</td>
+                  <td className="col-name">{log.deviceName}</td>
+                  <td className="col-msg">{highlightText(log.message, search)}</td>
+                  <td className="col-time">{log.time}</td>
+                  <td className="col-date">{log.date}</td>
+                  <td className="col-loc">{log.location}</td>
+                  <td className="col-action">
+                    <Trash2
+                      className="console-panel-delete"
+                      size={15}
+                      onClick={() => deleteLog(log.id)}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {(logData.length === 0 || (logData.length > 0 && filteredLogs.length === 0)) && (
+          <div className="empty-state">
+            {logData.length === 0
+              ? "No logs yet — start the project to see activity here."
+              : "No matches found"}
+          </div>
+        )}
       </div>
 
-      {/* Content */}
-      {/* Content */}
-<div className="flex-1 overflow-y-auto bg-white min-h-0 flex flex-col">
-  {filteredLogs.length === 0 ? (
-    /* Force this div to take up 100% of the available height */
-    <div className="flex-1 flex flex-col items-center justify-center w-full h-full min-h-[150px] bg-white">
-      <p className="text-gray-400 text-[12px] font-medium text-center px-10">
-        {logData.length === 0 
-          ? "No logs yet — start the project to see activity here." 
-          : "No matches found"}
-      </p>
-    </div>
-  ) : (
-    <div className="w-full">
-      <table className="w-full border-collapse table-fixed bg-white">
-        <tbody>
-          {filteredLogs.map((log) => (
-            <tr key={log.id} className="hover:bg-blue-50/50 h-9 transition-colors group border-b border-gray-100">
-              <td className="px-3 py-1 text-[11px] text-gray-700 truncate w-[12%]">{log.device}</td>
-              <td className="px-3 py-1 text-[11px] text-gray-700 truncate font-medium w-[15%]">{log.deviceName}</td>
-              <td className="px-3 py-1 text-[11px] text-gray-700 truncate italic w-[33%]">{highlightText(log.message, search)}</td>
-              <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[10%]">{log.time}</td>
-              <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[10%]">{log.date}</td>
-              <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[15%]">{log.location}</td>
-              <td className="px-4 py-1 text-center w-10">
-                <Trash2 
-                  className="text-gray-300 cursor-pointer inline-block transition-colors hover:text-red-500" 
-                  size={14} 
-                  onClick={() => deleteLog(log.id)} 
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )}
-</div>
-
-      {/* Filter Modal */}
       {showFilters && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
-          <div className="bg-white w-64 rounded-lg shadow-2xl border border-gray-200 p-4">
-            <div className="flex justify-between items-center mb-3 text-[10px] font-bold text-gray-400 uppercase">
+        <div className="modal-overlay">
+          <div className="modal-container filter-modal">
+            <div className="modal-header">
               <span>Filter Settings</span>
-              <X className="cursor-pointer hover:text-black" size={16} onClick={() => setShowFilters(false)} />
+              <X className="modal-close" size={16} onClick={() => setShowFilters(false)} />
             </div>
-            <div className="space-y-2">
-              <input placeholder="Device" value={tempFilters.device} onChange={(e) => setTempFilters({ ...tempFilters, device: e.target.value })} className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs outline-none focus:border-blue-400" />
-              <input placeholder="Device Name" value={tempFilters.deviceName} onChange={(e) => setTempFilters({ ...tempFilters, deviceName: e.target.value })} className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs outline-none focus:border-blue-400" />
-              <input placeholder="Location" value={tempFilters.location} onChange={(e) => setTempFilters({ ...tempFilters, location: e.target.value })} className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs outline-none focus:border-blue-400" />
-              <input type="date" value={tempFilters.date} onChange={(e) => setTempFilters({ ...tempFilters, date: e.target.value })} className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs outline-none text-gray-500" />
+
+            <div className="modal-body">
+              <input
+                placeholder="Device"
+                value={tempFilters.device}
+                onChange={(e) => setTempFilters({ ...tempFilters, device: e.target.value })}
+              />
+              <input
+                placeholder="Device Name"
+                value={tempFilters.deviceName}
+                onChange={(e) => setTempFilters({ ...tempFilters, deviceName: e.target.value })}
+              />
+              <input
+                placeholder="Location"
+                value={tempFilters.location}
+                onChange={(e) => setTempFilters({ ...tempFilters, location: e.target.value })}
+              />
+              <input
+                type="date"
+                value={tempFilters.date}
+                onChange={(e) => setTempFilters({ ...tempFilters, date: e.target.value })}
+              />
             </div>
-            <div className="flex justify-end gap-3 mt-4">
-              <button onClick={handleResetFilters} className="text-[11px] text-gray-400 hover:text-gray-600">Reset</button>
-              <button onClick={handleApplyFilters} className="bg-gray-600 text-white px-4 py-1.5 rounded text-[11px] hover:bg-gray-600 transition-all">Apply</button>
+
+            <div className="modal-footer">
+              <button className="btn-apply" onClick={handleApplyFilters}>Apply</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Clear Modal */}
       {showClearModal && (
-        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-[100]">
-          <div className="bg-white rounded-lg p-6 w-80 h-55 shadow-2xl border border-gray-200">
-            <h4 className="font-bold text-gray-800 text-sm mb-1">Clear Logs</h4>
-            <p className="text-gray-500 text-[11px] mb-5">This will delete all logs. Continue?</p>
-            <div className="flex justify-end space-x-2">
-              <button onClick={() => setShowClearModal(false)} className="px-4 py-1.5 border border-gray-200 rounded text-[11px] text-gray-600 hover:bg-gray-50 font-medium">Cancel</button>
-              <button onClick={clearAllLogs} className="px-4 py-1.5 bg-gray-500 text-white rounded text-[11px] hover:bg-gray-500 font-medium transition-colors">Clear All</button>
+        <div className="modal-overlay">
+          <div className="modal-container clear-modal">
+            <h4 className="modal-title">Clear Logs</h4>
+            <p className="modal-text">This will delete all logs. Continue?</p>
+            <div className="modal-footer">
+              <button className="btn-cancel" onClick={() => setShowClearModal(false)}>Cancel</button>
+              <button className="btn-confirm" onClick={clearAllLogs}>Clear All</button>
             </div>
           </div>
         </div>

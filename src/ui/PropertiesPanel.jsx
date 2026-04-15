@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import appState from "../state/AppState";
 import { UpdateEntityTransformCommand } from "../core/editor/DrawingCommands";
@@ -58,9 +58,10 @@ export default function PropertiesPanel({ canvasController }) {
     scale: { factor: 1 },
     rotation: { x: 0, y: 0, z: 0 }
   });
+  const originalLabelRef = useRef("");
 
-  useEffect(() => {
-    const unsubscribe = appState.selection.subscribe(() => {
+useEffect(() => {
+    const updatePanelContent = () => {
       let ids = appState.selection.getSelectedDeviceIds();
       if (!ids || ids.length === 0) {
         const focused = appState.selection.getFocusedId();
@@ -69,7 +70,27 @@ export default function PropertiesPanel({ canvasController }) {
 
       if (ids && ids.length > 0) {
         const entityId = ids[0];
-        const entity = findEntityById(entityId);
+        let entity = findEntityById(entityId);
+        
+        // --- NEW: Grab the freshest data from Structural Store ---
+        // This ensures that if we renamed it in the tree, the properties panel sees it
+        let structureNode = null;
+        if (appState.structural) {
+          const { domains, sites, floors, spaces } = appState.structural;
+          structureNode = 
+            (domains || []).find(d => d.id === entityId) || 
+            (sites || []).find(s => s.id === entityId) || 
+            (floors || []).find(f => f.id === entityId) || 
+            (spaces || []).find(sp => sp.id === entityId);
+        }
+
+        // Merge the freshest label into the entity
+        if (entity && structureNode) {
+          entity = { ...entity, label: structureNode.label };
+        } else if (!entity && structureNode) {
+          entity = structureNode;
+        }
+
         if (entity) {
           setSelectedEntity(entity);
           setTransform({
@@ -81,9 +102,19 @@ export default function PropertiesPanel({ canvasController }) {
         }
       }
       setSelectedEntity(null);
-    });
+    };
 
-    return () => unsubscribe && unsubscribe();
+    // --- NEW: Subscribe to BOTH selection and structural changes ---
+    const unsubscribeSelection = appState.selection.subscribe(updatePanelContent);
+    const unsubscribeStructural = appState.structural.subscribe(updatePanelContent);
+
+    // Initial load
+    updatePanelContent();
+
+    return () => {
+      if (unsubscribeSelection) unsubscribeSelection();
+      if (unsubscribeStructural) unsubscribeStructural();
+    };
   }, [canvasController]);
 
   const findEntityById = (id) => {
@@ -198,6 +229,40 @@ export default function PropertiesPanel({ canvasController }) {
     }
   };
 
+// --- NEW: Memorize the name when the user clicks into the text box ---
+  const handleStructureRenameFocus = (e) => {
+    originalLabelRef.current = selectedEntity.label || selectedEntity.name || "";
+  };
+
+  const handleStructureRenameChange = (e) => {
+    const newName = e.target.value;
+    setSelectedEntity({ ...selectedEntity, label: newName });
+    
+    if (newName.trim() !== "") {
+      const typeStr = (selectedEntity.structureType || selectedEntity.type || "").toLowerCase();
+      if (appState.structural.renameStructure) {
+        appState.structural.renameStructure(selectedEntity.id, newName, typeStr);
+      }
+    }
+  };
+
+  const handleStructureRenameBlur = (e) => {
+    // If they left the field entirely blank, we revert to the memorized full word!
+    if (e.target.value.trim() === "") {
+      const previousLabel = originalLabelRef.current;
+      
+      // 1. Revert the local Properties Panel state
+      setSelectedEntity({ ...selectedEntity, label: previousLabel });
+      
+      // 2. Force the Global State/Hierarchy to revert too 
+      // (Otherwise the Hierarchy stays stuck on "P")
+      const typeStr = (selectedEntity.structureType || selectedEntity.type || "").toLowerCase();
+      if (appState.structural.renameStructure) {
+        appState.structural.renameStructure(selectedEntity.id, previousLabel, typeStr);
+      }
+    }
+  };
+
   return (
     <div className="properties-panel">
       <h3>Properties</h3>
@@ -303,10 +368,19 @@ export default function PropertiesPanel({ canvasController }) {
         </div>
       )}
 
-      {isStructure && (
+{isStructure && (
         <div className="properties-group">
           <hr className="header-separator" />
-          <div><label>Name</label><input className="field-input" value={selectedEntity.label || selectedEntity.name || ""} readOnly /></div>
+          <div>
+            <label>Name</label>
+            <input 
+              className="field-input" 
+              value={selectedEntity.label ?? selectedEntity.name ?? ""} 
+              onFocus={handleStructureRenameFocus} // <-- Add this!
+              onChange={handleStructureRenameChange} 
+              onBlur={handleStructureRenameBlur}
+            />
+          </div>
           <div><label>Type</label><input className="field-input" value={selectedEntity.structureType || selectedEntity.type || ""} readOnly /></div>
           <div>
             <label>Material</label>

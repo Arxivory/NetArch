@@ -213,7 +213,7 @@ export class PhysicalController {
         geometry.rotateX(-Math.PI / 2);
 
         const material = new THREE.MeshStandardMaterial({ 
-            color: 0xffffff,
+            color: 0xcccccc,
             roughness: 0.9,
             metalness: 0.3
         });

@@ -45,7 +45,7 @@ export default class DomainMesh {
         );
 
         const rectangularMaterial = new THREE.MeshStandardMaterial({
-            color: 0xffffff,
+            color: 0xcccccc,
             roughness: 0.9,
             metalness: 0.3
         });
@@ -67,9 +67,9 @@ export default class DomainMesh {
             p.y * this.scaler
         ));
         const shape = new THREE.Shape(points);
-        const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.5, bevelEnabled: false });
+        const geometry = new THREE.ExtrudeGeometry(shape, { depth: this.defaultHeight, bevelEnabled: false });
         const material = new THREE.MeshStandardMaterial({
-            color: 0xffffff,
+            color: 0xcccccc,
             roughness: 0.9,
             metalness: 0.3
         });
@@ -91,9 +91,9 @@ export default class DomainMesh {
             p.y * this.scaler
         ));
         const shape = new THREE.Shape(points);
-        const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.5, bevelEnabled: false });
+        const geometry = new THREE.ExtrudeGeometry(shape, { depth: this.defaultHeight, bevelEnabled: false });
         const material = new THREE.MeshStandardMaterial({
-            color: 0xffffff,
+            color: 0xcccccc,
             roughness: 0.9,
             metalness: 0.3
         });
@@ -121,7 +121,7 @@ export default class DomainMesh {
     
     // Set Material (Transparent light blue)
     const material = new THREE.MeshStandardMaterial({
-            color: 0xffffff,
+            color: 0xcccccc,
             roughness: 0.9,
             metalness: 0.3
     });

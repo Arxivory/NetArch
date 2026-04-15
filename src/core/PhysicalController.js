@@ -123,6 +123,17 @@ export class PhysicalController {
 
         for (const device of devices) {
             console.log('Processing device for rendering: ', device);
+
+            if (this.deviceMeshes.has(device.id)) {
+                const deviceMesh = this.deviceMeshes.get(device.id);
+                if (deviceMesh.transform) {
+                    deviceMesh.position.set(device.transform.position.x, device.transform.position.y, device.transform.position.z);
+                    deviceMesh.rotation.set(device.transform.rotation.x, device.transform.rotation.y, device.transform.rotation.z);
+                    deviceMesh.scale.set(device.transform.scale.x, device.transform.scale.y, device.transform.scale.z);
+                }
+                continue;
+            }
+
             activeDeviceIds.add(device.id);
             this.createDeviceGLTFMesh(device);
         }

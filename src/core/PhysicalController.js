@@ -70,6 +70,9 @@ export class PhysicalController {
                 case 'polygon':
                     this.createPolygonalDomainMesh(domain);
                     break;
+                case 'freeform':
+                    this.createPolygonalDomainMesh(domain);
+                    break;
                 case 'circle':
                     this.createCircularDomainMesh(domain);
                     break;
@@ -117,6 +120,7 @@ export class PhysicalController {
                     this.createRectangleSpaceMesh(space);
                     break;
                 case 'polygon':
+                case 'freeform':
                     this.createPolygonalDomainMesh(space);
                     break;
                     case 'circle':
@@ -208,9 +212,10 @@ export class PhysicalController {
 
         geometry.rotateX(-Math.PI / 2);
 
-        const material = new THREE.MeshBasicMaterial({ 
-            color: 0x858585,
-            side: THREE.DoubleSide
+        const material = new THREE.MeshStandardMaterial({ 
+            color: 0xffffff,
+            roughness: 0.9,
+            metalness: 0.3
         });
 
         const mesh = new THREE.Mesh(geometry, material);

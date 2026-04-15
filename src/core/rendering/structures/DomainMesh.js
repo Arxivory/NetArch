@@ -73,12 +73,9 @@ export default class DomainMesh {
     
     // Set Material (Transparent light blue)
     const material = new THREE.MeshStandardMaterial({
-        color: 0x3498db,
-        transparent: false,
-        opacity: 0.3,
-        depthWrite: false,
-        roughness: 0.9,
-        metalness: 0.3
+            color: 0xfffff,
+            roughness: 0.9,
+            metalness: 0.3
     });
     
     const mesh = new THREE.Mesh(geometry, material);

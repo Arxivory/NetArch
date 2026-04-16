@@ -46,7 +46,13 @@ export default function TreeItem({ node }) {
     // Prevent standard click if we are currently typing a new name
     if (isEditing) return; 
 
-    appState.selection.focusedNode(node.id, node.type);
+    if (node.type === "device") {
+      appState.selection.selectDevice(node.id, false);
+    } else if (node.type === "furniture") {
+      appState.selection.selectFurniture(node.id, false);
+    } else {
+      appState.selection.focusedNode(node.id, node.type);
+    }
     
     if (node.type === "floor") {
       appState.ui.setActiveFloor(node.id);
@@ -58,9 +64,10 @@ export default function TreeItem({ node }) {
         appState.ui.setActiveFloor(null);
       }
     } else if (node.type === "device" || node.type === "furniture") {
-      if (node.floorId) {
-        appState.ui.setActiveFloor(node.floorId);
-      }
+      const floorFromSpace = node.spaceId
+        ? appState.structural.spaces.find((space) => space.id === node.spaceId)?.floorId
+        : null;
+      appState.ui.setActiveFloor(node.floorId || floorFromSpace || null);
     } else {
       appState.ui.setActiveFloor(null);
     }

@@ -1086,54 +1086,66 @@ isPointInsideShape(id, x, y) {
         });
 
 // --- NEW FLOATING LABELS ---
-        // Isama na natin ang polygon at freeform sa listahan!
-        const isStructural = ['rectangle', 'site', 'domain', 'polygon', 'freeform'].includes(en.type);
+        // Added 'space' to the VIP list just like you wanted!
+        const isStructural = ['rectangle', 'site', 'domain', 'space', 'polygon', 'freeform'].includes(en.type);
 
         if (isStructural) {
-          // Default: gamitin yung x, y, w, h ng rectangle
-          let boxX = x;
-          let boxY = y;
-          let boxW = w;
-          let boxH = h;
-
-          // Bounding Box Logic para sa Polygons: 
-          // Hahanapin natin ang min/max coordinates ng lahat ng corners niya
-          if ((en.type === 'polygon' || en.type === 'freeform')) {
-            if (en.points && en.points.length > 0) {
-              const xs = en.points.map(p => p.x);
-              const ys = en.points.map(p => p.y);
-              boxX = Math.min(...xs);
-              boxY = Math.min(...ys);
-              boxW = Math.max(...xs) - boxX;
-              boxH = Math.max(...ys) - boxY;
-            } else if (typeof en.getCurrentBounds === 'function') {
-              const bounds = en.getCurrentBounds();
-              boxX = bounds.minX;
-              boxY = bounds.minY;
-              boxW = bounds.maxX - bounds.minX;
-              boxH = bounds.maxY - bounds.minY;
-            }
-          }
-
-          // I-render ang text gamit ang calculated Bounding Box!
           ctx.fillStyle = "black";
           ctx.font = "bold 14px Arial";
           ctx.textAlign = "center";
 
-          // Top Label: Overall Width (in meters)
-          if (boxW !== undefined) {
-            const widthInMeters = UnitSystem.format(GridScale.toMeters(boxW), 'm');
-            ctx.fillText(widthInMeters, boxX + (boxW / 2), boxY - 15);
-          }
+          // THE MAGIC SWITCH: 
+          // We no longer care what its name is. If it has multiple points, treat it like a polygon!
+          if (en.points && en.points.length > 1) {
+            
+            // PERIMETER LOGIC FOR ANY CUSTOM SHAPE
+            for (let i = 0; i < en.points.length; i++) {
+              const p1 = en.points[i];
+              const p2 = en.points[(i + 1) % en.points.length];
 
-          // Right Label: Overall Height/Length (in meters)
-          if (boxH !== undefined) {
-            const heightInMeters = UnitSystem.format(GridScale.toMeters(boxH), 'm');
-            ctx.save();
-            ctx.translate(boxX + boxW + 20, boxY + (boxH / 2));
-            ctx.rotate(Math.PI / 2);
-            ctx.fillText(heightInMeters, 0, 0);
-            ctx.restore();
+              const dx = p2.x - p1.x;
+              const dy = p2.y - p1.y;
+              const pixelDistance = Math.sqrt(dx * dx + dy * dy);
+
+              const meters = UnitSystem.format(GridScale.toMeters(pixelDistance), 'm');
+
+              const midX = (p1.x + p2.x) / 2;
+              const midY = (p1.y + p2.y) / 2;
+
+              let angle = Math.atan2(dy, dx);
+              
+              if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
+                 angle += Math.PI;
+              }
+
+              ctx.save();
+              ctx.translate(midX, midY);
+              ctx.rotate(angle);
+              ctx.fillText(meters, 0, -8); 
+              ctx.restore();
+            }
+          } else {
+            // BOUNDING BOX LOGIC FOR STANDARD WxH RECTANGLES
+            let boxX = x;
+            let boxY = y;
+            let boxW = w;
+            let boxH = h;
+
+            // Top Label: Overall Width
+            if (boxW !== undefined) {
+              const widthInMeters = UnitSystem.format(GridScale.toMeters(boxW), 'm');
+              ctx.fillText(widthInMeters, boxX + (boxW / 2), boxY - 15);
+            }
+
+            // Right Label: Overall Height
+            if (boxH !== undefined) {
+              const heightInMeters = UnitSystem.format(GridScale.toMeters(boxH), 'm');
+              ctx.save();
+              ctx.translate(boxX + boxW + 20, boxY + (boxH / 2));
+              ctx.rotate(Math.PI / 2);
+              ctx.fillText(heightInMeters, 0, 0);
+              ctx.restore();
+            }
           }
         }
         // ---------------------------

@@ -1086,24 +1086,67 @@ isPointInsideShape(id, x, y) {
         });
 
 // --- NEW FLOATING LABELS ---
-        // Only show labels for structural shapes (rectangles, etc), not devices
-        if (en.type === 'rectangle' || en.type === 'site' || en.type === 'domain') {
+        // Added 'space' to the VIP list just like you wanted!
+        const isStructural = ['rectangle', 'site', 'domain', 'space', 'polygon', 'freeform'].includes(en.type);
+
+        if (isStructural) {
           ctx.fillStyle = "black";
           ctx.font = "bold 14px Arial";
           ctx.textAlign = "center";
 
-          // Top Label: Width (in meters)
-          const widthInMeters = UnitSystem.format(GridScale.toMeters(w), 'm');
-          ctx.fillText(widthInMeters, x + (w / 2), y - 15);
+          // THE MAGIC SWITCH: 
+          // We no longer care what its name is. If it has multiple points, treat it like a polygon!
+          if (en.points && en.points.length > 1) {
+            
+            // PERIMETER LOGIC FOR ANY CUSTOM SHAPE
+            for (let i = 0; i < en.points.length; i++) {
+              const p1 = en.points[i];
+              const p2 = en.points[(i + 1) % en.points.length];
 
-          // Right Label: Height/Length (in meters)
-          const heightInMeters = UnitSystem.format(GridScale.toMeters(h), 'm');
-          // Rotate text for the right-side label
-          ctx.save();
-          ctx.translate(x + w + 20, y + (h / 2));
-          ctx.rotate(Math.PI / 2); // Rotate 90 degrees
-          ctx.fillText(heightInMeters, 0, 0);
-          ctx.restore();
+              const dx = p2.x - p1.x;
+              const dy = p2.y - p1.y;
+              const pixelDistance = Math.sqrt(dx * dx + dy * dy);
+
+              const meters = UnitSystem.format(GridScale.toMeters(pixelDistance), 'm');
+
+              const midX = (p1.x + p2.x) / 2;
+              const midY = (p1.y + p2.y) / 2;
+
+              let angle = Math.atan2(dy, dx);
+              
+              if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
+                 angle += Math.PI;
+              }
+
+              ctx.save();
+              ctx.translate(midX, midY);
+              ctx.rotate(angle);
+              ctx.fillText(meters, 0, -8); 
+              ctx.restore();
+            }
+          } else {
+            // BOUNDING BOX LOGIC FOR STANDARD WxH RECTANGLES
+            let boxX = x;
+            let boxY = y;
+            let boxW = w;
+            let boxH = h;
+
+            // Top Label: Overall Width
+            if (boxW !== undefined) {
+              const widthInMeters = UnitSystem.format(GridScale.toMeters(boxW), 'm');
+              ctx.fillText(widthInMeters, boxX + (boxW / 2), boxY - 15);
+            }
+
+            // Right Label: Overall Height
+            if (boxH !== undefined) {
+              const heightInMeters = UnitSystem.format(GridScale.toMeters(boxH), 'm');
+              ctx.save();
+              ctx.translate(boxX + boxW + 20, boxY + (boxH / 2));
+              ctx.rotate(Math.PI / 2);
+              ctx.fillText(heightInMeters, 0, 0);
+              ctx.restore();
+            }
+          }
         }
         // ---------------------------
 

@@ -21,8 +21,10 @@ export class LogicalCanvasController {
 
     // --- ADD THIS TO THE BOTTOM OF THE CONSTRUCTOR ---
     this.positionSnapshot = new Map();
+    this.invalidMoveAlerted = new Set();
     window.addEventListener('pointerdown', () => {
         this.positionSnapshot.clear();
+        this.invalidMoveAlerted.clear();
         const st = appState.structural;
         if (!st) return;
         
@@ -865,6 +867,114 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
         }
 
         if (shapeObj) {
+            const getBounds = (shape) => {
+                if (!shape) return null;
+                const src = shape.geometry || shape;
+                const x0 = Number(src.x ?? src.left ?? 0);
+                const y0 = Number(src.y ?? src.top ?? 0);
+                const w0 = Number(src.w ?? src.width ?? 0);
+                const h0 = Number(src.h ?? src.height ?? 0);
+                const minX0 = Math.min(x0, x0 + w0);
+                const minY0 = Math.min(y0, y0 + h0);
+                const maxX0 = Math.max(x0, x0 + w0);
+                const maxY0 = Math.max(y0, y0 + h0);
+                return {
+                    x: x0,
+                    y: y0,
+                    w: Math.abs(w0),
+                    h: Math.abs(h0),
+                    minX: minX0,
+                    minY: minY0,
+                    maxX: maxX0,
+                    maxY: maxY0
+                };
+            };
+
+            const isWithinParent = () => {
+                if (shapeType === 'site') {
+                    const parent = st.domains?.find(d => d.id === shapeObj.domainId);
+                    if (!parent) return true;
+
+                    const childBounds = getBounds(shapeObj);
+                    childBounds.minX += dx;
+                    childBounds.minY += dy;
+                    childBounds.maxX += dx;
+                    childBounds.maxY += dy;
+
+                    const parentBounds = getBounds(parent);
+                    if (parentBounds.w === 0 || parentBounds.h === 0) return true;
+
+                    const tol = 2;
+                    return !(
+                        childBounds.minX < parentBounds.minX - tol ||
+                        childBounds.minY < parentBounds.minY - tol ||
+                        childBounds.maxX > parentBounds.maxX + tol ||
+                        childBounds.maxY > parentBounds.maxY + tol
+                    );
+                }
+
+                if (shapeType === 'space') {
+                    let parent = st.floors?.find(f => f.id === shapeObj.floorId);
+                    if (!parent) return true;
+
+                    const childBounds = getBounds(shapeObj);
+                    childBounds.minX += dx;
+                    childBounds.minY += dy;
+                    childBounds.maxX += dx;
+                    childBounds.maxY += dy;
+
+                    let parentBounds = getBounds(parent);
+                    if (parentBounds.w === 0 || parentBounds.h === 0) {
+                        const parentSite = st.sites?.find(s => s.id === parent.siteId);
+                        if (parentSite) {
+                            parent = parentSite;
+                            parentBounds = getBounds(parent);
+                        }
+                    }
+
+                    if (parentBounds.w === 0 || parentBounds.h === 0) return true;
+
+                    const tol = 2;
+                    return !(
+                        childBounds.minX < parentBounds.minX - tol ||
+                        childBounds.minY < parentBounds.minY - tol ||
+                        childBounds.maxX > parentBounds.maxX + tol ||
+                        childBounds.maxY > parentBounds.maxY + tol
+                    );
+                }
+
+                return true;
+            };
+
+            if (!isWithinParent()) {
+                const prettyChildName = shapeType === 'site' ? 'Site' : 'Space';
+                const prettyParentName = shapeType === 'site' ? 'Domain' : 'Floor';
+                if (!this.invalidMoveAlerted.has(en.id)) {
+                    showErrorModal(
+                        `${prettyChildName} movement cancelled.\nThe ${prettyChildName} must remain inside its parent ${prettyParentName}.`,
+                        'Out of Bounds Error'
+                    );
+                    this.invalidMoveAlerted.add(en.id);
+                }
+
+                if (en && typeof en.move === 'function') {
+                    en.move(-dx, -dy);
+                } else {
+                    const originalPos = this.positionSnapshot.get(structuralId);
+                    if (originalPos) {
+                        en.x = originalPos.x;
+                        en.y = originalPos.y;
+                    }
+                }
+
+                if (this.layout && typeof this.layout.render === 'function') {
+                    this.layout.render();
+                }
+
+                appState.selection.notify?.();
+                return;
+            }
+
             // Update the logical state of the parent
             if (shapeObj.geometry) {
                 shapeObj.geometry.x = Number(shapeObj.geometry.x) + dx;

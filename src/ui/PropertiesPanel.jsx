@@ -48,6 +48,8 @@ const DEVICE_CONFIGS = {
 };
 
 
+
+
 export default function PropertiesPanel({ canvasController }) {
   const [selectedEntity, setSelectedEntity] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);

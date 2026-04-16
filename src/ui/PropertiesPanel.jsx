@@ -60,6 +60,34 @@ export default function PropertiesPanel({ canvasController }) {
   });
   const originalLabelRef = useRef("");
 
+  const normalizeTransform = (entity) => {
+    const rawTransform = entity?.transform || {};
+    const rawScale = rawTransform.scale;
+
+    const scaleFactor =
+      typeof rawScale === "number"
+        ? rawScale
+        : (rawScale?.factor ?? rawScale?.x ?? 1);
+
+    return {
+      position: {
+        x: rawTransform.position?.x ?? entity?.x ?? 0,
+        y: rawTransform.position?.y ?? entity?.y ?? 0,
+        z: rawTransform.position?.z ?? 0
+      },
+      scale: {
+        x: Number.isFinite(scaleFactor) ? scaleFactor : 1,
+        y: Number.isFinite(scaleFactor) ? scaleFactor : 1,
+        z: Number.isFinite(scaleFactor) ? scaleFactor : 1
+      },
+      rotation: {
+        x: rawTransform.rotation?.x ?? 0,
+        y: rawTransform.rotation?.y ?? 0,
+        z: rawTransform.rotation?.z ?? 0
+      }
+    };
+  };
+
 useEffect(() => {
     const updatePanelContent = () => {
       let ids = appState.selection.getSelectedDeviceIds();
@@ -93,11 +121,7 @@ useEffect(() => {
 
         if (entity) {
           setSelectedEntity(entity);
-          setTransform(entity.transform || {
-            position: { x: entity.x || 0, y: entity.y || 0, z: 0 },
-            scale: { x: 1, y: 1, z: 1 },
-            rotation: { x: 0, y: 0, z: 0 }
-          });
+          setTransform(normalizeTransform(entity));
           return;
         }
       }
@@ -118,8 +142,33 @@ useEffect(() => {
   }, [canvasController]);
 
   const findEntityById = (id) => {
-    if (!canvasController || !canvasController.layout) return null;
-    return canvasController.layout.findEntityById(id);
+    if (canvasController?.layout) {
+      const layoutEntity = canvasController.layout.findEntityById(id);
+      if (layoutEntity) return layoutEntity;
+    }
+
+    const networkEntity = appState.network?.getDevice?.(id);
+    if (networkEntity) {
+      return {
+        ...networkEntity,
+        transform: {
+          position: {
+            x: networkEntity.position?.x ?? 0,
+            y: networkEntity.position?.y ?? 0,
+            z: networkEntity.position?.z ?? 0
+          },
+          scale: { x: 1, y: 1, z: 1 },
+          rotation: { x: 0, y: 0, z: 0 }
+        }
+      };
+    }
+
+    const furnitureEntity = appState.furniture?.getFurniture?.(id);
+    if (furnitureEntity) {
+      return furnitureEntity;
+    }
+
+    return null;
   };
 
   const getDeviceLabel = (id) => {
@@ -188,16 +237,25 @@ useEffect(() => {
   const handleTransformChange = (type, axis, value) => {
     if (!selectedEntity || !canvasController) return;
 
+    const numericValue = parseFloat(value);
+    if (!Number.isFinite(numericValue)) return;
+
     const newTransform = JSON.parse(JSON.stringify(transform));
     if (type === 'scale') {
-      newTransform.scale.x = parseFloat(value);
+      newTransform.scale.x = numericValue;
+      newTransform.scale.y = numericValue;
+      newTransform.scale.z = numericValue;
     } else {
-      newTransform[type][axis] = parseFloat(value);
+      newTransform[type][axis] = numericValue;
     }
     setTransform(newTransform);
 
     const updates = {};
-    updates[type] = newTransform[type];
+    if (type === 'scale') {
+      updates.scale = { factor: newTransform.scale.x };
+    } else {
+      updates[type] = newTransform[type];
+    }
     const cmd = new UpdateEntityTransformCommand(canvasController, appState, selectedEntity.id, updates);
     cmd.execute();
   };

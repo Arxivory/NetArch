@@ -2,13 +2,19 @@ import { Box } from "check2d";
 
 export class Device {
     constructor(deviceData, cx, cy, size, system) {
+        this.id = deviceData.id || null;
         this.x = cx - size / 2;
         this.y = cy - size / 2;
         this.w = size;
         this.h = size;
         this.type = deviceData.type || 'device';
+        this.entityType = deviceData.entityType || 'device';
         this.label = deviceData.name || 'Device';
         this.interfaces = deviceData.interfaces || [];
+        this.floorId = deviceData.floorId || null;
+        this.spaceId = deviceData.spaceId || null;
+        this.siteId = deviceData.siteId || null;
+        this.domainId = deviceData.domainId || null;
         this.system = system;
         this.hitTestMode = 'path';
         this.initDeviceIcons();

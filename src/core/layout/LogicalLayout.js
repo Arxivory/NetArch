@@ -390,8 +390,9 @@ isPointInsideShape(id, x, y) {
     };
 
     const furniture = {
-      id: `furniture_${Math.random().toString(36).slice(2, 9)}`,
+      id: furnitureData.id || `furniture_${Math.random().toString(36).slice(2, 9)}`,
       type: furnitureData.type || 'furniture',
+      entityType: 'furniture',
       label: furnitureData.name || furnitureData.label || 'Furniture',
       catalogId: furnitureData.catalogId,
       floorId: furnitureData.floorId || null,
@@ -1167,9 +1168,10 @@ isPointInsideShape(id, x, y) {
 
   findEntityById(id) {
     const lists = this.getAllSelectableEntities();
+    const targetId = id == null ? null : String(id);
     for (const arr of lists) {
       for (const en of arr) {
-        if (en && en.id === id) {
+        if (en && (en.id === id || String(en.id) === targetId)) {
           return en;
         }
       }

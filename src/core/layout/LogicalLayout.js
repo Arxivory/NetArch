@@ -8,6 +8,9 @@ import { System } from 'check2d';
 import appState from '../../state/AppState.js';
 import { showErrorModal } from '../../util/ErrorHandling.js';
 
+// ADD THIS IMPORT:
+import { UnitSystem, GridScale } from '../../util/UnitSystem.js'; // Adjust path if needed
+
 export class LogicalLayout {
   constructor(opts = {}) {
     this.container = opts.container || document.body;
@@ -810,12 +813,7 @@ isPointInsideShape(id, x, y) {
       const wall = this.shapeCreator.createWall(this.startPoint, this.currentPoint);
       if (wall) {
         wall.floorId = activeFloor || null;
-        if (!this._checkForOverlap(wall, "creation")) {
-          if (this.shapeCreator.onWallCreated) {
-            this.shapeCreator.onWallCreated(wall);
-          }
-          this.walls.push(wall);
-        }
+        this.walls.push(wall);
       }
     } else if (this.mode === 'cable') {
       const cable = this.shapeCreator.createCable(this.startPoint, this.currentPoint);
@@ -1086,6 +1084,29 @@ isPointInsideShape(id, x, y) {
         handles.forEach(([hx, hy]) => {
           ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
         });
+
+// --- NEW FLOATING LABELS ---
+        // Only show labels for structural shapes (rectangles, etc), not devices
+        if (en.type === 'rectangle' || en.type === 'site' || en.type === 'domain') {
+          ctx.fillStyle = "black";
+          ctx.font = "bold 14px Arial";
+          ctx.textAlign = "center";
+
+          // Top Label: Width (in meters)
+          const widthInMeters = UnitSystem.format(GridScale.toMeters(w), 'm');
+          ctx.fillText(widthInMeters, x + (w / 2), y - 15);
+
+          // Right Label: Height/Length (in meters)
+          const heightInMeters = UnitSystem.format(GridScale.toMeters(h), 'm');
+          // Rotate text for the right-side label
+          ctx.save();
+          ctx.translate(x + w + 20, y + (h / 2));
+          ctx.rotate(Math.PI / 2); // Rotate 90 degrees
+          ctx.fillText(heightInMeters, 0, 0);
+          ctx.restore();
+        }
+        // ---------------------------
+
         ctx.restore();
       }
     }

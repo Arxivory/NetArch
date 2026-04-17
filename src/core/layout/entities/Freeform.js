@@ -175,7 +175,7 @@ export class Freeform {
     }
 
     checkIfOverlapping(floorId) {
-        const ceStruct = this.structureType;
+        
         for (const body of this.bodies) {
             this.system.remove(body);
         }

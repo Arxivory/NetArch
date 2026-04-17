@@ -20,7 +20,7 @@ export class GizmoManager {
 
   _setupEventListeners() {
     
-    this.control.addEventListener('change', () => {
+    this.control.addEventListener('objectChange', () => {
       this._syncTransformToStore();
     });
 
@@ -41,6 +41,8 @@ export class GizmoManager {
   _onPointerDown(event) {
     if (event.button !== 0) return;
 
+    console.log('Selected a Mesh');
+
     const rect = this.canvas.getBoundingClientRect();
     this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -53,25 +55,30 @@ export class GizmoManager {
     );
 
     if (intersects.length > 0) {
-        let object = intersects[0].object;
+      let object = intersects[0].object;
 
-        while (object && !object.userData?.id && object.parent) {
-            object = object.parent;
-        }
+      while (object && !object.userData?.id && object.parent) {
+          object = object.parent;
+      }
 
-        if (object && object.userData?.id) {
-            if (object.userData.type === 'device') {
-                appState.selection.selectDevice(object.userData.id);
-            } else if (object.userData.type === 'furniture') {
-                appState.selection.focusedNode(object.userData.id, 'furniture');
-            }
-            console.log("Object selected with ID:", object.userData.id);
-        }
-        } else {
-            this.detach();
+      if (object && object.userData?.id) {
+          if (object.userData.type === 'device') {
+            appState.selection.selectDevice(object.userData.id);
+          } else if (object.userData.type === 'furniture') {
+            appState.selection.focusedNode(object.userData.id, 'furniture');
+          } else {
             appState.selection.clearSelection();
-        }
+            this.detach();
+          }
+      } else {
+        appState.selection.clearSelection();
+        this.detach();
+      }
+    } else {
+        this.detach();
+        appState.selection.clearSelection();
     }
+  }
 
   attach(object) {
     if (!this.initialized) {
@@ -88,6 +95,7 @@ export class GizmoManager {
   _syncTransformToStore() {
     const object = this.control.object;
     if (!object || !object.userData.id) return;
+    console.log('Syncing transform to store');
 
     const { id, type } = object.userData;
     const updates = {
@@ -98,11 +106,13 @@ export class GizmoManager {
 
     if (type === 'device') {
       const device = appState.network.getDevice(id);
-      if (device) device.transform = updates;
+      if (device) device.transform = updates; 
+      
     } else if (type === 'furniture') {
       const furniture = appState.furniture.getFurniture(id);
       if (furniture) furniture.transform = updates;
     }
+
     
     appState.notifyListeners();
   }

@@ -47,8 +47,10 @@ export class PhysicalController {
             if (focusedId) {
                 const selectedMesh = this.getMeshById(focusedId);
                 console.log("Selected mesh:", selectedMesh);
-                if (selectedMesh) {
+                if (selectedMesh && (selectedMesh.userData.type === 'device' || selectedMesh.userData.type === 'furniture')) {
                     this.gizmoManager.attach(selectedMesh);
+                } else {
+                    this.gizmoManager.detach();
                 }
             } else {
                 this.gizmoManager.detach();
@@ -140,6 +142,7 @@ export class PhysicalController {
 
             if (this.deviceMeshes.has(device.id)) {
                 const deviceMesh = this.deviceMeshes.get(device.id);
+                console.log('Device Mesh: ', device, ' is updating');
                 if (device.transform) {
                     deviceMesh.position.set(device.transform.position.x, device.transform.position.y, device.transform.position.z);
                     deviceMesh.rotation.set(device.transform.rotation.x, device.transform.rotation.y, device.transform.rotation.z);

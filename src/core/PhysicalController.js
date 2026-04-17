@@ -197,38 +197,50 @@ export class PhysicalController {
     }
 
     createPolygonalDomainMesh(domain) {
-        const { x, y } = domain.geometry;
-        const modifiedX = x * this.defaultScaler;
-        const modifiedY = y * this.defaultScaler;
+    const { x, y, points } = domain.geometry; // CHANGED: use the stored anchor and absolute polygon points
 
-        const shape = new THREE.Shape();
-        const points = domain.geometry.points;
-
-        shape.moveTo((points[0].x - x) * this.defaultScaler, (points[0].y - y) * this.defaultScaler);
-
-        for (let i = 1; i < points.length; i++) {
-            shape.lineTo((points[i].x - x) * this.defaultScaler, (points[i].y - y) * this.defaultScaler);
-        }
-        shape.closePath();
-
-        const geometry = new THREE.ExtrudeGeometry(shape, {
-            depth: 1,
-            bevelEnabled: false
-        });
-
-        geometry.rotateX(-Math.PI / 2);
-
-        const material = new THREE.MeshStandardMaterial({ 
-            color: 0xcccccc,
-            roughness: 0.9,
-            metalness: 0.3
-        });
-
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(modifiedX, 0.1, modifiedY);
-        this.scene.add(mesh);
-        this.domainMeshes.set(domain.id, mesh);
+    if (!points?.length) { // ADDED: avoid building an empty polygon mesh
+        console.warn("Polygonal domain has no points:", domain.id);
+        return;
     }
+
+    const shape = new THREE.Shape();
+
+    points.forEach((p, i) => {
+        const localX = (p.x - x) * this.defaultScaler;   // CHANGED: convert absolute X into local coordinates
+        const localY = -(p.y - y) * this.defaultScaler;  // CHANGED: flip Y so it maps correctly to Three.js Z
+
+        if (i === 0) shape.moveTo(localX, localY);       // CHANGED: use corrected local polygon coordinates
+        else shape.lineTo(localX, localY);               // CHANGED: use corrected local polygon coordinates
+    });
+
+    shape.closePath();
+
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: 1,
+        bevelEnabled: false
+    });
+
+    geometry.rotateX(-Math.PI / 2);
+
+    const material = new THREE.MeshStandardMaterial({
+        color: 0xcccccc,
+        roughness: 0.9,
+        metalness: 0.3
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(
+        x * this.defaultScaler,   // CHANGED: place the whole polygon mesh at the stored anchor
+        0.1,
+        y * this.defaultScaler    // CHANGED: place the whole polygon mesh at the stored anchor
+    );
+
+    this.scene.add(mesh);
+    this.domainMeshes.set(domain.id, mesh);
+}
+
+
 
     createCircularDomainMesh(domain) {
         const domainMesh = new DomainMesh(domain, this.defaultScaler);
@@ -264,7 +276,7 @@ export class PhysicalController {
 
     createFreeformSiteMesh(site) {
         const siteMesh = new SiteMesh(site, this.defaultScaler);
-        const mesh = siteMesh.getPolygonalForm();
+        const mesh = siteMesh.getFreeformForm();
 
         this.scene.add(mesh);
         this.siteMeshes.set(site.id, mesh);

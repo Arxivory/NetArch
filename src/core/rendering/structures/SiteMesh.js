@@ -25,6 +25,21 @@ export default class SiteMesh {
         }
     }
 
+    buildPlanShape(points) {
+        const shape = new THREE.Shape();
+
+        points.forEach((p, i) => {
+            const localX = (p.x - this.x) * this.scaler;
+            const localY = -(p.y - this.z) * this.scaler;
+
+            if (i === 0) shape.moveTo(localX, localY);
+            else shape.lineTo(localX, localY);
+        });
+
+        shape.closePath();
+        return shape;
+    }
+
     getRectangularForm() {
         if (!this.geometry.rectangular)
             throw Error("The Site is not Rectangular. Try getting other forms.");
@@ -94,6 +109,113 @@ export default class SiteMesh {
 
         return group;
     }
+getPolygonalForm() {
+    if (!this.geometry.polygonal || !this.geometry.polygonal.points?.length)
+        throw Error("The Site is not Polygonal. Try getting other forms.");
+
+    const points = this.geometry.polygonal.points;
+    const shape = this.buildPlanShape(points);
+
+    const extrudeSettings = {
+        depth: this.defaultHeight,
+        bevelEnabled: true,
+        bevelThickness: 0.05,
+        bevelSize: 0.05,
+        bevelSegments: 2
+    };
+
+    const wallSideMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, side: THREE.DoubleSide})
+    const wallTopMat = new THREE.MeshStandardMaterial({ color: 0x333333, side: THREE.DoubleSide})
+    const ceilingMaterial = new THREE.MeshStandardMaterial({
+        color: 0xf5f5f5,
+        roughness: 0.8,
+        metalness: 0.0,
+        side: THREE.DoubleSide
+    });
+
+    const wallGeometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+    const wallMesh = new THREE.Mesh(wallGeometry, [wallTopMat, wallSideMat]);
+    wallMesh.rotation.x = -Math.PI / 2;
+
+    const ceilingGeometry = new THREE.ShapeGeometry(shape);
+    const ceilingMesh = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
+    ceilingMesh.rotation.x = -Math.PI / 2;
+    ceilingMesh.position.y = this.defaultHeight;
+    ceilingMesh.userData = { type: 'ceiling', id: this.id };
+
+    const group = new THREE.Group();
+    group.position.set(
+        this.x * this.scaler,   // ADDED: place the site group using its stored anchor
+        0,
+        this.z * this.scaler    // ADDED: place the site group using its stored anchor
+    );
+
+    group.add(wallMesh);
+    group.add(ceilingMesh);
+    group.userData = { type: 'site', id: this.id };
+
+    return group;
+}
+
+getFreeformForm() {
+    if (!this.geometry.polygonal || !this.geometry.polygonal.points?.length)
+        throw Error("The Site is not Freeform. Try getting other forms.");
+
+    const points = this.geometry.polygonal.points;
+    const shape = this.buildPlanShape(points);
+
+    const extrudeSettings = {
+        depth: this.defaultHeight,
+        bevelEnabled: true,
+        bevelThickness: 0.05,
+        bevelSize: 0.05,
+        bevelSegments: 2
+    };
+
+    const wallSideMat = new THREE.MeshStandardMaterial({
+        color: 0xb58a63,
+        roughness: 0.85,
+        metalness: 0.05,
+        side: THREE.DoubleSide
+    });
+    const wallTopMat = new THREE.MeshStandardMaterial({
+        color: 0x5b4332,
+        roughness: 0.9,
+        metalness: 0.0,
+        side: THREE.DoubleSide
+    });
+    const ceilingMaterial = new THREE.MeshStandardMaterial({
+        color: 0xf0e4d5,
+        roughness: 0.9,
+        metalness: 0.0,
+        side: THREE.DoubleSide
+    });
+
+    const wallGeometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+    const wallMesh = new THREE.Mesh(wallGeometry, [wallTopMat, wallSideMat]);
+    wallMesh.rotation.x = -Math.PI / 2;
+
+    const ceilingGeometry = new THREE.ShapeGeometry(shape);
+    const ceilingMesh = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
+    ceilingMesh.rotation.x = -Math.PI / 2;
+    ceilingMesh.position.y = this.defaultHeight;
+    ceilingMesh.userData = { type: 'ceiling', id: this.id };
+
+    const group = new THREE.Group();
+    group.position.set(
+        this.x * this.scaler,
+        0,
+        this.z * this.scaler
+    );
+
+    group.add(wallMesh);
+    group.add(ceilingMesh);
+    group.userData = { type: 'site', id: this.id, shape: 'freeform' };
+
+    return group;
+}
+
+
 
 getCircularForm() {
     if (!this.geometry.circular)
@@ -159,11 +281,6 @@ getCircularForm() {
     group.userData = { type: 'site', id: this.id };
     return group;
 }
-
-    getPolygonalForm() {
-        if (!this.geometry.polygonal)
-            throw Error("The Site is not Polygonal. Try getting other forms.");
-    }
 
     // will do the polygonal and circular later
 }

@@ -129,7 +129,7 @@ export class PhysicalController {
                     this.createPolygonalSpaceMesh(space); // CHANGED: polygon spaces must use SpaceMesh, not DomainMesh
                     break;
                 case 'freeform':
-                    this.createPolygonalDomainMesh(space);
+                    this.createPolygonalSpaceMesh(space); // CHANGED: freeform space temporarily reuses the polygonal space mesh logic
                     break;
                     case 'circle':
                     this.createCircularDomainMesh(space);

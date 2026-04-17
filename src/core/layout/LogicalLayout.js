@@ -601,16 +601,30 @@ isPointInsideShape(id, x, y) {
         );
 
         if (canClose && this.currentFreeform.length >= 3) {
+          const activeFloor = appState.ui.activeFloorId; // ADDED: capture the selected floor before overlap checking
           const freeform = this.shapeCreator.createFreeform(
             [...this.currentFreeform],
             this.structureType, this.system
           );
+          if (freeform) {
+            freeform.floorId = activeFloor || null; // ADDED: assign the freeform entity to the active floor
+            if (freeform.bodies) {
+          for (const body of freeform.bodies) {
+            body.floorId = activeFloor || null; // ADDED: assign every freeform collision body to the same floor
+          }
+        }
+      }
           if (freeform && !this._checkForOverlap(freeform, "creation")) {
             if (this.shapeCreator.onFreeformCreated) {
               this.shapeCreator.onFreeformCreated(freeform);
             }
             this.freeforms.push(freeform);
+          } else if (freeform.bodies) {
+          for (const body of freeform.bodies) {
+            this.system.remove(body); // ADDED: clean up inserted bodies if overlap validation fails
           }
+        }
+      }
           this.currentFreeform = [];
           this.mode = 'none';
           this.currentPoint = null;

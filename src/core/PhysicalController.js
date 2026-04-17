@@ -89,6 +89,12 @@ export class PhysicalController {
                 case 'rectangle':
                     this.createRectangleSiteMesh(site);
                     break;
+                case 'polygon':
+                    this.createPolygonalSiteMesh(site);
+                    break;
+                case 'freeform':
+                    this.createFreeformSiteMesh(site);
+                    break;
                 case 'circle':
                     this.createCircularSiteMesh(site);
                     break;
@@ -243,6 +249,22 @@ export class PhysicalController {
     createCircularSiteMesh(site) {
         const siteMesh = new SiteMesh(site, this.defaultScaler);
         const mesh = siteMesh.getCircularForm();
+
+        this.scene.add(mesh);
+        this.siteMeshes.set(site.id, mesh);
+    }
+
+    createPolygonalSiteMesh(site) {
+        const siteMesh = new SiteMesh(site, this.defaultScaler);
+        const mesh = siteMesh.getPolygonalForm();
+
+        this.scene.add(mesh);
+        this.siteMeshes.set(site.id, mesh);
+    }
+
+    createFreeformSiteMesh(site) {
+        const siteMesh = new SiteMesh(site, this.defaultScaler);
+        const mesh = siteMesh.getPolygonalForm();
 
         this.scene.add(mesh);
         this.siteMeshes.set(site.id, mesh);

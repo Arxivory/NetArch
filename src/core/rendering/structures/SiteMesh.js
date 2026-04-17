@@ -223,7 +223,7 @@ getCircularForm() {
 
     const radius = this.geometry.circular.radius * this.scaler;
     const thickness = 0.7;
-    const innerRadius = radius - thickness;
+    const innerRadius = Math.max(radius - thickness, 0.01); // ADDED: avoid invalid negative/zero inner radius on very small circles
     const height = this.defaultHeight;
 
     // 1. Create the Ring Shape (Centered at 0,0)
@@ -231,7 +231,7 @@ getCircularForm() {
     circleShape.absarc(0, 0, radius, 0, Math.PI * 2, false);
 
     const holePath = new THREE.Path();
-    holePath.absarc(0, 0, innerRadius, 0, Math.PI * 2, true);
+    holePath.absarc(0, 0, innerRadius, 0, Math.PI * 2, true); // KEEP: hollow out the middle so the site is not a solid cylinder
     circleShape.holes.push(holePath);
 
     const extrudeSettings = {
@@ -244,7 +244,7 @@ getCircularForm() {
     };
 
     // 2. Setup Materials
-    const wallSideMat = new THREE.MeshStandardMaterial({ color: 0xcccccc });
+    const wallSideMat = new THREE.MeshStandardMaterial({ color: 0xcccccc,  side: THREE.DoubleSide});
     const wallTopMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
 
     // 3. The Wall Mesh
@@ -259,11 +259,14 @@ getCircularForm() {
     const ceilingGeometry = new THREE.CircleGeometry(innerRadius, 64);
     const ceilingMaterial = new THREE.MeshStandardMaterial({ 
         color: 0xf5f5f5,
-        roughness: 0.8
+        roughness: 0.8,
+        metalness: 0.0,
+        side: THREE.DoubleSide // ADDED: this is the actual roof fix, so the ceiling stays visible from inside too
     });
     const ceilingMesh = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
     ceilingMesh.rotation.x = -Math.PI / 2;
     ceilingMesh.position.y = height;    // Sit on top of the walls
+    ceilingMesh.userData = { type: 'ceiling', id: this.id }; // ADDED: match the other site shape builders
 
     // 5. Positioning the Group
     const group = new THREE.Group();

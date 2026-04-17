@@ -22,7 +22,7 @@ export class PhysicalController {
 
         this.objLoader = new OBJLoader();
         this.mtlLoader = new MTLLoader();
-        this.gltfLoader = GLTFLoader;
+        this.gltfLoader = new GLTFLoader();
 
         this.domainMeshes = new Map();
         this.siteMeshes = new Map();
@@ -143,12 +143,17 @@ export class PhysicalController {
         for (const device of devices) {
             console.log('Processing device for rendering: ', device);
             activeDeviceIds.add(device.id);
+            if (this.deviceMeshes.has(device.id))
+                continue; // ADDED: avoid reloading the same device mesh every sync
+        
             this.createDeviceGLTFMesh(device);
         }
 
         for ( const furniture of furnitures) {
             console.log('Processing furniture for rendering:', furniture);
             activeFurnitureIds.add(furniture.id);
+            if (this.furnitureMeshes.has(furniture.id))
+                continue; // ADDED: avoid reloading the same furniture mesh every sync
             this.createFurnitureGLTFMesh(furniture).catch(err => 
                 console.error(`Failed to load furniture ${furniture.id}:`, err)
             );

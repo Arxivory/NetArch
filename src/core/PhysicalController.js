@@ -132,7 +132,7 @@ export class PhysicalController {
                     this.createPolygonalSpaceMesh(space); // CHANGED: freeform space temporarily reuses the polygonal space mesh logic
                     break;
                     case 'circle':
-                    this.createCircularDomainMesh(space);
+                    this.createCircularSpaceMesh(space);
                     break;
                 default:
                     break;
@@ -316,6 +316,23 @@ export class PhysicalController {
     this.scene.add(mesh);
     this.spaceMeshes.set(space.id, mesh);
 }
+    createCircularSpaceMesh(space) {
+    const floor = this.store.floors.find(f => f.id === space.floorId);
+    const altitude = floor ? floor.altitude || 0 : 0; // ADDED: circular spaces still need to sit on the correct floor
+
+    console.log(`Creating circular space ${space.id} on floor ${space.floorId} at altitude ${altitude}`); // ADDED: debug log for circular space creation
+
+    const circularSpace = new SpaceMesh(space, this.defaultScaler);
+    const mesh = circularSpace.getCircularForm(); // ADDED: use the dedicated circular space mesh builder
+
+    mesh.position.y = altitude; // ADDED: stack the whole space group on its floor altitude
+
+    console.log(`Circular space mesh positioned at Y=${mesh.position.y}`); // ADDED: confirm final vertical placement
+
+    this.scene.add(mesh);
+    this.spaceMeshes.set(space.id, mesh);
+}
+
 
 
     createFloorMesh(floor) {

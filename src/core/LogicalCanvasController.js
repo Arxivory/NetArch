@@ -104,6 +104,7 @@ export class LogicalCanvasController {
   }
 
   setActiveFloor(floorId) {
+    appState.ui.setActiveFloor(floorId); // ADDED: keep the global active floor in sync for shape creation and overlap checks
     this.layout?.setActiveFloor(floorId);
   }
 

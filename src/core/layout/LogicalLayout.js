@@ -860,7 +860,10 @@ if (this.mode === 'freeform') {
 
 
   _createShapeFromMode() {
-    const activeFloor = appState.ui.activeFloorId;
+    const activeFloor =
+     appState.selection.focusedType === 'floor'
+          ? appState.selection.focusedId // ADDED: prefer the explicitly selected floor from the hierarchy
+          : appState.ui.activeFloorId; // KEEP: fallback to the currently active floor in UI state
 
     if (this.mode === 'rectangle') {
       const rect = this.shapeCreator.createRectangle(

@@ -204,7 +204,69 @@ export default class SpaceMesh {
     }
 
     getCircularForm() {
-        if (!this.geometry.circular)
-            throw Error("The Space is not Circular. Try getting other forms.");
-    }
+    if (!this.geometry.circular)
+        throw Error("The Space is not Circular. Try getting other forms.");
+
+    const radius = this.geometry.circular.radius * this.scaler;
+    const thickness = Math.min(0.7, radius * 0.35); // ADDED: keep wall thickness reasonable for small circles
+    const innerRadius = Math.max(radius - thickness, 0.01); // ADDED: avoid invalid zero/negative inner radius
+    const height = this.defaultHeight;
+
+    const circleShape = new THREE.Shape();
+    circleShape.absarc(0, 0, radius, 0, Math.PI * 2, false); // ADDED: outer circular wall boundary
+
+    const holePath = new THREE.Path();
+    holePath.absarc(0, 0, innerRadius, 0, Math.PI * 2, true); // ADDED: hollow out the center so the space is not a solid cylinder
+    circleShape.holes.push(holePath);
+
+    const extrudeSettings = {
+        depth: height,
+        bevelEnabled: true,
+        bevelThickness: 0.05,
+        bevelSize: 0.05,
+        bevelSegments: 2,
+        curveSegments: 64 // ADDED: smoother circular walls
+    };
+
+    const wallSideMat = new THREE.MeshStandardMaterial({
+        color: 0xcccccc,
+        side: THREE.DoubleSide // ADDED: keep circular walls visible from inside and outside
+    });
+
+    const wallTopMat = new THREE.MeshStandardMaterial({
+        color: 0x333333,
+        side: THREE.DoubleSide // ADDED: keep the cap faces visible from both sides
+    });
+
+    const ceilingMaterial = new THREE.MeshStandardMaterial({
+        color: 0xf5f5f5,
+        roughness: 0.8,
+        metalness: 0.0,
+        side: THREE.DoubleSide // ADDED: keep the circular ceiling visible from below and above
+    });
+
+    const wallGeometry = new THREE.ExtrudeGeometry(circleShape, extrudeSettings);
+    const wallMesh = new THREE.Mesh(wallGeometry, [wallTopMat, wallSideMat]);
+    wallMesh.rotation.x = -Math.PI / 2; // ADDED: lay the circular walls onto the ground plane
+
+    const ceilingGeometry = new THREE.CircleGeometry(innerRadius, 64);
+    const ceilingMesh = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
+    ceilingMesh.rotation.x = -Math.PI / 2; // ADDED: orient the ceiling to match the circular plan
+    ceilingMesh.position.y = height; // ADDED: place the ceiling at the top of the walls
+    ceilingMesh.userData = { type: 'ceiling', id: this.id };
+
+    const group = new THREE.Group();
+    group.position.set(
+        this.x * this.scaler, // ADDED: place the whole circular space using its stored center
+        0,
+        this.z * this.scaler  // ADDED: place the whole circular space using its stored center
+    );
+
+    group.add(wallMesh);
+    group.add(ceilingMesh);
+    group.userData = { type: 'space', id: this.id, shape: 'circle' }; // ADDED: mark this mesh as a circular space
+
+    return group;
+}
+
 } 

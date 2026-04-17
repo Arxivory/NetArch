@@ -179,7 +179,8 @@ export class Polygon {
     checkIfOverlapping(floorId) {
         const structMap = new Map();
         structMap.set("Site", "Domain");
-        structMap.set("Space", "Site");
+        structMap.set("Floor", "Site");
+        struct.set("Space", "Floor")
         const requiredParent =  structMap.get(this.structureType);
         let overlapping = false;
         this.system.checkOne(this.body, (other) => {

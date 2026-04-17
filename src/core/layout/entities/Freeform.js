@@ -183,7 +183,8 @@ export class Freeform {
         for (const body of this.bodies) {
             const structMap = new Map();
             structMap.set("Site", "Domain");
-            structMap.set("Space", "Site");
+            structMap.set("Floor", "Site");
+            structMap.set("Space", "Floor");
             const requiredParent = structMap.get(this.structureType);
             let overlapping = false;
             this.system.checkOne(body, (other) => {

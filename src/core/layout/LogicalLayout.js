@@ -553,16 +553,28 @@ isPointInsideShape(id, x, y) {
         );
 
         if (canClose && this.currentPolygon.length >= 3) {
+          const activeFloor = appState.ui.activeFloorId; // ADDED: capture the currently focused floor before overlap checking
           const polygon = this.shapeCreator.createPolygon(
             [...this.currentPolygon],
             this.structureType, this.system
           );
+
+          if (polygon) {
+            polygon.floorId = activeFloor || null; // ADDED: assign the polygon to the active floor for correct hierarchy overlap checks
+
+            if (polygon.body) {
+              polygon.body.floorId = activeFloor || null; // ADDED: assign the collision body to the same floor so check2d compares against the right parent
+          }
+
           if (!this._checkForOverlap(polygon, "creation")) {
             if (this.shapeCreator.onPolygonCreated) {
               this.shapeCreator.onPolygonCreated(polygon);
             }
             this.polygons.push(polygon);
+          } else if (polygon.body) {
+             this.system.remove(polygon.body); // ADDED: clean up the inserted collision body if creation fails
           }
+        }
           this.currentPolygon = [];
           this.mode = 'none';
           this.currentPoint = null;
@@ -782,16 +794,29 @@ isPointInsideShape(id, x, y) {
 
   _onRightClick() {
     if (this.currentFreeform.length > 1) {
+      const activeFloor = appState.ui.activeFloorId; // ADDED: capture the active floor before overlap checking
       const freeform = this.shapeCreator.createFreeform(
         [...this.currentFreeform],
         this.structureType, this.system
       );
+      if (freeform) {
+        freeform.floorId = activeFloor || null; // ADDED: assign the freeform entity to the active floor
+        if (freeform.bodies) {
+          for (const body of freeform.bodies) {
+            body.floorId = activeFloor || null; // ADDED: assign every freeform collision segment to the active floor
+      }
+    }
       if (!this._checkForOverlap(freeform, "creation")) {
         if (this.shapeCreator.onFreeformCreated) {
           this.shapeCreator.onFreeformCreated(freeform);
         }
         this.freeforms.push(freeform);
-      }
+      } else if (freeform.bodies) {
+         for (const body of freeform.bodies) {
+          this.system.remove(body); // ADDED: clean up inserted collision bodies if creation fails
+         }
+        }
+ }
       this.currentFreeform = [];
       this.mode = 'none';
       this.currentPoint = null;

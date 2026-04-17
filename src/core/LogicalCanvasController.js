@@ -478,10 +478,23 @@ _handleShapeCreated(shapeData, shapeType) {
 
     // --- 2. BULLETPROOF BOUNDS EXTRACTOR ---
     // Safely extracts coordinates, forces them to be numbers, and handles missing widths
+    // Also handles circular shapes by converting radius to bounding box
     const getBounds = (shape) => {
       if (!shape) return null;
       // Handle both raw shape data and state-wrapped shapes (like geometry)
       const src = shape.geometry || shape;
+      
+      // If it's a circle, calculate bounding box from center and radius
+      if (src.r !== undefined && src.r !== null) {
+        const cx = Number(src.x ?? 0);
+        const cy = Number(src.y ?? 0);
+        const r = Number(src.r ?? 0);
+        return {
+          minX: cx - r, maxX: cx + r,
+          minY: cy - r, maxY: cy + r,
+          w: r * 2, h: r * 2, x: cx - r, y: cy - r, r
+        };
+      }
       
       let x = Number(src.x ?? src.left ?? 0);
       let y = Number(src.y ?? src.top ?? 0);

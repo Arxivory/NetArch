@@ -1069,34 +1069,75 @@ isPointInsideShape(id, x, y) {
         h = en.h;
       }
 
-      if (x !== undefined && w !== undefined) {
+      // For circles, we only need x, y, and radius defined
+      const isCircle = en.type === 'circle' && en.r !== undefined;
+      
+      if (isCircle || (x !== undefined && w !== undefined)) {
         ctx.save();
         ctx.strokeStyle = "#00AEEF";
         ctx.lineWidth = 2;
-        ctx.strokeRect(x, y, w, h);
 
-        const size = 8;
-        const handles = [
-          [x, y], [x + w, y], [x, y + h], [x + w, y + h]
-        ];
+        // Draw selection indicators
+        if (isCircle) {
+          // For circles, draw a circle outline
+          ctx.beginPath();
+          ctx.arc(en.x, en.y, en.r, 0, Math.PI * 2);
+          ctx.stroke();
 
-        ctx.fillStyle = "#00AEEF";
-        handles.forEach(([hx, hy]) => {
-          ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
-        });
+          // Draw handles at cardinal points
+          const size = 8;
+          const handles = [
+            [en.x, en.y - en.r],     // top
+            [en.x, en.y + en.r],     // bottom
+            [en.x - en.r, en.y],     // left
+            [en.x + en.r, en.y]      // right
+          ];
+
+          ctx.fillStyle = "#00AEEF";
+          handles.forEach(([hx, hy]) => {
+            ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
+          });
+        } else {
+          // For rectangles, draw bounding box
+          ctx.strokeRect(x, y, w, h);
+
+          const size = 8;
+          const handles = [
+            [x, y], [x + w, y], [x, y + h], [x + w, y + h]
+          ];
+
+          ctx.fillStyle = "#00AEEF";
+          handles.forEach(([hx, hy]) => {
+            ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
+          });
+        }
 
 // --- NEW FLOATING LABELS ---
         // Added 'space' to the VIP list just like you wanted!
-        const isStructural = ['rectangle', 'site', 'domain', 'space', 'polygon', 'freeform'].includes(en.type);
+        const isStructural = ['rectangle', 'site', 'domain', 'space', 'polygon', 'freeform', 'circle'].includes(en.type);
 
         if (isStructural) {
           ctx.fillStyle = "black";
           ctx.font = "bold 14px Arial";
           ctx.textAlign = "center";
 
+          // CIRCLE LOGIC: Display diameter and circumference
+          if (en.type === 'circle' && en.r !== undefined) {
+            const diameter = en.r * 2;
+            const circumference = 2 * Math.PI * en.r;
+
+            const diameterInMeters = UnitSystem.format(GridScale.toMeters(diameter), 'm');
+            const circumferenceInMeters = UnitSystem.format(GridScale.toMeters(circumference), 'm');
+
+            // Diameter label at the top
+            ctx.fillText(`Ø ${diameterInMeters}`, en.x, en.y - en.r - 20);
+
+            // Circumference label at the bottom
+            ctx.fillText(`C ${circumferenceInMeters}`, en.x, en.y + en.r + 35);
+          }
           // THE MAGIC SWITCH: 
           // We no longer care what its name is. If it has multiple points, treat it like a polygon!
-          if (en.points && en.points.length > 1) {
+          else if (en.points && en.points.length > 1) {
             
             // PERIMETER LOGIC FOR ANY CUSTOM SHAPE
             for (let i = 0; i < en.points.length; i++) {

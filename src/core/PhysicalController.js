@@ -145,9 +145,11 @@ export class PhysicalController {
                 const deviceMesh = this.deviceMeshes.get(device.id);
                 console.log('Device Mesh: ', device, ' is updating');
                 const modPosX = device.transform.position.x * this.defaultScaler;
+                const floor = this.store.floors.find(f => f.id === device.floorId);
+                const floorAltitude = floor ? floor.altitude : 0;
                 const modPosZ = device.transform.position.z * this.defaultScaler;
                 if (device.transform) {
-                    deviceMesh.position.set(modPosX, device.transform.position.y, modPosZ);
+                    deviceMesh.position.set(modPosX, floorAltitude, modPosZ);
                     deviceMesh.rotation.set(device.transform.rotation.x, device.transform.rotation.y, device.transform.rotation.z);
                     deviceMesh.scale.set(device.transform.scale.x, device.transform.scale.y, device.transform.scale.z);
                 }

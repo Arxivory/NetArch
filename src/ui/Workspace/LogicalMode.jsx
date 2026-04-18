@@ -44,23 +44,23 @@ const LogicalMode = forwardRef(function LogicalMode(
 
   useEffect(() => {
     const handleUpdate = () => {
-      if (controllerRef.current) {
-        const isFocusedOnFloor = appState.selection.focusedType === 'floor';
-        const floorId = isFocusedOnFloor ? appState.ui.activeFloorId : null;
-        controllerRef.current.setActiveFloor(floorId);
-      }
-    };
+      if (!controllerRef.current) return;
 
-    const unsubUi = appState.ui.subscribe(() => {
-      handleUpdate();
-    });
+      const isFocusedOnFloor = appState.selection.focusedType === 'floor';
+      const nextFloorId = isFocusedOnFloor ? appState.selection.focusedId : null;
+
+      const currentFloorId = appState.ui.activeFloorId;
+
+      if (currentFloorId === nextFloorId) return;
+
+      appState.ui.setActiveFloor(nextFloorId);
+    };
 
     const unsubSel = appState.selection.subscribe(() => {
       handleUpdate();
     });
 
     return () => {
-      unsubUi();
       unsubSel();
     };
   }, []);

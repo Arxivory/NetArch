@@ -346,12 +346,12 @@ isPointInsideShape(id, x, y) {
     const activeFloor = appState.ui.activeFloorId;
     device.floorId = activeFloor || null;
 
-    if (!this._checkForOverlap(device, "creation")) {
-      if (this.onDeviceAdded) {
-        this.devices.push(device);
-        this.onDeviceAdded(device);
-      }
+    console.log("ADD → layout instance:", this.layout);
+    console.log("ADD layout === global?", this.layout === window.__layoutRef);
+    window.__layoutRef = this.layout;
 
+    if (!this._checkForOverlap(device, "creation")) {
+      this.devices.push(device);
       this._render();
     }
   }
@@ -392,13 +392,13 @@ isPointInsideShape(id, x, y) {
     };
 
     const furniture = {
-      id: furnitureData.id || `furniture_${Math.random().toString(36).slice(2, 9)}`,
+      id: furnitureData.id || `furniture_${Math.random().toString(36).slice(2, 9)}`, // CHANGED: keep the same id as the furniture store/hierarchy node
       type: furnitureData.type || 'furniture',
       entityType: 'furniture',
       label: furnitureData.name || furnitureData.label || 'Furniture',
-      catalogId: furnitureData.catalogId,
-      floorId: furnitureData.floorId || null,
-      spaceId: furnitureData.spaceId || null, 
+      catalogId: furnitureData.catalogId || null, // ADDED: preserve catalog metadata
+      floorId: furnitureData.floorId ?? appState.ui.activeFloorId ?? null, // ADDED: preserve floor context
+      spaceId: furnitureData.spaceId ?? null, // ADDED: preserve space context
       x,
       y,
       width: size,
@@ -782,7 +782,6 @@ if (this.mode === 'freeform') {
         const dy = p.y - this.interaction.start.y;
 
         if (this.interaction.mode === "move") {
-          console.log(`📦 MOVE: en.id=${en.id}, en.structureType=${en.structureType}, dx=${dx}, dy=${dy}`);
           en.move(dx, dy);
         }
 
@@ -835,13 +834,12 @@ if (this.mode === 'freeform') {
   }
 
         this.interaction.start = { x: p.x, y: p.y };
-        if (this.onEntityChanged) {
-            // Debug: Log the delta being passed to controller
-            if (dx !== 0 || dy !== 0) {
-                console.log(`📍 onEntityChanged called with dx=${dx}, dy=${dy} for ${en.id}`);
-            }
-            this.onEntityChanged(en, dx, dy);
+        const shouldSyncDuringDrag = !!en.structureType; // ADDED: only structural parents need live sync while dragging so children follow immediately
+
+        if (shouldSyncDuringDrag && this.onEntityChanged) {
+          this.onEntityChanged(en, dx, dy); // CHANGED: defer device persistence until pointerup for smoother dragging
         }
+
         this._render();
         return;
       }
@@ -876,12 +874,13 @@ _onPointerUp(e) {
       this._createShapeFromMode();
     }
 
-    if (this.interaction.mode === 'move' && this.selectedEntity) {
+    if (this.selectedEntity && (this.interaction.mode === 'move' || this.interaction.mode === 'resize')) {
       let restoreDx = 0;
       let restoreDy = 0;
+      const isMove = this.interaction.mode === 'move';
       const hasSavedPosition = this.selectedEntity.savedPosition !== undefined;
 
-      if (this._checkForOverlap(this.selectedEntity, "transformation")) {
+      if (isMove && this._checkForOverlap(this.selectedEntity, "transformation")) {
         if (hasSavedPosition && typeof this.selectedEntity.restoreToSavedPosition === 'function') {
           restoreDx = this.selectedEntity.savedPosition.x - this.selectedEntity.x;
           restoreDy = this.selectedEntity.savedPosition.y - this.selectedEntity.y;
@@ -890,9 +889,10 @@ _onPointerUp(e) {
       }
 
       if (this.onEntityChanged) {
-        this.onEntityChanged(this.selectedEntity, restoreDx, restoreDy);
+        this.onEntityChanged(this.selectedEntity, restoreDx, restoreDy); // CHANGED: commit device move/resize only once at drag end
       }
     }
+
 
     this.interaction = {
       mode: null,
@@ -1421,9 +1421,11 @@ _onPointerUp(e) {
 
   findEntityById(id) {
     const lists = this.getAllSelectableEntities();
-    for (let i = 0; i < lists.length; i++) {
-      const arr = lists[i];
-      if (!arr) continue;
+    console.log("Searching for:", id);
+    console.log("Device list:", this.devices.map(d => d.id));
+
+    for (const arr of lists) {
+      if (!arr) continue; 
       for (const en of arr) {
         if (en && (en.id === id || String(en.id) === id)) {
           return en;
@@ -1437,9 +1439,21 @@ _onPointerUp(e) {
 
   removeEntityById(id) {
     const lists = this.getAllSelectableEntities();
-    for (let arr of lists) {
-      arr = arr.filter(e => e.id !== id);
-    }
+    const collections = [
+      'devices',
+      'rectangles',
+      'polygons',
+      'circles',
+      'walls',
+      'cables',
+      'furnitures'
+    ];
+
+    collections.forEach(key => {
+      if (Array.isArray(this[key])) {
+        this[key] = this[key].filter(e => e.id !== id);
+      }
+    });
     return null;
   }
 
@@ -1484,7 +1498,22 @@ updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {
 
     this.selectedEntity = en || null;
 
+    console.log("SELECTED ENTITY:", en);
+
+    if (en) {
+      if (en.structureType) {
+        appState.selection.focusedId = en.id;
+        appState.selection.focusedType = en.structureType.toLowerCase();
+        appState.selection.notify?.();
+      } else {
+        appState.selection.selectDevice?.(en.id, false);
+      }
+    } else {
+      appState.selection.clearSelection?.();
+    }
+
     if (this.onEntitySelected) this.onEntitySelected(en);
+
     this._render();
     return en;
   }
@@ -1543,14 +1572,14 @@ _getEntityInteractionBounds(en) {
   _findDeviceAt(x, y) {
     for (const device of this.devices) {
       const bounds = this._getEntityInteractionBounds(device); // ADDED: use the same tile bounds used for selection/highlighting
-      const dx = device.x;
-      const dy = device.y;
+      if (!bounds) continue;
+
 
       if (
-        x >= dx &&
-        x <= dx + device.w &&
-        y >= dy &&
-        y <= dy + device.h
+        x >= bounds.x &&
+        x <= bounds.x + bounds.w &&
+        y >= bounds.y &&
+        y <= bounds.y + bounds.h
       ) {
         return device;
       }

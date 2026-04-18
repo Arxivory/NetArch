@@ -349,6 +349,7 @@ removeSpace(spaceId) {
                     id: device.id,
                     label: device.label || device.hostname || `Device ${device.id}`,
                     type: 'device',
+                    floorId: device.floorId, // ADDED: lets TreeItem restore the correct active floor when this device is clicked
                     spaceId: device.spaceId,
                     deviceId: device.id,
                     children: []

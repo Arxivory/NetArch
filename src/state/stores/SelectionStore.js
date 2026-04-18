@@ -43,32 +43,7 @@ export class SelectionStore {
     }
 
     this.focusedId = deviceId;
-    this.focusedType = 'device';
-    this.notify();
-  }
-
-  selectFurniture(furnitureId, multiSelect = false) {
-    if (!multiSelect) {
-      this.selectedDeviceIds = [];
-      this.selectedFurnitureIds = [];
-      this.selectedLinkIds = [];
-    }
-
-    if (!this.selectedFurnitureIds.includes(furnitureId)) {
-      this.selectedFurnitureIds.push(furnitureId);
-    }
-
-    this.focusedId = furnitureId;
-    this.focusedType = 'furniture';
-    this.notify();
-  }
-
-  deselectFurniture(furnitureId) {
-    this.selectedFurnitureIds = this.selectedFurnitureIds.filter(id => id !== furnitureId);
-    if (this.focusedId === furnitureId) {
-      this.focusedId = null;
-      this.focusedType = null;
-    }
+    this.focusedType = 'device'; // ADDED: keep device selection semantics consistent with hierarchy selection
     this.notify();
   }
 

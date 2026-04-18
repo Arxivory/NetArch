@@ -1395,17 +1395,11 @@ _onPointerUp(e) {
 
   findEntityById(id) {
     const lists = this.getAllSelectableEntities();
-<<<<<<< HEAD
-    for (let i = 0; i < lists.length; i++) {
-      const arr = lists[i];
-      if (!arr) continue;
-=======
 
     console.log("Searching for:", id);
     console.log("Device list:", this.devices.map(d => d.id));
 
     for (const arr of lists) {
->>>>>>> el
       for (const en of arr) {
         if (en && en.id === id) {
           return en;

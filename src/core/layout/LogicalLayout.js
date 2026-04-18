@@ -507,8 +507,11 @@ isPointInsideShape(id, x, y) {
       const y = en.y;
       const w = en.w || en.width;
       const h = en.h || en.height;
+      const bounds = this._getEntityInteractionBounds(en); // ADDED: use the correct drawn bounds for both shapes and devices
       const size = 8;
 
+      if (bounds) {
+        const { x, y, w, h } = bounds;
       const handles = {
         nw: [x, y],
         ne: [x + w, y],
@@ -518,16 +521,25 @@ isPointInsideShape(id, x, y) {
 
       for (const key in handles) {
         const [hx, hy] = handles[key];
-        if (Math.abs(p.x - hx) < size && Math.abs(p.y - hy) < size && en.type === 'rectangle') {
+        if (Math.abs(p.x - hx) < size &&
+         Math.abs(p.y - hy) < size &&
+         this._isResizableEntity(en) ){
+          if (en.saveCurrentScale) {
+            en.saveCurrentScale(); // ADDED: allow device scaling to be rolled back if needed
+          }
           this.interaction = {
             mode: 'resize',
             handle: key,
-            start: { x: p.x, y: p.y }
+            start: { x: p.x, y: p.y },
+            bounds,
+            center: { x: x + w / 2, y: y + h / 2 }, // ADDED: resize devices around their visual center
+            baseScale: en.transform?.scale?.factor ?? 1
           };
           this.pointerHandler.setPointerDown(true);
           return;
         }
       }
+   }
 
       this.interaction = {
         mode: 'move',
@@ -674,7 +686,13 @@ if (this.mode === 'freeform') {
         const y = en.y;
         const w = en.w || en.width;
         const h = en.h || en.height;
-        const size = 8;
+        
+        const bounds = this._getEntityInteractionBounds(en); // ADDED: use correct visual bounds for devices too
+        let cursor = 'move';
+
+        if (bounds) {
+          const { x, y, w, h } = bounds;
+          const size = 8;
 
         const handles = {
           nw: [x, y],
@@ -683,16 +701,20 @@ if (this.mode === 'freeform') {
           se: [x + w, y + h]
         };
 
-        let cursor = 'move';
-
         for (const key in handles) {
           const [hx, hy] = handles[key];
-          if (Math.abs(p.x - hx) < size && Math.abs(p.y - hy) < size) {
+          if (
+           Math.abs(p.x - hx) < size &&
+           Math.abs(p.y - hy) < size &&
+           this._isResizableEntity(en)
+
+        )   {
             cursor = (key === 'nw' || key === 'se')
               ? 'nwse-resize'
               : 'nesw-resize';
           }
         }
+      }
         this.pointerHandler.setCursor(cursor);
       }
       else {
@@ -761,12 +783,32 @@ if (this.mode === 'freeform') {
           }
           en.setWidthAndHeight(wKey, hKey);
         }
+        else if (this.interaction.mode === "resize" && this._isDeviceEntity(en)) {
+          const baseBounds = this.interaction.bounds;
+          const center = this.interaction.center;
+          const widthRatio = (Math.abs(p.x - center.x) * 2) / baseBounds.w;
+          const heightRatio = (Math.abs(p.y - center.y) * 2) / baseBounds.h;
+          const factor = Math.max(
+          0.25,
+          this.interaction.baseScale * Math.max(widthRatio, heightRatio)
+        ); // ADDED: uniformly scale the device based on dragged handle distance
+
+      en.setScale({ factor });
+
+      const resizedBounds = this._getEntityInteractionBounds(en);
+    if (resizedBounds) {
+      const dxCenter = center.x - (resizedBounds.x + resizedBounds.w / 2);
+      const dyCenter = center.y - (resizedBounds.y + resizedBounds.h / 2);
+      en.move(dxCenter, dyCenter); // ADDED: keep device scaling centered instead of drifting down-right
+    }
+  }
 
         this.interaction.start = { x: p.x, y: p.y };
         this.onEntityChanged(en);
         this._render();
         return;
       }
+      
       if (
         this.mode === 'rectangle' ||
         this.mode === 'circle' ||
@@ -1137,25 +1179,12 @@ if (this.mode === 'freeform') {
 
     if (this.selectedEntity && !this.selectedEntity.sourceId) {
       const en = this.selectedEntity;
-      let x, y, w, h;
+      const bounds = this._getEntityInteractionBounds(en); // CHANGED: use the same bounds logic for shapes, devices, and furniture
 
-      if (en.interfaces !== undefined || en.icon !== undefined) {
-        w = en.width + 16;
-        h = en.height + 16;
-        x = en.x - w / 2;
-        y = en.y - h / 2;
-      }
-      else if (en.width !== undefined) {
-        w = en.width;
-        h = en.height;
-        x = en.x - w / 2;
-        y = en.y - h / 2;
-      } else {
-        x = en.x;
-        y = en.y;
-        w = en.w;
-        h = en.h;
-      }
+      const x = bounds?.x;
+      const y = bounds?.y;
+      const w = bounds?.w;
+      const h = bounds?.h;
 
       if (x !== undefined && w !== undefined) {
         ctx.save();
@@ -1293,9 +1322,55 @@ if (this.mode === 'freeform') {
     this._render();
   }
 
+  _isDeviceEntity(en) {
+  return !!en && (en.interfaces !== undefined || en.catalogId !== undefined);
+  }
+
+_isFurnitureEntity(en) {
+  return !!en && (en.type === 'furniture' || en.id?.startsWith('furniture'));
+}
+
+_isResizableEntity(en) {
+  return !!en && (en.type === 'rectangle' || this._isDeviceEntity(en)); // ADDED: devices can now use resize handles too
+}
+
+_getEntityInteractionBounds(en) {
+  if (!en) return null;
+
+  if (this._isDeviceEntity(en)) {
+    return {
+      x: en.tileX,       // ADDED: devices are drawn/hit-tested using tile bounds, not raw x/y/w/h
+      y: en.tileY,
+      w: en.tileWidth,
+      h: en.tileHeight
+    };
+  }
+
+  if (this._isFurnitureEntity(en)) {
+    const w = (en.width ?? 0) + 32;
+    const h = (en.height ?? 0) + 45;
+
+    return {
+      x: en.x - w / 2,
+      y: en.y - h / 2.5,
+      w,
+      h
+    };
+  }
+
+  return {
+    x: en.x,
+    y: en.y,
+    w: en.w ?? en.width,
+    h: en.h ?? en.height
+  };
+}
+
+
 
   _findDeviceAt(x, y) {
     for (const device of this.devices) {
+      const bounds = this._getEntityInteractionBounds(device); // ADDED: use the same tile bounds used for selection/highlighting
       const dx = device.x;
       const dy = device.y;
 

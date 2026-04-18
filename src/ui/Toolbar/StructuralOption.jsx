@@ -8,7 +8,7 @@ export default function StructuralOption({ label, icon: Icon, onSelectShape, isA
   const shapes = [
     { name: "Rectangle", icon: Square },
     { name: "Polygon", icon: Triangle },
-    { name: "Freeform", icon: LineSquiggle },
+    // { name: "Freeform", icon: LineSquiggle },
     { name: "Circular", icon: Circle },
   ];
 

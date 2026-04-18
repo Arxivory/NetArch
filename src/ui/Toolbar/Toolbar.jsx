@@ -103,9 +103,9 @@ const handleDelete = () => {
       case "Polygon":
         Command = StartDrawPolygonCommand;
         break;
-      case "Freeform":
-        Command = StartDrawFreeformCommand;
-        break;
+      // case "Freeform":
+      //   Command = StartDrawFreeformCommand;
+      //   break;
       default:
         Command = StartDrawRectangleCommand;
     }

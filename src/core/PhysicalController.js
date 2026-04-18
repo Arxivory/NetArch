@@ -161,9 +161,24 @@ export class PhysicalController {
         for ( const furniture of furnitures) {
             console.log('Processing furniture for rendering:', furniture);
             activeFurnitureIds.add(furniture.id);
-            this.createFurnitureGLTFMesh(furniture).catch(err => 
-                console.error(`Failed to load furniture ${furniture.id}:`, err)
-            );
+
+            if (this.furnitureMeshes.has(furniture.id)) {
+                const furnitureMesh = this.furnitureMeshes.get(furniture.id);
+                const modPosX = furniture.transform.position.x * this.defaultScaler;
+                const floor = this.store.floors.find(f => f.id === furniture.floorId);
+                const floorAltitude = floor ? floor.altitude : 0;
+                const modPosZ = furniture.transform.position.z * this.defaultScaler;
+
+                if (furniture.transform) {
+                    furnitureMesh.position.set(modPosX, floorAltitude, modPosZ);
+                    furnitureMesh.rotation.set(furniture.transform.rotation.x, furniture.transform.rotation.y, furniture.transform.rotation.z);
+                    furnitureMesh.scale.set(furniture.transform.scale.x, furniture.transform.scale.y, furniture.transform.scale.z);
+                }
+            } else {
+                this.createFurnitureGLTFMesh(furniture).catch(err => 
+                    console.error(`Failed to load furniture ${furniture.id}:`, err)
+                );
+            }
         }
 
         for (const [id, mesh] of this.domainMeshes) {

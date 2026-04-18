@@ -4,6 +4,7 @@ import { Circle } from './entities/Circle.js';
 import { Polygon } from './entities/Polygon.js';
 import { Freeform } from './entities/Freeform.js';
 import { Device } from './entities/Device.js';
+import { Wall } from './entities/Wall.js';
 
 export class ShapeCreator {
   constructor(opts = {}) {
@@ -50,7 +51,7 @@ export class ShapeCreator {
   }
 
   createFreeform(points, structureType = '') {
-    if (!points || points.length <= 1) {
+    if (!points || points.length < 3) {
       return null;
     }
     const freeform = new Freeform(points, structureType, this.system);
@@ -63,26 +64,9 @@ export class ShapeCreator {
     const y1 = startPoint.y;
     const x2 = currentPoint.x;
     const y2 = currentPoint.y;
-    const path = new Path2D();
-    path.moveTo(x1, y1);
-    path.lineTo(x2, y2);
     if (Math.hypot(x2 - x1, y2 - y1) > 2) {
-      const wall = {
-        id: this._genId('wall'),
-        x1,
-        y1,
-        x2,
-        y2,
-        type: 'wall',
-        transform: {
-          position: { x: x1, y: y1, z: 0 },
-          scale: 1,
-          rotation: { x: 0, y: 0, z: 0 }
-        },
-        path,
-        hitTestMode: 'stroke'
-      };
-
+      const wall = new Wall(currentPoint, startPoint, this.system);
+      wall.id = this._genId(`Wall `);
       if (this.onWallCreated) {
         this.onWallCreated(wall);
       }

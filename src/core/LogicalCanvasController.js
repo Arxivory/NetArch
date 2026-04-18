@@ -15,6 +15,32 @@ export class LogicalCanvasController {
       space: 0
     };
 
+    // Map canvas entity IDs to structural entity IDs for tracking
+    this.entityIdMap = new Map(); // canvas_id -> structural_id
+    this.structuralToCanvasMap = new Map(); // structural_id -> canvas_id
+
+    // --- ADD THIS TO THE BOTTOM OF THE CONSTRUCTOR ---
+    this.positionSnapshot = new Map();
+    this.invalidMoveAlerted = new Set();
+    window.addEventListener('pointerdown', () => {
+        this.positionSnapshot.clear();
+        this.invalidMoveAlerted.clear();
+        const st = appState.structural;
+        if (!st) return;
+        
+        // Take a snapshot of every structure's X/Y before the drag starts
+        const elements = [...(st.domains||[]), ...(st.sites||[]), ...(st.floors||[]), ...(st.spaces||[])];
+        elements.forEach(el => {
+            const x = Number(el.geometry ? el.geometry.x : (el.x || 0));
+            const y = Number(el.geometry ? el.geometry.y : (el.y || 0));
+            this.positionSnapshot.set(el.id, { x, y });
+        });
+    }, { capture: true });
+
+    // Add this to the bottom of your constructor
+    this.lastKnownPositions = new Map();
+    // -------------------------------------------------
+
     this.layout = new LogicalLayout({
       container,
       width: opts.width || 800,
@@ -32,7 +58,7 @@ export class LogicalCanvasController {
       onFurnitureAdded: (furniture) => this._handleFurnitureAdded(furniture),
       onEntitySelected: (entity) => this._handleEntitySelected(entity),
       onPortSelect: (device, x, y, callback) => this._handlePortSelect(device, x, y, callback),
-      onEntityChanged: (en) => this._handleEntityChanged(en)
+      onEntityChanged: (en, dx, dy) => this._handleEntityChanged(en, dx, dy)
     });
   }
 
@@ -179,6 +205,7 @@ executeDelete(idToDelete) {
   }
 
   setActiveFloor(floorId) {
+    appState.ui.setActiveFloor(floorId); // ADDED: keep the global active floor in sync for shape creation and overlap checks
     this.layout?.setActiveFloor(floorId);
   }
 
@@ -452,6 +479,7 @@ item.onclick = (e) => {
 
 _handleShapeCreated(shapeData, shapeType) {
     const { structureType, id, r, points } = shapeData;
+    console.log(`📥 _handleShapeCreated: received shapeData with id=${id}, structureType=${structureType}`);
 
     // --- 1. TOP-LEVEL HIERARCHY PRE-CHECK ---
     // Stop invalid Domain creation BEFORE overlap or bounds logic runs
@@ -478,10 +506,23 @@ _handleShapeCreated(shapeData, shapeType) {
 
     // --- 2. BULLETPROOF BOUNDS EXTRACTOR ---
     // Safely extracts coordinates, forces them to be numbers, and handles missing widths
+    // Also handles circular shapes by converting radius to bounding box
     const getBounds = (shape) => {
       if (!shape) return null;
       // Handle both raw shape data and state-wrapped shapes (like geometry)
       const src = shape.geometry || shape;
+      
+      // If it's a circle, calculate bounding box from center and radius
+      if (src.r !== undefined && src.r !== null) {
+        const cx = Number(src.x ?? 0);
+        const cy = Number(src.y ?? 0);
+        const r = Number(src.r ?? 0);
+        return {
+          minX: cx - r, maxX: cx + r,
+          minY: cy - r, maxY: cy + r,
+          w: r * 2, h: r * 2, x: cx - r, y: cy - r, r
+        };
+      }
       
       let x = Number(src.x ?? src.left ?? 0);
       let y = Number(src.y ?? src.top ?? 0);
@@ -577,10 +618,18 @@ _handleShapeCreated(shapeData, shapeType) {
 
     // --- 4. SHAPE ROUTING ---
     if (structureType === 'Domain') {
-      appState.structural.addDomain({
+      const domainData = {
         ...shapeData, label: `Domain ${this.counters.domain++}`,
         x, y, w, h, maxX, maxY 
-      });
+      };
+      console.log(`🏢 Creating Domain with id=${domainData.id}`);
+      const newDomain = appState.structural.addDomain(domainData);
+      // CRITICAL: Store the mapping so we can find canvas entity by structural ID later
+      if (newDomain && id) {
+        this.structuralToCanvasMap.set(newDomain.id, id);
+        this.entityIdMap.set(id, newDomain.id);
+        console.log(`🔗 Mapped: canvas(${id}) <-> structural(${newDomain.id})`);
+      }
     }
     else if (structureType === 'Site') {
       const parentId = appState.selection.focusedType === 'domain' ? appState.selection.focusedId : null;
@@ -592,10 +641,18 @@ _handleShapeCreated(shapeData, shapeType) {
         showErrorModal("The Site exceeds the physical boundaries of the selected Domain.", "Out of Bounds Error");
         return removeInvalidShape();
       }
-      appState.structural.addSite({
+      const siteData = {
         id, domainId: parentId, label: `Site ${this.counters.site++}`,
         shapeType, x, y, w, h, maxX, maxY, r, points 
-      });
+      };
+      console.log(`🏪 Creating Site with id=${siteData.id}, domainId=${parentId}`);
+      const newSite = appState.structural.addSite(siteData);
+      // CRITICAL: Store the mapping
+      if (newSite && id) {
+        this.structuralToCanvasMap.set(newSite.id, id);
+        this.entityIdMap.set(id, newSite.id);
+        console.log(`🔗 Mapped: canvas(${id}) <-> structural(${newSite.id})`);
+      }
     } 
     else if (structureType === 'Floor') {
       const parentId = appState.selection.focusedType === 'site' ? appState.selection.focusedId : null;
@@ -607,10 +664,17 @@ _handleShapeCreated(shapeData, shapeType) {
         showErrorModal("The Floor exceeds the physical boundaries of the selected Site.", "Out of Bounds Error");
         return removeInvalidShape();
       }
-      appState.structural.addFloor({
+      const floorData = {
         id, siteId: parentId, label: `Floor ${this.counters.floor++}`,
         shapeType, x, y, w, h, maxX, maxY, r, points 
-      });
+      };
+      console.log(`🏗️ Creating Floor with id=${floorData.id}, siteId=${parentId}`);
+      const newFloor = appState.structural.addFloor(floorData);
+      if (newFloor && id) {
+        this.structuralToCanvasMap.set(newFloor.id, id);
+        this.entityIdMap.set(id, newFloor.id);
+        console.log(`🔗 Mapped: canvas(${id}) <-> structural(${newFloor.id})`);
+      }
       appState.ui.setActiveFloor(id);
     }
     else if (structureType === 'Space') {
@@ -623,10 +687,17 @@ _handleShapeCreated(shapeData, shapeType) {
         showErrorModal("The Space exceeds the physical boundaries of the selected Floor.", "Out of Bounds Error");
         return removeInvalidShape();
       }
-      appState.structural.addSpace({
+      const spaceData = {
         id, floorId: parentId, label: `Space ${this.counters.space++}`,
         shapeType, x, y, w, h, maxX, maxY, r, points 
-      });
+      };
+      console.log(`🎨 Creating Space with id=${spaceData.id}, floorId=${parentId}`);
+      const newSpace = appState.structural.addSpace(spaceData);
+      if (newSpace && id) {
+        this.structuralToCanvasMap.set(newSpace.id, id);
+        this.entityIdMap.set(id, newSpace.id);
+        console.log(`🔗 Mapped: canvas(${id}) <-> structural(${newSpace.id})`);
+      }
     }
   }
 
@@ -762,7 +833,249 @@ _handleEntitySelected(entity) {
     }
   }
 
-  _handleEntityChanged(en) {
+_handleEntityChanged(en, dx = 0, dy = 0) {
+    console.log(`📢 _handleEntityChanged called: en.id=${en?.id}, en.structureType=${en?.structureType}, dx=${dx}, dy=${dy}`);
+    
+    if (!en || !en.id) {
+        console.log(`⚠️ Entity is null or has no ID, skipping`);
+        appState.selection.notify();
+        return;
+    }
+
+    // Debug: Log movement
+    if ((dx !== 0 || dy !== 0) && en.structureType) {
+        console.log(`🚀 Moving ${en.structureType} canvas entity (${en.id}) by dx=${dx}, dy=${dy}`);
+        console.log(`   Canvas entity object:`, en);
+        console.log(`   Current position: x=${en.x}, y=${en.y}`);
+    }
+
+    // Only process children if the parent actually moved
+    if (dx !== 0 || dy !== 0) {
+        const st = appState.structural;
+        let shapeType = null;
+        let shapeObj = null;
+
+        // CRITICAL: Convert canvas entity ID to structural entity ID using mapping
+        const structuralId = this.entityIdMap.get(en.id);
+        console.log(`🔄 Converting canvas id(${en.id}) -> structural id(${structuralId})`);
+
+        if (st.domains && st.domains.some(d => d.id === structuralId)) { 
+            shapeType = 'domain'; 
+            shapeObj = st.domains.find(d => d.id === structuralId);
+            console.log(`✅ Found Domain: ${shapeObj?.id}`);
+        }
+        else if (st.sites && st.sites.some(s => s.id === structuralId)) { 
+            shapeType = 'site'; 
+            shapeObj = st.sites.find(s => s.id === structuralId);
+            console.log(`✅ Found Site: ${shapeObj?.id}`);
+        }
+        else if (st.floors && st.floors.some(f => f.id === structuralId)) { 
+            shapeType = 'floor'; 
+            shapeObj = st.floors.find(f => f.id === structuralId);
+            console.log(`✅ Found Floor: ${shapeObj?.id}`);
+        }
+        else if (st.spaces && st.spaces.some(s => s.id === structuralId)) { 
+            shapeType = 'space'; 
+            shapeObj = st.spaces.find(s => s.id === structuralId);
+            console.log(`✅ Found Space: ${shapeObj?.id}`);
+        }
+
+        if (shapeObj) {
+            const getBounds = (shape) => {
+                if (!shape) return null;
+                const src = shape.geometry || shape;
+                const x0 = Number(src.x ?? src.left ?? 0);
+                const y0 = Number(src.y ?? src.top ?? 0);
+                const w0 = Number(src.w ?? src.width ?? 0);
+                const h0 = Number(src.h ?? src.height ?? 0);
+                const minX0 = Math.min(x0, x0 + w0);
+                const minY0 = Math.min(y0, y0 + h0);
+                const maxX0 = Math.max(x0, x0 + w0);
+                const maxY0 = Math.max(y0, y0 + h0);
+                return {
+                    x: x0,
+                    y: y0,
+                    w: Math.abs(w0),
+                    h: Math.abs(h0),
+                    minX: minX0,
+                    minY: minY0,
+                    maxX: maxX0,
+                    maxY: maxY0
+                };
+            };
+
+            const isWithinParent = () => {
+                if (shapeType === 'site') {
+                    const parent = st.domains?.find(d => d.id === shapeObj.domainId);
+                    if (!parent) return true;
+
+                    const childBounds = getBounds(shapeObj);
+                    childBounds.minX += dx;
+                    childBounds.minY += dy;
+                    childBounds.maxX += dx;
+                    childBounds.maxY += dy;
+
+                    const parentBounds = getBounds(parent);
+                    if (parentBounds.w === 0 || parentBounds.h === 0) return true;
+
+                    const tol = 2;
+                    return !(
+                        childBounds.minX < parentBounds.minX - tol ||
+                        childBounds.minY < parentBounds.minY - tol ||
+                        childBounds.maxX > parentBounds.maxX + tol ||
+                        childBounds.maxY > parentBounds.maxY + tol
+                    );
+                }
+
+                if (shapeType === 'space') {
+                    let parent = st.floors?.find(f => f.id === shapeObj.floorId);
+                    if (!parent) return true;
+
+                    const childBounds = getBounds(shapeObj);
+                    childBounds.minX += dx;
+                    childBounds.minY += dy;
+                    childBounds.maxX += dx;
+                    childBounds.maxY += dy;
+
+                    let parentBounds = getBounds(parent);
+                    if (parentBounds.w === 0 || parentBounds.h === 0) {
+                        const parentSite = st.sites?.find(s => s.id === parent.siteId);
+                        if (parentSite) {
+                            parent = parentSite;
+                            parentBounds = getBounds(parent);
+                        }
+                    }
+
+                    if (parentBounds.w === 0 || parentBounds.h === 0) return true;
+
+                    const tol = 2;
+                    return !(
+                        childBounds.minX < parentBounds.minX - tol ||
+                        childBounds.minY < parentBounds.minY - tol ||
+                        childBounds.maxX > parentBounds.maxX + tol ||
+                        childBounds.maxY > parentBounds.maxY + tol
+                    );
+                }
+
+                return true;
+            };
+
+            // error handling for moving outside parent bounds
+            if (!isWithinParent()) {
+                if (!this.invalidMoveAlerted.has(en.id)) {
+                    this.invalidMoveAlerted.add(en.id);
+                }
+
+                if (en && typeof en.move === 'function') {
+                    en.move(-dx, -dy);
+                } else {
+                    const originalPos = this.positionSnapshot.get(structuralId);
+                    if (originalPos) {
+                        en.x = originalPos.x;
+                        en.y = originalPos.y;
+                    }
+                }
+
+                if (this.layout && typeof this.layout.render === 'function') {
+                    this.layout.render();
+                }
+
+                appState.selection.notify?.();
+                return;
+            }
+
+            // Update the logical state of the parent
+            if (shapeObj.geometry) {
+                shapeObj.geometry.x = Number(shapeObj.geometry.x) + dx;
+                shapeObj.geometry.y = Number(shapeObj.geometry.y) + dy;
+            } else {
+                shapeObj.x = Number(shapeObj.x || 0) + dx;
+                shapeObj.y = Number(shapeObj.y || 0) + dy;
+            }
+
+            // Gather all structural children
+            let childSites = [];
+            let childFloors = [];
+            let childSpaces = [];
+
+            if (shapeType === 'domain') {
+                childSites = st.sites.filter(s => s.domainId === structuralId);
+                childFloors = st.floors.filter(f => childSites.some(s => s.id === f.siteId));
+                childSpaces = st.spaces.filter(sp => childFloors.some(f => f.id === sp.floorId));
+            } else if (shapeType === 'site') {
+                childFloors = st.floors.filter(f => f.siteId === structuralId);
+                childSpaces = st.spaces.filter(sp => childFloors.some(f => f.id === sp.floorId));
+            } else if (shapeType === 'floor') {
+                childSpaces = st.spaces.filter(sp => sp.floorId === structuralId);
+            }
+
+            const allChildStructures = [...childSites, ...childFloors, ...childSpaces];
+            
+            console.log(`👶 Found ${allChildStructures.length} child structures:`, allChildStructures.map(c => ({ type: c.type, id: c.id, label: c.label })));
+
+            // Move structural children
+            allChildStructures.forEach(child => {
+                // Instantly update the logical state by exactly dx and dy
+                if (child.geometry) {
+                    child.geometry.x = Number(child.geometry.x) + dx;
+                    child.geometry.y = Number(child.geometry.y) + dy;
+                } else {
+                    child.x = Number(child.x || 0) + dx;
+                    child.y = Number(child.y || 0) + dy;
+                }
+
+                // CRITICAL: Use the mapping to find the canvas entity by structural ID
+                const canvasId = this.structuralToCanvasMap.get(child.id);
+                console.log(`🔍 Looking up canvas for structural ${child.type} (${child.id}) -> canvas(${canvasId})`);
+                
+                if (this.layout && typeof this.layout.findEntityById === 'function') {
+                    // Try both the structural ID directly and the mapped canvas ID
+                    let canvasChild = null;
+                    if (canvasId) {
+                        canvasChild = this.layout.findEntityById(canvasId);
+                    }
+                    // Fallback to direct lookup in case mapping failed
+                    if (!canvasChild) {
+                        canvasChild = this.layout.findEntityById(child.id);
+                    }
+                    
+                    if (canvasChild && typeof canvasChild.move === 'function') {
+                        console.log(`✅ Moving canvas child: ${canvasId || child.id} by (${dx}, ${dy})`);
+                        canvasChild.move(dx, dy);
+                    } else {
+                        console.log(`❌ Canvas child NOT found for structural ${child.type} (${child.id}), tried canvasId=${canvasId}`);
+                    }
+                }
+            });
+
+            // Move devices and furniture
+            const floorIds = childFloors.map(f => f.id);
+            if (shapeType === 'floor') floorIds.push(structuralId);
+
+            const spaceIds = childSpaces.map(sp => sp.id);
+            if (shapeType === 'space') spaceIds.push(structuralId);
+
+            const moveItems = (items) => {
+                items.forEach(item => {
+                    if (floorIds.includes(item.floorId) || spaceIds.includes(item.spaceId)) {
+                        item.x = Number(item.x || 0) + dx;
+                        item.y = Number(item.y || 0) + dy;
+                        
+                        if (this.layout && typeof this.layout.findEntityById === 'function') {
+                            const canvasItem = this.layout.findEntityById(item.id);
+                            if (canvasItem && typeof canvasItem.move === 'function') {
+                                canvasItem.move(dx, dy);
+                            }
+                        }
+                    }
+                });
+            };
+
+            if (appState.network && typeof appState.network.getAllDevices === 'function') moveItems(appState.network.getAllDevices());
+            if (appState.furniture && appState.furniture.furnitures) moveItems(appState.furniture.furnitures);
+        }
+    }
+
     appState.selection.notify();
   }
 }

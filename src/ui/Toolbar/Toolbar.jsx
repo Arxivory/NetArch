@@ -46,12 +46,14 @@ const handleDelete = () => {
       // BEHAVIOR 2: Nothing is selected. Toggle "Delete Mode" on/off!
       if (appState.tools) {
           const isDeleteMode = appState.tools.activeTool === 'delete';
-          const newTool = isDeleteMode ? 'pointer' : 'delete';
           
-          appState.tools.setActiveTool(newTool);
-          
-          // Optional: If your UI supports it, this is a great place to show a toast notification
-          console.log(`Canvas tool set to: ${newTool}`); 
+          if (isDeleteMode) {
+              executeCommand(StartSelectCommand);
+              appState.tools.setActiveTool('select');
+          } else {
+              executeCommand(StartSelectCommand); 
+              appState.tools.setActiveTool('delete');
+          }
       }
     }
   };
@@ -70,9 +72,9 @@ const handleDelete = () => {
       case "Polygon":
         Command = StartDrawPolygonCommand;
         break;
-      case "Freeform":
-        Command = StartDrawFreeformCommand;
-        break;
+      // case "Freeform":
+      //   Command = StartDrawFreeformCommand;
+      //   break;
       default:
         Command = StartDrawRectangleCommand;
     }
@@ -103,10 +105,13 @@ const handleDelete = () => {
           >
             <MousePointer size={16} /> Select
           </button>
-          <button onClick={handleDelete} className="toolbar-btn" title="Delete Selected">
+         <button 
+            onClick={handleDelete} 
+            className={`toolbar-btn ${isActive("delete") ? "active" : ""}`} 
+            title="Delete Selected or Toggle Eraser"
+          >
             <Trash2 size={16} /> Delete
           </button>
-
           <button
             onClick={() => executeCommand(StartPanCommand)}
             className={`toolbar-btn ${isActive("pan") ? "active" : ""}`}

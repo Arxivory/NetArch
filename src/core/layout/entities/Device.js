@@ -159,7 +159,7 @@ export class Device {
         this.y += dy;
         this.transform.position.x += dx;
         this.transform.position.y += dy;
-        this.body.setPosition(this.tileX, this.tileY, true);
+        this.body.setPosition(this.x, this.y, true);
     }
 
     checkIfOverlapping(floorId) {

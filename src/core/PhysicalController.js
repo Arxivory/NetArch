@@ -1,14 +1,14 @@
 import * as THREE from 'three';
-import appState from '../state/AppState';
-import deviceCatalog from '../data/deviceCatalog';
-import furnitureCatalog from '../data/furnitureCatalog';
+import appState from '../state/AppState.js';
+import deviceCatalog from '../data/deviceCatalog.js';
+import furnitureCatalog from '../data/furnitureCatalog.js';
 import { GLTFLoader, MTLLoader, OBJLoader } from 'three/examples/jsm/Addons.js';
-import DomainMesh from './rendering/structures/DomainMesh';
-import SiteMesh from './rendering/structures/SiteMesh';
-import SpaceMesh from './rendering/structures/SpaceMesh';
-import FloorMesh from './rendering/structures/FloorMesh';
-import FurnitureMesh from './rendering/furnitures/FurnitureMesh';
-import DeviceMesh from './rendering/devices/DeviceMesh';
+import DomainMesh from './rendering/structures/DomainMesh.js';
+import SiteMesh from './rendering/structures/SiteMesh.js';
+import SpaceMesh from './rendering/structures/SpaceMesh.js';
+import FloorMesh from './rendering/structures/FloorMesh.js';
+import FurnitureMesh from './rendering/furnitures/FurnitureMesh.js';
+import DeviceMesh from './rendering/devices/DeviceMesh.js';
 
 export class PhysicalController {
     constructor(scene) {
@@ -70,6 +70,12 @@ export class PhysicalController {
                 case 'polygon':
                     this.createPolygonalDomainMesh(domain);
                     break;
+                case 'freeform':
+                    this.createPolygonalDomainMesh(domain);
+                    break;
+                case 'circle':
+                    this.createCircularDomainMesh(domain);
+                    break;
             }
         }
 
@@ -82,6 +88,15 @@ export class PhysicalController {
             switch (site.shapeType) {
                 case 'rectangle':
                     this.createRectangleSiteMesh(site);
+                    break;
+                case 'polygon':
+                    this.createPolygonalSiteMesh(site);
+                    break;
+                case 'freeform':
+                    this.createFreeformSiteMesh(site);
+                    break;
+                case 'circle':
+                    this.createCircularSiteMesh(site);
                     break;
                 default:
                     break;
@@ -110,6 +125,15 @@ export class PhysicalController {
                 case 'rectangle':
                     this.createRectangleSpaceMesh(space);
                     break;
+                case 'polygon':
+                    this.createPolygonalSpaceMesh(space); // CHANGED: polygon spaces must use SpaceMesh, not DomainMesh
+                    break;
+                case 'freeform':
+                    this.createPolygonalSpaceMesh(space); // CHANGED: freeform space temporarily reuses the polygonal space mesh logic
+                    break;
+                    case 'circle':
+                    this.createCircularSpaceMesh(space);
+                    break;
                 default:
                     break;
             }
@@ -119,12 +143,17 @@ export class PhysicalController {
         for (const device of devices) {
             console.log('Processing device for rendering: ', device);
             activeDeviceIds.add(device.id);
+            if (this.deviceMeshes.has(device.id))
+                continue; // ADDED: avoid reloading the same device mesh every sync
+        
             this.createDeviceGLTFMesh(device);
         }
 
         for ( const furniture of furnitures) {
             console.log('Processing furniture for rendering:', furniture);
             activeFurnitureIds.add(furniture.id);
+            if (this.furnitureMeshes.has(furniture.id))
+                continue; // ADDED: avoid reloading the same furniture mesh every sync
             this.createFurnitureGLTFMesh(furniture).catch(err => 
                 console.error(`Failed to load furniture ${furniture.id}:`, err)
             );
@@ -175,34 +204,55 @@ export class PhysicalController {
     }
 
     createPolygonalDomainMesh(domain) {
-        const { x, y } = domain.geometry;
-        const modifiedX = x * this.defaultScaler;
-        const modifiedY = y * this.defaultScaler;
+    const { x, y, points } = domain.geometry; // CHANGED: use the stored anchor and absolute polygon points
 
-        const shape = new THREE.Shape();
-        const points = domain.geometry.points;
+    if (!points?.length) { // ADDED: avoid building an empty polygon mesh
+        console.warn("Polygonal domain has no points:", domain.id);
+        return;
+    }
 
-        shape.moveTo((points[0].x - x) * this.defaultScaler, (points[0].y - y) * this.defaultScaler);
+    const shape = new THREE.Shape();
 
-        for (let i = 1; i < points.length; i++) {
-            shape.lineTo((points[i].x - x) * this.defaultScaler, (points[i].y - y) * this.defaultScaler);
-        }
-        shape.closePath();
+    points.forEach((p, i) => {
+        const localX = (p.x - x) * this.defaultScaler;   // CHANGED: convert absolute X into local coordinates
+        const localY = -(p.y - y) * this.defaultScaler;  // CHANGED: flip Y so it maps correctly to Three.js Z
 
-        const geometry = new THREE.ExtrudeGeometry(shape, {
-            depth: 1,
-            bevelEnabled: false
-        });
+        if (i === 0) shape.moveTo(localX, localY);       // CHANGED: use corrected local polygon coordinates
+        else shape.lineTo(localX, localY);               // CHANGED: use corrected local polygon coordinates
+    });
 
-        geometry.rotateX(-Math.PI / 2);
+    shape.closePath();
 
-        const material = new THREE.MeshBasicMaterial({ 
-            color: 0x858585,
-            side: THREE.DoubleSide
-        });
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: 1,
+        bevelEnabled: false
+    });
 
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(modifiedX, 0.1, modifiedY);
+    geometry.rotateX(-Math.PI / 2);
+
+    const material = new THREE.MeshStandardMaterial({
+        color: 0xcccccc,
+        roughness: 0.9,
+        metalness: 0.3
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(
+        x * this.defaultScaler,   // CHANGED: place the whole polygon mesh at the stored anchor
+        0.1,
+        y * this.defaultScaler    // CHANGED: place the whole polygon mesh at the stored anchor
+    );
+
+    this.scene.add(mesh);
+    this.domainMeshes.set(domain.id, mesh);
+}
+
+
+
+    createCircularDomainMesh(domain) {
+        const domainMesh = new DomainMesh(domain, this.defaultScaler);
+        const mesh = domainMesh.getCircularForm();
+
         this.scene.add(mesh);
         this.domainMeshes.set(domain.id, mesh);
     }
@@ -210,6 +260,30 @@ export class PhysicalController {
     createRectangleSiteMesh(site) {
         const rectSite = new SiteMesh(site, this.defaultScaler);
         const mesh = rectSite.getRectangularForm();
+
+        this.scene.add(mesh);
+        this.siteMeshes.set(site.id, mesh);
+    }
+
+    createCircularSiteMesh(site) {
+        const siteMesh = new SiteMesh(site, this.defaultScaler);
+        const mesh = siteMesh.getCircularForm();
+
+        this.scene.add(mesh);
+        this.siteMeshes.set(site.id, mesh);
+    }
+
+    createPolygonalSiteMesh(site) {
+        const siteMesh = new SiteMesh(site, this.defaultScaler);
+        const mesh = siteMesh.getPolygonalForm();
+
+        this.scene.add(mesh);
+        this.siteMeshes.set(site.id, mesh);
+    }
+
+    createFreeformSiteMesh(site) {
+        const siteMesh = new SiteMesh(site, this.defaultScaler);
+        const mesh = siteMesh.getFreeformForm();
 
         this.scene.add(mesh);
         this.siteMeshes.set(site.id, mesh);
@@ -231,6 +305,40 @@ export class PhysicalController {
         this.scene.add(mesh);
         this.spaceMeshes.set(space.id, mesh);
     }
+    createPolygonalSpaceMesh(space) {
+    const floor = this.store.floors.find(f => f.id === space.floorId);
+    const altitude = floor ? floor.altitude || 0 : 0; // ADDED: polygonal spaces still need to sit on the correct floor
+
+    console.log(`Creating polygonal space ${space.id} on floor ${space.floorId} at altitude ${altitude}`); // ADDED: debug log for polygon space creation
+
+    const polygonalSpace = new SpaceMesh(space, this.defaultScaler);
+    const mesh = polygonalSpace.getPolygonalForm(); // ADDED: use the dedicated polygonal space mesh builder
+
+    mesh.position.y = altitude; // ADDED: stack the whole space group on its floor altitude
+
+    console.log(`Polygonal space mesh positioned at Y=${mesh.position.y}`); // ADDED: confirm final vertical placement
+
+    this.scene.add(mesh);
+    this.spaceMeshes.set(space.id, mesh);
+}
+    createCircularSpaceMesh(space) {
+    const floor = this.store.floors.find(f => f.id === space.floorId);
+    const altitude = floor ? floor.altitude || 0 : 0; // ADDED: circular spaces still need to sit on the correct floor
+
+    console.log(`Creating circular space ${space.id} on floor ${space.floorId} at altitude ${altitude}`); // ADDED: debug log for circular space creation
+
+    const circularSpace = new SpaceMesh(space, this.defaultScaler);
+    const mesh = circularSpace.getCircularForm(); // ADDED: use the dedicated circular space mesh builder
+
+    mesh.position.y = altitude; // ADDED: stack the whole space group on its floor altitude
+
+    console.log(`Circular space mesh positioned at Y=${mesh.position.y}`); // ADDED: confirm final vertical placement
+
+    this.scene.add(mesh);
+    this.spaceMeshes.set(space.id, mesh);
+}
+
+
 
     createFloorMesh(floor) {
         const site = this.store.sites.find(s => s.id === floor.siteId);

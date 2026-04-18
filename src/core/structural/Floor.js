@@ -9,6 +9,15 @@ export default class Floor {
         this.structureType = data.structureType || 'Floor';
         this.type = data.type || 'floor';
         this.altitude = data.altitude || 0; 
+
+        this.geometry = {
+            x: data.x || 0,
+            y: data.y || 0,
+            width: data.w || 0,
+            height: data.h || 0,
+            radius: data.r || 0,
+            points: data.points ? [...data.points] : []
+        };
         
         this.spaces = data.spaces ? data.spaces.map(s => new Space(s)) : [];
 

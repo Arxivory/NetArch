@@ -77,6 +77,7 @@ export class Freeform {
         for (let i = 1; i < scaled.length; i++) {
             path.lineTo(scaled[i].x + 0.5, scaled[i].y + 0.5);
         }
+        path.closePath();
         this.path = path;
     }
 
@@ -174,7 +175,7 @@ export class Freeform {
     }
 
     checkIfOverlapping(floorId) {
-        const ceStruct = this.structureType;
+        
         for (const body of this.bodies) {
             this.system.remove(body);
         }
@@ -182,7 +183,8 @@ export class Freeform {
         for (const body of this.bodies) {
             const structMap = new Map();
             structMap.set("Site", "Domain");
-            structMap.set("Space", "Site");
+            structMap.set("Floor", "Site");
+            structMap.set("Space", "Floor");
             const requiredParent = structMap.get(this.structureType);
             let overlapping = false;
             this.system.checkOne(body, (other) => {

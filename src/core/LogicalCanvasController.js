@@ -959,14 +959,9 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
                 return true;
             };
 
+            // error handling for moving outside parent bounds
             if (!isWithinParent()) {
-                const prettyChildName = shapeType === 'site' ? 'Site' : 'Space';
-                const prettyParentName = shapeType === 'site' ? 'Domain' : 'Floor';
                 if (!this.invalidMoveAlerted.has(en.id)) {
-                    showErrorModal(
-                        `${prettyChildName} movement cancelled.\nThe ${prettyChildName} must remain inside its parent ${prettyParentName}.`,
-                        'Out of Bounds Error'
-                    );
                     this.invalidMoveAlerted.add(en.id);
                 }
 

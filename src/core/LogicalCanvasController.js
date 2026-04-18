@@ -54,7 +54,7 @@ export class LogicalCanvasController {
       onFreeformCreated: (freeform) => this._handleShapeCreated(freeform, 'freeform'),
       onWallCreated: (wall) => this._handleWallCreated(wall),
       onCableCreated: (cable) => this._handleCableCreated(cable),
-      onDeviceAdded: (device) => this._handleDeviceAdded(device),
+      // onDeviceAdded: (device) => this._handleDeviceAdded(device),
       onFurnitureAdded: (furniture) => this._handleFurnitureAdded(furniture),
       onEntitySelected: (entity) => this._handleEntitySelected(entity),
       onPortSelect: (device, x, y, callback) => this._handlePortSelect(device, x, y, callback),
@@ -292,7 +292,28 @@ addDevice(deviceData, x, y) {
             newDevice.floorId = focusedId;
         }
 
-        this.layout.addDevice({ ...newDevice }, x, y);
+        // this.layout.devices.push(newDevice);
+        const layoutDevice = this.layout.shapeCreator.createDevice(
+          newDevice, // still pass your instance
+          x,
+          y,
+          this.layout.shapeRenderer.gridSize * 1.5
+        );
+
+        // preserve IDs + metadata
+        layoutDevice.id = newDevice.id;
+        layoutDevice.label = newDevice.label;
+        layoutDevice.name = newDevice.name;
+        layoutDevice.catalogId = newDevice.catalogId;
+        layoutDevice.floorId = newDevice.floorId;
+        layoutDevice.spaceId = newDevice.spaceId;
+
+        this.layout.devices.push(layoutDevice);
+        this.layout._render();
+        this.layout._render();
+
+
+        console.log("ADDING DEVICE TO LAYOUT:", newDevice.id);
 
         if (appState.network?.addDevice) {
             appState.network.addDevice(newDevice);
@@ -782,9 +803,9 @@ _handleShapeCreated(shapeData, shapeType) {
     this.layout.setZoom(zoom);
   }
 
-  _handleDeviceAdded(device) {
-    this.addDevice(device, device.x, device.y);
-  }
+  // _handleDeviceAdded(device) {
+  //   this.addDevice(device, device.x, device.y);
+  // }
 
   _handleFurnitureAdded(furniture) {
     this.addFurniture(furniture, furniture.x, furniture.y);
@@ -841,6 +862,34 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
         appState.selection.notify();
         return;
     }
+
+    const isDevice = en.interfaces !== undefined || en.catalogId !== undefined;
+
+    if (isDevice) {
+        const persistedDevice = appState.network?.getDevice?.(en.id);
+
+        if (persistedDevice) {
+            const centerX = en.tileX + (en.tileWidth / 2);
+            const centerY = en.tileY + (en.tileHeight / 2);
+
+            appState.network.updateDevice(en.id, {
+                floorId: en.floorId ?? persistedDevice.floorId ?? null,
+                spaceId: en.spaceId ?? persistedDevice.spaceId ?? null,
+                transform: {
+                    ...persistedDevice.transform,
+                    position: {
+                        ...persistedDevice.transform.position,
+                        x: centerX, // ADDED: persist the logical center, not the tile’s top-left corner
+                        y: centerY  // ADDED: DeviceMesh reads transform.position.y for the plan-space depth axis
+                    }
+                }
+            });
+        }
+
+        appState.selection.notify?.(); // ADDED: refresh hierarchy/properties once after the drag commit
+        return; // ADDED: skip the heavy structural traversal for device drags
+    }
+
 
     // Debug: Log movement
     if ((dx !== 0 || dy !== 0) && en.structureType) {

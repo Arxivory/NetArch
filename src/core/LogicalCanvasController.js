@@ -842,6 +842,34 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
         return;
     }
 
+    const isDevice = en.interfaces !== undefined || en.catalogId !== undefined;
+
+    if (isDevice) {
+        const persistedDevice = appState.network?.getDevice?.(en.id);
+
+        if (persistedDevice) {
+            const centerX = en.tileX + (en.tileWidth / 2);
+            const centerY = en.tileY + (en.tileHeight / 2);
+
+            appState.network.updateDevice(en.id, {
+                floorId: en.floorId ?? persistedDevice.floorId ?? null,
+                spaceId: en.spaceId ?? persistedDevice.spaceId ?? null,
+                transform: {
+                    ...persistedDevice.transform,
+                    position: {
+                        ...persistedDevice.transform.position,
+                        x: centerX, // ADDED: persist the logical center, not the tile’s top-left corner
+                        y: centerY  // ADDED: DeviceMesh reads transform.position.y for the plan-space depth axis
+                    }
+                }
+            });
+        }
+
+        appState.selection.notify?.(); // ADDED: refresh hierarchy/properties once after the drag commit
+        return; // ADDED: skip the heavy structural traversal for device drags
+    }
+
+
     // Debug: Log movement
     if ((dx !== 0 || dy !== 0) && en.structureType) {
         console.log(`🚀 Moving ${en.structureType} canvas entity (${en.id}) by dx=${dx}, dy=${dy}`);

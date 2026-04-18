@@ -757,7 +757,6 @@ if (this.mode === 'freeform') {
         const dy = p.y - this.interaction.start.y;
 
         if (this.interaction.mode === "move") {
-          console.log(`📦 MOVE: en.id=${en.id}, en.structureType=${en.structureType}, dx=${dx}, dy=${dy}`);
           en.move(dx, dy);
         }
 
@@ -810,13 +809,12 @@ if (this.mode === 'freeform') {
   }
 
         this.interaction.start = { x: p.x, y: p.y };
-        if (this.onEntityChanged) {
-            // Debug: Log the delta being passed to controller
-            if (dx !== 0 || dy !== 0) {
-                console.log(`📍 onEntityChanged called with dx=${dx}, dy=${dy} for ${en.id}`);
-            }
-            this.onEntityChanged(en, dx, dy);
+        const shouldSyncDuringDrag = !!en.structureType; // ADDED: only structural parents need live sync while dragging so children follow immediately
+
+        if (shouldSyncDuringDrag && this.onEntityChanged) {
+          this.onEntityChanged(en, dx, dy); // CHANGED: defer device persistence until pointerup for smoother dragging
         }
+
         this._render();
         return;
       }
@@ -851,12 +849,13 @@ _onPointerUp(e) {
       this._createShapeFromMode();
     }
 
-    if (this.interaction.mode === 'move' && this.selectedEntity) {
+    if (this.selectedEntity && (this.interaction.mode === 'move' || this.interaction.mode === 'resize')) {
       let restoreDx = 0;
       let restoreDy = 0;
+      const isMove = this.interaction.mode === 'move';
       const hasSavedPosition = this.selectedEntity.savedPosition !== undefined;
 
-      if (this._checkForOverlap(this.selectedEntity, "transformation")) {
+      if (isMove && this._checkForOverlap(this.selectedEntity, "transformation")) {
         if (hasSavedPosition && typeof this.selectedEntity.restoreToSavedPosition === 'function') {
           restoreDx = this.selectedEntity.savedPosition.x - this.selectedEntity.x;
           restoreDy = this.selectedEntity.savedPosition.y - this.selectedEntity.y;
@@ -865,9 +864,10 @@ _onPointerUp(e) {
       }
 
       if (this.onEntityChanged) {
-        this.onEntityChanged(this.selectedEntity, restoreDx, restoreDy);
+        this.onEntityChanged(this.selectedEntity, restoreDx, restoreDy); // CHANGED: commit device move/resize only once at drag end
       }
     }
+
 
     this.interaction = {
       mode: null,

@@ -1514,14 +1514,14 @@ _getEntityInteractionBounds(en) {
   _findDeviceAt(x, y) {
     for (const device of this.devices) {
       const bounds = this._getEntityInteractionBounds(device); // ADDED: use the same tile bounds used for selection/highlighting
-      const dx = device.x;
-      const dy = device.y;
+      if (!bounds) continue;
+
 
       if (
-        x >= dx &&
-        x <= dx + device.w &&
-        y >= dy &&
-        y <= dy + device.h
+        x >= bounds.x &&
+        x <= bounds.x + bounds.w &&
+        y >= bounds.y &&
+        y <= bounds.y + bounds.h
       ) {
         return device;
       }

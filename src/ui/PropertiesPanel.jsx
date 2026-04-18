@@ -47,7 +47,6 @@ const DEVICE_CONFIGS = {
   ]
 };
 
-
 export default function PropertiesPanel({ canvasController }) {
   const [selectedEntity, setSelectedEntity] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -102,14 +101,12 @@ useEffect(() => {
         // This ensures that if we renamed it in the tree, the properties panel sees it
         let structureNode = null;
         if (appState.structural) {
-          const { domains, sites, floors, spaces, devices, furnitures } = appState.structural;
+          const { domains, sites, floors, spaces } = appState.structural;
           structureNode = 
             (domains || []).find(d => d.id === entityId) || 
             (sites || []).find(s => s.id === entityId) || 
             (floors || []).find(f => f.id === entityId) || 
-            (spaces || []).find(sp => sp.id === entityId) || 
-            (devices || []).find(dev => dev.id === entityId) || 
-            (furnitures || []).find(f => f.id === entityId);
+            (spaces || []).find(sp => sp.id === entityId);
         }
 
         // Merge the freshest label into the entity
@@ -375,7 +372,6 @@ useEffect(() => {
           <input 
             className="field-input" 
             value={selectedEntity?.label || ""} 
-            onFocus={handleStructureRenameBlur**}
             onChange={(e) => handleDeviceChange('label', e.target.value)}
            />
           </div>

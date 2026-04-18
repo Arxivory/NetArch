@@ -49,7 +49,6 @@ const DEVICE_CONFIGS = {
 
 
 
-
 export default function PropertiesPanel({ canvasController }) {
   const [selectedEntity, setSelectedEntity] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -60,7 +59,7 @@ export default function PropertiesPanel({ canvasController }) {
   });
   const originalLabelRef = useRef("");
 
-useEffect(() => {
+  useEffect(() => {
     const updatePanelContent = () => {
       let ids = appState.selection.getSelectedDeviceIds();
       if (!ids || ids.length === 0) {
@@ -71,9 +70,12 @@ useEffect(() => {
       if (ids && ids.length > 0) {
         const entityId = ids[0];
         let entity = findEntityById(entityId);
+
+        console.log("Looking for entity:", entityId);
+        console.log("Found entity:", entity);
         
         // --- NEW: Grab the freshest data from Structural Store ---
-        // This ensures that if we renamed it in the tree, the properties panel sees it
+        // This ensures that if we renamed it in the tree, the properties panel sees it yuh
         let structureNode = null;
         if (appState.structural) {
           const { domains, sites, floors, spaces } = appState.structural;
@@ -94,9 +96,17 @@ useEffect(() => {
         if (entity) {
           setSelectedEntity(entity);
           setTransform({
-            position: { ...entity.transform.position },
-            scale: { ...entity.transform.scale },
-            rotation: { ...entity.transform.rotation }
+            position: {
+              x: entity.transform?.position?.x ?? entity.x ?? 0,
+              y: entity.transform?.position?.y ?? entity.y ?? 0,
+              z: entity.transform?.position?.z ?? 0
+            },
+            scale: entity.transform?.scale ?? 1,
+            rotation: {
+              x: entity.transform?.rotation?.x ?? 0,
+              y: entity.transform?.rotation?.y ?? 0,
+              z: entity.transform?.rotation?.z ?? 0
+            }
           });
           return;
         }
@@ -211,12 +221,12 @@ useEffect(() => {
     if (entity) {
       setTransform({
         position: { ...entity.transform.position },
-        scale: { ...entity.transform.scale },
+        scale: entity.transform.scale ?? 1,
         rotation: { ...entity.transform.rotation }
       });
     }
   }
-
+  
   // 2. Define handleDeviceChange AFTER the closing bracket of the previous function
   const handleDeviceChange = (field, value) => {
     if (!selectedEntity || !canvasController) return;
@@ -451,5 +461,8 @@ useEffect(() => {
         document.body
       )}
     </div>
+    
   );
+  console.log("FIND → layout instance:", canvasController.layout);
+  console.log("FIND layout === global?", canvasController.layout === window.__layoutRef);
 }

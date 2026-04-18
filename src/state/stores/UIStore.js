@@ -87,10 +87,15 @@ export class UIStore {
   }
 
   setActiveFloor(floorId) {
+    if (this.activeFloorId === floorId) {
+      return floorId; // 🚫 prevents loop
+    }
+
     this.activeFloorId = floorId;
     this.notify();
     return floorId;
   }
+
 
   getActiveFloor() {
     return this.activeFloorId;
@@ -134,6 +139,10 @@ export class UIStore {
   }
 
   notify() {
+    if (this._notifying) return;
+
+    this._notifying = true;
+
     this.listeners.forEach(listener => {
       try {
         listener(this);
@@ -141,5 +150,7 @@ export class UIStore {
         console.error('Error in UIStore listener:', error);
       }
     });
+
+    this._notifying = false;
   }
 }

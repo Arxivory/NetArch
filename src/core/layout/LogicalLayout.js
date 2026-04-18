@@ -346,12 +346,12 @@ isPointInsideShape(id, x, y) {
     const activeFloor = appState.ui.activeFloorId;
     device.floorId = activeFloor || null;
 
-    if (!this._checkForOverlap(device, "creation")) {
-      if (this.onDeviceAdded) {
-        this.devices.push(device);
-        this.onDeviceAdded(device);
-      }
+    console.log("ADD → layout instance:", this.layout);
+    console.log("ADD layout === global?", this.layout === window.__layoutRef);
+    window.__layoutRef = this.layout;
 
+    if (!this._checkForOverlap(device, "creation")) {
+      this.devices.push(device);
       this._render();
     }
   }
@@ -1395,9 +1395,17 @@ _onPointerUp(e) {
 
   findEntityById(id) {
     const lists = this.getAllSelectableEntities();
+<<<<<<< HEAD
     for (let i = 0; i < lists.length; i++) {
       const arr = lists[i];
       if (!arr) continue;
+=======
+
+    console.log("Searching for:", id);
+    console.log("Device list:", this.devices.map(d => d.id));
+
+    for (const arr of lists) {
+>>>>>>> el
       for (const en of arr) {
         if (en && en.id === id) {
           return en;
@@ -1411,9 +1419,21 @@ _onPointerUp(e) {
 
   removeEntityById(id) {
     const lists = this.getAllSelectableEntities();
-    for (let arr of lists) {
-      arr = arr.filter(e => e.id !== id);
-    }
+    const collections = [
+      'devices',
+      'rectangles',
+      'polygons',
+      'circles',
+      'walls',
+      'cables',
+      'furnitures'
+    ];
+
+    collections.forEach(key => {
+      if (Array.isArray(this[key])) {
+        this[key] = this[key].filter(e => e.id !== id);
+      }
+    });
     return null;
   }
 
@@ -1458,7 +1478,16 @@ updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {
 
     this.selectedEntity = en || null;
 
+    console.log("SELECTED ENTITY:", en);
+
+    if (en) {
+      appState.selection.setSelectedDeviceIds([en.id]);
+    } else {
+      appState.selection.clearSelection();
+    }
+
     if (this.onEntitySelected) this.onEntitySelected(en);
+
     this._render();
     return en;
   }

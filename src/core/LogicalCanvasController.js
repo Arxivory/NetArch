@@ -54,7 +54,7 @@ export class LogicalCanvasController {
       onFreeformCreated: (freeform) => this._handleShapeCreated(freeform, 'freeform'),
       onWallCreated: (wall) => this._handleWallCreated(wall),
       onCableCreated: (cable) => this._handleCableCreated(cable),
-      onDeviceAdded: (device) => this._handleDeviceAdded(device),
+      // onDeviceAdded: (device) => this._handleDeviceAdded(device),
       onFurnitureAdded: (furniture) => this._handleFurnitureAdded(furniture),
       onEntitySelected: (entity) => this._handleEntitySelected(entity),
       onPortSelect: (device, x, y, callback) => this._handlePortSelect(device, x, y, callback),
@@ -292,7 +292,28 @@ addDevice(deviceData, x, y) {
             newDevice.floorId = focusedId;
         }
 
-        this.layout.addDevice({ ...newDevice }, x, y);
+        // this.layout.devices.push(newDevice);
+        const layoutDevice = this.layout.shapeCreator.createDevice(
+          newDevice, // still pass your instance
+          x,
+          y,
+          this.layout.shapeRenderer.gridSize * 1.5
+        );
+
+        // preserve IDs + metadata
+        layoutDevice.id = newDevice.id;
+        layoutDevice.label = newDevice.label;
+        layoutDevice.name = newDevice.name;
+        layoutDevice.catalogId = newDevice.catalogId;
+        layoutDevice.floorId = newDevice.floorId;
+        layoutDevice.spaceId = newDevice.spaceId;
+
+        this.layout.devices.push(layoutDevice);
+        this.layout._render();
+        this.layout._render();
+
+
+        console.log("ADDING DEVICE TO LAYOUT:", newDevice.id);
 
         if (appState.network?.addDevice) {
             appState.network.addDevice(newDevice);
@@ -782,9 +803,9 @@ _handleShapeCreated(shapeData, shapeType) {
     this.layout.setZoom(zoom);
   }
 
-  _handleDeviceAdded(device) {
-    this.addDevice(device, device.x, device.y);
-  }
+  // _handleDeviceAdded(device) {
+  //   this.addDevice(device, device.x, device.y);
+  // }
 
   _handleFurnitureAdded(furniture) {
     this.addFurniture(furniture, furniture.x, furniture.y);

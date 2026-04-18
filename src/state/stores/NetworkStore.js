@@ -1,4 +1,5 @@
 import Device from "../../core/network/Device";
+import appState from "../AppState";
 
 export class NetworkStore {
   constructor() {
@@ -25,6 +26,8 @@ export class NetworkStore {
 
     console.log(deviceData);
 
+    const floor = appState.structural.getFloor(deviceData.floorId);
+
     const device = new Device({
         id: deviceData.id,
         type: deviceData.type,
@@ -35,7 +38,7 @@ export class NetworkStore {
         spaceId: deviceData.spaceId,
         domainId: deviceData.domainId,
         transform: {
-            position: { x: deviceData.position.x * 0.7, y: 1, z: deviceData.position.y * 0.7},
+            position: { x: deviceData.position.x * 0.7, y: floor.altitude + 1, z: deviceData.position.y * 0.7},
             rotation: { x: 0, y: 0, z: 0 },
             scale: { x: 7, y: 7, z: 7 }
         }

@@ -1,4 +1,5 @@
 import Furniture from "../../core/furniture/Furniture"
+import appState from "../AppState";
 
 export class FurnitureStore {
     constructor() {
@@ -14,6 +15,8 @@ export class FurnitureStore {
             console.warn(`Furniture with ID ${furniture.id} already exists. Skipping add.`);
             return null;
         }
+
+        const floor = appState.structural.getFloor(furniture.floorId);
     
         const newFurnitureData = {
             id: furniture.id,
@@ -22,7 +25,7 @@ export class FurnitureStore {
             floorId: furniture.floorId || null,
             spaceId: furniture.spaceId || null,
             transform: {
-                position: { x: furniture.position.x * 0.7, y: 1, z: furniture.position.y * 0.7 },
+                position: { x: furniture.position.x * 0.7, y: floor.altitude + 1, z: furniture.position.y * 0.7 },
                 rotation: { x: 0, y: 0, z: 0 },
                 scale: { x: 5, y: 5, z: 5 }
             }

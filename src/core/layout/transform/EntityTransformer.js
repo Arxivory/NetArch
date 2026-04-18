@@ -45,15 +45,11 @@ export class EntityTransformer {
         en.body.setPosition(en.tileX, en.tileY, true);
       }
       else if (en.type === 'wall' || en.type === 'cable') {
-        const dx = nx - en.x1;
-        const dy = ny - en.y1;
-        en.x1 += dx;
-        en.y1 += dy;
-        en.x2 += dx;
-        en.y2 += dy;
-        const path = new Path2D();
-        path.moveTo(en.x1, en.y1);
-        path.lineTo(en.x2, en.y2);
+        const x = Math.min(en.transform.scale.x1, en.transform.scale.x2);
+        const y = Math.min(en.transform.scale.y1, en.transform.scale.y2);
+        const dx = nx - x;
+        const dy = ny - y;
+        en.move(dx, dy);
       }
       if (checkForOverlap(en, "transformation")) {
         console.log("Move area overlapping.");

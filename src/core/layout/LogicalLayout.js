@@ -6,7 +6,9 @@ import { Selection } from '../editor/Selection.js';
 import EntityTransformer from './transform/EntityTransformer.js';
 import { System } from 'check2d';
 import appState from '../../state/AppState.js';
-import { showErrorModal } from '../../util/ErrorHandling.js';
+
+// ADD THIS IMPORT:
+import { UnitSystem, GridScale } from '../../util/UnitSystem.js'; // Adjust path if needed
 
 export class LogicalLayout {
   constructor(opts = {}) {
@@ -752,6 +754,7 @@ if (this.mode === 'freeform') {
         const dy = p.y - this.interaction.start.y;
 
         if (this.interaction.mode === "move") {
+          console.log(`📦 MOVE: en.id=${en.id}, en.structureType=${en.structureType}, dx=${dx}, dy=${dy}`);
           en.move(dx, dy);
         }
 
@@ -804,7 +807,13 @@ if (this.mode === 'freeform') {
   }
 
         this.interaction.start = { x: p.x, y: p.y };
-        this.onEntityChanged(en);
+        if (this.onEntityChanged) {
+            // Debug: Log the delta being passed to controller
+            if (dx !== 0 || dy !== 0) {
+                console.log(`📍 onEntityChanged called with dx=${dx}, dy=${dy} for ${en.id}`);
+            }
+            this.onEntityChanged(en, dx, dy);
+        }
         this._render();
         return;
       }
@@ -823,12 +832,37 @@ if (this.mode === 'freeform') {
 
   }
 
-  _onPointerUp(e) {
-    if (this.interaction.mode === 'move') {
+_onPointerUp(e) {
+    console.log('[LogicalLayout] _onPointerUp', {
+      mode: this.mode,
+      pointerDown: this.pointerHandler.getIsPointerDown(),
+      startPoint: this.startPoint,
+      currentPoint: this.currentPoint
+    });
+
+    const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !== 'none';
+    const hasValidDrawPoints = this.startPoint && this.currentPoint;
+
+    if (isDrawMode && hasValidDrawPoints) {
+      console.log('[LogicalLayout] finalizing draw mode on pointer up');
+      this._createShapeFromMode();
+    }
+
+    if (this.interaction.mode === 'move' && this.selectedEntity) {
+      let restoreDx = 0;
+      let restoreDy = 0;
+      const hasSavedPosition = this.selectedEntity.savedPosition !== undefined;
+
       if (this._checkForOverlap(this.selectedEntity, "transformation")) {
-        this.selectedEntity.restoreToSavedPosition();
-        this.onEntityChanged();
-        this._render();
+        if (hasSavedPosition && typeof this.selectedEntity.restoreToSavedPosition === 'function') {
+          restoreDx = this.selectedEntity.savedPosition.x - this.selectedEntity.x;
+          restoreDy = this.selectedEntity.savedPosition.y - this.selectedEntity.y;
+          this.selectedEntity.restoreToSavedPosition();
+        }
+      }
+
+      if (this.onEntityChanged) {
+        this.onEntityChanged(this.selectedEntity, restoreDx, restoreDy);
       }
     }
 
@@ -840,21 +874,11 @@ if (this.mode === 'freeform') {
     this.isResizing = false;
     this.resizeStart = null;
 
-    if (!this.pointerHandler.getIsPointerDown()) return;
-
     if (this.mode === 'pan') {
       this.pointerHandler.setCursor('grab');
     }
 
     this.pointerHandler.setPointerDown(false);
-
-    if (!this.startPoint || !this.currentPoint) {
-      this.startPoint = null;
-      this.currentPoint = null;
-      return;
-    }
-
-    this._createShapeFromMode();
 
     this.startPoint = null;
     this.currentPoint = null;
@@ -916,6 +940,7 @@ if (this.mode === 'freeform') {
       if (rect) {
         rect.floorId = activeFloor || null;
         if (rect.body) rect.body.floorId = activeFloor || null;
+        console.log(`📦 Created canvas rectangle with ID: ${rect.id}, Type: ${this.structureType}`);
         if (!this._checkForOverlap(rect, "creation")) {
           if (this.shapeCreator.onRectangleCreated) {
             this.shapeCreator.onRectangleCreated(rect);
@@ -1186,21 +1211,128 @@ if (this.mode === 'freeform') {
       const w = bounds?.w;
       const h = bounds?.h;
 
-      if (x !== undefined && w !== undefined) {
+      // For circles, we only need x, y, and radius defined
+      const isCircle = en.type === 'circle' && en.r !== undefined;
+      
+      if (isCircle || (x !== undefined && w !== undefined)) {
         ctx.save();
         ctx.strokeStyle = "#00AEEF";
         ctx.lineWidth = 2;
-        ctx.strokeRect(x, y, w, h);
 
-        const size = 8;
-        const handles = [
-          [x, y], [x + w, y], [x, y + h], [x + w, y + h]
-        ];
+        // Draw selection indicators
+        if (isCircle) {
+          // For circles, draw a circle outline
+          ctx.beginPath();
+          ctx.arc(en.x, en.y, en.r, 0, Math.PI * 2);
+          ctx.stroke();
 
-        ctx.fillStyle = "#00AEEF";
-        handles.forEach(([hx, hy]) => {
-          ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
-        });
+          // Draw handles at cardinal points
+          const size = 8;
+          const handles = [
+            [en.x, en.y - en.r],     // top
+            [en.x, en.y + en.r],     // bottom
+            [en.x - en.r, en.y],     // left
+            [en.x + en.r, en.y]      // right
+          ];
+
+          ctx.fillStyle = "#00AEEF";
+          handles.forEach(([hx, hy]) => {
+            ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
+          });
+        } else {
+          // For rectangles, draw bounding box
+          ctx.strokeRect(x, y, w, h);
+
+          const size = 8;
+          const handles = [
+            [x, y], [x + w, y], [x, y + h], [x + w, y + h]
+          ];
+
+          ctx.fillStyle = "#00AEEF";
+          handles.forEach(([hx, hy]) => {
+            ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
+          });
+        }
+
+// --- NEW FLOATING LABELS ---
+        // Added 'space' to the VIP list just like you wanted!
+        const isStructural = ['rectangle', 'site', 'domain', 'space', 'polygon', 'freeform', 'circle'].includes(en.type);
+
+        if (isStructural) {
+          ctx.fillStyle = "black";
+          ctx.font = "bold 14px Arial";
+          ctx.textAlign = "center";
+
+          // CIRCLE LOGIC: Display diameter and circumference
+          if (en.type === 'circle' && en.r !== undefined) {
+            const diameter = en.r * 2;
+            const circumference = 2 * Math.PI * en.r;
+
+            const diameterInMeters = UnitSystem.format(GridScale.toMeters(diameter), 'm');
+            const circumferenceInMeters = UnitSystem.format(GridScale.toMeters(circumference), 'm');
+
+            // Diameter label at the top
+            ctx.fillText(`Ø ${diameterInMeters}`, en.x, en.y - en.r - 20);
+
+            // Circumference label at the bottom
+            ctx.fillText(`C ${circumferenceInMeters}`, en.x, en.y + en.r + 35);
+          }
+          // THE MAGIC SWITCH: 
+          // We no longer care what its name is. If it has multiple points, treat it like a polygon!
+          else if (en.points && en.points.length > 1) {
+            
+            // PERIMETER LOGIC FOR ANY CUSTOM SHAPE
+            for (let i = 0; i < en.points.length; i++) {
+              const p1 = en.points[i];
+              const p2 = en.points[(i + 1) % en.points.length];
+
+              const dx = p2.x - p1.x;
+              const dy = p2.y - p1.y;
+              const pixelDistance = Math.sqrt(dx * dx + dy * dy);
+
+              const meters = UnitSystem.format(GridScale.toMeters(pixelDistance), 'm');
+
+              const midX = (p1.x + p2.x) / 2;
+              const midY = (p1.y + p2.y) / 2;
+
+              let angle = Math.atan2(dy, dx);
+              
+              if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
+                 angle += Math.PI;
+              }
+
+              ctx.save();
+              ctx.translate(midX, midY);
+              ctx.rotate(angle);
+              ctx.fillText(meters, 0, -8); 
+              ctx.restore();
+            }
+          } else {
+            // BOUNDING BOX LOGIC FOR STANDARD WxH RECTANGLES
+            let boxX = x;
+            let boxY = y;
+            let boxW = w;
+            let boxH = h;
+
+            // Top Label: Overall Width
+            if (boxW !== undefined) {
+              const widthInMeters = UnitSystem.format(GridScale.toMeters(boxW), 'm');
+              ctx.fillText(widthInMeters, boxX + (boxW / 2), boxY - 15);
+            }
+
+            // Right Label: Overall Height
+            if (boxH !== undefined) {
+              const heightInMeters = UnitSystem.format(GridScale.toMeters(boxH), 'm');
+              ctx.save();
+              ctx.translate(boxX + boxW + 20, boxY + (boxH / 2));
+              ctx.rotate(Math.PI / 2);
+              ctx.fillText(heightInMeters, 0, 0);
+              ctx.restore();
+            }
+          }
+        }
+        // ---------------------------
+
         ctx.restore();
       }
     }
@@ -1253,19 +1385,24 @@ if (this.mode === 'freeform') {
       this.doors,
       this.windows,
       this.roofs,
-      this.freeforms
+      this.freeforms,
+      this.furnitures
     ];
   }
 
   findEntityById(id) {
     const lists = this.getAllSelectableEntities();
-    for (const arr of lists) {
+    for (let i = 0; i < lists.length; i++) {
+      const arr = lists[i];
+      if (!arr) continue;
       for (const en of arr) {
         if (en && en.id === id) {
           return en;
         }
       }
     }
+    // If entity not found in layout, log for debugging
+    console.log(`⚠️ No canvas entity found in layout with id: ${id}`);
     return null;
   }
 
@@ -1277,9 +1414,15 @@ if (this.mode === 'freeform') {
     return null;
   }
 
-  updateEntityTransform(id, updates = {}) {
+updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {
     const en = this.findEntityById(id);
-    if (this.entityTransformer.applyEntityTransform(en, updates, this._checkForOverlap.bind(this))) {
+    if (!en) return false;
+
+    // If skipOverlapCheck is true, we provide a dummy function that always returns false (no overlap).
+    // Otherwise, we bind the strict physical overlap checker.
+    const overlapValidator = skipOverlapCheck ? () => false : this._checkForOverlap.bind(this);
+
+    if (this.entityTransformer.applyEntityTransform(en, updates, overlapValidator)) {
       this._render();
       return true;
     }

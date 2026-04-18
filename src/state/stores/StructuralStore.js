@@ -32,22 +32,27 @@ export class StructuralStore {
         return newDomain;
     }
 
-    removeDomain(domainId) {
+removeDomain(domainId) {
         const index = this.domains.findIndex(d => d.id === domainId);
         if (index === -1) {
             console.warn(`Domain not found: ${domainId}`);
             return false;
         }
 
-        this.sites = this.sites.filter(s => s.domainId !== domainId);
-        const siteIds = this.sites.map(s => s.id);
-        this.floors = this.floors.filter(f => !siteIds.includes(f.siteId));
-        const floorIds = this.floors.map(f => f.id);
-        this.spaces = this.spaces.filter(sp => !floorIds.includes(sp.floorId));
+        // 1. Gather all child IDs that belong to this domain BEFORE deleting
+        const siteIds = this.sites.filter(s => s.domainId === domainId).map(s => s.id);
+        const floorIds = this.floors.filter(f => siteIds.includes(f.siteId)).map(f => f.id);
+        const spaceIds = this.spaces.filter(sp => floorIds.includes(sp.floorId)).map(sp => sp.id);
 
+        // 2. Perform the deletions
+        this.sites = this.sites.filter(s => s.domainId !== domainId);
+        this.floors = this.floors.filter(f => !siteIds.includes(f.siteId));
+        this.spaces = this.spaces.filter(sp => !floorIds.includes(sp.floorId));
         this.domains.splice(index, 1);
+        
         this.notify();
-        return true;
+        // 3. Return an array of EVERY ID that was just deleted
+        return [domainId, ...siteIds, ...floorIds, ...spaceIds];
     }
 
     getDomain(domainId) {
@@ -78,7 +83,7 @@ export class StructuralStore {
         return site;
     }
 
-    removeSite(siteId) {
+removeSite(siteId) {
         const index = this.sites.findIndex(s => s.id === siteId);
         if (index === -1) {
             console.warn(`Site not found: ${siteId}`);
@@ -86,12 +91,14 @@ export class StructuralStore {
         }
 
         const floorIds = this.floors.filter(f => f.siteId === siteId).map(f => f.id);
+        const spaceIds = this.spaces.filter(sp => floorIds.includes(sp.floorId)).map(sp => sp.id);
+
         this.floors = this.floors.filter(f => f.siteId !== siteId);
         this.spaces = this.spaces.filter(sp => !floorIds.includes(sp.floorId));
-
         this.sites.splice(index, 1);
+        
         this.notify();
-        return true;
+        return [siteId, ...floorIds, ...spaceIds];
     }
 
     getSitesByDomain(domainId) {
@@ -124,18 +131,19 @@ export class StructuralStore {
         return newFloor;
     }
 
-    removeFloor(floorId) {
+removeFloor(floorId) {
         const index = this.floors.findIndex(f => f.id === floorId);
         if (index === -1) {
             console.warn(`Floor not found: ${floorId}`);
             return false;
         }
 
+        const spaceIds = this.spaces.filter(sp => sp.floorId === floorId).map(sp => sp.id);
         this.spaces = this.spaces.filter(sp => sp.floorId !== floorId);
-
         this.floors.splice(index, 1);
+        
         this.notify();
-        return true;
+        return [floorId, ...spaceIds];
     }
 
     getFloorsBySite(siteId) {
@@ -170,7 +178,7 @@ export class StructuralStore {
         return newSpace;
     }
 
-    removeSpace(spaceId) {
+removeSpace(spaceId) {
         const index = this.spaces.findIndex(s => s.id === spaceId);
         if (index === -1) {
             console.warn(`Space not found: ${spaceId}`);
@@ -179,9 +187,8 @@ export class StructuralStore {
 
         this.spaces.splice(index, 1);
         this.notify();
-        return true;
+        return [spaceId];
     }
-
     getSpacesByFloor(floorId) {
         return this.spaces.filter(s => s.floorId === floorId);
     }
@@ -199,6 +206,56 @@ export class StructuralStore {
         const added = floor.addFenestration(fenestration);
         this.notify();
         return added;
+    }
+
+    renameStructure(id, newLabel, type) {
+        let item = null;
+        
+        // Find the right array based on the type
+        if (type === 'domain') item = this.domains.find(d => d.id === id);
+        else if (type === 'site') item = this.sites.find(s => s.id === id);
+        else if (type === 'floor') item = this.floors.find(f => f.id === id);
+        else if (type === 'space') item = this.spaces.find(sp => sp.id === id);
+
+        // If we found it, update the label and tell the UI to re-render
+        if (item) {
+            item.label = newLabel;
+            this.notify();
+            return true;
+        }
+        
+        console.warn(`Could not find ${type} with ID ${id} to rename.`);
+        return false;
+    }
+
+    // ============= Generic Remove Router =============
+    removeStructure(id) {
+        // Check Domains
+        if (this.domains.some(d => d.id === id)) {
+            console.log(`Removing Domain: ${id}`);
+            return this.removeDomain(id);
+        }
+        
+        // Check Sites
+        if (this.sites.some(s => s.id === id)) {
+            console.log(`Removing Site: ${id}`);
+            return this.removeSite(id);
+        }
+
+        // Check Floors
+        if (this.floors.some(f => f.id === id)) {
+            console.log(`Removing Floor: ${id}`);
+            return this.removeFloor(id);
+        }
+
+        // Check Spaces
+        if (this.spaces.some(sp => sp.id === id)) {
+            console.log(`Removing Space: ${id}`);
+            return this.removeSpace(id);
+        }
+
+        // Not found in structural store
+        return false;
     }
 
     // ============= Hierarchy Tree Builder =============
@@ -292,6 +349,7 @@ export class StructuralStore {
                     id: device.id,
                     label: device.label || device.hostname || `Device ${device.id}`,
                     type: 'device',
+                    floorId: device.floorId, // ADDED: lets TreeItem restore the correct active floor when this device is clicked
                     spaceId: device.spaceId,
                     deviceId: device.id,
                     children: []

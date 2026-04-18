@@ -6,7 +6,9 @@ import { Selection } from '../editor/Selection.js';
 import EntityTransformer from './transform/EntityTransformer.js';
 import { System } from 'check2d';
 import appState from '../../state/AppState.js';
-import { showErrorModal } from '../../util/ErrorHandling.js';
+
+// ADD THIS IMPORT:
+import { UnitSystem, GridScale } from '../../util/UnitSystem.js'; // Adjust path if needed
 
 export class LogicalLayout {
   constructor(opts = {}) {
@@ -302,7 +304,7 @@ isPointInsideShape(id, x, y) {
 
   startDrawFreeform(structureType = '') {
     this.mode = 'freeform';
-    this.currentPolygon = [];
+    this.currentFreeform = [];
     this.structureType = structureType;
     this._updateCursor();
   }
@@ -344,12 +346,12 @@ isPointInsideShape(id, x, y) {
     const activeFloor = appState.ui.activeFloorId;
     device.floorId = activeFloor || null;
 
-    if (!this._checkForOverlap(device, "creation")) {
-      if (this.onDeviceAdded) {
-        this.devices.push(device);
-        this.onDeviceAdded(device);
-      }
+    console.log("ADD → layout instance:", this.layout);
+    console.log("ADD layout === global?", this.layout === window.__layoutRef);
+    window.__layoutRef = this.layout;
 
+    if (!this._checkForOverlap(device, "creation")) {
+      this.devices.push(device);
       this._render();
     }
   }
@@ -382,9 +384,12 @@ isPointInsideShape(id, x, y) {
     path.rect(px, py, size, size);
 
     const furniture = {
-      id: `furniture_${Math.random().toString(36).slice(2, 9)}`,
+      id: furnitureData.id || `furniture_${Math.random().toString(36).slice(2, 9)}`, // CHANGED: keep the same id as the furniture store/hierarchy node
       type: furnitureData.type || 'furniture',
       label: furnitureData.name || furnitureData.label || 'Furniture',
+      catalogId: furnitureData.catalogId || null, // ADDED: preserve catalog metadata
+      floorId: furnitureData.floorId ?? appState.ui.activeFloorId ?? null, // ADDED: preserve floor context
+      spaceId: furnitureData.spaceId ?? null, // ADDED: preserve space context
       x,
       y,
       width: size,
@@ -507,8 +512,11 @@ isPointInsideShape(id, x, y) {
       const y = en.y;
       const w = en.w || en.width;
       const h = en.h || en.height;
+      const bounds = this._getEntityInteractionBounds(en); // ADDED: use the correct drawn bounds for both shapes and devices
       const size = 8;
 
+      if (bounds) {
+        const { x, y, w, h } = bounds;
       const handles = {
         nw: [x, y],
         ne: [x + w, y],
@@ -518,16 +526,25 @@ isPointInsideShape(id, x, y) {
 
       for (const key in handles) {
         const [hx, hy] = handles[key];
-        if (Math.abs(p.x - hx) < size && Math.abs(p.y - hy) < size && en.type === 'rectangle') {
+        if (Math.abs(p.x - hx) < size &&
+         Math.abs(p.y - hy) < size &&
+         this._isResizableEntity(en) ){
+          if (en.saveCurrentScale) {
+            en.saveCurrentScale(); // ADDED: allow device scaling to be rolled back if needed
+          }
           this.interaction = {
             mode: 'resize',
             handle: key,
-            start: { x: p.x, y: p.y }
+            start: { x: p.x, y: p.y },
+            bounds,
+            center: { x: x + w / 2, y: y + h / 2 }, // ADDED: resize devices around their visual center
+            baseScale: en.transform?.scale?.factor ?? 1
           };
           this.pointerHandler.setPointerDown(true);
           return;
         }
       }
+   }
 
       this.interaction = {
         mode: 'move',
@@ -541,48 +558,116 @@ isPointInsideShape(id, x, y) {
 
 
     if (this.mode === 'polygon') {
-      if (this.currentPolygon.length === 0) {
-        this.currentPolygon.push(snapped);
-      }
-      else {
-        const first = this.currentPolygon[0];
-        const canClose = this.shapeCreator.canClosePolygon(
-          first,
-          snapped,
-          this.grid.getSnapTolerance()
-        );
+  if (this.currentPolygon.length === 0) {
+    this.currentPolygon.push(snapped);
+  } else {
+    const first = this.currentPolygon[0];
+    const canClose = this.shapeCreator.canClosePolygon(
+      first,
+      snapped,
+      this.grid.getSnapTolerance()
+    );
 
-        if (canClose && this.currentPolygon.length >= 3) {
-          const polygon = this.shapeCreator.createPolygon(
-            [...this.currentPolygon],
-            this.structureType, this.system
-          );
-          if (!this._checkForOverlap(polygon, "creation")) {
-            if (this.shapeCreator.onPolygonCreated) {
-              this.shapeCreator.onPolygonCreated(polygon);
-            }
-            this.polygons.push(polygon);
-          }
-          this.currentPolygon = [];
-          this.mode = 'none';
-          this.currentPoint = null;
-          this._updateCursor();
-          this._render();
-          return;
+    if (canClose && this.currentPolygon.length >= 3) {
+      const activeFloor = appState.ui.activeFloorId; // ADDED: capture the currently focused floor before overlap checking
+
+      const polygon = this.shapeCreator.createPolygon(
+        [...this.currentPolygon],
+        this.structureType,
+        this.system
+      );
+
+      if (polygon) {
+        polygon.floorId = activeFloor || null; // ADDED: assign the polygon to the active floor for correct hierarchy overlap checks
+
+        if (polygon.body) {
+          polygon.body.floorId = activeFloor || null; // ADDED: assign the collision body to the same floor
         }
-        this.currentPolygon.push(snapped);
+
+        if (!this._checkForOverlap(polygon, "creation")) {
+          if (this.shapeCreator.onPolygonCreated) {
+            this.shapeCreator.onPolygonCreated(polygon);
+          }
+          this.polygons.push(polygon);
+        } else if (polygon.body) {
+          this.system.remove(polygon.body); // ADDED: clean up inserted collision body if creation fails
+        }
       }
-      this.currentPoint = snapped;
+
+      this.currentPolygon = [];
+      this.mode = 'none';
+      this.currentPoint = null;
+      this._updateCursor();
       this._render();
       return;
     }
 
-    if (this.mode === 'freeform') {
-      this.currentFreeform.push(snapped);
-      this.currentPoint = snapped;
+    this.currentPolygon.push(snapped);
+  }
+
+  this.currentPoint = snapped;
+  this._render();
+  return;
+}
+
+
+if (this.mode === 'freeform') {
+  if (this.currentFreeform.length === 0) {
+    this.currentFreeform.push(snapped);
+  } else {
+    const first = this.currentFreeform[0];
+    const canClose = this.shapeCreator.canClosePolygon(
+      first,
+      snapped,
+      this.grid.getSnapTolerance()
+    );
+
+    if (canClose && this.currentFreeform.length >= 3) {
+      const activeFloor = appState.ui.activeFloorId; // ADDED: capture the selected floor before overlap checking
+
+      const freeform = this.shapeCreator.createFreeform(
+        [...this.currentFreeform],
+        this.structureType,
+        this.system
+      );
+
+      if (freeform) {
+        freeform.floorId = activeFloor || null; // ADDED: assign the freeform entity to the active floor
+
+        if (freeform.bodies) {
+          for (const body of freeform.bodies) {
+            body.floorId = activeFloor || null; // ADDED: assign every freeform collision body to the same floor
+          }
+        }
+
+        if (!this._checkForOverlap(freeform, "creation")) {
+          if (this.shapeCreator.onFreeformCreated) {
+            this.shapeCreator.onFreeformCreated(freeform);
+          }
+          this.freeforms.push(freeform);
+        } else if (freeform.bodies) {
+          for (const body of freeform.bodies) {
+            this.system.remove(body); // ADDED: clean up inserted bodies if overlap validation fails
+          }
+        }
+      }
+
+      this.currentFreeform = [];
+      this.mode = 'none';
+      this.currentPoint = null;
+      this._updateCursor();
       this._render();
       return;
     }
+
+    this.currentFreeform.push(snapped);
+  }
+
+  this.currentPoint = snapped;
+  this._render();
+  return;
+}
+
 
     if (this.mode !== 'select' && this.mode !== 'pan' && this.mode !== 'none') {
       this.pointerHandler.setPointerDown(true);
@@ -606,7 +691,13 @@ isPointInsideShape(id, x, y) {
         const y = en.y;
         const w = en.w || en.width;
         const h = en.h || en.height;
-        const size = 8;
+        
+        const bounds = this._getEntityInteractionBounds(en); // ADDED: use correct visual bounds for devices too
+        let cursor = 'move';
+
+        if (bounds) {
+          const { x, y, w, h } = bounds;
+          const size = 8;
 
         const handles = {
           nw: [x, y],
@@ -615,16 +706,20 @@ isPointInsideShape(id, x, y) {
           se: [x + w, y + h]
         };
 
-        let cursor = 'move';
-
         for (const key in handles) {
           const [hx, hy] = handles[key];
-          if (Math.abs(p.x - hx) < size && Math.abs(p.y - hy) < size) {
+          if (
+           Math.abs(p.x - hx) < size &&
+           Math.abs(p.y - hy) < size &&
+           this._isResizableEntity(en)
+
+        )   {
             cursor = (key === 'nw' || key === 'se')
               ? 'nwse-resize'
               : 'nesw-resize';
           }
         }
+      }
         this.pointerHandler.setCursor(cursor);
       }
       else {
@@ -693,12 +788,37 @@ isPointInsideShape(id, x, y) {
           }
           en.setWidthAndHeight(wKey, hKey);
         }
+        else if (this.interaction.mode === "resize" && this._isDeviceEntity(en)) {
+          const baseBounds = this.interaction.bounds;
+          const center = this.interaction.center;
+          const widthRatio = (Math.abs(p.x - center.x) * 2) / baseBounds.w;
+          const heightRatio = (Math.abs(p.y - center.y) * 2) / baseBounds.h;
+          const factor = Math.max(
+          0.25,
+          this.interaction.baseScale * Math.max(widthRatio, heightRatio)
+        ); // ADDED: uniformly scale the device based on dragged handle distance
+
+      en.setScale({ factor });
+
+      const resizedBounds = this._getEntityInteractionBounds(en);
+    if (resizedBounds) {
+      const dxCenter = center.x - (resizedBounds.x + resizedBounds.w / 2);
+      const dyCenter = center.y - (resizedBounds.y + resizedBounds.h / 2);
+      en.move(dxCenter, dyCenter); // ADDED: keep device scaling centered instead of drifting down-right
+    }
+  }
 
         this.interaction.start = { x: p.x, y: p.y };
-        this.onEntityChanged(en);
+        const shouldSyncDuringDrag = !!en.structureType; // ADDED: only structural parents need live sync while dragging so children follow immediately
+
+        if (shouldSyncDuringDrag && this.onEntityChanged) {
+          this.onEntityChanged(en, dx, dy); // CHANGED: defer device persistence until pointerup for smoother dragging
+        }
+
         this._render();
         return;
       }
+      
       if (
         this.mode === 'rectangle' ||
         this.mode === 'circle' ||
@@ -713,14 +833,41 @@ isPointInsideShape(id, x, y) {
 
   }
 
-  _onPointerUp(e) {
-    if (this.interaction.mode === 'move') {
-      if (this._checkForOverlap(this.selectedEntity, "transformation")) {
-        this.selectedEntity.restoreToSavedPosition();
-        this.onEntityChanged();
-        this._render();
+_onPointerUp(e) {
+    console.log('[LogicalLayout] _onPointerUp', {
+      mode: this.mode,
+      pointerDown: this.pointerHandler.getIsPointerDown(),
+      startPoint: this.startPoint,
+      currentPoint: this.currentPoint
+    });
+
+    const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !== 'none';
+    const hasValidDrawPoints = this.startPoint && this.currentPoint;
+
+    if (isDrawMode && hasValidDrawPoints) {
+      console.log('[LogicalLayout] finalizing draw mode on pointer up');
+      this._createShapeFromMode();
+    }
+
+    if (this.selectedEntity && (this.interaction.mode === 'move' || this.interaction.mode === 'resize')) {
+      let restoreDx = 0;
+      let restoreDy = 0;
+      const isMove = this.interaction.mode === 'move';
+      const hasSavedPosition = this.selectedEntity.savedPosition !== undefined;
+
+      if (isMove && this._checkForOverlap(this.selectedEntity, "transformation")) {
+        if (hasSavedPosition && typeof this.selectedEntity.restoreToSavedPosition === 'function') {
+          restoreDx = this.selectedEntity.savedPosition.x - this.selectedEntity.x;
+          restoreDy = this.selectedEntity.savedPosition.y - this.selectedEntity.y;
+          this.selectedEntity.restoreToSavedPosition();
+        }
+      }
+
+      if (this.onEntityChanged) {
+        this.onEntityChanged(this.selectedEntity, restoreDx, restoreDy); // CHANGED: commit device move/resize only once at drag end
       }
     }
+
 
     this.interaction = {
       mode: null,
@@ -730,21 +877,11 @@ isPointInsideShape(id, x, y) {
     this.isResizing = false;
     this.resizeStart = null;
 
-    if (!this.pointerHandler.getIsPointerDown()) return;
-
     if (this.mode === 'pan') {
       this.pointerHandler.setCursor('grab');
     }
 
     this.pointerHandler.setPointerDown(false);
-
-    if (!this.startPoint || !this.currentPoint) {
-      this.startPoint = null;
-      this.currentPoint = null;
-      return;
-    }
-
-    this._createShapeFromMode();
 
     this.startPoint = null;
     this.currentPoint = null;
@@ -752,27 +889,50 @@ isPointInsideShape(id, x, y) {
   }
 
   _onRightClick() {
-    if (this.currentFreeform.length > 1) {
-      const freeform = this.shapeCreator.createFreeform(
-        [...this.currentFreeform],
-        this.structureType, this.system
-      );
+  if (this.currentFreeform.length > 1) {
+    const activeFloor = appState.ui.activeFloorId; // ADDED: capture the active floor before overlap checking
+
+    const freeform = this.shapeCreator.createFreeform(
+      [...this.currentFreeform],
+      this.structureType,
+      this.system
+    );
+
+    if (freeform) {
+      freeform.floorId = activeFloor || null; // ADDED: assign the freeform entity to the active floor
+
+      if (freeform.bodies) {
+        for (const body of freeform.bodies) {
+          body.floorId = activeFloor || null; // ADDED: assign every freeform collision segment to the active floor
+        }
+      }
+
       if (!this._checkForOverlap(freeform, "creation")) {
         if (this.shapeCreator.onFreeformCreated) {
           this.shapeCreator.onFreeformCreated(freeform);
         }
         this.freeforms.push(freeform);
+      } else if (freeform.bodies) {
+        for (const body of freeform.bodies) {
+          this.system.remove(body); // ADDED: clean up inserted collision bodies if creation fails
+        }
       }
-      this.currentFreeform = [];
-      this.mode = 'none';
-      this.currentPoint = null;
-      this._updateCursor();
-      this._render();
     }
+
+    this.currentFreeform = [];
+    this.mode = 'none';
+    this.currentPoint = null;
+    this._updateCursor();
+    this._render();
   }
+}
+
 
   _createShapeFromMode() {
-    const activeFloor = appState.ui.activeFloorId;
+    const activeFloor =
+     appState.selection.focusedType === 'floor'
+          ? appState.selection.focusedId // ADDED: prefer the explicitly selected floor from the hierarchy
+          : appState.ui.activeFloorId; // KEEP: fallback to the currently active floor in UI state
 
     if (this.mode === 'rectangle') {
       const rect = this.shapeCreator.createRectangle(
@@ -783,6 +943,7 @@ isPointInsideShape(id, x, y) {
       if (rect) {
         rect.floorId = activeFloor || null;
         if (rect.body) rect.body.floorId = activeFloor || null;
+        console.log(`📦 Created canvas rectangle with ID: ${rect.id}, Type: ${this.structureType}`);
         if (!this._checkForOverlap(rect, "creation")) {
           if (this.shapeCreator.onRectangleCreated) {
             this.shapeCreator.onRectangleCreated(rect);
@@ -1046,41 +1207,135 @@ isPointInsideShape(id, x, y) {
 
     if (this.selectedEntity && !this.selectedEntity.sourceId) {
       const en = this.selectedEntity;
-      let x, y, w, h;
+      const bounds = this._getEntityInteractionBounds(en); // CHANGED: use the same bounds logic for shapes, devices, and furniture
 
-      if (en.interfaces !== undefined || en.icon !== undefined) {
-        w = en.width + 16;
-        h = en.height + 16;
-        x = en.x - w / 2;
-        y = en.y - h / 2;
-      }
-      else if (en.width !== undefined) {
-        w = en.width;
-        h = en.height;
-        x = en.x - w / 2;
-        y = en.y - h / 2;
-      } else {
-        x = en.x;
-        y = en.y;
-        w = en.w;
-        h = en.h;
-      }
+      const x = bounds?.x;
+      const y = bounds?.y;
+      const w = bounds?.w;
+      const h = bounds?.h;
 
-      if (x !== undefined && w !== undefined) {
+      // For circles, we only need x, y, and radius defined
+      const isCircle = en.type === 'circle' && en.r !== undefined;
+      
+      if (isCircle || (x !== undefined && w !== undefined)) {
         ctx.save();
         ctx.strokeStyle = "#00AEEF";
         ctx.lineWidth = 2;
-        ctx.strokeRect(x, y, w, h);
 
-        const size = 8;
-        const handles = [
-          [x, y], [x + w, y], [x, y + h], [x + w, y + h]
-        ];
+        // Draw selection indicators
+        if (isCircle) {
+          // For circles, draw a circle outline
+          ctx.beginPath();
+          ctx.arc(en.x, en.y, en.r, 0, Math.PI * 2);
+          ctx.stroke();
 
-        ctx.fillStyle = "#00AEEF";
-        handles.forEach(([hx, hy]) => {
-          ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
-        });
+          // Draw handles at cardinal points
+          const size = 8;
+          const handles = [
+            [en.x, en.y - en.r],     // top
+            [en.x, en.y + en.r],     // bottom
+            [en.x - en.r, en.y],     // left
+            [en.x + en.r, en.y]      // right
+          ];
+
+          ctx.fillStyle = "#00AEEF";
+          handles.forEach(([hx, hy]) => {
+            ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
+          });
+        } else {
+          // For rectangles, draw bounding box
+          ctx.strokeRect(x, y, w, h);
+
+          const size = 8;
+          const handles = [
+            [x, y], [x + w, y], [x, y + h], [x + w, y + h]
+          ];
+
+          ctx.fillStyle = "#00AEEF";
+          handles.forEach(([hx, hy]) => {
+            ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
+          });
+        }
+
+// --- NEW FLOATING LABELS ---
+        // Added 'space' to the VIP list just like you wanted!
+        const isStructural = ['rectangle', 'site', 'domain', 'space', 'polygon', 'freeform', 'circle'].includes(en.type);
+
+        if (isStructural) {
+          ctx.fillStyle = "black";
+          ctx.font = "bold 14px Arial";
+          ctx.textAlign = "center";
+
+          // CIRCLE LOGIC: Display diameter and circumference
+          if (en.type === 'circle' && en.r !== undefined) {
+            const diameter = en.r * 2;
+            const circumference = 2 * Math.PI * en.r;
+
+            const diameterInMeters = UnitSystem.format(GridScale.toMeters(diameter), 'm');
+            const circumferenceInMeters = UnitSystem.format(GridScale.toMeters(circumference), 'm');
+
+            // Diameter label at the top
+            ctx.fillText(`Ø ${diameterInMeters}`, en.x, en.y - en.r - 20);
+
+            // Circumference label at the bottom
+            ctx.fillText(`C ${circumferenceInMeters}`, en.x, en.y + en.r + 35);
+          }
+          // THE MAGIC SWITCH: 
+          // We no longer care what its name is. If it has multiple points, treat it like a polygon!
+          else if (en.points && en.points.length > 1) {
+            
+            // PERIMETER LOGIC FOR ANY CUSTOM SHAPE
+            for (let i = 0; i < en.points.length; i++) {
+              const p1 = en.points[i];
+              const p2 = en.points[(i + 1) % en.points.length];
+
+              const dx = p2.x - p1.x;
+              const dy = p2.y - p1.y;
+              const pixelDistance = Math.sqrt(dx * dx + dy * dy);
+
+              const meters = UnitSystem.format(GridScale.toMeters(pixelDistance), 'm');
+
+              const midX = (p1.x + p2.x) / 2;
+              const midY = (p1.y + p2.y) / 2;
+
+              let angle = Math.atan2(dy, dx);
+              
+              if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
+                 angle += Math.PI;
+              }
+
+              ctx.save();
+              ctx.translate(midX, midY);
+              ctx.rotate(angle);
+              ctx.fillText(meters, 0, -8); 
+              ctx.restore();
+            }
+          } else {
+            // BOUNDING BOX LOGIC FOR STANDARD WxH RECTANGLES
+            let boxX = x;
+            let boxY = y;
+            let boxW = w;
+            let boxH = h;
+
+            // Top Label: Overall Width
+            if (boxW !== undefined) {
+              const widthInMeters = UnitSystem.format(GridScale.toMeters(boxW), 'm');
+              ctx.fillText(widthInMeters, boxX + (boxW / 2), boxY - 15);
+            }
+
+            // Right Label: Overall Height
+            if (boxH !== undefined) {
+              const heightInMeters = UnitSystem.format(GridScale.toMeters(boxH), 'm');
+              ctx.save();
+              ctx.translate(boxX + boxW + 20, boxY + (boxH / 2));
+              ctx.rotate(Math.PI / 2);
+              ctx.fillText(heightInMeters, 0, 0);
+              ctx.restore();
+            }
+          }
+        }
+        // ---------------------------
+
         ctx.restore();
       }
     }
@@ -1133,33 +1388,58 @@ isPointInsideShape(id, x, y) {
       this.doors,
       this.windows,
       this.roofs,
-      this.freeforms
+      this.freeforms,
+      this.furnitures
     ];
   }
 
   findEntityById(id) {
     const lists = this.getAllSelectableEntities();
+    console.log("Searching for:", id);
+    console.log("Device list:", this.devices.map(d => d.id));
+
     for (const arr of lists) {
+      if (!arr) continue; 
       for (const en of arr) {
         if (en && en.id === id) {
           return en;
         }
       }
     }
+    // If entity not found in layout, log for debugging
+    console.log(`⚠️ No canvas entity found in layout with id: ${id}`);
     return null;
   }
 
   removeEntityById(id) {
     const lists = this.getAllSelectableEntities();
-    for (let arr of lists) {
-      arr = arr.filter(e => e.id !== id);
-    }
+    const collections = [
+      'devices',
+      'rectangles',
+      'polygons',
+      'circles',
+      'walls',
+      'cables',
+      'furnitures'
+    ];
+
+    collections.forEach(key => {
+      if (Array.isArray(this[key])) {
+        this[key] = this[key].filter(e => e.id !== id);
+      }
+    });
     return null;
   }
 
-  updateEntityTransform(id, updates = {}) {
+updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {
     const en = this.findEntityById(id);
-    if (this.entityTransformer.applyEntityTransform(en, updates, this._checkForOverlap.bind(this))) {
+    if (!en) return false;
+
+    // If skipOverlapCheck is true, we provide a dummy function that always returns false (no overlap).
+    // Otherwise, we bind the strict physical overlap checker.
+    const overlapValidator = skipOverlapCheck ? () => false : this._checkForOverlap.bind(this);
+
+    if (this.entityTransformer.applyEntityTransform(en, updates, overlapValidator)) {
       this._render();
       return true;
     }
@@ -1192,7 +1472,22 @@ isPointInsideShape(id, x, y) {
 
     this.selectedEntity = en || null;
 
+    console.log("SELECTED ENTITY:", en);
+
+    if (en) {
+      if (en.structureType) {
+        appState.selection.focusedId = en.id;
+        appState.selection.focusedType = en.structureType.toLowerCase();
+        appState.selection.notify?.();
+      } else {
+        appState.selection.selectDevice?.(en.id, false);
+      }
+    } else {
+      appState.selection.clearSelection?.();
+    }
+
     if (this.onEntitySelected) this.onEntitySelected(en);
+
     this._render();
     return en;
   }
@@ -1202,17 +1497,63 @@ isPointInsideShape(id, x, y) {
     this._render();
   }
 
+  _isDeviceEntity(en) {
+  return !!en && (en.interfaces !== undefined || en.catalogId !== undefined);
+  }
+
+_isFurnitureEntity(en) {
+  return !!en && (en.type === 'furniture' || en.id?.startsWith('furniture'));
+}
+
+_isResizableEntity(en) {
+  return !!en && (en.type === 'rectangle' || this._isDeviceEntity(en)); // ADDED: devices can now use resize handles too
+}
+
+_getEntityInteractionBounds(en) {
+  if (!en) return null;
+
+  if (this._isDeviceEntity(en)) {
+    return {
+      x: en.tileX,       // ADDED: devices are drawn/hit-tested using tile bounds, not raw x/y/w/h
+      y: en.tileY,
+      w: en.tileWidth,
+      h: en.tileHeight
+    };
+  }
+
+  if (this._isFurnitureEntity(en)) {
+    const w = (en.width ?? 0) + 32;
+    const h = (en.height ?? 0) + 45;
+
+    return {
+      x: en.x - w / 2,
+      y: en.y - h / 2.5,
+      w,
+      h
+    };
+  }
+
+  return {
+    x: en.x,
+    y: en.y,
+    w: en.w ?? en.width,
+    h: en.h ?? en.height
+  };
+}
+
+
 
   _findDeviceAt(x, y) {
     for (const device of this.devices) {
-      const dx = device.x;
-      const dy = device.y;
+      const bounds = this._getEntityInteractionBounds(device); // ADDED: use the same tile bounds used for selection/highlighting
+      if (!bounds) continue;
+
 
       if (
-        x >= dx &&
-        x <= dx + device.w &&
-        y >= dy &&
-        y <= dy + device.h
+        x >= bounds.x &&
+        x <= bounds.x + bounds.w &&
+        y >= bounds.y &&
+        y <= bounds.y + bounds.h
       ) {
         return device;
       }
@@ -1254,6 +1595,13 @@ isPointInsideShape(id, x, y) {
   _checkForOverlap(currentEntity, action) {
     if (currentEntity === null) {
       return true;
+    }
+
+    // Devices and furniture are intended to be placed within structural elements (Spaces/Floors).
+    // We skip the structural overlap check for these assets to avoid false positive alerts.
+    const isAsset = currentEntity.interfaces !== undefined || currentEntity.catalogId !== undefined || currentEntity.type === 'furniture' || currentEntity.id?.startsWith('furniture');
+    if (isAsset) {
+      return false;
     }
 
     // Only check for overlap on entities that support it (like structures),

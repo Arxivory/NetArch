@@ -45,7 +45,7 @@ export default class DomainMesh {
         );
 
         const rectangularMaterial = new THREE.MeshStandardMaterial({
-            color: 0xfffff,
+            color: 0xcccccc,
             roughness: 0.9,
             metalness: 0.3
         });
@@ -59,16 +59,87 @@ export default class DomainMesh {
 
         return rectangularMesh;
     }
-
-    getCircularForm() {
-        if (!this.geometry.circular)
-            throw Error("The Domain is not Circular. Try getting other forms.");
-    }
-
     getPolygonalForm() {
-        if (!this.geometry.polygonal)
+        if (!this.geometry.polygonal) 
             throw Error("The Domain is not Polygonal. Try getting other forms.");
-    }
+        const points = this.geometry.polygonal.points.map(p => new THREE.Vector2(
+            p.x * this.scaler, 
+            p.y * this.scaler
+        ));
+        const shape = new THREE.Shape(points);
+        const geometry = new THREE.ExtrudeGeometry(shape, { depth: this.defaultHeight, bevelEnabled: false });
+        const material = new THREE.MeshStandardMaterial({
+            color: 0xcccccc,
+            roughness: 0.9,
+            metalness: 0.3
+        });
+        
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(
+            this.x * this.scaler,
+            0.1,
+            this.z * this.scaler
+        );
+        mesh.userData = { id: this.id, type: 'domain', shape: 'polygon' };
+        return mesh;
+        }
+    getFreeformForm() {
+        if (!this.geometry.polygonal) 
+            throw Error("The Domain is not Polygonal. Try getting other forms.");
+        const points = this.geometry.polygonal.points.map(p => new THREE.Vector2(
+            p.x * this.scaler, 
+            p.y * this.scaler
+        ));
+        const shape = new THREE.Shape(points);
+        const geometry = new THREE.ExtrudeGeometry(shape, { depth: this.defaultHeight, bevelEnabled: false });
+        const material = new THREE.MeshStandardMaterial({
+            color: 0xcccccc,
+            roughness: 0.9,
+            metalness: 0.3
+        });
+        
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(
+            this.x * this.scaler,
+            0.1,
+            this.z * this.scaler
+        );
+        mesh.userData = { id: this.id, type: 'domain', shape: 'Freeform'}
+        return mesh;
+        }
+    
+    getCircularForm() {
+    const { radius: r } = this.geometry.circular;
+    
+    // Apply scaler consistent with rectangular
+    const scaledR = r * this.scaler;
+    const height = 0.5; 
+    
+    // Create Three.js Geometry
+    // Note: No rotation needed, Cylinder defaults to standing upright on the Y-axis
+    const geometry = new THREE.CylinderGeometry(scaledR, scaledR, height, 64);
+    
+    // Set Material (Transparent light blue)
+    const material = new THREE.MeshStandardMaterial({
+            color: 0xcccccc,
+            roughness: 0.9,
+            metalness: 0.3
+    });
+    
+    const mesh = new THREE.Mesh(geometry, material);
+    
+    // Position: Use scaled center coordinates. 
+    // Assuming this.x and this.z represent the center of the logical circle.
+    mesh.position.set(
+        this.x * this.scaler, 
+        height / 2, 
+        this.z * this.scaler
+    );
+    
+    // Attach metadata
+    mesh.userData = { id: this.id, type: 'domain', shape: 'circle' };
+    
+    return mesh;
+}
 
-    // will do the polygonal and circular later
 }

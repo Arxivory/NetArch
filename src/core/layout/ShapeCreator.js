@@ -114,7 +114,11 @@ export class ShapeCreator {
 
   createDevice(deviceData, x, y, size) {
     const device = new Device(deviceData, x, y, size, this.system);
-    device.id = this._genId(device.type + " ");
+    device.id = deviceData.id || this._genId(device.type + " "); // CHANGED: keep the same id as the network/hierarchy node
+    device.catalogId = deviceData.catalogId || null; // ADDED: preserve catalog metadata on the canvas entity
+    device.floorId = deviceData.floorId ?? null; // ADDED: preserve floor context for filtering/selection behavior
+    device.spaceId = deviceData.spaceId ?? null; // ADDED: preserve space context for hierarchy-aware behavior
+    device.label = deviceData.label || deviceData.name || device.label; // ADDED: keep the visible label aligned with the store copy
     return device;
   }
 

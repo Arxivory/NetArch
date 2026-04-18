@@ -384,9 +384,12 @@ isPointInsideShape(id, x, y) {
     path.rect(px, py, size, size);
 
     const furniture = {
-      id: `furniture_${Math.random().toString(36).slice(2, 9)}`,
+      id: furnitureData.id || `furniture_${Math.random().toString(36).slice(2, 9)}`, // CHANGED: keep the same id as the furniture store/hierarchy node
       type: furnitureData.type || 'furniture',
       label: furnitureData.name || furnitureData.label || 'Furniture',
+      catalogId: furnitureData.catalogId || null, // ADDED: preserve catalog metadata
+      floorId: furnitureData.floorId ?? appState.ui.activeFloorId ?? null, // ADDED: preserve floor context
+      spaceId: furnitureData.spaceId ?? null, // ADDED: preserve space context
       x,
       y,
       width: size,

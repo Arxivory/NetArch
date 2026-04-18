@@ -40,6 +40,7 @@ export class SelectionStore {
     }
 
     this.focusedId = deviceId;
+    this.focusedType = 'device'; // ADDED: keep device selection semantics consistent with hierarchy selection
     this.notify();
   }
 

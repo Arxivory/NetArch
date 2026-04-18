@@ -22,9 +22,9 @@ export class FurnitureStore {
             floorId: furniture.floorId || null,
             spaceId: furniture.spaceId || null,
             transform: {
-                position: { x: furniture.position.x, y: 1, z: furniture.position.y },
+                position: { x: furniture.position.x * 0.7, y: 1, z: furniture.position.y * 0.7 },
                 rotation: { x: 0, y: 0, z: 0 },
-                scale: { x: 1, y: 1, z: 1 }
+                scale: { x: 5, y: 5, z: 5 }
             }
         }
 

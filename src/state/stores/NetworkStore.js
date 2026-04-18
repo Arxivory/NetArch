@@ -35,7 +35,7 @@ export class NetworkStore {
         spaceId: deviceData.spaceId,
         domainId: deviceData.domainId,
         transform: {
-            position: { x: deviceData.position.x, y: 1, z: deviceData.position.y},
+            position: { x: deviceData.position.x * 0.7, y: 1, z: deviceData.position.y * 0.7},
             rotation: { x: 0, y: 0, z: 0 },
             scale: { x: 7, y: 7, z: 7 }
         }

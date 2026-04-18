@@ -32,11 +32,14 @@ export default class DeviceMesh {
             gltfLoader.load(modelPath, (gltf) => {
                 const model = gltf.scene;
 
-                const modX = this.transform.position.x * this.scaler;
-                const modZ = this.transform.position.z * this.scaler;
-
-                model.position.set(modX, 0, modZ);
-                model.scale.set(7, 7, 7);
+                // Position, Rotation, and Scale are now inherited directly from the Store's physical transform
+                model.position.set(
+                    this.transform.position.x, 
+                    this.transform.position.y, 
+                    this.transform.position.z
+                );
+                model.rotation.set(this.transform.rotation.x, this.transform.rotation.y, this.transform.rotation.z);
+                model.scale.set(this.transform.scale.x, this.transform.scale.y, this.transform.scale.z);
 
                 model.traverse((child) => {
                     if (child.isMesh) {

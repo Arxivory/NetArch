@@ -144,12 +144,8 @@ export class PhysicalController {
             if (this.deviceMeshes.has(device.id)) {
                 const deviceMesh = this.deviceMeshes.get(device.id);
                 console.log('Device Mesh: ', device, ' is updating');
-                const modPosX = device.transform.position.x * this.defaultScaler;
-                const floor = this.store.floors.find(f => f.id === device.floorId);
-                const floorAltitude = floor ? floor.altitude : 0;
-                const modPosZ = device.transform.position.z * this.defaultScaler;
                 if (device.transform) {
-                    deviceMesh.position.set(modPosX, floorAltitude, modPosZ);
+                    deviceMesh.position.set(device.transform.position.x, device.transform.position.y, device.transform.position.z);
                     deviceMesh.rotation.set(device.transform.rotation.x, device.transform.rotation.y, device.transform.rotation.z);
                     deviceMesh.scale.set(device.transform.scale.x, device.transform.scale.y, device.transform.scale.z);
                 }
@@ -164,13 +160,8 @@ export class PhysicalController {
 
             if (this.furnitureMeshes.has(furniture.id)) {
                 const furnitureMesh = this.furnitureMeshes.get(furniture.id);
-                const modPosX = furniture.transform.position.x * this.defaultScaler;
-                const floor = this.store.floors.find(f => f.id === furniture.floorId);
-                const floorAltitude = floor ? floor.altitude : 0;
-                const modPosZ = furniture.transform.position.z * this.defaultScaler;
-
                 if (furniture.transform) {
-                    furnitureMesh.position.set(modPosX, floorAltitude, modPosZ);
+                    furnitureMesh.position.set(furniture.transform.position.x, furniture.transform.position.y, furniture.transform.position.z);
                     furnitureMesh.rotation.set(furniture.transform.rotation.x, furniture.transform.rotation.y, furniture.transform.rotation.z);
                     furnitureMesh.scale.set(furniture.transform.scale.x, furniture.transform.scale.y, furniture.transform.scale.z);
                 }
@@ -213,6 +204,13 @@ export class PhysicalController {
             if (!activeDeviceIds.has(id)) {
                 this.scene.remove(mesh);
                 this.deviceMeshes.delete(id);
+            }
+        }
+
+        for (const [id, mesh] of this.furnitureMeshes) {
+            if (!activeFurnitureIds.has(id)) {
+                this.scene.remove(mesh);
+                this.furnitureMeshes.delete(id);
             }
         }
     }
@@ -304,30 +302,20 @@ export class PhysicalController {
     }
 
     async createDeviceGLTFMesh(device) {
-        const floor = this.store.floors.find(f => f.id === device.floorId);
-        const floorAltitude = floor ? floor.altitude : 0;
-
         const newDevice = new DeviceMesh(device, this.defaultScaler);
         const deviceMesh = await newDevice.getMesh(this.gltfLoader, deviceCatalog);
 
         deviceMesh.userData = { id: device.id, type: 'device' };
-
-        deviceMesh.position.y = floorAltitude;
 
         this.scene.add(deviceMesh);
         this.deviceMeshes.set(device.id, deviceMesh);
     }
 
     async createFurnitureGLTFMesh(furniture) {
-        const floor = this.store.floors.find(f => f.id === furniture.floorId);
-        const floorAltitude = floor ? floor.altitude : 0;
-
         const newFurniture = new FurnitureMesh(furniture, this.defaultScaler);
         const furnitureMesh = await newFurniture.getMesh(this.gltfLoader, this.furnitureCatalog);
 
         furnitureMesh.userData = { id: furniture.id, type: 'furniture' };
-
-        furnitureMesh.position.y = floorAltitude;
 
         this.scene.add(furnitureMesh);
         this.furnitureMeshes.set(furniture.id, furnitureMesh);

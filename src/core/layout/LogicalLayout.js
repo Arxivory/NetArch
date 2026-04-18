@@ -1477,9 +1477,15 @@ updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {
     console.log("SELECTED ENTITY:", en);
 
     if (en) {
-      appState.selection.setSelectedDeviceIds([en.id]);
+      if (en.structureType) {
+        appState.selection.focusedId = en.id;
+        appState.selection.focusedType = en.structureType.toLowerCase();
+        appState.selection.notify?.();
+      } else {
+        appState.selection.selectDevice?.(en.id, false);
+      }
     } else {
-      appState.selection.clearSelection();
+      appState.selection.clearSelection?.();
     }
 
     if (this.onEntitySelected) this.onEntitySelected(en);

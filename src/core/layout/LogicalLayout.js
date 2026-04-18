@@ -1425,7 +1425,7 @@ _onPointerUp(e) {
       const arr = lists[i];
       if (!arr) continue;
       for (const en of arr) {
-        if (en && (en.id === id || String(en.id) === targetId)) {
+        if (en && (en.id === id || String(en.id) === id)) {
           return en;
         }
       }

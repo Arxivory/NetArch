@@ -7,6 +7,9 @@ import EntityTransformer from './transform/EntityTransformer.js';
 import { System } from 'check2d';
 import appState from '../../state/AppState.js';
 
+// ADD THIS IMPORT:
+import { UnitSystem, GridScale } from '../../util/UnitSystem.js'; // Adjust path if needed
+
 export class LogicalLayout {
   constructor(opts = {}) {
     this.container = opts.container || document.body;
@@ -1088,21 +1091,128 @@ _onPointerUp(e) {
         h = en.h;
       }
 
-      if (x !== undefined && w !== undefined) {
+      // For circles, we only need x, y, and radius defined
+      const isCircle = en.type === 'circle' && en.r !== undefined;
+      
+      if (isCircle || (x !== undefined && w !== undefined)) {
         ctx.save();
         ctx.strokeStyle = "#00AEEF";
         ctx.lineWidth = 2;
-        ctx.strokeRect(x, y, w, h);
 
-        const size = 8;
-        const handles = [
-          [x, y], [x + w, y], [x, y + h], [x + w, y + h]
-        ];
+        // Draw selection indicators
+        if (isCircle) {
+          // For circles, draw a circle outline
+          ctx.beginPath();
+          ctx.arc(en.x, en.y, en.r, 0, Math.PI * 2);
+          ctx.stroke();
 
-        ctx.fillStyle = "#00AEEF";
-        handles.forEach(([hx, hy]) => {
-          ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
-        });
+          // Draw handles at cardinal points
+          const size = 8;
+          const handles = [
+            [en.x, en.y - en.r],     // top
+            [en.x, en.y + en.r],     // bottom
+            [en.x - en.r, en.y],     // left
+            [en.x + en.r, en.y]      // right
+          ];
+
+          ctx.fillStyle = "#00AEEF";
+          handles.forEach(([hx, hy]) => {
+            ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
+          });
+        } else {
+          // For rectangles, draw bounding box
+          ctx.strokeRect(x, y, w, h);
+
+          const size = 8;
+          const handles = [
+            [x, y], [x + w, y], [x, y + h], [x + w, y + h]
+          ];
+
+          ctx.fillStyle = "#00AEEF";
+          handles.forEach(([hx, hy]) => {
+            ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
+          });
+        }
+
+// --- NEW FLOATING LABELS ---
+        // Added 'space' to the VIP list just like you wanted!
+        const isStructural = ['rectangle', 'site', 'domain', 'space', 'polygon', 'freeform', 'circle'].includes(en.type);
+
+        if (isStructural) {
+          ctx.fillStyle = "black";
+          ctx.font = "bold 14px Arial";
+          ctx.textAlign = "center";
+
+          // CIRCLE LOGIC: Display diameter and circumference
+          if (en.type === 'circle' && en.r !== undefined) {
+            const diameter = en.r * 2;
+            const circumference = 2 * Math.PI * en.r;
+
+            const diameterInMeters = UnitSystem.format(GridScale.toMeters(diameter), 'm');
+            const circumferenceInMeters = UnitSystem.format(GridScale.toMeters(circumference), 'm');
+
+            // Diameter label at the top
+            ctx.fillText(`Ø ${diameterInMeters}`, en.x, en.y - en.r - 20);
+
+            // Circumference label at the bottom
+            ctx.fillText(`C ${circumferenceInMeters}`, en.x, en.y + en.r + 35);
+          }
+          // THE MAGIC SWITCH: 
+          // We no longer care what its name is. If it has multiple points, treat it like a polygon!
+          else if (en.points && en.points.length > 1) {
+            
+            // PERIMETER LOGIC FOR ANY CUSTOM SHAPE
+            for (let i = 0; i < en.points.length; i++) {
+              const p1 = en.points[i];
+              const p2 = en.points[(i + 1) % en.points.length];
+
+              const dx = p2.x - p1.x;
+              const dy = p2.y - p1.y;
+              const pixelDistance = Math.sqrt(dx * dx + dy * dy);
+
+              const meters = UnitSystem.format(GridScale.toMeters(pixelDistance), 'm');
+
+              const midX = (p1.x + p2.x) / 2;
+              const midY = (p1.y + p2.y) / 2;
+
+              let angle = Math.atan2(dy, dx);
+              
+              if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
+                 angle += Math.PI;
+              }
+
+              ctx.save();
+              ctx.translate(midX, midY);
+              ctx.rotate(angle);
+              ctx.fillText(meters, 0, -8); 
+              ctx.restore();
+            }
+          } else {
+            // BOUNDING BOX LOGIC FOR STANDARD WxH RECTANGLES
+            let boxX = x;
+            let boxY = y;
+            let boxW = w;
+            let boxH = h;
+
+            // Top Label: Overall Width
+            if (boxW !== undefined) {
+              const widthInMeters = UnitSystem.format(GridScale.toMeters(boxW), 'm');
+              ctx.fillText(widthInMeters, boxX + (boxW / 2), boxY - 15);
+            }
+
+            // Right Label: Overall Height
+            if (boxH !== undefined) {
+              const heightInMeters = UnitSystem.format(GridScale.toMeters(boxH), 'm');
+              ctx.save();
+              ctx.translate(boxX + boxW + 20, boxY + (boxH / 2));
+              ctx.rotate(Math.PI / 2);
+              ctx.fillText(heightInMeters, 0, 0);
+              ctx.restore();
+            }
+          }
+        }
+        // ---------------------------
+
         ctx.restore();
       }
     }

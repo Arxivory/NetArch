@@ -52,24 +52,8 @@ export class ShapeRenderer {
     ctx.strokeStyle = '#000000ff';
     ctx.lineWidth = 4;
     for (const wall of walls) {
-      const s = typeof wall.transform?.scale === 'number' ? wall.transform.scale : (wall.transform?.scale?.x ?? 1);
-      const x1 = wall.x1;
-      const y1 = wall.y1;
-      const x2 = wall.x2;
-      const y2 = wall.y2;
-      const ax = (x1 + x2) / 2;
-      const ay = (y1 + y2) / 2;
-      const sx1 = ax + (x1 - ax) * s;
-      const sy1 = ay + (y1 - ay) * s;
-      const sx2 = ax + (x2 - ax) * s;
-      const sy2 = ay + (y2 - ay) * s;
-
-      const path = new Path2D();
-      path.moveTo(sx1 + 0.5, sy1 + 0.5);
-      path.lineTo(sx2 + 0.5, sy2 + 0.5);
-
-      wall.path = path;
-      ctx.stroke(path);
+      wall.updatePath();
+      ctx.stroke(wall.path);
     }
   }
 

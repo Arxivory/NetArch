@@ -6,6 +6,17 @@ const METERS_TO_INCHES = 39.3701;
 const METERS_TO_CM = 100;
 const RACK_UNIT_METERS = 0.04445; // 1 Rack Unit (U) = 44.45mm
 
+export const PIXELS_PER_METER = 50; // Assuming 1 grid square = 50px = 1 meter
+
+export const GridScale = {
+  toMeters: (pixels) => {
+    return pixels / PIXELS_PER_METER;
+  },
+  toPixels: (meters) => {
+    return meters * PIXELS_PER_METER;
+  }
+};
+
 export const UnitSystem = {
   
   toEngine: (value, currentUnit) => {

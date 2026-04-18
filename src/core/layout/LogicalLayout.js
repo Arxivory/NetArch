@@ -225,45 +225,56 @@ export class LogicalLayout {
     this._render();
   }
 
-isPointInsideShape(id, x, y) {
-    // 1. Try standard entity search
-    let entity = null;
-    if (typeof this.findEntityById === 'function') {
-      entity = this.findEntityById(id);
-    }
+  isPointInsideShape(id, x, y) {
+  let entity = null;
 
-    // 2. If not found, it's likely a Structure! Search other common arrays.
-    if (!entity && this.structures) {
-      entity = this.structures.find(s => s.id === id);
-    }
-    if (!entity && this.shapes) {
-      entity = this.shapes.find(s => s.id === id);
-    }
-    // Check inside shapeCreator just in case your shapes live there
-    if (!entity && this.shapeCreator && this.shapeCreator.shapes) {
-      entity = this.shapeCreator.shapes.find(s => s.id === id);
-    }
-
-    // 3. SAFE FALLBACK: If we completely fail to find the physical shape in the layout,
-    // do NOT block the drop. Log a warning for debugging and allow it.
-    if (!entity) {
-      console.warn(`Bounds Check: Could not find physical shape for ID ${id}. Allowing drop by default.`);
-      return true; 
-    }
-
-    // 4. Check using the standard hit-test bounds (Rectangle.js)
-    if (typeof entity.getCurrentBounds === 'function') {
-      const bounds = entity.getCurrentBounds();
-      return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY;
-    }
-
-    // 5. Fallback to basic coordinate checking
-    if (entity.x !== undefined && entity.w !== undefined && entity.h !== undefined) {
-      return x >= entity.x && x <= (entity.x + entity.w) && y >= entity.y && y <= (entity.y + entity.h);
-    }
-
-    return true; // Default to allowing placement
+  if (typeof this.findEntityById === 'function') {
+    entity = this.findEntityById(id);
   }
+
+  if (!entity && this.structures) {
+    entity = this.structures.find(s => s.id === id);
+  }
+  if (!entity && this.shapes) {
+    entity = this.shapes.find(s => s.id === id);
+  }
+  if (!entity && this.shapeCreator && this.shapeCreator.shapes) {
+    entity = this.shapeCreator.shapes.find(s => s.id === id);
+  }
+
+  if (!entity) {
+    console.warn(`Bounds Check: Could not find physical shape for ID ${id}. Allowing drop by default.`);
+    return true;
+  }
+
+  if (entity.type === 'circle' && entity.r !== undefined) {
+    const radius = entity.transform?.scale?.r ?? entity.r;
+    return Math.hypot(x - entity.x, y - entity.y) <= radius; // ADDED: exact circle containment instead of loose bounding box
+  }
+
+  const points = entity.transform?.scale?.points || entity.points;
+  if (points && points.length >= 3 && this.ctx) {
+    const path = new Path2D();
+    path.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      path.lineTo(points[i].x, points[i].y);
+    }
+    path.closePath();
+    return this.ctx.isPointInPath(path, x, y); // ADDED: exact polygon/freeform containment
+  }
+
+  if (typeof entity.getCurrentBounds === 'function') {
+    const bounds = entity.getCurrentBounds();
+    return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY;
+  }
+
+  if (entity.x !== undefined && entity.w !== undefined && entity.h !== undefined) {
+    return x >= entity.x && x <= (entity.x + entity.w) && y >= entity.y && y <= (entity.y + entity.h);
+  }
+
+  return true;
+}
+
 
   validateDropLocation(x, y) {
     const selection = appState.selection;
@@ -344,7 +355,12 @@ isPointInsideShape(id, x, y) {
     const size = this.shapeRenderer.gridSize * 1.5;
     const device = this.shapeCreator.createDevice(deviceData, x, y, size);
     const activeFloor = appState.ui.activeFloorId;
-    device.floorId = activeFloor || null;
+
+    device.id = deviceData.id || device.id; // ADDED: keep the canvas device id aligned with the store/hierarchy id
+    device.catalogId = deviceData.catalogId || null; // ADDED: preserve catalog metadata on the canvas entity
+    device.floorId = deviceData.floorId ?? activeFloor ?? null; // CHANGED: preserve the assigned floor instead of always overwriting it
+    device.spaceId = deviceData.spaceId ?? null; // ADDED: preserve the assigned space so movement can be constrained to it
+    device.label = deviceData.label || deviceData.name || device.label; // ADDED: keep the visible label aligned with the store copy
 
     if (!this._checkForOverlap(device, "creation")) {
       if (this.onDeviceAdded) {
@@ -1511,8 +1527,59 @@ _getEntityInteractionBounds(en) {
     h: en.h ?? en.height
   };
 }
+  _getAssetContainmentPoints(asset) {
+    const bounds = this._getEntityInteractionBounds(asset);
+    if (!bounds) return [];
 
+    const inset = 2; // ADDED: keep test points slightly inside the tile edges to avoid false negatives on exact borders
+    const left = bounds.x + inset;
+    const top = bounds.y + inset;
+    const right = bounds.x + bounds.w - inset;
+    const bottom = bounds.y + bounds.h - inset;
+    const centerX = bounds.x + bounds.w / 2;
+    const centerY = bounds.y + bounds.h / 2;
 
+    return [
+      { x: left, y: top },
+      { x: right, y: top },
+      { x: left, y: bottom },
+      { x: right, y: bottom },
+      { x: centerX, y: centerY }
+    ];
+  }
+
+  _isAssetInsideAssignedParent(asset) {
+    const points = this._getAssetContainmentPoints(asset);
+    if (!points.length) return true;
+
+    if (asset.spaceId) {
+      return points.every(point =>
+        this.isPointInsideShape(asset.spaceId, point.x, point.y)
+      ); // ADDED: a space-owned device must keep its whole tile inside that space
+    }
+
+    if (asset.floorId) {
+      const insideFloor = points.every(point =>
+        this.isPointInsideShape(asset.floorId, point.x, point.y)
+      );
+
+      if (!insideFloor) {
+        return false; // ADDED: a floor-owned device cannot leave its floor
+      }
+
+      const spacesOnFloor = appState.structural?.spaces?.filter(
+        space => String(space.floorId) === String(asset.floorId)
+      ) || [];
+
+      const intrudesIntoSpace = spacesOnFloor.some(space =>
+        points.some(point => this.isPointInsideShape(space.id, point.x, point.y))
+      );
+
+      return !intrudesIntoSpace; // ADDED: a floor-owned device cannot drift into a nested space unless it belongs to that space
+    }
+
+    return true;
+  }
 
   _findDeviceAt(x, y) {
     for (const device of this.devices) {
@@ -1571,9 +1638,25 @@ _getEntityInteractionBounds(en) {
     // Devices and furniture are intended to be placed within structural elements (Spaces/Floors).
     // We skip the structural overlap check for these assets to avoid false positive alerts.
     const isAsset = currentEntity.interfaces !== undefined || currentEntity.catalogId !== undefined || currentEntity.type === 'furniture' || currentEntity.id?.startsWith('furniture');
-    if (isAsset) {
-      return false;
+
+  if (isAsset) {
+    const insideAssignedParent = this._isAssetInsideAssignedParent(currentEntity);
+
+    if (!insideAssignedParent) {
+      if (action === 'creation' && currentEntity.body) {
+        this.system.remove(currentEntity.body); // ADDED: clean up the collision body if placement is rejected
+      }
+
+      const assetName = this._isDeviceEntity(currentEntity) ? 'device' : 'asset';
+      const actionLabel = action === 'creation' ? 'Placement' : 'Movement';
+
+      alert(`${actionLabel} failed. The ${assetName} must remain inside its assigned Space or Floor.`); // CHANGED: assets now fail validation when dragged/dropped outside their parent
+      return true;
     }
+
+  return false;
+}
+
 
     // Only check for overlap on entities that support it (like structures),
     // and ignore others (like devices, furniture, walls, etc.).

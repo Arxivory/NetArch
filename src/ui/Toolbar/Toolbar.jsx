@@ -35,13 +35,15 @@ useEffect(() => {
 
 // 3. Update the handler functions to use your AppState delegation
 const handleUndo = () => {
-  const cmd = appState.undo();
-  if (cmd && cmd.undo) cmd.undo();
+  if (canvasController?.undo) {
+    canvasController.undo();
+  }
 };
 
 const handleRedo = () => {
-  const cmd = appState.redo();
-  if (cmd && cmd.execute) cmd.execute();
+  if (canvasController?.redo) {
+    canvasController.redo();
+  }
 };
 
   useEffect(() => {

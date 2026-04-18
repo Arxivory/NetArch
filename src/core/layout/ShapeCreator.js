@@ -114,7 +114,7 @@ export class ShapeCreator {
 
   createDevice(deviceData, x, y, size) {
     const device = new Device(deviceData, x, y, size, this.system);
-    device.id = this._genId(device.type + " ");
+    device.id = deviceData.id || this._genId(device.type + " ");
     return device;
   }
 

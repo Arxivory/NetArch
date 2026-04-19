@@ -84,20 +84,7 @@ export class PhysicalController {
                 continue;
             } 
 
-            switch (domain.shapeType) {
-                case 'rectangle':
-                    this.createRectangularDomainMesh(domain);
-                    break;
-                case 'polygon':
-                    this.createPolygonalDomainMesh(domain);
-                    break;
-                case 'freeform':
-                    this.createPolygonalDomainMesh(domain);
-                    break;
-                case 'circle':
-                    this.createCircularDomainMesh(domain);
-                    break;
-            }
+            this.createDomainMesh(domain);
         }
 
         for (const site of sites) {
@@ -239,66 +226,28 @@ export class PhysicalController {
         }
     }
 
-    createRectangularDomainMesh(domain) {
-        const rectDomain = new DomainMesh(domain, this.defaultScaler);
-        const mesh = rectDomain.getRectangularForm();
-
-        this.scene.add(mesh);
-        this.domainMeshes.set(domain.id, mesh);
-    }
-
-    createPolygonalDomainMesh(domain) {
-    const { x, y, points } = domain.geometry; // CHANGED: use the stored anchor and absolute polygon points
-
-    if (!points?.length) { // ADDED: avoid building an empty polygon mesh
-        console.warn("Polygonal domain has no points:", domain.id);
-        return;
-    }
-
-    const shape = new THREE.Shape();
-
-    points.forEach((p, i) => {
-        const localX = (p.x - x) * this.defaultScaler;   // CHANGED: convert absolute X into local coordinates
-        const localY = -(p.y - y) * this.defaultScaler;  // CHANGED: flip Y so it maps correctly to Three.js Z
-
-        if (i === 0) shape.moveTo(localX, localY);       // CHANGED: use corrected local polygon coordinates
-        else shape.lineTo(localX, localY);               // CHANGED: use corrected local polygon coordinates
-    });
-
-    shape.closePath();
-
-    const geometry = new THREE.ExtrudeGeometry(shape, {
-        depth: 1,
-        bevelEnabled: false
-    });
-
-    geometry.rotateX(-Math.PI / 2);
-
-    const material = new THREE.MeshStandardMaterial({
-        color: 0xcccccc,
-        roughness: 0.9,
-        metalness: 0.3
-    });
-
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(
-        x * this.defaultScaler,   // CHANGED: place the whole polygon mesh at the stored anchor
-        0.1,
-        y * this.defaultScaler    // CHANGED: place the whole polygon mesh at the stored anchor
-    );
-
-    this.scene.add(mesh);
-    this.domainMeshes.set(domain.id, mesh);
-}
-
-
-
-    createCircularDomainMesh(domain) {
-        const domainMesh = new DomainMesh(domain, this.defaultScaler);
-        const mesh = domainMesh.getCircularForm();
-
-        this.scene.add(mesh);
-        this.domainMeshes.set(domain.id, mesh);
+    createDomainMesh(domain) {
+        const newDomain = new DomainMesh(domain, this.defaultScaler);
+        switch (domain.shapeType) {
+            case 'rectangle':
+                const rectangularMesh = newDomain.getRectangularForm();
+                this.scene.add(rectangularMesh);
+                this.domainMeshes.set(domain.id, rectangularMesh);
+                break;
+            case 'polygon':
+                const polygonalMesh = newDomain.getPolygonalForm();
+                this.scene.add(polygonalMesh);
+                this.domainMeshes.set(domain.id, polygonalMesh);
+                break;
+            case 'circle':
+                const circularMesh = newDomain.getCircularForm();
+                this.scene.add(circularMesh);
+                this.domainMeshes.set(domain.id, circularMesh);
+                break;
+            default:
+                console.warn(`Unknown domain shape type: ${domain.shapeType}`);
+                break;
+        }
     }
 
     createRectangleSiteMesh(site) {

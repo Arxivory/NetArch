@@ -149,6 +149,15 @@ executeDelete(idToDelete) {
             }
         }
 
+        // 2.5 Try deleting a Link/Cable
+        if (deletedIds.length === 0 && appState.network && appState.network.links) {
+            const isLink = appState.network.links.some(l => l.id === idToDelete);
+            if (isLink) {
+                appState.network.removeLink(idToDelete);
+                deletedIds = [idToDelete];
+            }
+        }
+
         // 3. Try furniture 
         if (deletedIds.length === 0 && appState.furniture && appState.furniture.removeFurniture) {
             const isFurniture = appState.furniture.furnitures && appState.furniture.furnitures.some(f => f.id === idToDelete);

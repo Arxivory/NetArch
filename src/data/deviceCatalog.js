@@ -418,7 +418,7 @@ const endDevices = {
         startIndex: 1
       }
     ],
-    model3D: "/models/pc-desktop.glb",
+    model3D: "/objects/devices/end-devices/pc-desktop.glb",
   },
   "laptop": {
     modelId: "laptop",

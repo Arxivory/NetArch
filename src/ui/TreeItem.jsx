@@ -1,6 +1,172 @@
+// import { useState, useEffect, useRef } from "react";
+// import appState from "../state/AppState"; 
+// import { Mountain, Grid, ChevronRight, ChevronDown, Building, Server, Box, Layers, CopyPlus, Wifi, Armchair } from "lucide-react";
+// import FloorSpecifier from "./FloorSpecifier";
+
+// const icons = {
+//   domain: Mountain,
+//   site: Building,
+//   floor: Box,
+//   space: Grid,
+//   rack: Server,
+//   device: Wifi,
+//   furniture: Armchair,
+// };
+
+// export default function TreeItem({ node }) {
+//   const [open, setOpen] = useState(true);
+//   const [isFocused, setIsFocused] = useState(appState.selection.isFocused(node.id));
+//   const [specifierOpen, setSpecifierOpen] = useState(false);
+//   const [floorSpecifierCount, setFloorSpecifierCount] = useState(0);
+
+//   // --- NEW: Rename State ---
+//   const [isEditing, setIsEditing] = useState(false);
+//   const [editValue, setEditValue] = useState(node.label);
+//   const inputRef = useRef(null);
+
+//   useEffect(() => {
+//     const unsubscribe = appState.selection.subscribe((store) => {
+//       setIsFocused(store.isFocused(node.id));
+//     });
+//     return unsubscribe;
+//   }, [node.id]);
+
+//   // Focus the input automatically when editing starts
+//   useEffect(() => {
+//     if (isEditing && inputRef.current) {
+//       inputRef.current.focus();
+//       inputRef.current.select();
+//     }
+//   }, [isEditing]);
+
+//   const Icon = icons[node.type] || Box;
+//   const hasChildren = node.children && node.children.length > 0;
+
+//   const handleRowClick = (e) => {
+//     // Prevent standard click if we are currently typing a new name
+//     if (isEditing) return; 
+
+//     appState.selection.focusedNode(node.id, node.type);
+
+//     if (node.type === "floor") {
+//           appState.ui.setActiveFloor(node.id);
+//         } else if (node.type === "site") {
+//           const floors = appState.structural.getFloorsBySite(node.id);
+//           if (floors && floors.length) {
+//             appState.ui.setActiveFloor(floors[0].id);
+//           } else {
+//             appState.ui.setActiveFloor(null);
+//           }
+//         } else if (node.type === "device" || node.type === "furniture") {
+//           if (node.floorId) {
+//             appState.ui.setActiveFloor(node.floorId);
+//           }
+//         } else {
+//           appState.ui.setActiveFloor(null);
+//         }
+//       };
+
+//       const toggleOpen = (e) => {
+//         e.stopPropagation(); 
+//         setOpen(!open);
+//       };
+
+//       // --- NEW: Rename Handlers ---
+//     // --- UPDATED: Rename Handlers ---
+//       const handleDoubleClick = (e) => {
+//         e.stopPropagation();
+//         // Allow renaming of structures AND devices/furniture
+//         if (['domain', 'site', 'floor', 'space', 'device', 'furniture'].includes(node.type)) {
+//           setIsEditing(true);
+//           setEditValue(node.label);
+//         }
+//       };
+
+//     const submitRename = () => {
+//         if (editValue.trim() !== "" && editValue !== node.label) {
+          
+//           // Update the Global Store (The Store will handle the Canvas update now!)
+//           if (node.type === "device" && appState.network) {
+//             appState.network.updateDevice(node.id, { label: editValue });
+//           } else if (node.type === "furniture" && appState.furniture) {
+//             appState.furniture.updateFurniture(node.id, { label: editValue });
+//           } else {
+//             appState.structural.renameStructure(node.id, editValue, node.type);
+//           }
+          
+//         } else {
+//           // Guardrail: Snap back to original name if empty
+//           setEditValue(node.label); 
+//         }
+//         setIsEditing(false);
+//       };
+
+//       const handleKeyDown = (e) => {
+//         if (e.key === 'Enter') submitRename();
+//         if (e.key === 'Escape') {
+//           setIsEditing(false);
+//           setEditValue(node.label);
+//         }
+//       };
+
+//       return (
+//         <div className={`tree-item ${isFocused ? "focused" : ""}`}>
+//           <div 
+//             className={`tree-item-row ${isFocused ? "selected-bg" : ""}`} 
+//             onClick={handleRowClick}
+//           >
+//             <div className="tree-item-wrapper">
+//               <div className="chevron-label">
+//                 <div className="chevron-wrapper" onClick={toggleOpen}>
+//                   {hasChildren ? (
+//                     open ? <ChevronDown size={14} className="tree-chevron" /> : <ChevronRight size={14} className="tree-chevron" />
+//                   ) : (
+//                     <span className="tree-spacer" />
+//                   )}
+//                 </div>
+
+//                 {Icon && <Icon size={14} className="tree-icon" />}
+                
+//                 {/* --- NEW: Render Input or Span based on editing state --- */}
+//                 {isEditing ? (
+//                   <input
+//                     ref={inputRef}
+//                     value={editValue}
+//                     onChange={(e) => setEditValue(e.target.value)}
+//                     onBlur={submitRename}
+//                     onKeyDown={handleKeyDown}
+//                     onClick={(e) => e.stopPropagation()}
+//                     style={{ background: 'transparent', border: '1px solid #007bff', color: 'inherit', outline: 'none', marginLeft: '4px', width: '80%', padding: '0 2px' }}
+//                   />
+//                 ) : (
+//                   <span className="item-label" onDoubleClick={handleDoubleClick}>{node.label}</span>
+//                 )}
+                
+//               </div>
+
+//               {node.type === 'site' && <CopyPlus size={12} onClick={() => setSpecifierOpen(!specifierOpen)}/>}
+//             </div>
+            
+//           </div>
+
+//           {open && (
+//             <div className="tree-children">
+//               {hasChildren &&
+//                 node.children.map((child) => (
+//                   <TreeItem key={child.id} node={child} />
+//                 ))}
+//               {node.type === "site" && specifierOpen && (
+//                   <FloorSpecifier parentId={node.id} onCloseModal={() => { setSpecifierOpen(!specifierOpen); setFloorSpecifierCount(floorSpecifierCount + 1)}} floorCount={floorSpecifierCount} />
+//               )}
+//             </div>
+//           )}
+//         </div>
+//       );
+//     }
+
 import { useState, useEffect, useRef } from "react";
-import appState from "../state/AppState"; 
-import { Mountain, Grid, ChevronRight, ChevronDown, Building, Server, Box, Layers, CopyPlus, Wifi, Armchair } from "lucide-react";
+import appState from "../state/AppState";
+import { Mountain, Grid, ChevronRight, ChevronDown, Building, Server, Box, CopyPlus, Wifi, Armchair } from "lucide-react";
 import FloorSpecifier from "./FloorSpecifier";
 
 const icons = {
@@ -18,10 +184,8 @@ export default function TreeItem({ node }) {
   const [isFocused, setIsFocused] = useState(appState.selection.isFocused(node.id));
   const [specifierOpen, setSpecifierOpen] = useState(false);
   const [floorSpecifierCount, setFloorSpecifierCount] = useState(0);
-
-  // --- NEW: Rename State ---
   const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(node.label);
+  const [editValue, setEditValue] = useState(node.label ?? node.name ?? "");
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -31,7 +195,10 @@ export default function TreeItem({ node }) {
     return unsubscribe;
   }, [node.id]);
 
-  // Focus the input automatically when editing starts
+  useEffect(() => {
+    setEditValue(node.label ?? node.name ?? "");
+  }, [node.label, node.name]);
+
   useEffect(() => {
     if (isEditing && inputRef.current) {
       inputRef.current.focus();
@@ -42,86 +209,67 @@ export default function TreeItem({ node }) {
   const Icon = icons[node.type] || Box;
   const hasChildren = node.children && node.children.length > 0;
 
-  const handleRowClick = (e) => {
-    // Prevent standard click if we are currently typing a new name
-    if (isEditing) return; 
+  const handleRowClick = () => {
+    if (isEditing) return;
 
-    if (node.type === "device") {
-      appState.selection.selectDevice(node.id, false);
-    } else if (node.type === "furniture") {
-      appState.selection.selectFurniture(node.id, false);
-    } else {
-      appState.selection.focusedNode(node.id, node.type);
-    }
-    
+    appState.selection.focusedNode(node.id, node.type);
+
     if (node.type === "floor") {
       appState.ui.setActiveFloor(node.id);
     } else if (node.type === "site") {
       const floors = appState.structural.getFloorsBySite(node.id);
-      if (floors && floors.length) {
-        appState.ui.setActiveFloor(floors[0].id);
-      } else {
-        appState.ui.setActiveFloor(null);
-      }
+      appState.ui.setActiveFloor(floors && floors.length ? floors[0].id : null);
     } else if (node.type === "device" || node.type === "furniture") {
-      const floorFromSpace = node.spaceId
-        ? appState.structural.spaces.find((space) => space.id === node.spaceId)?.floorId
-        : null;
-      appState.ui.setActiveFloor(node.floorId || floorFromSpace || null);
+      if (node.floorId) {
+        appState.ui.setActiveFloor(node.floorId);
+      }
     } else {
       appState.ui.setActiveFloor(null);
     }
   };
 
   const toggleOpen = (e) => {
-    e.stopPropagation(); 
+    e.stopPropagation();
     setOpen(!open);
   };
 
-  // --- NEW: Rename Handlers ---
-// --- UPDATED: Rename Handlers ---
   const handleDoubleClick = (e) => {
     e.stopPropagation();
-    // Allow renaming of structures AND devices/furniture
-    if (['domain', 'site', 'floor', 'space', 'device', 'furniture'].includes(node.type)) {
+    if (["domain", "site", "floor", "space", "device", "furniture"].includes(node.type)) {
       setIsEditing(true);
-      setEditValue(node.label);
+      setEditValue(node.label ?? node.name ?? "");
     }
   };
 
-const submitRename = () => {
-    if (editValue.trim() !== "" && editValue !== node.label) {
-      
-      // Update the Global Store (The Store will handle the Canvas update now!)
+  const submitRename = () => {
+    const nextValue = (editValue ?? "").trim();
+
+    if (nextValue !== "" && nextValue !== (node.label ?? node.name ?? "")) {
       if (node.type === "device" && appState.network) {
-        appState.network.updateDevice(node.id, { label: editValue });
+        appState.network.updateDevice(node.id, { label: nextValue });
       } else if (node.type === "furniture" && appState.furniture) {
-        appState.furniture.updateFurniture(node.id, { label: editValue });
+        appState.furniture.updateFurniture(node.id, { label: nextValue });
       } else {
-        appState.structural.renameStructure(node.id, editValue, node.type);
+        appState.structural.renameStructure(node.id, nextValue, node.type);
       }
-      
     } else {
-      // Guardrail: Snap back to original name if empty
-      setEditValue(node.label); 
+      setEditValue(node.label ?? node.name ?? "");
     }
+
     setIsEditing(false);
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter') submitRename();
-    if (e.key === 'Escape') {
+    if (e.key === "Enter") submitRename();
+    if (e.key === "Escape") {
       setIsEditing(false);
-      setEditValue(node.label);
+      setEditValue(node.label ?? node.name ?? "");
     }
   };
 
   return (
     <div className={`tree-item ${isFocused ? "focused" : ""}`}>
-      <div 
-        className={`tree-item-row ${isFocused ? "selected-bg" : ""}`} 
-        onClick={handleRowClick}
-      >
+      <div className={`tree-item-row ${isFocused ? "selected-bg" : ""}`} onClick={handleRowClick}>
         <div className="tree-item-wrapper">
           <div className="chevron-label">
             <div className="chevron-wrapper" onClick={toggleOpen}>
@@ -133,37 +281,40 @@ const submitRename = () => {
             </div>
 
             {Icon && <Icon size={14} className="tree-icon" />}
-            
-            {/* --- NEW: Render Input or Span based on editing state --- */}
+
             {isEditing ? (
               <input
                 ref={inputRef}
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
+                value={editValue ?? ""}
+                onChange={(e) => setEditValue(e.target.value ?? "")}
                 onBlur={submitRename}
                 onKeyDown={handleKeyDown}
                 onClick={(e) => e.stopPropagation()}
-                style={{ background: 'transparent', border: '1px solid #007bff', color: 'inherit', outline: 'none', marginLeft: '4px', width: '80%', padding: '0 2px' }}
+                style={{ background: "transparent", border: "1px solid #007bff", color: "inherit", outline: "none", marginLeft: "4px", width: "80%", padding: "0 2px" }}
               />
             ) : (
-              <span className="item-label" onDoubleClick={handleDoubleClick}>{node.label}</span>
+              <span className="item-label" onDoubleClick={handleDoubleClick}>
+                {node.label ?? node.name ?? "Untitled"}
+              </span>
             )}
-            
           </div>
 
-          {node.type === 'site' && <CopyPlus size={12} onClick={() => setSpecifierOpen(!specifierOpen)}/>}
+          {node.type === "site" && <CopyPlus size={12} onClick={() => setSpecifierOpen(!specifierOpen)} />}
         </div>
-        
       </div>
 
       {open && (
         <div className="tree-children">
-          {hasChildren &&
-            node.children.map((child) => (
-              <TreeItem key={child.id} node={child} />
-            ))}
+          {hasChildren && node.children.map((child) => <TreeItem key={child.id} node={child} />)}
           {node.type === "site" && specifierOpen && (
-              <FloorSpecifier parentId={node.id} onCloseModal={() => { setSpecifierOpen(!specifierOpen); setFloorSpecifierCount(floorSpecifierCount + 1)}} floorCount={floorSpecifierCount} />
+            <FloorSpecifier
+              parentId={node.id}
+              onCloseModal={() => {
+                setSpecifierOpen(!specifierOpen);
+                setFloorSpecifierCount(floorSpecifierCount + 1);
+              }}
+              floorCount={floorSpecifierCount}
+            />
           )}
         </div>
       )}

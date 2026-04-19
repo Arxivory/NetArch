@@ -14,10 +14,10 @@ export default class DeviceMesh {
     }
 
     getMesh(gltfLoader, deviceCatalog) {
-        const { switches, routers, endDevices, importedDevices } = deviceCatalog;
+        const { switches, routers, endDevices, importedDevices } = deviceCatalog; //Added importedDevices to the destructuring assignment
 
         const cId = this.catalogId;
-        const catalogEntry = switches[cId] || routers[cId] || endDevices[cId] || importedDevices[cId];
+        const catalogEntry = switches[cId] || routers[cId] || endDevices[cId] || importedDevices[cId]; //Added importedDevices lookup
 
         if (!catalogEntry)
             throw Error("Device Type is not found");

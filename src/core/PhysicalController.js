@@ -114,24 +114,8 @@ export class PhysicalController {
             if (this.spaceMeshes.has(space.id))
                 continue;
 
-            switch (space.shapeType) {
-                case 'rectangle':
-                    this.createRectangleSpaceMesh(space);
-                    break;
-                case 'polygon':
-                    this.createPolygonalSpaceMesh(space); // CHANGED: polygon spaces must use SpaceMesh, not DomainMesh
-                    break;
-                case 'freeform':
-                    this.createPolygonalSpaceMesh(space); // CHANGED: freeform space temporarily reuses the polygonal space mesh logic
-                    break;
-                    case 'circle':
-                    this.createCircularSpaceMesh(space);
-                    break;
-                default:
-                    break;
-            }
+            this.createSpaceMesh(space);
         }
-
 
         for (const device of devices) {
             console.log('Processing device for rendering: ', device);
@@ -259,6 +243,34 @@ export class PhysicalController {
         }
     }
 
+    createSpaceMesh(space) {
+        const floor = this.store.floors.find(f => f.id === space.floorId);
+        const altitude = floor ? floor.altitude || 0 : 0;
+
+        const newSpace = new SpaceMesh(space, this.defaultScaler);
+        let mesh;
+
+        switch (space.shapeType) {
+            case 'rectangle':
+                mesh = newSpace.getRectangularForm();
+                break;
+            case 'polygon':
+                mesh = newSpace.getPolygonalForm();
+                break;
+            case 'circle':
+                mesh = newSpace.getCircularForm();
+                break;
+            default:
+                console.warn(`Unknown space shape type: ${space.shapeType}`);
+                return;
+        }
+
+        mesh.position.y = altitude;
+
+        this.scene.add(mesh);
+        this.spaceMeshes.set(space.id, mesh);
+    }
+
     createRectangleSpaceMesh(space) {
         const floor = this.store.floors.find(f => f.id === space.floorId);
         const altitude = floor ? floor.altitude || 0 : 0;
@@ -275,7 +287,7 @@ export class PhysicalController {
         this.scene.add(mesh);
         this.spaceMeshes.set(space.id, mesh);
     }
-    
+
     createPolygonalSpaceMesh(space) {
         const floor = this.store.floors.find(f => f.id === space.floorId);
         const altitude = floor ? floor.altitude || 0 : 0; // ADDED: polygonal spaces still need to sit on the correct floor

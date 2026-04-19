@@ -18,9 +18,23 @@ export class FurnitureStore {
 
         const floor = appState.structural.getFloor(furniture.floorId);
     
+        // const newFurnitureData = {
+        //     id: furniture.id,
+        //     type: furniture.catalogId,
+        //     label: furniture.label || furniture.name || null,
+        //     floorId: furniture.floorId || null,
+        //     spaceId: furniture.spaceId || null,
+        //     transform: {
+        //         position: { x: furniture.position.x * 0.7, y: floor.altitude + 1, z: furniture.position.y * 0.7 },
+        //         rotation: { x: 0, y: 0, z: 0 },
+        //         scale: { x: 5, y: 5, z: 5 }
+        //     }
+        // }
         const newFurnitureData = {
             id: furniture.id,
-            type: furniture.catalogId,
+            type: "furniture",
+            catalogId: furniture.catalogId,
+            modelId: furniture.modelId,
             label: furniture.label || furniture.name || null,
             floorId: furniture.floorId || null,
             spaceId: furniture.spaceId || null,
@@ -29,7 +43,8 @@ export class FurnitureStore {
                 rotation: { x: 0, y: 0, z: 0 },
                 scale: { x: 5, y: 5, z: 5 }
             }
-        }
+        };
+
 
         const newFurniture = new Furniture(newFurnitureData);
         newFurniture.type = furniture.catalogId;

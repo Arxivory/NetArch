@@ -451,6 +451,10 @@ addDevice(deviceData, x, y) {
         console.log('Device added:', newDevice.id, 'with Catalog ID:', newDevice.catalogId, 'to floor/space:', focusedId);
     } catch (error) {
         console.error("Failed to add device:", error.message);
+      showErrorModal(
+        "The selected object is not supported for placement yet. Please import a supported device model and try again.",
+        "Unsupported Object"
+      );
     }
 }
 

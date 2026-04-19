@@ -444,7 +444,7 @@ const endDevices = {
       }
     ],
 
-    model3D: "/models/laptop.glb",
+    model3D: "/objects/devices/end-devices/ASUS-Laptop.glb",
   },
   "smartphone": {
     modelId: "smartphone",

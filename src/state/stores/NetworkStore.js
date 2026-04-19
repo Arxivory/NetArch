@@ -56,6 +56,7 @@ export class NetworkStore {
     if (index === -1) return false;
 
     this.devices.splice(index, 1);
+    window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: deviceId } }));
 
     this.links = this.links.filter(
       l => l.sourceDevice !== deviceId && l.targetDevice !== deviceId

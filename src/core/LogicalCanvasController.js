@@ -122,47 +122,61 @@ export class LogicalCanvasController {
   }
 
 executeDelete(idToDelete) {
-    let deletedIds = [];
+        let deletedIds = [];
 
-    // 1. Try deleting from structural state by finding the specific type
-    if (appState.structural) {
-        const st = appState.structural;
-        
-        if (st.domains && st.domains.some(d => d.id === idToDelete)) {
-            deletedIds = st.removeDomain(idToDelete) || [idToDelete];
-        } else if (st.sites && st.sites.some(s => s.id === idToDelete)) {
-            deletedIds = st.removeSite(idToDelete) || [idToDelete];
-        } else if (st.floors && st.floors.some(f => f.id === idToDelete)) {
-            deletedIds = st.removeFloor(idToDelete) || [idToDelete];
-        } else if (st.spaces && st.spaces.some(s => s.id === idToDelete)) {
-            deletedIds = st.removeSpace(idToDelete) || [idToDelete];
+        // 1. Try deleting from structural state by finding the specific type
+        if (appState.structural) {
+            const st = appState.structural;
+            
+            if (st.domains && st.domains.some(d => d.id === idToDelete)) {
+                deletedIds = st.removeDomain(idToDelete) || [idToDelete];
+            } else if (st.sites && st.sites.some(s => s.id === idToDelete)) {
+                deletedIds = st.removeSite(idToDelete) || [idToDelete];
+            } else if (st.floors && st.floors.some(f => f.id === idToDelete)) {
+                deletedIds = st.removeFloor(idToDelete) || [idToDelete];
+            } else if (st.spaces && st.spaces.some(s => s.id === idToDelete)) {
+                deletedIds = st.removeSpace(idToDelete) || [idToDelete];
+            }
+        }
+
+        // 2. FIXED: Changed appState.devices to appState.network!
+        if (deletedIds.length === 0 && appState.network && appState.network.removeDevice) {
+            // Check if the ID actually belongs to a device before trying to delete
+            const isDevice = appState.network.devices && appState.network.devices.some(d => d.id === idToDelete);
+            if (isDevice) {
+                appState.network.removeDevice(idToDelete); 
+                deletedIds = [idToDelete];
+            }
+        }
+
+        // 3. Try furniture 
+        if (deletedIds.length === 0 && appState.furniture && appState.furniture.removeFurniture) {
+            const isFurniture = appState.furniture.furnitures && appState.furniture.furnitures.some(f => f.id === idToDelete);
+            if (isFurniture) {
+                appState.furniture.removeFurniture(idToDelete);
+                deletedIds = [idToDelete];
+            }
+        }
+
+        // 4. Fallback: If it wasn't caught above, it's likely a raw canvas shape (like a Wall)
+        if (deletedIds.length === 0) {
+            deletedIds = [idToDelete];
+        }
+
+        // 5. Clear the visual objects from the canvas
+        if (deletedIds.length > 0) {
+            deletedIds.forEach(deletedId => {
+                if (typeof this.removeEntity === 'function') {
+                    this.removeEntity(deletedId);
+                }
+            });
+            
+            if (appState.selection && appState.selection.clearSelection) {
+                appState.selection.clearSelection();
+                if (typeof appState.selection.notify === 'function') appState.selection.notify();
+            }
         }
     }
-
-    // 2. If it wasn't a structure, try devices
-    if (deletedIds.length === 0 && appState.devices && appState.devices.removeDevice) {
-        appState.devices.removeDevice(idToDelete); 
-        deletedIds = [idToDelete];
-    }
-
-    // 3. Try furniture (just in case!)
-    if (deletedIds.length === 0 && appState.furniture && appState.furniture.removeFurniture) {
-        appState.furniture.removeFurniture(idToDelete);
-        deletedIds = [idToDelete];
-    }
-
-    // 4. Clear the visual objects from the canvas
-    if (deletedIds.length > 0) {
-        deletedIds.forEach(deletedId => {
-            this.removeEntity(deletedId);
-        });
-        
-        if (appState.selection && appState.selection.clearSelection) {
-            appState.selection.clearSelection();
-            appState.selection.notify?.();
-        }
-    }
-  }
 
   setSize(w, h) {
     this.layout?.setSize(w, h);

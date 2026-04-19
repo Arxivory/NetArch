@@ -38,6 +38,13 @@ export class LogicalLayout {
       system: this.system
     });
 
+    // --- NEW: Global Listener for Entity Deletions ---
+    window.addEventListener('forceCanvasDelete', (e) => {
+        if (e.detail && e.detail.id) {
+            this.removeEntityById(e.detail.id);
+        }
+    });
+
     this.shapeRenderer = new ShapeRenderer({
       gridSize: opts.gridSize || 32
     });
@@ -1433,24 +1440,45 @@ _onPointerUp(e) {
     return null;
   }
 
-  removeEntityById(id) {
-    const lists = this.getAllSelectableEntities();
-    const collections = [
-      'devices',
-      'rectangles',
-      'polygons',
-      'circles',
-      'walls',
-      'cables',
-      'furnitures'
-    ];
+removeEntityById(id) {
+    if (!id) return false;
 
-    collections.forEach(key => {
-      if (Array.isArray(this[key])) {
-        this[key] = this[key].filter(e => e.id !== id);
-      }
-    });
-    return null;
+    // 1. Deselect it if the user is currently holding/clicking it
+    if (this.selectedEntity && this.selectedEntity.id === id) {
+        this.selectedEntity = null;
+        this.interaction = { mode: null, handle: null, start: null };
+        this.pointerHandler.setCursor('default');
+    }
+
+    // 2. Hunt down the entity in all possible canvas arrays
+    let entityToRemove = null;
+    
+    // Add or remove array names here depending on how LogicalLayout stores them!
+    const targetArrays = ['rectangles', 'circles', 'polygons', 'freeforms', 'devices', 'furnitures', 'cables', 'walls'];
+    
+    for (const arrName of targetArrays) {
+        if (this[arrName]) {
+            const index = this[arrName].findIndex(en => en.id === id);
+            if (index !== -1) {
+                entityToRemove = this[arrName][index];
+                this[arrName].splice(index, 1); // Delete it from the drawing array
+                break;
+            }
+        }
+    }
+
+    // 3. Remove it from the 2D physics/collision system so other objects can use its space
+    if (entityToRemove && entityToRemove.body && this.system) {
+        try {
+            this.system.remove(entityToRemove.body); // or this.system.removeBody(entityToRemove.body) depending on your check2d version
+        } catch (e) {
+            console.warn("Could not cleanly remove body from physics system", e);
+        }
+    }
+
+    // 4. Erase it from the canvas!
+    this._render();
+    return true;
   }
 
 updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {

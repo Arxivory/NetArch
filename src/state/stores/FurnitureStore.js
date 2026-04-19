@@ -48,6 +48,7 @@ export class FurnitureStore {
             return false;
         }
         this.furnitures.splice(index, 1);
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: furnitureId } }));
         this.notify();
         return true;
     }

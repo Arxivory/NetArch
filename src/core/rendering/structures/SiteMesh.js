@@ -243,7 +243,7 @@ export default class SiteMesh {
             curveSegments: 64 // Smoother circle
         };
 
-        const wallSideMat = new THREE.MeshStandardMaterial({ color: 0xcccccc,  side: THREE.DoubleSide});
+        const wallSideMat = new THREE.MeshStandardMaterial({ color: 0xffffff,  side: THREE.DoubleSide});
         const wallTopMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
 
         const circleMesh = new THREE.Mesh(

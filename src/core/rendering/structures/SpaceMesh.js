@@ -229,7 +229,7 @@ export default class SpaceMesh {
         };
 
         const wallSideMat = new THREE.MeshStandardMaterial({
-            color: 0xcccccc,
+            color: 0xffffff,
             side: THREE.DoubleSide
         });
 

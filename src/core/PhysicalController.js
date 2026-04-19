@@ -93,22 +93,7 @@ export class PhysicalController {
             if (this.siteMeshes.has(site.id))
                 continue;
 
-            switch (site.shapeType) {
-                case 'rectangle':
-                    this.createRectangleSiteMesh(site);
-                    break;
-                case 'polygon':
-                    this.createPolygonalSiteMesh(site);
-                    break;
-                case 'freeform':
-                    this.createFreeformSiteMesh(site);
-                    break;
-                case 'circle':
-                    this.createCircularSiteMesh(site);
-                    break;
-                default:
-                    break;
-            }
+            this.createSiteMesh(site);
         }
 
         for (const floor of floors) {
@@ -250,36 +235,28 @@ export class PhysicalController {
         }
     }
 
-    createRectangleSiteMesh(site) {
-        const rectSite = new SiteMesh(site, this.defaultScaler);
-        const mesh = rectSite.getRectangularForm();
-
-        this.scene.add(mesh);
-        this.siteMeshes.set(site.id, mesh);
-    }
-
-    createCircularSiteMesh(site) {
-        const siteMesh = new SiteMesh(site, this.defaultScaler);
-        const mesh = siteMesh.getCircularForm();
-
-        this.scene.add(mesh);
-        this.siteMeshes.set(site.id, mesh);
-    }
-
-    createPolygonalSiteMesh(site) {
-        const siteMesh = new SiteMesh(site, this.defaultScaler);
-        const mesh = siteMesh.getPolygonalForm();
-
-        this.scene.add(mesh);
-        this.siteMeshes.set(site.id, mesh);
-    }
-
-    createFreeformSiteMesh(site) {
-        const siteMesh = new SiteMesh(site, this.defaultScaler);
-        const mesh = siteMesh.getFreeformForm();
-
-        this.scene.add(mesh);
-        this.siteMeshes.set(site.id, mesh);
+    createSiteMesh(site) {
+        const newSite = new SiteMesh(site, this.defaultScaler);
+        switch (site.shapeType) {
+            case 'rectangle':
+                const rectangularMesh = newSite.getRectangularForm();
+                this.scene.add(rectangularMesh);
+                this.siteMeshes.set(site.id, rectangularMesh);
+                break;
+            case 'polygon':
+                const polygonalMesh = newSite.getPolygonalForm();
+                this.scene.add(polygonalMesh);
+                this.siteMeshes.set(site.id, polygonalMesh);
+                break;
+            case 'circle':
+                const circularMesh = newSite.getCircularForm();
+                this.scene.add(circularMesh);
+                this.siteMeshes.set(site.id, circularMesh);
+                break;
+            default:
+                console.warn(`Unknown site shape type: ${site.shapeType}`);
+                break;
+        }
     }
 
     createRectangleSpaceMesh(space) {
@@ -298,38 +275,40 @@ export class PhysicalController {
         this.scene.add(mesh);
         this.spaceMeshes.set(space.id, mesh);
     }
+    
     createPolygonalSpaceMesh(space) {
-    const floor = this.store.floors.find(f => f.id === space.floorId);
-    const altitude = floor ? floor.altitude || 0 : 0; // ADDED: polygonal spaces still need to sit on the correct floor
+        const floor = this.store.floors.find(f => f.id === space.floorId);
+        const altitude = floor ? floor.altitude || 0 : 0; // ADDED: polygonal spaces still need to sit on the correct floor
 
-    console.log(`Creating polygonal space ${space.id} on floor ${space.floorId} at altitude ${altitude}`); // ADDED: debug log for polygon space creation
+        console.log(`Creating polygonal space ${space.id} on floor ${space.floorId} at altitude ${altitude}`); // ADDED: debug log for polygon space creation
 
-    const polygonalSpace = new SpaceMesh(space, this.defaultScaler);
-    const mesh = polygonalSpace.getPolygonalForm(); // ADDED: use the dedicated polygonal space mesh builder
+        const polygonalSpace = new SpaceMesh(space, this.defaultScaler);
+        const mesh = polygonalSpace.getPolygonalForm(); // ADDED: use the dedicated polygonal space mesh builder
 
-    mesh.position.y = altitude; // ADDED: stack the whole space group on its floor altitude
+        mesh.position.y = altitude; // ADDED: stack the whole space group on its floor altitude
 
-    console.log(`Polygonal space mesh positioned at Y=${mesh.position.y}`); // ADDED: confirm final vertical placement
+        console.log(`Polygonal space mesh positioned at Y=${mesh.position.y}`); // ADDED: confirm final vertical placement
 
-    this.scene.add(mesh);
-    this.spaceMeshes.set(space.id, mesh);
-}
+        this.scene.add(mesh);
+        this.spaceMeshes.set(space.id, mesh);
+    }
+
     createCircularSpaceMesh(space) {
-    const floor = this.store.floors.find(f => f.id === space.floorId);
-    const altitude = floor ? floor.altitude || 0 : 0; // ADDED: circular spaces still need to sit on the correct floor
+        const floor = this.store.floors.find(f => f.id === space.floorId);
+        const altitude = floor ? floor.altitude || 0 : 0; // ADDED: circular spaces still need to sit on the correct floor
 
-    console.log(`Creating circular space ${space.id} on floor ${space.floorId} at altitude ${altitude}`); // ADDED: debug log for circular space creation
+        console.log(`Creating circular space ${space.id} on floor ${space.floorId} at altitude ${altitude}`); // ADDED: debug log for circular space creation
 
-    const circularSpace = new SpaceMesh(space, this.defaultScaler);
-    const mesh = circularSpace.getCircularForm(); // ADDED: use the dedicated circular space mesh builder
+        const circularSpace = new SpaceMesh(space, this.defaultScaler);
+        const mesh = circularSpace.getCircularForm(); // ADDED: use the dedicated circular space mesh builder
 
-    mesh.position.y = altitude; // ADDED: stack the whole space group on its floor altitude
+        mesh.position.y = altitude; // ADDED: stack the whole space group on its floor altitude
 
-    console.log(`Circular space mesh positioned at Y=${mesh.position.y}`); // ADDED: confirm final vertical placement
+        console.log(`Circular space mesh positioned at Y=${mesh.position.y}`); // ADDED: confirm final vertical placement
 
-    this.scene.add(mesh);
-    this.spaceMeshes.set(space.id, mesh);
-}
+        this.scene.add(mesh);
+        this.spaceMeshes.set(space.id, mesh);
+    }
 
 
 

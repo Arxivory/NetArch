@@ -312,7 +312,7 @@ export class PhysicalController {
         const floorMesh = new FloorMesh(site, this.defaultScaler);
         const mesh = floorMesh.getRectangularForm();
 
-        mesh.position.y = floor.altitude || 0;
+        mesh.position.y = (floor.altitude || 0) + 1.5;
 
         console.log(`Floor mesh positioned at Y=${mesh.position.y}`);
 

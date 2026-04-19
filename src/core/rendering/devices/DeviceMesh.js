@@ -14,10 +14,10 @@ export default class DeviceMesh {
     }
 
     getMesh(gltfLoader, deviceCatalog) {
-        const { switches, routers, endDevices } = deviceCatalog;
+        const { switches, routers, endDevices, importedDevices } = deviceCatalog;
 
         const cId = this.catalogId;
-        const catalogEntry = switches[cId] || routers[cId] || endDevices[cId];
+        const catalogEntry = switches[cId] || routers[cId] || endDevices[cId] || importedDevices[cId];
 
         if (!catalogEntry)
             throw Error("Device Type is not found");

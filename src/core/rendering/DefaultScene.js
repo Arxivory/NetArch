@@ -100,3 +100,21 @@ export function cleanupWorld() {
         console.warn('Error during world cleanup:', e);
     }
 }
+
+function cableCurveTest(scene) {
+    const curve = new THREE.CatmullRomCurve3( [
+        new THREE.Vector3( -10, 0, 10 ),
+        new THREE.Vector3( -5, 5, 5 ),
+        new THREE.Vector3( 0, 0, 0 ),
+        new THREE.Vector3( 5, -5, 5 ),
+        new THREE.Vector3( 10, 0, 10 )
+    ] );
+    const geometry = new THREE.TubeGeometry(curve, 100, 0.06, 8, false);
+
+    const material = new THREE.MeshPhongMaterial({ 
+        color: 0xe0e0e0, 
+        wireframe: false 
+    });
+    const cable = new THREE.Mesh(geometry, material);
+    scene.add(cable);
+}

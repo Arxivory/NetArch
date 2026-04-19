@@ -21,6 +21,22 @@ export class LogicalCanvasController {
 
     // --- ADD THIS TO THE BOTTOM OF THE CONSTRUCTOR ---
     this.positionSnapshot = new Map();
+    // --- NEW: Global Listener for Entity Updates ---
+    window.addEventListener('forceCanvasUpdate', (e) => {
+        if (this.layout) {
+            const { id, updates } = e.detail;
+            const canvasEntity = this.layout.findEntityById(id);
+            if (canvasEntity) {
+                Object.assign(canvasEntity, updates);
+                // Ensure text properties sync
+                if (updates.label !== undefined) {
+                    canvasEntity.hostname = updates.label;
+                    canvasEntity.name = updates.label;
+                }
+                this.layout._render(); // Force instant redraw
+            }
+        }
+    });
     this.invalidMoveAlerted = new Set();
     window.addEventListener('pointerdown', () => {
         this.positionSnapshot.clear();
@@ -106,47 +122,70 @@ export class LogicalCanvasController {
   }
 
 executeDelete(idToDelete) {
-    let deletedIds = [];
+        let deletedIds = [];
 
-    // 1. Try deleting from structural state by finding the specific type
-    if (appState.structural) {
-        const st = appState.structural;
-        
-        if (st.domains && st.domains.some(d => d.id === idToDelete)) {
-            deletedIds = st.removeDomain(idToDelete) || [idToDelete];
-        } else if (st.sites && st.sites.some(s => s.id === idToDelete)) {
-            deletedIds = st.removeSite(idToDelete) || [idToDelete];
-        } else if (st.floors && st.floors.some(f => f.id === idToDelete)) {
-            deletedIds = st.removeFloor(idToDelete) || [idToDelete];
-        } else if (st.spaces && st.spaces.some(s => s.id === idToDelete)) {
-            deletedIds = st.removeSpace(idToDelete) || [idToDelete];
+        // 1. Try deleting from structural state by finding the specific type
+        if (appState.structural) {
+            const st = appState.structural;
+            
+            if (st.domains && st.domains.some(d => d.id === idToDelete)) {
+                deletedIds = st.removeDomain(idToDelete) || [idToDelete];
+            } else if (st.sites && st.sites.some(s => s.id === idToDelete)) {
+                deletedIds = st.removeSite(idToDelete) || [idToDelete];
+            } else if (st.floors && st.floors.some(f => f.id === idToDelete)) {
+                deletedIds = st.removeFloor(idToDelete) || [idToDelete];
+            } else if (st.spaces && st.spaces.some(s => s.id === idToDelete)) {
+                deletedIds = st.removeSpace(idToDelete) || [idToDelete];
+            }
+        }
+
+        // 2. FIXED: Changed appState.devices to appState.network!
+        if (deletedIds.length === 0 && appState.network && appState.network.removeDevice) {
+            // Check if the ID actually belongs to a device before trying to delete
+            const isDevice = appState.network.devices && appState.network.devices.some(d => d.id === idToDelete);
+            if (isDevice) {
+                appState.network.removeDevice(idToDelete); 
+                deletedIds = [idToDelete];
+            }
+        }
+
+        // 2.5 Try deleting a Link/Cable
+        if (deletedIds.length === 0 && appState.network && appState.network.links) {
+            const isLink = appState.network.links.some(l => l.id === idToDelete);
+            if (isLink) {
+                appState.network.removeLink(idToDelete);
+                deletedIds = [idToDelete];
+            }
+        }
+
+        // 3. Try furniture 
+        if (deletedIds.length === 0 && appState.furniture && appState.furniture.removeFurniture) {
+            const isFurniture = appState.furniture.furnitures && appState.furniture.furnitures.some(f => f.id === idToDelete);
+            if (isFurniture) {
+                appState.furniture.removeFurniture(idToDelete);
+                deletedIds = [idToDelete];
+            }
+        }
+
+        // 4. Fallback: If it wasn't caught above, it's likely a raw canvas shape (like a Wall)
+        if (deletedIds.length === 0) {
+            deletedIds = [idToDelete];
+        }
+
+        // 5. Clear the visual objects from the canvas
+        if (deletedIds.length > 0) {
+            deletedIds.forEach(deletedId => {
+                if (typeof this.removeEntity === 'function') {
+                    this.removeEntity(deletedId);
+                }
+            });
+            
+            if (appState.selection && appState.selection.clearSelection) {
+                appState.selection.clearSelection();
+                if (typeof appState.selection.notify === 'function') appState.selection.notify();
+            }
         }
     }
-
-    // 2. If it wasn't a structure, try devices
-    if (deletedIds.length === 0 && appState.devices && appState.devices.removeDevice) {
-        appState.devices.removeDevice(idToDelete); 
-        deletedIds = [idToDelete];
-    }
-
-    // 3. Try furniture (just in case!)
-    if (deletedIds.length === 0 && appState.furniture && appState.furniture.removeFurniture) {
-        appState.furniture.removeFurniture(idToDelete);
-        deletedIds = [idToDelete];
-    }
-
-    // 4. Clear the visual objects from the canvas
-    if (deletedIds.length > 0) {
-        deletedIds.forEach(deletedId => {
-            this.removeEntity(deletedId);
-        });
-        
-        if (appState.selection && appState.selection.clearSelection) {
-            appState.selection.clearSelection();
-            appState.selection.notify?.();
-        }
-    }
-  }
 
   setSize(w, h) {
     this.layout?.setSize(w, h);
@@ -207,6 +246,90 @@ executeDelete(idToDelete) {
   setActiveFloor(floorId) {
     appState.ui.setActiveFloor(floorId); // ADDED: keep the global active floor in sync for shape creation and overlap checks
     this.layout?.setActiveFloor(floorId);
+  }
+
+  _getEntityBounds(entity) {
+    if (!entity) return null;
+
+    if (typeof entity.tileX === 'number' && typeof entity.tileY === 'number' &&
+        typeof entity.tileWidth === 'number' && typeof entity.tileHeight === 'number') {
+      return {
+        minX: entity.tileX,
+        minY: entity.tileY,
+        maxX: entity.tileX + entity.tileWidth,
+        maxY: entity.tileY + entity.tileHeight
+      };
+    }
+
+    if (typeof entity.x === 'number' && typeof entity.y === 'number' &&
+        typeof entity.width === 'number' && typeof entity.height === 'number') {
+      return {
+        minX: entity.x,
+        minY: entity.y,
+        maxX: entity.x + entity.width,
+        maxY: entity.y + entity.height
+      };
+    }
+
+    if (typeof entity.getCurrentBounds === 'function') {
+      return entity.getCurrentBounds();
+    }
+
+    return null;
+  }
+
+  _getParentBounds(entity) {
+    if (!entity || !appState.structural) return null;
+    const st = appState.structural;
+    const getBounds = (shape) => {
+      if (!shape) return null;
+      const src = shape.geometry || shape;
+      const x = Number(src.x ?? src.left ?? 0);
+      const y = Number(src.y ?? src.top ?? 0);
+      const w = Number(src.w ?? src.width ?? 0);
+      const h = Number(src.h ?? src.height ?? 0);
+      const minX = Math.min(x, x + w);
+      const minY = Math.min(y, y + h);
+      const maxX = Math.max(x, x + w);
+      const maxY = Math.max(y, y + h);
+      return { minX, minY, maxX, maxY, width: Math.abs(w), height: Math.abs(h) };
+    };
+
+    if (entity.spaceId) {
+      const space = st.spaces?.find(s => s.id === entity.spaceId);
+      if (space) {
+        return getBounds(space);
+      }
+    }
+
+    if (entity.floorId) {
+      const floor = st.floors?.find(f => f.id === entity.floorId);
+      if (floor) {
+        const floorBounds = getBounds(floor);
+        if (floorBounds && floorBounds.width > 0 && floorBounds.height > 0) {
+          return floorBounds;
+        }
+        const parentSite = st.sites?.find(s => s.id === floor.siteId);
+        if (parentSite) {
+          return getBounds(parentSite);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  _isEntityWithinAssignedParentBounds(entity) {
+    const entityBounds = this._getEntityBounds(entity);
+    const parentBounds = this._getParentBounds(entity);
+    if (!entityBounds || !parentBounds) return true;
+    const tol = 2;
+    return !(
+      entityBounds.minX < parentBounds.minX - tol ||
+      entityBounds.minY < parentBounds.minY - tol ||
+      entityBounds.maxX > parentBounds.maxX + tol ||
+      entityBounds.maxY > parentBounds.maxY + tol
+    );
   }
 
 addDevice(deviceData, x, y) {
@@ -348,6 +471,32 @@ addFurniture(furnitureData, x, y) {
         console.error("Cannot add furniture: No floor or space is focused");
         alert('Please select a floor or space in the hierarchy before adding furniture.');
         return;
+    }
+
+    if (this.layout && typeof this.layout.isPointInsideShape === 'function') {
+        const dropIsInsideParent = this.layout.isPointInsideShape(focusedId, x, y);
+        if (!dropIsInsideParent) {
+            const prettyTypeName = focusedType.charAt(0).toUpperCase() + focusedType.slice(1);
+            showErrorModal(
+                `Placement Failed.\nYou dropped the furniture outside the physical area of the selected ${prettyTypeName}.`,
+                "Out of Bounds Error"
+            );
+            return;
+        }
+    }
+
+    if (focusedType === 'floor' && appState.structural && appState.structural.spaces) {
+        const spacesOnFloor = appState.structural.spaces.filter(s => s.floorId === focusedId);
+        const droppedInsideSpace = spacesOnFloor.find(space => 
+            this.layout.isPointInsideShape(space.id, x, y)
+        );
+        if (droppedInsideSpace) {
+            showErrorModal(
+                `You dropped the furniture inside "${droppedInsideSpace.label}".\n\nTo place furniture inside a Space, you must explicitly select that Space in the Hierarchy Panel first.`,
+                "Specific Placement Required"
+            );
+            return;
+        }
     }
 
     const catalogId = furnitureData.modelId;
@@ -864,6 +1013,29 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
     }
 
     const isDevice = en.interfaces !== undefined || en.catalogId !== undefined;
+    const isFurniture = en?.type === 'furniture' || en?.entityType === 'furniture';
+    const hasSavedPosition = en && en.savedPosition !== undefined;
+    const moved = (dx !== 0 || dy !== 0) ||
+      (hasSavedPosition && (en.x !== en.savedPosition.x || en.y !== en.savedPosition.y));
+
+    if ((isDevice || isFurniture) && moved) {
+        if (!this._isEntityWithinAssignedParentBounds(en)) {
+            if (typeof en.restoreToSavedPosition === 'function') {
+                en.restoreToSavedPosition();
+            }
+
+            if (this.layout) {
+                if (typeof this.layout._render === 'function') {
+                    this.layout._render();
+                } else if (typeof this.layout.render === 'function') {
+                    this.layout.render();
+                }
+            }
+
+            appState.selection.notify?.();
+            return;
+        }
+    }
 
     if (isDevice) {
         const persistedDevice = appState.network?.getDevice?.(en.id);
@@ -879,15 +1051,15 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
                     ...persistedDevice.transform,
                     position: {
                         ...persistedDevice.transform.position,
-                        x: centerX, // ADDED: persist the logical center, not the tile’s top-left corner
-                        y: centerY  // ADDED: DeviceMesh reads transform.position.y for the plan-space depth axis
+                        x: centerX,
+                        y: centerY
                     }
                 }
             });
         }
 
-        appState.selection.notify?.(); // ADDED: refresh hierarchy/properties once after the drag commit
-        return; // ADDED: skip the heavy structural traversal for device drags
+        appState.selection.notify?.();
+        return;
     }
 
 

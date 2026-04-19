@@ -38,6 +38,13 @@ export class LogicalLayout {
       system: this.system
     });
 
+    // --- NEW: Global Listener for Entity Deletions ---
+    window.addEventListener('forceCanvasDelete', (e) => {
+        if (e.detail && e.detail.id) {
+            this.removeEntityById(e.detail.id);
+        }
+    });
+
     this.shapeRenderer = new ShapeRenderer({
       gridSize: opts.gridSize || 32
     });
@@ -411,21 +418,15 @@ isPointInsideShape(id, x, y) {
       },
       path,
       hitTestMode: 'path',
-      move(dx, dy) {
-        this.x += dx;
-        this.y += dy;
-        this.transform.position = { ...this.transform.position, x: this.x, y: this.y };
-        updateFurniturePath(this);
-      },
       saveCurrentPosition() {
-        this._savedPosition = { x: this.x, y: this.y };
+        this.savedPosition = { x: this.x, y: this.y };
       },
       restoreToSavedPosition() {
-        if (!this._savedPosition) return;
-        this.x = this._savedPosition.x;
-        this.y = this._savedPosition.y;
-        this.transform.position = { ...this.transform.position, x: this.x, y: this.y };
-        updateFurniturePath(this);
+        if (!this.savedPosition) return;
+        this.x = this.savedPosition.x;
+        this.y = this.savedPosition.y;
+        this.transform.position.x = this.x;
+        this.transform.position.y = this.y;
       }
     };
 
@@ -782,7 +783,12 @@ if (this.mode === 'freeform') {
         const dy = p.y - this.interaction.start.y;
 
         if (this.interaction.mode === "move") {
-          en.move(dx, dy);
+          if (this._isDeviceEntity(en) || this._isFurnitureEntity(en)) {
+            const clamped = this._clampMovementWithinParent(en, dx, dy);
+            en.move(clamped.dx, clamped.dy);
+          } else {
+            en.move(dx, dy);
+          }
         }
 
         if (this.interaction.mode === "resize" && en.type === 'rectangle') {
@@ -888,8 +894,15 @@ _onPointerUp(e) {
         }
       }
 
+      const actualDx = hasSavedPosition
+        ? this.selectedEntity.x - this.selectedEntity.savedPosition.x
+        : restoreDx;
+      const actualDy = hasSavedPosition
+        ? this.selectedEntity.y - this.selectedEntity.savedPosition.y
+        : restoreDy;
+
       if (this.onEntityChanged) {
-        this.onEntityChanged(this.selectedEntity, restoreDx, restoreDy); // CHANGED: commit device move/resize only once at drag end
+        this.onEntityChanged(this.selectedEntity, actualDx, actualDy); // CHANGED: commit device move/resize only once at drag end
       }
     }
 
@@ -1437,24 +1450,45 @@ _onPointerUp(e) {
     return null;
   }
 
-  removeEntityById(id) {
-    const lists = this.getAllSelectableEntities();
-    const collections = [
-      'devices',
-      'rectangles',
-      'polygons',
-      'circles',
-      'walls',
-      'cables',
-      'furnitures'
-    ];
+removeEntityById(id) {
+    if (!id) return false;
 
-    collections.forEach(key => {
-      if (Array.isArray(this[key])) {
-        this[key] = this[key].filter(e => e.id !== id);
-      }
-    });
-    return null;
+    // 1. Deselect it if the user is currently holding/clicking it
+    if (this.selectedEntity && this.selectedEntity.id === id) {
+        this.selectedEntity = null;
+        this.interaction = { mode: null, handle: null, start: null };
+        this.pointerHandler.setCursor('default');
+    }
+
+    // 2. Hunt down the entity in all possible canvas arrays
+    let entityToRemove = null;
+    
+    // Add or remove array names here depending on how LogicalLayout stores them!
+    const targetArrays = ['rectangles', 'circles', 'polygons', 'freeforms', 'devices', 'furnitures', 'cables', 'walls'];
+    
+    for (const arrName of targetArrays) {
+        if (this[arrName]) {
+            const index = this[arrName].findIndex(en => en.id === id);
+            if (index !== -1) {
+                entityToRemove = this[arrName][index];
+                this[arrName].splice(index, 1); // Delete it from the drawing array
+                break;
+            }
+        }
+    }
+
+    // 3. Remove it from the 2D physics/collision system so other objects can use its space
+    if (entityToRemove && entityToRemove.body && this.system) {
+        try {
+            this.system.remove(entityToRemove.body); // or this.system.removeBody(entityToRemove.body) depending on your check2d version
+        } catch (e) {
+            console.warn("Could not cleanly remove body from physics system", e);
+        }
+    }
+
+    // 4. Erase it from the canvas!
+    this._render();
+    return true;
   }
 
 updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {
@@ -1524,28 +1558,135 @@ updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {
   }
 
   _isDeviceEntity(en) {
-  return !!en && (en.interfaces !== undefined || en.catalogId !== undefined);
+    return !!en && (en.interfaces !== undefined || en.catalogId !== undefined);
   }
 
-_isFurnitureEntity(en) {
-  return !!en && (en.type === 'furniture' || en.id?.startsWith('furniture'));
-}
+  _isFurnitureEntity(en) {
+    return !!en && (en.type === 'furniture' || en.id?.startsWith('furniture'));
+  }
 
-_isResizableEntity(en) {
-  return !!en && (en.type === 'rectangle' || this._isDeviceEntity(en)); // ADDED: devices can now use resize handles too
-}
+  _isResizableEntity(en) {
+    return !!en && (en.type === 'rectangle' || this._isDeviceEntity(en)); // ADDED: devices can now use resize handles too
+  }
 
-_getEntityInteractionBounds(en) {
-  if (!en) return null;
+  _getEntityBounds(en) {
+    if (!en) return null;
 
-  if (this._isDeviceEntity(en)) {
+    if (this._isDeviceEntity(en)) {
+      return {
+        minX: en.tileX,
+        minY: en.tileY,
+        maxX: en.tileX + en.tileWidth,
+        maxY: en.tileY + en.tileHeight,
+        width: en.tileWidth,
+        height: en.tileHeight
+      };
+    }
+
+    if (this._isFurnitureEntity(en)) {
+      const w = (en.width ?? 0) + 32;
+      const h = (en.height ?? 0) + 45;
+      const x = en.x - w / 2;
+      const y = en.y - h / 2.5;
+      return {
+        minX: x,
+        minY: y,
+        maxX: x + w,
+        maxY: y + h,
+        width: w,
+        height: h
+      };
+    }
+
+    const x = Number(en.x ?? 0);
+    const y = Number(en.y ?? 0);
+    const w = Number(en.w ?? en.width ?? 0);
+    const h = Number(en.h ?? en.height ?? 0);
     return {
-      x: en.tileX,       // ADDED: devices are drawn/hit-tested using tile bounds, not raw x/y/w/h
-      y: en.tileY,
-      w: en.tileWidth,
-      h: en.tileHeight
+      minX: x,
+      minY: y,
+      maxX: x + w,
+      maxY: y + h,
+      width: w,
+      height: h
     };
   }
+
+  _getParentBounds(en) {
+    if (!en || !appState.structural) return null;
+    const st = appState.structural;
+    const getBounds = (shape) => {
+      if (!shape) return null;
+      const src = shape.geometry || shape;
+      const x = Number(src.x ?? src.left ?? 0);
+      const y = Number(src.y ?? src.top ?? 0);
+      const w = Number(src.w ?? src.width ?? 0);
+      const h = Number(src.h ?? src.height ?? 0);
+      return {
+        minX: Math.min(x, x + w),
+        minY: Math.min(y, y + h),
+        maxX: Math.max(x, x + w),
+        maxY: Math.max(y, y + h),
+        width: Math.abs(w),
+        height: Math.abs(h)
+      };
+    };
+
+    if (en.spaceId) {
+      const space = st.spaces?.find(s => s.id === en.spaceId);
+      if (space) return getBounds(space);
+    }
+
+    if (en.floorId) {
+      const floor = st.floors?.find(f => f.id === en.floorId);
+      if (floor) {
+        const floorBounds = getBounds(floor);
+        if (floorBounds && floorBounds.width > 0 && floorBounds.height > 0) {
+          return floorBounds;
+        }
+        const parentSite = st.sites?.find(s => s.id === floor.siteId);
+        if (parentSite) return getBounds(parentSite);
+      }
+    }
+
+    return null;
+  }
+
+  _clampMovementWithinParent(en, dx, dy) {
+    const entityBounds = this._getEntityBounds(en);
+    const parentBounds = this._getParentBounds(en);
+    if (!entityBounds || !parentBounds) return { dx, dy };
+
+    let clampedDx = dx;
+    let clampedDy = dy;
+
+    if (entityBounds.minX + clampedDx < parentBounds.minX) {
+      clampedDx = parentBounds.minX - entityBounds.minX;
+    }
+    if (entityBounds.maxX + clampedDx > parentBounds.maxX) {
+      clampedDx = parentBounds.maxX - entityBounds.maxX;
+    }
+    if (entityBounds.minY + clampedDy < parentBounds.minY) {
+      clampedDy = parentBounds.minY - entityBounds.minY;
+    }
+    if (entityBounds.maxY + clampedDy > parentBounds.maxY) {
+      clampedDy = parentBounds.maxY - entityBounds.maxY;
+    }
+
+    return { dx: clampedDx, dy: clampedDy };
+  }
+
+  _getEntityInteractionBounds(en) {
+    if (!en) return null;
+
+    if (this._isDeviceEntity(en)) {
+      return {
+        x: en.tileX,       // ADDED: devices are drawn/hit-tested using tile bounds, not raw x/y/w/h
+        y: en.tileY,
+        w: en.tileWidth,
+        h: en.tileHeight
+      };
+    }
 
   if (this._isFurnitureEntity(en)) {
     const w = (en.width ?? 0) + 32;

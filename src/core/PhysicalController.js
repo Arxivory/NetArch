@@ -11,6 +11,7 @@ import FurnitureMesh from './rendering/furnitures/FurnitureMesh';
 import DeviceMesh from './rendering/devices/DeviceMesh';
 import { GizmoManager } from './rendering/GizmoManager.js';
 import { getScene, getCamera, getRenderer } from './rendering/SceneAccess';
+import WallMesh from './rendering/structures/WallMesh.js';
 
 export class PhysicalController {
     constructor(scene) {
@@ -30,6 +31,7 @@ export class PhysicalController {
         this.siteMeshes = new Map();
         this.floorMeshes = new Map(); 
         this.spaceMeshes = new Map();
+        this.wallMeshes = new Map();
         this.deviceMeshes =  new Map();
         this.furnitureMeshes = new Map();
 
@@ -65,6 +67,7 @@ export class PhysicalController {
         const sites = this.store.sites;
         const floors = this.store.floors;
         const spaces = this.store.spaces;
+        const walls = this.store.walls;
         const devices = this.networkStore.devices;
         const furnitures = this.furnitureStore.furnitures;
 
@@ -74,6 +77,7 @@ export class PhysicalController {
         const activeSiteIds = new Set();
         const activeFloorIds = new Set();
         const activeSpaceIds = new Set();
+        const activeWallIds = new Set();
         const activeDeviceIds = new Set();
         const activeFurnitureIds = new Set();
 
@@ -115,6 +119,24 @@ export class PhysicalController {
                 continue;
 
             this.createSpaceMesh(space);
+        }
+
+        for (const wall of walls) {
+            activeWallIds.add(wall.id);
+
+            if (this.wallMeshes.has(wall.id)) 
+                continue;
+
+            const floor = this.store.floors.find(f => f.id === wall.floorId);
+            const altitude = floor ? floor.altitude || 0 : 0;
+
+            const newWall = new WallMesh(wall, this.defaultScaler);
+            const newWallMesh = newWall.getWallMesh();
+
+            newWallMesh.position.y = altitude;
+
+            this.scene.add(newWallMesh);
+            this.wallMeshes.set(wall.id, newWallMesh);
         }
 
         for (const device of devices) {
@@ -177,6 +199,13 @@ export class PhysicalController {
             if (!activeSpaceIds.has(id)) {
                 this.scene.remove(mesh);
                 this.spaceMeshes.delete(id);
+            }
+        }
+
+        for (const [id, mesh] of this.wallMeshes) {
+            if (!activeWallIds.has(id)) {
+                this.scene.remove(mesh);
+                this.wallMeshes.delete(id);
             }
         }
 

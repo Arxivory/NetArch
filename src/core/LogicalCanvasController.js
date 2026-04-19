@@ -120,6 +120,8 @@ executeDelete(idToDelete) {
             deletedIds = st.removeFloor(idToDelete) || [idToDelete];
         } else if (st.spaces && st.spaces.some(s => s.id === idToDelete)) {
             deletedIds = st.removeSpace(idToDelete) || [idToDelete];
+        } else if (st.walls && st.walls.some(w => w.id === idToDelete)) {
+            deletedIds = st.removeWall?.(idToDelete) || [idToDelete];
         }
     }
 
@@ -725,12 +727,8 @@ _handleShapeCreated(shapeData, shapeType) {
   _handleWallCreated(wallData) {
     const activeFloorId = appState.ui?.activeFloorId;
     if (activeFloorId && appState.structural.addFenestration) {
-      appState.structural.addFenestration(activeFloorId, {
-        id: wallData.id,
-        floorId: activeFloorId,
-        type: 'wall',
-        geometry: { start: wallData.start, end: wallData.end, thickness: 0.2 }
-      });
+      console.log('New Wall Data: ', wallData);
+      appState.structural.addWall({ ...wallData, floorId: activeFloorId });
     }
   }
 
@@ -848,6 +846,11 @@ _handleEntitySelected(entity) {
             appState.selection.focusedType = 'furniture';
             appState.selection.notify?.();
         }
+    }
+    else if (entity.type === 'wall') {
+        appState.selection.focusedId = entity.id;
+        appState.selection.focusedType = 'wall';
+        appState.selection.notify?.();
     }
     else {
         appState.selection.selectDevice?.(entity.id, false);

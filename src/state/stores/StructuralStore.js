@@ -2,6 +2,7 @@ import Domain from "../../core/structural/Domain";
 import Site from "../../core/structural/Site";
 import Floor from "../../core/structural/Floor";
 import Space from "../../core/structural/Space";
+import Wall from "../../core/structural/Wall";
 
 export class StructuralStore {
     constructor() {
@@ -10,6 +11,7 @@ export class StructuralStore {
         this.floors = [];
         this.spaces = [];
         this.listeners = [];
+        this.walls = [];
     }
 
     // ============= Domain Methods =============
@@ -189,6 +191,18 @@ removeSpace(spaceId) {
         this.notify();
         return [spaceId];
     }
+
+    removeWall(wallId) {
+        const index = this.walls.findIndex(w => w.id === wallId);
+        if (index === -1) {
+            console.warn(`Wall not found: ${wallId}`);
+            return false;
+        }
+        this.walls.splice(index, 1);
+        this.notify();
+        return [wallId];
+    }
+
     getSpacesByFloor(floorId) {
         return this.spaces.filter(s => s.floorId === floorId);
     }
@@ -208,6 +222,17 @@ removeSpace(spaceId) {
         return added;
     }
 
+    addWall(wall) {
+        if (!wall.id) {
+            throw Error('Wall must have an id');
+        }
+
+        const newWall = new Wall(wall);
+        this.walls.push(newWall);
+        this.notify();
+        return newWall;
+    }
+
     renameStructure(id, newLabel, type) {
         let item = null;
         
@@ -216,6 +241,7 @@ removeSpace(spaceId) {
         else if (type === 'site') item = this.sites.find(s => s.id === id);
         else if (type === 'floor') item = this.floors.find(f => f.id === id);
         else if (type === 'space') item = this.spaces.find(sp => sp.id === id);
+        else if (type === 'wall') item = this.walls.find(w => w.id === id);
 
         // If we found it, update the label and tell the UI to re-render
         if (item) {
@@ -252,6 +278,12 @@ removeSpace(spaceId) {
         if (this.spaces.some(sp => sp.id === id)) {
             console.log(`Removing Space: ${id}`);
             return this.removeSpace(id);
+        }
+
+        // Check Walls
+        if (this.walls.some(w => w.id === id)) {
+            console.log(`Removing Wall: ${id}`);
+            return this.removeWall(id);
         }
 
         // Not found in structural store
@@ -323,8 +355,19 @@ removeSpace(spaceId) {
                 }))
             );
         }
+
+        const wallsOnFloor = this.walls
+            .filter(w => w.floorId === floorId && !w.spaceId)
+            .map(wall => ({
+                id: wall.id,
+                label: wall.label || `Wall ${wall.id}`,
+                type: 'wall',
+                floorId: wall.floorId,
+                wallId: wall.id,
+                children: []
+            }));
         
-        return [...spaces, ...devicesWithoutSpace, ...furnituresWithoutSpace];
+        return [...spaces, ...devicesWithoutSpace, ...furnituresWithoutSpace, ...wallsOnFloor];
     }
 
     _buildSpaceChildren(floorId, networkStore = null, furnitureStore = null) {
@@ -371,8 +414,19 @@ removeSpace(spaceId) {
                 }))
             );
         }
+
+        const wallsInSpace = this.walls
+            .filter(w => w.spaceId === spaceId)
+            .map(wall => ({
+                id: wall.id,
+                label: wall.label || `Wall ${wall.id}`,
+                type: 'wall',
+                spaceId: wall.spaceId,
+                wallId: wall.id,
+                children: []
+            }));
         
-        return [...devicesInSpace, ...furnituresInSpace];
+        return [...devicesInSpace, ...furnituresInSpace, ...wallsInSpace];
     }
 
     subscribe(callback) {

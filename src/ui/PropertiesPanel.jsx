@@ -70,27 +70,34 @@ export default function PropertiesPanel({ canvasController }) {
       if (ids && ids.length > 0) {
         const entityId = ids[0];
         let entity = findEntityById(entityId);
-
-        console.log("Looking for entity:", entityId);
-        console.log("Found entity:", entity);
         
-        // --- NEW: Grab the freshest data from Structural Store ---
-        // This ensures that if we renamed it in the tree, the properties panel sees it yuh
-        let structureNode = null;
+        let storeNode = null;
+        
+        // 1. Check Structural Store
         if (appState.structural) {
           const { domains, sites, floors, spaces } = appState.structural;
-          structureNode = 
+          storeNode = 
             (domains || []).find(d => d.id === entityId) || 
             (sites || []).find(s => s.id === entityId) || 
             (floors || []).find(f => f.id === entityId) || 
             (spaces || []).find(sp => sp.id === entityId);
         }
+        
+        // 2. Check Network Store for Devices
+        if (!storeNode && appState.network) {
+            storeNode = appState.network.getDevice(entityId);
+        }
+        
+        // 3. Check Furniture Store
+        if (!storeNode && appState.furniture) {
+            storeNode = appState.furniture.getFurniture(entityId);
+        }
 
         // Merge the freshest label into the entity
-        if (entity && structureNode) {
-          entity = { ...entity, label: structureNode.label };
-        } else if (!entity && structureNode) {
-          entity = structureNode;
+        if (entity && storeNode) {
+          entity = { ...entity, label: storeNode.label || storeNode.hostname || storeNode.name };
+        } else if (!entity && storeNode) {
+          entity = storeNode;
         }
 
         if (entity) {
@@ -114,9 +121,11 @@ export default function PropertiesPanel({ canvasController }) {
       setSelectedEntity(null);
     };
 
-    // --- NEW: Subscribe to BOTH selection and structural changes ---
+    // Subscribe to everything so the properties panel always stays in sync!
     const unsubscribeSelection = appState.selection.subscribe(updatePanelContent);
     const unsubscribeStructural = appState.structural.subscribe(updatePanelContent);
+    const unsubscribeNetwork = appState.network.subscribe(updatePanelContent);
+    const unsubscribeFurniture = appState.furniture.subscribe(updatePanelContent);
 
     // Initial load
     updatePanelContent();
@@ -124,6 +133,8 @@ export default function PropertiesPanel({ canvasController }) {
     return () => {
       if (unsubscribeSelection) unsubscribeSelection();
       if (unsubscribeStructural) unsubscribeStructural();
+      if (unsubscribeNetwork) unsubscribeNetwork();
+      if (unsubscribeFurniture) unsubscribeFurniture();
     };
   }, [canvasController]);
 
@@ -228,14 +239,46 @@ export default function PropertiesPanel({ canvasController }) {
   }
   
   // 2. Define handleDeviceChange AFTER the closing bracket of the previous function
-  const handleDeviceChange = (field, value) => {
-    if (!selectedEntity || !canvasController) return;
+const handleDeviceChange = (field, value) => {
+    if (!selectedEntity) return;
+
+    // 1. ALWAYS update the local React state so you can freely type and delete characters
+    const updatedEntity = { ...selectedEntity, [field]: value };
+    setSelectedEntity(updatedEntity);
+
+    // 2. Guardrail: If the label is completely empty, STOP here.
+    // This allows the input box to be empty, but protects the Canvas from getting wiped out.
+    if (field === 'label' && value.trim() === '') {
+       return; 
+    }
+
+    // 3. If it has valid text, send it to the Store!
+    if (appState.network && appState.network.updateDevice) {
+      appState.network.updateDevice(selectedEntity.id, { [field]: value });
+    }
+  };
+
+  const handleFurnitureChange = (field, value) => {
+    if (!selectedEntity) return;
 
     const updatedEntity = { ...selectedEntity, [field]: value };
     setSelectedEntity(updatedEntity);
 
-    if (canvasController.updateDevice) {
-      canvasController.updateDevice(selectedEntity.id, { [field]: value });
+    // 1. Update the Global State (Updates Hierarchy)
+    if (appState.furniture && appState.furniture.updateFurniture) {
+      appState.furniture.updateFurniture(selectedEntity.id, { [field]: value });
+    }
+
+    // 2. Instantly update the Logical Canvas visually!
+    if (canvasController && canvasController.layout) {
+      const canvasEntity = canvasController.layout.findEntityById(selectedEntity.id);
+      if (canvasEntity) {
+        canvasEntity[field] = value;
+        if (field === 'label') {
+           canvasEntity.name = value;
+        }
+        canvasController.layout._render();
+      }
     }
   };
 
@@ -375,6 +418,19 @@ export default function PropertiesPanel({ canvasController }) {
           >
             Advanced Configuration
           </button>
+        </div>
+      )}
+{isFurniture && (
+        <div className="properties-group">
+          <hr className="header-separator" />
+          <div>
+            <label>Furniture Name</label>
+            <input
+              className="field-input"
+              value={selectedEntity?.label || ""}
+              onChange={(e) => handleFurnitureChange('label', e.target.value)}
+            />
+          </div>
         </div>
       )}
 

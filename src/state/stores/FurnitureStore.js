@@ -52,6 +52,15 @@ export class FurnitureStore {
         return true;
     }
 
+    updateFurniture(furnitureId, updates) {
+        const furniture = this.furnitures.find(f => f.id === furnitureId);
+        if (!furniture) return false;
+
+        Object.assign(furniture, updates);
+        this.notify();
+        return true;
+    }
+
     getFurniture(furnitureId) {
         return this.furnitures.find(f => f.id === furnitureId) || null;
     }

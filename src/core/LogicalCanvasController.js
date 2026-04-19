@@ -21,6 +21,22 @@ export class LogicalCanvasController {
 
     // --- ADD THIS TO THE BOTTOM OF THE CONSTRUCTOR ---
     this.positionSnapshot = new Map();
+    // --- NEW: Global Listener for Entity Updates ---
+    window.addEventListener('forceCanvasUpdate', (e) => {
+        if (this.layout) {
+            const { id, updates } = e.detail;
+            const canvasEntity = this.layout.findEntityById(id);
+            if (canvasEntity) {
+                Object.assign(canvasEntity, updates);
+                // Ensure text properties sync
+                if (updates.label !== undefined) {
+                    canvasEntity.hostname = updates.label;
+                    canvasEntity.name = updates.label;
+                }
+                this.layout._render(); // Force instant redraw
+            }
+        }
+    });
     this.invalidMoveAlerted = new Set();
     window.addEventListener('pointerdown', () => {
         this.positionSnapshot.clear();

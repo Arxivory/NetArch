@@ -80,18 +80,14 @@ export class ShapeRenderer {
 
   renderDevices(ctx, devices) {
     ctx.save();
-    ctx.font = '12px sans-serif';
     ctx.textAlign = 'center';
     ctx.lineWidth = 1;
 
     for (const dev of devices) {
       const cx = dev.x + dev.renderWidth / 2;
       const cy = dev.y + dev.renderHeight / 2;
-
-
       const w = dev.renderWidth;
       const h = dev.renderHeight;
-
       const x = dev.x;
       const y = dev.y;
 
@@ -109,57 +105,71 @@ export class ShapeRenderer {
         this._drawFallbackDevice(ctx, x, y, w);
       }
 
-      // --- LABEL ---
+      // --- AUTO-SCALING LABEL ---
+      const labelText = dev.label || dev.hostname || dev.name || 'Device';
+      const maxWidth = w * 1.5; // Max text width is 150% of the device icon width
+
+      let fontSize = 12;
+      ctx.font = `${fontSize}px sans-serif`;
+      
+      // Shrink font size dynamically until the text fits the max width (minimum 6px)
+      while (ctx.measureText(labelText).width > maxWidth && fontSize > 6) {
+          fontSize -= 0.5;
+          ctx.font = `${fontSize}px sans-serif`;
+      }
+
       ctx.fillStyle = '#000000';
-      ctx.fillText(dev.label || 'Device', cx, cy + (h / 2) + 12);
+      ctx.fillText(labelText, cx, cy + (h / 2) + 12);
     }
 
     ctx.restore();
   }
 
 
-  renderFurnitures(ctx, furnitures) {
+renderFurnitures(ctx, furnitures) {
     ctx.save();
-    ctx.font = '12px sans-serif';
     ctx.textAlign = 'center';
     ctx.lineWidth = 1;
 
     for (const dev of furnitures) {
-      // 1. Calculate Size & Position
-      // Check for scale (handling both simple numbers and vector objects)
-      const s = dev.transform.scale.factor;
-
-      const baseSize = this.gridSize * 1.5; // Made slightly larger for icons
+      const s = dev.transform?.scale?.factor || dev.transform?.scale?.x || 1;
+      const baseSize = this.gridSize * 1.5;
       const size = baseSize * s;
       const halfSize = size / 2;
 
       const x = dev.x - halfSize;
       const y = dev.y - halfSize;
 
-      // 2. Create Hit Path (Invisible, used for clicking the device)
       const path = new Path2D();
       path.rect(x, y, size, size);
       dev.path = path;
 
-      // 3. Draw: Icon OR Fallback Square
       if (dev.icon && dev.icon.complete && dev.icon.naturalWidth !== 0) {
-        // --- DRAW IMAGE ---
         try {
           ctx.drawImage(dev.icon, x, y, dev.renderWidth, dev.renderHeight);
         } catch (e) {
-          console.warn("Error drawing device icon:", e);
-          // Fallback if image fails
+          console.warn("Error drawing furniture icon:", e);
           this._drawFallbackDevice(ctx, x, y, size);
         }
       } else {
-        // --- DRAW FALLBACK SQUARE ---
         this._drawFallbackDevice(ctx, x, y, size);
       }
 
-      // 4. Draw Label (Below the device)
+      // --- AUTO-SCALING LABEL ---
+      const labelText = dev.label || dev.name || 'Furniture';
+      const maxWidth = size * 1.5; // Max text width is 150% of the furniture icon width
+
+      let fontSize = 12;
+      ctx.font = `${fontSize}px sans-serif`;
+      
+      // Shrink font size dynamically until the text fits
+      while (ctx.measureText(labelText).width > maxWidth && fontSize > 6) {
+          fontSize -= 0.5;
+          ctx.font = `${fontSize}px sans-serif`;
+      }
+
       ctx.fillStyle = '#000000';
-      // Adjust text position based on size
-      ctx.fillText(dev.label || 'Device', dev.x, dev.y + halfSize + 14);
+      ctx.fillText(labelText, dev.x, dev.y + halfSize + 14);
     }
     ctx.restore();
   }

@@ -67,14 +67,30 @@ export class NetworkStore {
     return true;
   }
 
-  updateDevice(deviceId, updates) {
+updateDevice(deviceId, updates) {
     const device = this.devices.find(d => d.id === deviceId);
     if (!device) return false;
 
-    Object.assign(device, updates);
-    this.updateModified();
-    this.notify();
+    // 1. Guardrail: Prevent Empty Names
+    if (updates.label !== undefined) {
+        if (updates.label.trim() === '') {
+            delete updates.label; // Cancel this specific update
+        } else {
+            device.hostname = updates.label;
+            device.name = updates.label;
+            device.label = updates.label;
+        }
+    }
 
+    Object.assign(device, updates);
+
+    // 2. Dispatch event to instantly update Canvas
+    window.dispatchEvent(new CustomEvent('forceCanvasUpdate', { 
+        detail: { id: deviceId, updates } 
+    }));
+    
+    this.updateModified();
+    this.notify(); 
     return true;
   }
 

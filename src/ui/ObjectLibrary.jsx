@@ -14,10 +14,11 @@ import {
 } from "lucide-react";
 import appState from "../state/AppState";
 import { StartDrawCableCommand } from "../core/editor/DrawingCommands";
+import deviceCatalog, { registerImportedDevice } from "../data/deviceCatalog";
 
 // 1. DATA SOURCES
-import deviceCatalog from "../data/deviceCatalog";
 import furnitureCatalog from "../data/furnitureCatalog";
+import { showErrorModal } from "../util/ErrorHandling";
 
 // 2. ICON MAPPING FOR DYNAMIC ICONS
 const ICON_MAP = {
@@ -108,8 +109,17 @@ export default function ObjectLibrary({ canvasController }) {
       displayName: nameWithoutExt.toUpperCase(),
       family: "imported",
       model3D: URL.createObjectURL(file),
+      sourceExtension: fileExt.slice(1),
       icon: SelectedIcon
     };
+
+    try {
+      registerImportedDevice(newItem);
+    } catch (err) {
+      console.error("Failed to register imported device:", err);
+      showErrorModal("Failed to register imported device. Please try again.");
+      return;
+    }
 
     setImportedItems(prev => [...prev, newItem]);
     setImportSuccess(`Successfully registered ${newItem.displayName}.`);

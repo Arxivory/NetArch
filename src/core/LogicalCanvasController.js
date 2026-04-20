@@ -56,6 +56,7 @@ export class LogicalCanvasController {
       onCableCreated: (cable) => this._handleCableCreated(cable),
       // onDeviceAdded: (device) => this._handleDeviceAdded(device),
       onDoorCreated: (door) => this._handleDoorCreated(door),
+      onWindowCreated: (window) => this._handleWindowCreated(window),
       onFurnitureAdded: (furniture) => this._handleFurnitureAdded(furniture),
       onEntitySelected: (entity) => this._handleEntitySelected(entity),
       onPortSelect: (device, x, y, callback) => this._handlePortSelect(device, x, y, callback),
@@ -185,6 +186,10 @@ executeDelete(idToDelete) {
 
   startDrawDoor() {
     this.layout?.startDrawDoor();
+  }
+
+  startDrawWindow() {
+    this.layout?.startDrawWindow();
   }
 
   startDrawCable() {
@@ -740,8 +745,16 @@ _handleShapeCreated(shapeData, shapeType) {
   _handleDoorCreated(doorData) {
     const activeFloorId = appState.ui?.activeFloorId;
     if (activeFloorId && appState.structural.addDoor) {
-      console.log('Persisting Door:', doorData);
+      console.log('🚪 Persisting Door:', doorData);
       appState.structural.addDoor({ ...doorData, floorId: activeFloorId });
+    }
+  }
+
+  _handleWindowCreated(windowData) {
+    const activeFloorId = appState.ui?.activeFloorId;
+    if (activeFloorId && appState.structural.addWindow) {
+      console.log('🚪 Persisting Window:', windowData);
+      appState.structural.addWindow({ ...windowData, floorId: activeFloorId });
     }
   }
 

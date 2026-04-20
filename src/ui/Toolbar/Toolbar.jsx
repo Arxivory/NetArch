@@ -8,7 +8,7 @@ import appState from "../../state/AppState";
 import {
   StartDrawRectangleCommand, StartDrawCircleCommand, StartDrawPolygonCommand, StartDrawFreeformCommand, StartDrawWallCommand,
   StartSelectCommand, StartPanCommand, StartZoomInCommand, StartZoomOutCommand, CancelDrawingCommand,
-  StartDrawDoorCommand
+  StartDrawDoorCommand, StartDrawWindowCommand
 } from "../../core/editor/DrawingCommands";
 import StructuralOption from "./StructuralOption";
 
@@ -215,7 +215,10 @@ const handleDelete = () => {
             onClick={() => executeCommand(StartDrawDoorCommand)}
             className={`toolbar-btn ${isActive("door") ? "active" : ""}`}
           ><DoorOpen size={16}/> Door</button>
-          <button className="toolbar-btn"><Square size={16} /> Window</button>
+          <button className="toolbar-btn"
+            onClick={() => executeCommand(StartDrawWindowCommand)}
+            className={`toolbar-btn ${isActive("window") ? "active" : ""}`}
+          ><Square size={16} /> Window</button>
         </div>
         <span className="toolbar-label">Fenestration</span>
       </div>

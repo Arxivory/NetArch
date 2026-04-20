@@ -35,6 +35,7 @@ export class LogicalLayout {
       onFreeformCreated: opts.onFreeformCreated || null,
       onWallCreated: opts.onWallCreated || null,
       onDoorCreated: opts.onDoorCreated || null,
+      onWindowCreated: opts.onWindowCreated || null,
       onCableCreated: opts.onCableCreated || null,
       system: this.system
     });
@@ -315,6 +316,11 @@ isPointInsideShape(id, x, y) {
     this._updateCursor();
   }
 
+  startDrawWindow() {
+    this.mode = 'window';
+    this._updateCursor();
+  }
+
   startDrawWall() {
     this.mode = 'wall';
     this._updateCursor();
@@ -433,6 +439,7 @@ isPointInsideShape(id, x, y) {
       'freeform': 'crosshair',
       'wall': 'crosshair',
       'door': 'crosshair',
+      'window': 'crosshair',
       'cable': 'crosshair',
       'pan': 'grab',
       'none': 'default',
@@ -830,6 +837,7 @@ if (this.mode === 'freeform') {
         this.mode === 'rectangle' ||
         this.mode === 'circle' ||
         this.mode === 'door' ||
+        this.mode === 'window' ||
         this.mode === 'wall' ||
         this.mode === 'cable'
       ) {
@@ -1000,7 +1008,20 @@ _onPointerUp(e) {
           this.doors.push(door);
         } else if (door.body) {
           this.system.remove(door.body);
-          alert('A Space must be selected.');
+          alert('Doors must be placed in a Space.');
+        }
+      }
+    } else if (this.mode === 'window') {
+      const window = this.shapeCreator.createWindow(this.startPoint, this.currentPoint);
+      if (window) {
+        window.floorId = activeFloor || null;
+        window.spaceId = activeSpace || null;
+        if (window.body) window.body.floorId = activeFloor || null;
+        if (window.spaceId !== null && !this._checkForOverlap(window, "creation")) {
+          this.windows.push(window);
+        } else if (window.body) {
+          this.system.remove(window.body);
+          alert('Windows must be placed in a Space.');
         }
       }
     } else if (this.mode === 'cable') {
@@ -1149,6 +1170,21 @@ _onPointerUp(e) {
     ctx.restore();
 
     this.shapeRenderer.renderDoors?.(ctx, visibleDoors);
+
+    const visibleWindows = filterForFloor(this.windows);
+    ctx.save();
+    ctx.strokeStyle = '#c6e0ff';
+    ctx.fillStyle = 'rgb(200, 223, 255)';
+    ctx.lineWidth = 2;
+    for (const window of visibleWindows) {
+      if (window.path) {
+        ctx.fill(window.path);
+        ctx.stroke(window.path);
+      }
+    }
+    ctx.restore();
+
+    this.shapeRenderer.renderDoors?.(ctx, visibleWindows);
     
     this._renderDeviceCables(ctx, activeFloor);
 
@@ -1245,6 +1281,8 @@ _onPointerUp(e) {
       } else if (this.mode === 'wall') {
         this.shapeRenderer.outlineWall(ctx, this.startPoint, this.currentPoint);
       } else if (this.mode === 'door') {
+        this.shapeRenderer.outlineRectangle(ctx, this.startPoint, this.currentPoint);
+      } else if (this.mode === 'window') {
         this.shapeRenderer.outlineRectangle(ctx, this.startPoint, this.currentPoint);
       } else if (this.mode === 'cable') {
         this.shapeRenderer.outlineCable(ctx, this.startPoint, this.currentPoint);

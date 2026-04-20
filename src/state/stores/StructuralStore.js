@@ -3,17 +3,19 @@ import Site from "../../core/structural/Site";
 import Floor from "../../core/structural/Floor";
 import Space from "../../core/structural/Space";
 import Wall from "../../core/structural/Wall";
-import Door from "../../core/structural/Door"; // Import the Door entity
+import Door from "../../core/structural/Door";
+import Window from "../../core/structural/Window";
 
 export class StructuralStore {
     constructor() {
         this.domains = [];
         this.sites = [];
         this.floors = [];
-        this.doors = []; // Initialize the doors array
+        this.doors = [];
         this.spaces = [];
         this.listeners = [];
         this.walls = [];
+        this.windows = [];
     }
 
     // ============= Domain Methods =============
@@ -36,7 +38,7 @@ export class StructuralStore {
         return newDomain;
     }
 
-removeDomain(domainId) {
+    removeDomain(domainId) {
         const index = this.domains.findIndex(d => d.id === domainId);
         if (index === -1) {
             console.warn(`Domain not found: ${domainId}`);
@@ -87,7 +89,7 @@ removeDomain(domainId) {
         return site;
     }
 
-removeSite(siteId) {
+    removeSite(siteId) {
         const index = this.sites.findIndex(s => s.id === siteId);
         if (index === -1) {
             console.warn(`Site not found: ${siteId}`);
@@ -135,7 +137,7 @@ removeSite(siteId) {
         return newFloor;
     }
 
-removeFloor(floorId) {
+    removeFloor(floorId) {
         const index = this.floors.findIndex(f => f.id === floorId);
         if (index === -1) {
             console.warn(`Floor not found: ${floorId}`);
@@ -182,7 +184,7 @@ removeFloor(floorId) {
         return newSpace;
     }
 
-removeSpace(spaceId) {
+    removeSpace(spaceId) {
         const index = this.spaces.findIndex(s => s.id === spaceId);
         if (index === -1) {
             console.warn(`Space not found: ${spaceId}`);
@@ -251,6 +253,23 @@ removeSpace(spaceId) {
         this.doors.push(newDoor);
         this.notify();
         return newDoor;
+    }
+
+    addWindow(window) {
+        if (!window.id) {
+            throw new Error('Window must have an id');
+        }
+
+        if (this.windows.find(w => w.id === window.id)) {
+            console.warn(`Window already exists: ${window.id}`);
+            return null;
+        }
+
+        const newWindow = new Window(window);
+
+        console.log('Adding window: ', newWindow);
+        this.windows.push(newWindow);
+        this.notify();
     }
 
     renameStructure(id, newLabel, type) {

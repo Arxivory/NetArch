@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import appState from '../state/AppState.js';
 import deviceCatalog from '../data/deviceCatalog.js';
 import furnitureCatalog from '../data/furnitureCatalog.js';
-import { GLTFLoader, MTLLoader, OBJLoader } from 'three/examples/jsm/Addons.js';
+import { GLTFLoader, MTLLoader, OBJLoader, FBXLoader } from 'three/examples/jsm/Addons.js';
 import DomainMesh from './rendering/structures/DomainMesh';
 import SiteMesh from './rendering/structures/SiteMesh';
 import SpaceMesh from './rendering/structures/SpaceMesh';
@@ -25,6 +25,7 @@ export class PhysicalController {
         this.objLoader = new OBJLoader();
         this.mtlLoader = new MTLLoader();
         this.gltfLoader = new GLTFLoader();
+        this.fbxLoader = new FBXLoader();
 
         this.domainMeshes = new Map();
         this.siteMeshes = new Map();
@@ -406,7 +407,11 @@ export class PhysicalController {
 
     async createDeviceGLTFMesh(device) {
         const newDevice = new DeviceMesh(device, this.defaultScaler);
-        const deviceMesh = await newDevice.getMesh(this.gltfLoader, deviceCatalog);
+        const deviceMesh = await newDevice.getMesh({
+            gltfLoader: this.gltfLoader,
+            objLoader: this.objLoader,
+            fbxLoader: this.fbxLoader,
+        }, deviceCatalog);
 
         deviceMesh.userData = { id: device.id, type: 'device' };
 

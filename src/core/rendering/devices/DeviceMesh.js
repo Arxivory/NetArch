@@ -13,7 +13,7 @@ export default class DeviceMesh {
         }
     }
 
-    getMesh(gltfLoader, deviceCatalog) {
+    getMesh(loaders, deviceCatalog) {
         const { switches, routers, endDevices, importedDevices } = deviceCatalog; //Added importedDevices to the destructuring assignment
 
         const cId = this.catalogId;
@@ -22,40 +22,77 @@ export default class DeviceMesh {
         if (!catalogEntry)
             throw Error("Device Type is not found");
 
-        let modelPath = catalogEntry.model3D;
-        if (modelPath.endsWith('.obj')) {
-            console.warn(`Redirecting ${modelPath} to .glb for GLTFLoader`);
-            modelPath = modelPath.replace('.obj', '.glb');
-        }
+        const modelPath = catalogEntry.model3D;
+        const sourceExt = (catalogEntry.sourceExtension || '').toLowerCase();
+        const pathExt = (modelPath.split('.').pop() || '').toLowerCase();
+        const effectiveExt = sourceExt || pathExt;
+
+        const applyModelStyleAndTransform = (model) => {
+            model.position.set(
+                this.transform.position.x,
+                this.transform.position.y,
+                this.transform.position.z
+            );
+            model.rotation.set(this.transform.rotation.x, this.transform.rotation.y, this.transform.rotation.z);
+            model.scale.set(this.transform.scale.x, this.transform.scale.y, this.transform.scale.z);
+
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    if (child.material && child.material.metalness !== undefined) {
+                        child.material.metalness = 0.5;
+                    }
+                }
+            });
+        };
 
         return new Promise((resolve, reject) => {
+            const { gltfLoader, objLoader, fbxLoader } = loaders || {};
+
+            if (effectiveExt === 'obj') {
+                if (!objLoader) {
+                    reject(new Error('OBJLoader is not available'));
+                    return;
+                }
+                objLoader.load(modelPath, (obj) => {
+                    applyModelStyleAndTransform(obj);
+                    resolve(obj);
+                }, undefined, (err) => {
+                    console.error("OBJ Load Error. Path tried:", modelPath, err);
+                    reject(err);
+                });
+                return;
+            }
+
+            if (effectiveExt === 'fbx') {
+                if (!fbxLoader) {
+                    reject(new Error('FBXLoader is not available'));
+                    return;
+                }
+                fbxLoader.load(modelPath, (fbx) => {
+                    applyModelStyleAndTransform(fbx);
+                    resolve(fbx);
+                }, undefined, (err) => {
+                    console.error("FBX Load Error. Path tried:", modelPath, err);
+                    reject(err);
+                });
+                return;
+            }
+
+            if (!gltfLoader) {
+                reject(new Error('GLTFLoader is not available'));
+                return;
+            }
+
             gltfLoader.load(modelPath, (gltf) => {
                 const model = gltf.scene;
-
-                // Position, Rotation, and Scale are now inherited directly from the Store's physical transform
-                model.position.set(
-                    this.transform.position.x, 
-                    this.transform.position.y, 
-                    this.transform.position.z
-                );
-                model.rotation.set(this.transform.rotation.x, this.transform.rotation.y, this.transform.rotation.z);
-                model.scale.set(this.transform.scale.x, this.transform.scale.y, this.transform.scale.z);
-
-                model.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                        if (child.material) {
-                            child.material.metalness = 0.5; 
-                        }
-                    }
-                });
-
+                applyModelStyleAndTransform(model);
                 resolve(model);
             }, undefined, (err) => {
-                console.error("GLB Load Error. Path tried:", modelPath, err);
+                console.error("GLTF Load Error. Path tried:", modelPath, err);
                 reject(err);
-            })
-        })
+            });
+        });
     }
 }

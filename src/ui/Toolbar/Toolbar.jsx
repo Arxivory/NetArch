@@ -7,7 +7,8 @@ import { useEffect, useState } from "react";
 import appState from "../../state/AppState";
 import {
   StartDrawRectangleCommand, StartDrawCircleCommand, StartDrawPolygonCommand, StartDrawFreeformCommand, StartDrawWallCommand,
-  StartSelectCommand, StartPanCommand, StartZoomInCommand, StartZoomOutCommand, CancelDrawingCommand
+  StartSelectCommand, StartPanCommand, StartZoomInCommand, StartZoomOutCommand, CancelDrawingCommand,
+  StartDrawDoorCommand
 } from "../../core/editor/DrawingCommands";
 import StructuralOption from "./StructuralOption";
 
@@ -103,9 +104,6 @@ const handleDelete = () => {
       case "Polygon":
         Command = StartDrawPolygonCommand;
         break;
-      // case "Freeform":
-      //   Command = StartDrawFreeformCommand;
-      //   break;
       default:
         Command = StartDrawRectangleCommand;
     }
@@ -213,7 +211,10 @@ const handleDelete = () => {
             <RectangleHorizontal size={16} /> Wall
           </button>
           <button className="toolbar-btn"><House size={16} /> Roof</button>
-          <button className="toolbar-btn"><DoorOpen size={16} /> Door</button>
+          <button className="toolbar-btn"
+            onClick={() => executeCommand(StartDrawDoorCommand)}
+            className={`toolbar-btn ${isActive("door") ? "active" : ""}`}
+          ><DoorOpen size={16}/> Door</button>
           <button className="toolbar-btn"><Square size={16} /> Window</button>
         </div>
         <span className="toolbar-label">Fenestration</span>

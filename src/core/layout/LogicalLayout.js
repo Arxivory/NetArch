@@ -34,6 +34,7 @@ export class LogicalLayout {
       onPolygonCreated: opts.onPolygonCreated || null,
       onFreeformCreated: opts.onFreeformCreated || null,
       onWallCreated: opts.onWallCreated || null,
+      onDoorCreated: opts.onDoorCreated || null,
       onCableCreated: opts.onCableCreated || null,
       system: this.system
     });
@@ -309,6 +310,11 @@ isPointInsideShape(id, x, y) {
     this._updateCursor();
   }
 
+  startDrawDoor() {
+    this.mode = 'door';
+    this._updateCursor();
+  }
+
   startDrawWall() {
     this.mode = 'wall';
     this._updateCursor();
@@ -426,6 +432,7 @@ isPointInsideShape(id, x, y) {
       'polygon': 'crosshair',
       'freeform': 'crosshair',
       'wall': 'crosshair',
+      'door': 'crosshair',
       'cable': 'crosshair',
       'pan': 'grab',
       'none': 'default',
@@ -822,6 +829,7 @@ if (this.mode === 'freeform') {
       if (
         this.mode === 'rectangle' ||
         this.mode === 'circle' ||
+        this.mode === 'door' ||
         this.mode === 'wall' ||
         this.mode === 'cable'
       ) {
@@ -971,7 +979,19 @@ _onPointerUp(e) {
       const wall = this.shapeCreator.createWall(this.startPoint, this.currentPoint);
       if (wall) {
         wall.floorId = activeFloor || null;
+        if (wall.body) wall.body.floorId = activeFloor || null;
         this.walls.push(wall);
+      }
+    } else if (this.mode === 'door') {
+      const door = this.shapeCreator.createDoor(this.startPoint, this.currentPoint);
+      if (door) {
+        door.floorId = activeFloor || null;
+        if (door.body) door.body.floorId = activeFloor || null;
+        if (!this._checkForOverlap(door, "creation")) {
+          this.doors.push(door);
+        } else if (door.body) {
+          this.system.remove(door.body);
+        }
       }
     } else if (this.mode === 'cable') {
       const cable = this.shapeCreator.createCable(this.startPoint, this.currentPoint);
@@ -1104,6 +1124,22 @@ _onPointerUp(e) {
     this.shapeRenderer.renderFreeforms(ctx, this.freeforms);
     this.shapeRenderer.renderCircles(ctx, filterForFloor(this.circles));
     this.shapeRenderer.renderWalls(ctx, filterForFloor(this.walls));
+
+    const visibleDoors = filterForFloor(this.doors);
+    ctx.save();
+    ctx.strokeStyle = '#334155';
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.2)';
+    ctx.lineWidth = 2;
+    for (const door of visibleDoors) {
+      if (door.path) {
+        ctx.fill(door.path);
+        ctx.stroke(door.path);
+      }
+    }
+    ctx.restore();
+
+    this.shapeRenderer.renderDoors?.(ctx, visibleDoors);
+    
     this._renderDeviceCables(ctx, activeFloor);
 
     ctx.save();
@@ -1198,6 +1234,8 @@ _onPointerUp(e) {
         this.shapeRenderer.outlineCircle(ctx, this.startPoint, this.currentPoint);
       } else if (this.mode === 'wall') {
         this.shapeRenderer.outlineWall(ctx, this.startPoint, this.currentPoint);
+      } else if (this.mode === 'door') {
+        this.shapeRenderer.outlineRectangle(ctx, this.startPoint, this.currentPoint);
       } else if (this.mode === 'cable') {
         this.shapeRenderer.outlineCable(ctx, this.startPoint, this.currentPoint);
       }

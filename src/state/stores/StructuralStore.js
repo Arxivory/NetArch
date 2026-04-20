@@ -3,12 +3,14 @@ import Site from "../../core/structural/Site";
 import Floor from "../../core/structural/Floor";
 import Space from "../../core/structural/Space";
 import Wall from "../../core/structural/Wall";
+import Door from "../../core/structural/Door"; // Import the Door entity
 
 export class StructuralStore {
     constructor() {
         this.domains = [];
         this.sites = [];
         this.floors = [];
+        this.doors = []; // Initialize the doors array
         this.spaces = [];
         this.listeners = [];
         this.walls = [];
@@ -231,6 +233,24 @@ removeSpace(spaceId) {
         this.walls.push(newWall);
         this.notify();
         return newWall;
+    }
+
+    addDoor(door) {
+        if (!door.id) {
+            throw new Error('Door must have an id');
+        }
+
+        if (this.doors.find(d => d.id === door.id)) {
+            console.warn(`Door already exists: ${door.id}`);
+            return null;
+        }
+
+        const newDoor = new Door(door);
+
+        console.log('Adding door: ', newDoor);
+        this.doors.push(newDoor);
+        this.notify();
+        return newDoor;
     }
 
     renameStructure(id, newLabel, type) {

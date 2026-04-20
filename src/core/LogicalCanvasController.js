@@ -55,6 +55,7 @@ export class LogicalCanvasController {
       onWallCreated: (wall) => this._handleWallCreated(wall),
       onCableCreated: (cable) => this._handleCableCreated(cable),
       // onDeviceAdded: (device) => this._handleDeviceAdded(device),
+      onDoorCreated: (door) => this._handleDoorCreated(door),
       onFurnitureAdded: (furniture) => this._handleFurnitureAdded(furniture),
       onEntitySelected: (entity) => this._handleEntitySelected(entity),
       onPortSelect: (device, x, y, callback) => this._handlePortSelect(device, x, y, callback),
@@ -180,6 +181,10 @@ executeDelete(idToDelete) {
 
   startDrawWall() {
     this.layout?.startDrawWall();
+  }
+
+  startDrawDoor() {
+    this.layout?.startDrawDoor();
   }
 
   startDrawCable() {
@@ -729,6 +734,14 @@ _handleShapeCreated(shapeData, shapeType) {
     if (activeFloorId && appState.structural.addFenestration) {
       console.log('New Wall Data: ', wallData);
       appState.structural.addWall({ ...wallData, floorId: activeFloorId });
+    }
+  }
+
+  _handleDoorCreated(doorData) {
+    const activeFloorId = appState.ui?.activeFloorId;
+    if (activeFloorId && appState.structural.addDoor) {
+      console.log('Persisting Door:', doorData);
+      appState.structural.addDoor({ ...doorData, floorId: activeFloorId });
     }
   }
 

@@ -5,6 +5,7 @@ import { Polygon } from './entities/Polygon.js';
 import { Freeform } from './entities/Freeform.js';
 import { Device } from './entities/Device.js';
 import { Wall } from './entities/Wall.js';
+import { Door } from './entities/Door.js';
 
 export class ShapeCreator {
   constructor(opts = {}) {
@@ -13,6 +14,7 @@ export class ShapeCreator {
     this.onPolygonCreated = opts.onPolygonCreated || null;
     this.onFreeformCreated = opts.onFreeformCreated || null;
     this.onWallCreated = opts.onWallCreated || null;
+    this.onDoorCreated = opts.onDoorCreated || null;
     this.onCableCreated = opts.onCableCreated || null;
     this.system = opts.system || null;
   }
@@ -75,6 +77,20 @@ export class ShapeCreator {
     }
 
     return null;
+  }
+
+  createDoor(startPoint, currentPoint) {
+    const door = new Door(startPoint, currentPoint, this.system);
+    // Allow drawing as a line (one dimension is 0) as long as it isn't just a point
+    if (door.w <= 0 && door.h <= 0) {
+      this.system.remove(door.body);
+      return null;
+    }
+    door.id = this._genId('Door ');
+    if (this.onDoorCreated) {
+      this.onDoorCreated(door);
+    }
+    return door;
   }
 
   createCable(startPoint, currentPoint) {

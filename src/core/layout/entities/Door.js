@@ -130,26 +130,36 @@ export class Door {
     }
 
     checkIfOverlapping(floorId) {
-        const requiredParent = 'Space';
-        let hasParent = false;
         let hasIllegalOverlap = false;
+        let smallestParent = null;
+        let smallestArea = Infinity;
 
         this.system.checkOne(this.body, (other) => {
-            if (other !== this.body) {
-                console.log(other.b.structType)
-                const otherFloorId = other.b?.floorId ?? null;
-                const currentFloorId = floorId ?? null;
+            if (other === this.body) return;
 
-                if (otherFloorId === currentFloorId) {
-                    if (other.b?.structType === 'door') {
-                        hasIllegalOverlap = true;
-                    } else {
-                        hasParent = true;
-                    }
-                } 
+            const otherBody = other.b ?? other;
+            const structType = otherBody?.structType;
+
+            if (!structType) return;
+
+            if (structType === 'door') {
+                hasIllegalOverlap = true;
+                return;
+            }
+
+            const w = otherBody.width ?? otherBody.w ?? 0;
+            const h = otherBody.height ?? otherBody.h ?? 0;
+            const area = w * h;
+
+            if (area < smallestArea) {
+                smallestArea = area;
+                smallestParent = otherBody;
             }
         });
-        return !hasParent || hasIllegalOverlap;
+
+        const isInsideSpace = smallestParent?.structType === 'Space';
+
+        return !isInsideSpace || hasIllegalOverlap;
     }
 }
 

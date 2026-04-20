@@ -141,11 +141,6 @@ export class Door {
                 const currentFloorId = floorId ?? null;
 
                 if (otherFloorId === currentFloorId) {
-                    // if (other.b?.structType === requiredParent) {
-                    //     hasParent = true;
-                    // } else {
-                    //     hasIllegalOverlap = true;
-                    // }
                     if (other.b?.structType === 'door') {
                         hasIllegalOverlap = true;
                     } else {

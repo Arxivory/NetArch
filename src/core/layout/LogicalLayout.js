@@ -939,8 +939,16 @@ _onPointerUp(e) {
   _createShapeFromMode() {
     const activeFloor =
      appState.selection.focusedType === 'floor'
-          ? appState.selection.focusedId // ADDED: prefer the explicitly selected floor from the hierarchy
-          : appState.ui.activeFloorId; // KEEP: fallback to the currently active floor in UI state
+          ? appState.selection.focusedId
+          : appState.ui.activeFloorId;
+
+    const activeSpace = 
+      (appState.selection.focusedType === 'space' ||
+        appState.selection.focusedType === 'Space')
+          ? appState.selection.focusedId
+          : null;
+
+    console.log('The Active Space is: ', activeSpace);
 
     if (this.mode === 'rectangle') {
       const rect = this.shapeCreator.createRectangle(
@@ -986,11 +994,13 @@ _onPointerUp(e) {
       const door = this.shapeCreator.createDoor(this.startPoint, this.currentPoint);
       if (door) {
         door.floorId = activeFloor || null;
+        door.spaceId = activeSpace || null;
         if (door.body) door.body.floorId = activeFloor || null;
-        if (!this._checkForOverlap(door, "creation")) {
+        if (door.spaceId !== null && !this._checkForOverlap(door, "creation")) {
           this.doors.push(door);
         } else if (door.body) {
           this.system.remove(door.body);
+          alert('A Space must be selected.');
         }
       }
     } else if (this.mode === 'cable') {

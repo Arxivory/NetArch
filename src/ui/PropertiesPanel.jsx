@@ -492,7 +492,7 @@ const handleDeviceChange = (field, value) => {
           </div>
           <div className="transform-grid">
             <label>Scale</label>
-            <input type="number" className="field-input" value={transform.scale.factor} onChange={(e) => handleTransformChange('scale', 'factor', e.target.value)} />
+            <input type="number" className="field-input" value={transform.scale.factor ?? ""} onChange={(e) => handleTransformChange('scale', 'factor', e.target.value)} />
             <input type="number" className="field-input" defaultValue={0} disabled />
             <input type="number" className="field-input" defaultValue={0} disabled />
           </div>

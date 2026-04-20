@@ -442,11 +442,7 @@ addDevice(deviceData, x, y) {
             appState.network.addDevice(newDevice);
         }
 
-        if (this.physicalController) {
-            this.physicalController.createDeviceGLTFMesh(newDevice);
-        } else {
-            console.error("Physical controller reference not found.");
-        }
+        // Physical scene updates through NetworkStore subscription in PhysicalController.
 
         console.log('Device added:', newDevice.id, 'with Catalog ID:', newDevice.catalogId, 'to floor/space:', focusedId);
     } catch (error) {

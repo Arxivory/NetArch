@@ -9,8 +9,7 @@ import {
   Import,
   MonitorSmartphone,
   Cpu,
-  X,
-  TriangleAlert
+  X
 } from "lucide-react";
 import appState from "../state/AppState";
 import { StartDrawCableCommand } from "../core/editor/DrawingCommands";
@@ -49,18 +48,13 @@ export default function ObjectLibrary({ canvasController }) {
   const [showImportModal, setshowImportModal] = useState(false);
   const [importError, setImportError] = useState(null);
   const [importSuccess, setImportSuccess] = useState(null);
-  const [errorModal, setErrorModal] = useState({ show: false, message: "" });
   
   // State for imported devices - clearly separated from catalog
   const [importedItems, setImportedItems] = useState([]);
 
   useEffect(() => {
-    document.body.style.overflow = (showImportModal || errorModal.show) ? "hidden" : "unset";
-  }, [showImportModal, errorModal]);
-
-  const showErrorModal = (message) => {
-    setErrorModal({ show: true, message });
-  };
+    document.body.style.overflow = showImportModal ? "hidden" : "unset";
+  }, [showImportModal]);
 
   const handleDrawCable = (cableId) => {
     if (!canvasController) return;
@@ -90,7 +84,10 @@ export default function ObjectLibrary({ canvasController }) {
 
     if (!validExtensions.includes(fileExt)) {
       setshowImportModal(false); 
-      showErrorModal("The selected object is not supported for placement yet. Please import a supported device model and try again.");
+      showErrorModal(
+        "The selected object is not supported for placement yet. Please import a supported device model and try again.",
+        "Unsupported Object"
+      );
       return;
     }
 
@@ -117,7 +114,7 @@ export default function ObjectLibrary({ canvasController }) {
       registerImportedDevice(newItem);
     } catch (err) {
       console.error("Failed to register imported device:", err);
-      showErrorModal("Failed to register imported device. Please try again.");
+      showErrorModal("Failed to register imported device. Please try again.", "Import Failed");
       return;
     }
 
@@ -158,28 +155,6 @@ export default function ObjectLibrary({ canvasController }) {
             <div className="import-format-info">
               <p><strong>Supported:</strong> .obj, .glb, .fbx</p>
               <pre className="format-example">vendor-family-model.obj</pre>
-            </div>
-          </div>
-        </div>
-      </div>,
-      document.body
-    );
-  };
-
-  const ErrorModal = () => {
-    return createPortal(
-      <div className="import-modal-overlay">
-        <div className="import-modal error-style">
-          <div className="import-modal-content">
-            <div className="error-header">
-              <TriangleAlert className="warning-icon" size={24} color="#f59e0b" />
-              <h2>Unsupported Object</h2>
-            </div>
-            <p className="error-description">{errorModal.message}</p>
-            <div className="modal-actions">
-              <button className="confirm-btn" onClick={() => setErrorModal({ show: false, message: "" })}>
-                Got it
-              </button>
             </div>
           </div>
         </div>
@@ -258,7 +233,6 @@ export default function ObjectLibrary({ canvasController }) {
       </div>
 
       {showImportModal && <ModalPortal />}
-      {errorModal.show && <ErrorModal />}
     </div>
   );
 }

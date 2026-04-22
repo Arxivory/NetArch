@@ -405,8 +405,19 @@ export class StructuralStore {
                 wallId: wall.id,
                 children: []
             }));
+
+        const windowsOnFloor = this.windows
+            .filter(w => w.floorId === floorId && !w.spaceId)
+            .map(window => ({
+                id: window.id,
+                label: window.label || `Window ${window.id}`,
+                type: 'window',
+                floorId: window.floorId,
+                windowId: window.id,
+                children: []
+            }));
         
-        return [...spaces, ...devicesWithoutSpace, ...furnituresWithoutSpace, ...wallsOnFloor];
+        return [...spaces, ...devicesWithoutSpace, ...furnituresWithoutSpace, ...wallsOnFloor, ...windowsOnFloor];        
     }
 
     _buildSpaceChildren(floorId, networkStore = null, furnitureStore = null) {
@@ -475,9 +486,19 @@ export class StructuralStore {
                 doorId: door.id,
                 children: []
             }));
+        
+        const windowsInSpace = this.windows
+            .filter(w => w.spaceId === spaceId)
+            .map(window => ({
+                id: window.id,
+                label: window.label || `Window ${window.id}`,
+                type: 'window',
+                spaceId: window.spaceId,
+                windowId: window.id,
+                children: []
+            }));
 
-        return [...devicesInSpace, ...furnituresInSpace, ...wallsInSpace, ...doorsInSpace];
-    
+        return [...devicesInSpace, ...furnituresInSpace, ...wallsInSpace, ...doorsInSpace, ...windowsInSpace];
     }
 
     subscribe(callback) {

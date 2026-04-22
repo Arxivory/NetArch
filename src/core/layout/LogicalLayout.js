@@ -1017,11 +1017,11 @@ _onPointerUp(e) {
         window.floorId = activeFloor || null;
         window.spaceId = activeSpace || null;
         if (window.body) window.body.floorId = activeFloor || null;
-        if (window.spaceId !== null && !this._checkForOverlap(window, "creation")) {
+        if ((window.spaceId !== null || window.floorId !== null) && !this._checkForOverlap(window, "creation")) {
           this.windows.push(window);
         } else if (window.body) {
           this.system.remove(window.body);
-          alert('Windows must be placed in a Space.');
+          alert('Windows must be placed in a Space or Floor.');
         }
       }
     } else if (this.mode === 'cable') {

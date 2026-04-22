@@ -210,7 +210,6 @@ const handleDelete = () => {
           >
             <RectangleHorizontal size={16} /> Wall
           </button>
-          <button className="toolbar-btn"><House size={16} /> Roof</button>
           <button className="toolbar-btn"
             onClick={() => executeCommand(StartDrawDoorCommand)}
             className={`toolbar-btn ${isActive("door") ? "active" : ""}`}

@@ -27,7 +27,7 @@ export class StructuralStore {
         const newDomain = new Domain(domain);
 
         console.log('Adding domain: ', newDomain);
-
+        
         this.domains.push(newDomain);
         this.notify();
         return newDomain;

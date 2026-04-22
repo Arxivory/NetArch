@@ -359,6 +359,7 @@ isPointInsideShape(id, x, y) {
 
     if (!this._checkForOverlap(device, "creation")) {
       this.devices.push(device);
+      
       this._render();
     }
   }
@@ -856,12 +857,12 @@ if (this.mode === 'freeform') {
   }
 
 _onPointerUp(e) {
-    console.log('[LogicalLayout] _onPointerUp', {
-      mode: this.mode,
-      pointerDown: this.pointerHandler.getIsPointerDown(),
-      startPoint: this.startPoint,
-      currentPoint: this.currentPoint
-    });
+    // console.log('[LogicalLayout] _onPointerUp', {
+    //   mode: this.mode,
+    //   pointerDown: this.pointerHandler.getIsPointerDown(),
+    //   startPoint: this.startPoint,
+    //   currentPoint: this.currentPoint
+    // });
 
     const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !== 'none';
     const hasValidDrawPoints = this.startPoint && this.currentPoint;
@@ -1749,6 +1750,7 @@ updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {
     if (currentEntity === null) {
       return true;
     }
+    
 
     // Devices and furniture are intended to be placed within structural elements (Spaces/Floors).
     // We skip the structural overlap check for these assets to avoid false positive alerts.

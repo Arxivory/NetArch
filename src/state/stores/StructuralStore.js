@@ -464,8 +464,20 @@ export class StructuralStore {
                 wallId: wall.id,
                 children: []
             }));
-        
-        return [...devicesInSpace, ...furnituresInSpace, ...wallsInSpace];
+
+        const doorsInSpace = this.doors
+            .filter(d => d.spaceId === spaceId)
+            .map(door => ({
+                id: door.id,
+                label: door.label || `Door ${door.id}`,
+                type: 'door',
+                spaceId: door.spaceId,
+                doorId: door.id,
+                children: []
+            }));
+
+        return [...devicesInSpace, ...furnituresInSpace, ...wallsInSpace, ...doorsInSpace];
+    
     }
 
     subscribe(callback) {

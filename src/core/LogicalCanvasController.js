@@ -743,10 +743,13 @@ _handleShapeCreated(shapeData, shapeType) {
   }
 
   _handleDoorCreated(doorData) {
-    const activeFloorId = appState.ui?.activeFloorId;
+    //const activeFloorId = appState.ui?.activeFloorId;
+    const activeSpaceId = appState.selection.focusedId;
+    console.log('door space id: ', activeSpaceId);
+    const activeFloorId = appState.structural.spaces.find(s => s.id === activeSpaceId)?.floorId;
     if (activeFloorId && appState.structural.addDoor) {
       console.log('🚪 Persisting Door:', doorData);
-      appState.structural.addDoor({ ...doorData, floorId: activeFloorId });
+      appState.structural.addDoor({ ...doorData, floorId: activeFloorId, spaceId: activeSpaceId});
     }
   }
 

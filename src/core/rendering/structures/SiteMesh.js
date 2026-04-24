@@ -4,7 +4,7 @@ export default class SiteMesh {
     constructor(opts = {}, defaultScaler) {
         this.id = opts.id;
         this.type = opts.type;
-        this.defaultHeight = 50.0;
+        this.defaultHeight = 1.05;
 
         this.x = opts.geometry.x;
         this.y = 0.1;
@@ -86,25 +86,26 @@ export default class SiteMesh {
 
         rectMesh.position.set((this.x * this.scaler) + (width / 2), 0, ((this.z * this.scaler) + (depth / 2)));
 
-        const ceilingGeometry = new THREE.PlaneGeometry(width - (thickness * 2), depth - (thickness * 2));
-        const ceilingMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0xf5f5f5,
+        const baseGeometry = new THREE.PlaneGeometry(width - (thickness * 2), depth - (thickness * 2));
+        const baseMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0xf8f8f8,
             roughness: 0.8,
-            metalness: 0.0
+            metalness: 0.0,
+            side: THREE.DoubleSide
         });
         
-        const ceilingMesh = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
-        ceilingMesh.rotation.x = Math.PI / 2;
-        ceilingMesh.position.set(
+        const baseMesh = new THREE.Mesh(baseGeometry, baseMaterial);
+        baseMesh.rotation.x = Math.PI / 2;
+        baseMesh.position.set(
             (this.x * this.scaler) + (width / 2),
             this.defaultHeight,
             (this.z * this.scaler) + (depth / 2)
         );
-        ceilingMesh.userData = { type: 'ceiling', id: this.id };
+        baseMesh.userData = { type: 'ceiling', id: this.id };
 
         const group = new THREE.Group();
-        group.add(rectMesh);
-        group.add(ceilingMesh);
+        group.add(rectShape);
+        group.add(baseMesh);
         group.userData = { type: 'site', id: this.id };
 
         return group;
@@ -125,24 +126,24 @@ export default class SiteMesh {
             bevelSegments: 2
         };
 
-        const wallSideMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, side: THREE.DoubleSide})
-        const wallTopMat = new THREE.MeshStandardMaterial({ color: 0x333333, side: THREE.DoubleSide})
-        const ceilingMaterial = new THREE.MeshStandardMaterial({
-            color: 0xf5f5f5,
+        const baseSideMat = new THREE.MeshStandardMaterial({ color: 0xf8f8f8, side: THREE.DoubleSide})
+        const baseTopMat = new THREE.MeshStandardMaterial({ color: 0xf8f8f8, side: THREE.DoubleSide})
+        const baseMaterial = new THREE.MeshStandardMaterial({
+            color: 0xf8f8f8,
             roughness: 0.8,
             metalness: 0.0,
             side: THREE.DoubleSide
         });
 
-        const wallGeometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-        const wallMesh = new THREE.Mesh(wallGeometry, [wallTopMat, wallSideMat]);
-        wallMesh.rotation.x = -Math.PI / 2;
+        const baseSideGeometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+        const baseSideMesh = new THREE.Mesh(baseSideGeometry, [baseTopMat, baseSideMat]);
+        baseSideMesh.rotation.x = -Math.PI / 2;
 
-        const ceilingGeometry = new THREE.ShapeGeometry(shape);
-        const ceilingMesh = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
-        ceilingMesh.rotation.x = -Math.PI / 2;
-        ceilingMesh.position.y = this.defaultHeight;
-        ceilingMesh.userData = { type: 'ceiling', id: this.id };
+        const baseGeometry = new THREE.ShapeGeometry(shape);
+        const baseMesh = new THREE.Mesh(baseGeometry, baseMaterial);
+        baseMesh.rotation.x = -Math.PI / 2;
+        baseMesh.position.y = this.defaultHeight;
+        baseMesh.userData = { type: 'ceiling', id: this.id };
 
         const group = new THREE.Group();
         group.position.set(
@@ -151,72 +152,12 @@ export default class SiteMesh {
             this.z * this.scaler
         );
 
-        group.add(wallMesh);
-        group.add(ceilingMesh);
+        group.add(baseSideMesh);
+        group.add(baseMesh);
         group.userData = { type: 'site', id: this.id };
 
         return group;
     }
-
-    getFreeformForm() {
-        if (!this.geometry.polygonal || !this.geometry.polygonal.points?.length)
-            throw Error("The Site is not Freeform. Try getting other forms.");
-
-        const points = this.geometry.polygonal.points;
-        const shape = this.buildPlanShape(points);
-
-        const extrudeSettings = {
-            depth: this.defaultHeight,
-            bevelEnabled: true,
-            bevelThickness: 0.05,
-            bevelSize: 0.05,
-            bevelSegments: 2
-        };
-
-        const wallSideMat = new THREE.MeshStandardMaterial({
-            color: 0xb58a63,
-            roughness: 0.85,
-            metalness: 0.05,
-            side: THREE.DoubleSide
-        });
-        const wallTopMat = new THREE.MeshStandardMaterial({
-            color: 0x5b4332,
-            roughness: 0.9,
-            metalness: 0.0,
-            side: THREE.DoubleSide
-        });
-        const ceilingMaterial = new THREE.MeshStandardMaterial({
-            color: 0xf0e4d5,
-            roughness: 0.9,
-            metalness: 0.0,
-            side: THREE.DoubleSide
-        });
-
-        const wallGeometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-        const wallMesh = new THREE.Mesh(wallGeometry, [wallTopMat, wallSideMat]);
-        wallMesh.rotation.x = -Math.PI / 2;
-
-        const ceilingGeometry = new THREE.ShapeGeometry(shape);
-        const ceilingMesh = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
-        ceilingMesh.rotation.x = -Math.PI / 2;
-        ceilingMesh.position.y = this.defaultHeight;
-        ceilingMesh.userData = { type: 'ceiling', id: this.id };
-
-        const group = new THREE.Group();
-        group.position.set(
-            this.x * this.scaler,
-            0,
-            this.z * this.scaler
-        );
-
-        group.add(wallMesh);
-        group.add(ceilingMesh);
-        group.userData = { type: 'site', id: this.id, shape: 'freeform' };
-
-        return group;
-    }
-
-
 
     getCircularForm() {
         if (!this.geometry.circular)
@@ -240,34 +181,34 @@ export default class SiteMesh {
             bevelThickness: 0.05,
             bevelSize: 0.05,
             bevelSegments: 2,
-            curveSegments: 64 // Smoother circle
+            curveSegments: 64
         };
 
-        const wallSideMat = new THREE.MeshStandardMaterial({ color: 0xffffff,  side: THREE.DoubleSide});
-        const wallTopMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+        const baseSideMat = new THREE.MeshStandardMaterial({ color: 0xf8f8f8,  side: THREE.DoubleSide});
+        const baseTopMat = new THREE.MeshStandardMaterial({ color: 0xf8f8f8 });
 
-        const circleMesh = new THREE.Mesh(
+        const baseSideMesh = new THREE.Mesh(
             new THREE.ExtrudeGeometry(circleShape, extrudeSettings), 
-            [wallTopMat, wallSideMat]
+            [baseTopMat, baseSideMat]
         );
-        circleMesh.rotation.x = -Math.PI / 2;
-        circleMesh.position.set(0, 0, 0);
+        baseSideMesh.rotation.x = -Math.PI / 2;
+        baseSideMesh.position.set(0, 0, 0);
 
-        const ceilingGeometry = new THREE.CircleGeometry(innerRadius, 64);
-        const ceilingMaterial = new THREE.MeshStandardMaterial({ 
+        const baseGeometry = new THREE.CircleGeometry(innerRadius, 64);
+        const baseMaterial = new THREE.MeshStandardMaterial({ 
             color: 0xf5f5f5,
             roughness: 0.8,
             metalness: 0.0,
             side: THREE.DoubleSide
         });
-        const ceilingMesh = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
-        ceilingMesh.rotation.x = -Math.PI / 2;
-        ceilingMesh.position.y = height;
-        ceilingMesh.userData = { type: 'ceiling', id: this.id };
+        const baseMesh = new THREE.Mesh(baseGeometry, baseMaterial);
+        baseMesh.rotation.x = -Math.PI / 2;
+        baseMesh.position.y = height;
+        baseMesh.userData = { type: 'ceiling', id: this.id };
 
         const group = new THREE.Group();
-        group.add(circleMesh);
-        group.add(ceilingMesh);
+        group.add(baseSideMesh);
+        group.add(baseMesh);
 
         group.position.set(
             (this.x * this.scaler) + radius, 

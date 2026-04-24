@@ -386,7 +386,10 @@ addDevice(deviceData, x, y) {
     }
 
     try {
-        const newDevice = createDeviceInstance(catalogId, { x, y, z: 0 });
+        const newDevice = createDeviceInstance(catalogId, { x, y, z: 0 }, {
+          iconHint: deviceData.iconHint,
+          name: deviceData.label
+        });
        newDevice.catalogId = catalogId;
 
         // AUTO NUMBER DEVICE NAME

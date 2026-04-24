@@ -3,12 +3,14 @@ import appState from '../state/AppState.js';
 import deviceCatalog from '../data/deviceCatalog.js';
 import furnitureCatalog from '../data/furnitureCatalog.js';
 import { GLTFLoader, MTLLoader, OBJLoader } from 'three/examples/jsm/Addons.js';
-import DomainMesh from './rendering/structures/DomainMesh.js';
-import SiteMesh from './rendering/structures/SiteMesh.js';
-import SpaceMesh from './rendering/structures/SpaceMesh.js';
-import FloorMesh from './rendering/structures/FloorMesh.js';
-import FurnitureMesh from './rendering/furnitures/FurnitureMesh.js';
-import DeviceMesh from './rendering/devices/DeviceMesh.js';
+import DomainMesh from './rendering/structures/DomainMesh';
+import SiteMesh from './rendering/structures/SiteMesh';
+import SpaceMesh from './rendering/structures/SpaceMesh';
+import FloorMesh from './rendering/structures/FloorMesh';
+import FurnitureMesh from './rendering/furnitures/FurnitureMesh';
+import DeviceMesh from './rendering/devices/DeviceMesh';
+import { GizmoManager } from './rendering/GizmoManager.js';
+import { getScene, getCamera, getRenderer } from './rendering/SceneAccess';
 
 export class PhysicalController {
     constructor(scene) {
@@ -35,6 +37,25 @@ export class PhysicalController {
 
         this.unsubscribe = this.store.subscribe(() => this.syncWithState());
         this.unsubscribeNetwork = this.networkStore.subscribe(() => this.syncWithState());
+        
+        this.gizmoManager = new GizmoManager(getCamera(), getRenderer().domElement, getScene());
+        
+        appState.selection.subscribe((selectionStore) => {
+            const focusedId = selectionStore.getFocusedId();
+            console.log("Focused ID changed:", focusedId);
+    
+            if (focusedId) {
+                const selectedMesh = this.getMeshById(focusedId);
+                console.log("Selected mesh:", selectedMesh);
+                if (selectedMesh && (selectedMesh.userData.type === 'device' || selectedMesh.userData.type === 'furniture')) {
+                    this.gizmoManager.attach(selectedMesh);
+                } else {
+                    this.gizmoManager.detach();
+                }
+            } else {
+                this.gizmoManager.detach();
+            }
+        });
 
         this.syncWithState();
     }
@@ -143,20 +164,36 @@ export class PhysicalController {
         for (const device of devices) {
             console.log('Processing device for rendering: ', device);
             activeDeviceIds.add(device.id);
-            if (this.deviceMeshes.has(device.id))
-                continue; // ADDED: avoid reloading the same device mesh every sync
-        
-            this.createDeviceGLTFMesh(device);
+
+            if (this.deviceMeshes.has(device.id)) {
+                const deviceMesh = this.deviceMeshes.get(device.id);
+                console.log('Device Mesh: ', device, ' is updating');
+                if (device.transform) {
+                    deviceMesh.position.set(device.transform.position.x, device.transform.position.y, device.transform.position.z);
+                    deviceMesh.rotation.set(device.transform.rotation.x, device.transform.rotation.y, device.transform.rotation.z);
+                    deviceMesh.scale.set(device.transform.scale.x, device.transform.scale.y, device.transform.scale.z);
+                }
+            } else {
+                this.createDeviceGLTFMesh(device);
+            }
         }
 
         for ( const furniture of furnitures) {
             console.log('Processing furniture for rendering:', furniture);
             activeFurnitureIds.add(furniture.id);
-            if (this.furnitureMeshes.has(furniture.id))
-                continue; // ADDED: avoid reloading the same furniture mesh every sync
-            this.createFurnitureGLTFMesh(furniture).catch(err => 
-                console.error(`Failed to load furniture ${furniture.id}:`, err)
-            );
+
+            if (this.furnitureMeshes.has(furniture.id)) {
+                const furnitureMesh = this.furnitureMeshes.get(furniture.id);
+                if (furniture.transform) {
+                    furnitureMesh.position.set(furniture.transform.position.x, furniture.transform.position.y, furniture.transform.position.z);
+                    furnitureMesh.rotation.set(furniture.transform.rotation.x, furniture.transform.rotation.y, furniture.transform.rotation.z);
+                    furnitureMesh.scale.set(furniture.transform.scale.x, furniture.transform.scale.y, furniture.transform.scale.z);
+                }
+            } else {
+                this.createFurnitureGLTFMesh(furniture).catch(err => 
+                    console.error(`Failed to load furniture ${furniture.id}:`, err)
+                );
+            }
         }
 
         for (const [id, mesh] of this.domainMeshes) {
@@ -191,6 +228,13 @@ export class PhysicalController {
             if (!activeDeviceIds.has(id)) {
                 this.scene.remove(mesh);
                 this.deviceMeshes.delete(id);
+            }
+        }
+
+        for (const [id, mesh] of this.furnitureMeshes) {
+            if (!activeFurnitureIds.has(id)) {
+                this.scene.remove(mesh);
+                this.furnitureMeshes.delete(id);
             }
         }
     }
@@ -361,26 +405,20 @@ export class PhysicalController {
     }
 
     async createDeviceGLTFMesh(device) {
-        const floor = this.store.floors.find(f => f.id === device.floorId);
-        const floorAltitude = floor ? floor.altitude : 0;
-
         const newDevice = new DeviceMesh(device, this.defaultScaler);
         const deviceMesh = await newDevice.getMesh(this.gltfLoader, deviceCatalog);
 
-        deviceMesh.position.y = floorAltitude;
+        deviceMesh.userData = { id: device.id, type: 'device' };
 
         this.scene.add(deviceMesh);
         this.deviceMeshes.set(device.id, deviceMesh);
     }
 
     async createFurnitureGLTFMesh(furniture) {
-        const floor = this.store.floors.find(f => f.id === furniture.floorId);
-        const floorAltitude = floor ? floor.altitude : 0;
-
         const newFurniture = new FurnitureMesh(furniture, this.defaultScaler);
         const furnitureMesh = await newFurniture.getMesh(this.gltfLoader, this.furnitureCatalog);
 
-        furnitureMesh.position.y = floorAltitude;
+        furnitureMesh.userData = { id: furniture.id, type: 'furniture' };
 
         this.scene.add(furnitureMesh);
         this.furnitureMeshes.set(furniture.id, furnitureMesh);
@@ -397,5 +435,15 @@ export class PhysicalController {
         const mesh = this.domainMeshes.get(domain.id);
         mesh.scale.set(modifiedWidth, 1, modifiedHeight);
         mesh.position.set(modifiedX, 0.1, modifiedY);
+    }
+
+    getMeshById(id) {
+        if (this.domainMeshes.has(id)) return this.domainMeshes.get(id);
+        if (this.siteMeshes.has(id)) return this.siteMeshes.get(id);
+        if (this.floorMeshes.has(id)) return this.floorMeshes.get(id);
+        if (this.spaceMeshes.has(id)) return this.spaceMeshes.get(id);
+        if (this.deviceMeshes.has(id)) return this.deviceMeshes.get(id);
+        if (this.furnitureMeshes.has(id)) return this.furnitureMeshes.get(id);
+        return null;
     }
 }

@@ -72,20 +72,31 @@ export default function TreeItem({ node }) {
   };
 
   // --- NEW: Rename Handlers ---
+// --- UPDATED: Rename Handlers ---
   const handleDoubleClick = (e) => {
     e.stopPropagation();
-    // Only allow renaming of structures right now
-    if (['domain', 'site', 'floor', 'space'].includes(node.type)) {
+    // Allow renaming of structures AND devices/furniture
+    if (['domain', 'site', 'floor', 'space', 'device', 'furniture'].includes(node.type)) {
       setIsEditing(true);
       setEditValue(node.label);
     }
   };
 
-  const submitRename = () => {
+const submitRename = () => {
     if (editValue.trim() !== "" && editValue !== node.label) {
-      appState.structural.renameStructure(node.id, editValue, node.type);
+      
+      // Update the Global Store (The Store will handle the Canvas update now!)
+      if (node.type === "device" && appState.network) {
+        appState.network.updateDevice(node.id, { label: editValue });
+      } else if (node.type === "furniture" && appState.furniture) {
+        appState.furniture.updateFurniture(node.id, { label: editValue });
+      } else {
+        appState.structural.renameStructure(node.id, editValue, node.type);
+      }
+      
     } else {
-      setEditValue(node.label); // revert if empty
+      // Guardrail: Snap back to original name if empty
+      setEditValue(node.label); 
     }
     setIsEditing(false);
   };

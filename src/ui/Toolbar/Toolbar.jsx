@@ -1,6 +1,6 @@
 import {
   Mountain, Building, Grid, RectangleHorizontal, House, DoorOpen,
-  Square, Play, File, FilePlus, Save, MousePointer, Hand, ZoomIn, ZoomOut, Trash2 // <-- Added Trash2
+  Square, Play, File, FilePlus, Save, MousePointer, Hand, ZoomIn, ZoomOut, Trash2, Undo2, Redo2,// <-- Added Trash2
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import appState from "../../state/AppState";
@@ -16,7 +16,6 @@ export default function Toolbar({ canvasController }) {
   // 1. Update the state hooks
 const [canUndo, setCanUndo] = useState(false);
 const [canRedo, setCanRedo] = useState(false);
-
 useEffect(() => {
   // 2. Subscribe directly to the global appState
   // Your AppState calls notifyListeners() whenever this.commands updates
@@ -211,3 +210,4 @@ const handleDelete = () => {
     </div>
   );
 }
+

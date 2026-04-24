@@ -192,7 +192,7 @@ export default function ObjectLibrary({ canvasController }) {
         {/* 1. DEDICATED IMPORTED CATEGORY (BEFORE ROUTERS) */}
         {importedItems.length > 0 && (
           <div className="device-category imported-section">
-            <p className="category-label">Imported Devices</p>
+            <p className="category-label">Imported Objects</p>
             <div className="device-grid">
               {importedItems.map((item) => {
                 const ItemIcon = item.icon;

@@ -122,7 +122,7 @@ export function showConfirmationModal(message, title, onConfirm) {
 
   const topBar = document.createElement('div');
   topBar.style.height = '4px';
-  topBar.style.backgroundColor = '#ef4444'; // Red top bar to indicate destructive action
+  topBar.style.backgroundColor = '#fff'; // Red top bar to indicate destructive action
   modal.appendChild(topBar);
 
   const content = document.createElement('div');
@@ -166,7 +166,7 @@ export function showConfirmationModal(message, title, onConfirm) {
   // Confirm Button (Destructive Red)
   const confirmBtn = document.createElement('button');
   confirmBtn.innerText = 'Delete Link';
-  confirmBtn.style.backgroundColor = '#ef4444';
+  confirmBtn.style.backgroundColor = '#f1f5f9';
   confirmBtn.style.color = '#ffffff';
   confirmBtn.style.border = 'none';
   confirmBtn.style.padding = '8px 16px';
@@ -175,8 +175,8 @@ export function showConfirmationModal(message, title, onConfirm) {
   confirmBtn.style.fontWeight = '500';
   confirmBtn.style.cursor = 'pointer';
   confirmBtn.style.transition = 'background-color 0.2s';
-  confirmBtn.onmouseenter = () => confirmBtn.style.backgroundColor = '#dc2626';
-  confirmBtn.onmouseleave = () => confirmBtn.style.backgroundColor = '#ef4444';
+  confirmBtn.onmouseenter = () => confirmBtn.style.backgroundColor = '#e2e8f0';
+  confirmBtn.onmouseleave = () => confirmBtn.style.backgroundColor = '#f1f5f9';
 
   const closeModal = () => {
     overlay.style.opacity = '0';

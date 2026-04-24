@@ -52,7 +52,7 @@ export function moveGridandGroundToCamera(cameraPosition) {
 }
 
 function setupLighting(scene) {
-    ambientLight = new THREE.HemisphereLight(0x2020ff, 0x444444, 0.5);
+    ambientLight = new THREE.HemisphereLight(0xa1a1ff, 0x444444, 0.3);
     directionalLight = new THREE.DirectionalLight(0xffffff, 1);
 
     directionalLight.position.set(20, 20, 20);

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import getCachedTexture from '../utils/TextureLoader';
 
 export default class FloorMesh {
     constructor(opts = {}, defaultScaler) {
@@ -40,6 +41,34 @@ export default class FloorMesh {
         return shape;
     }
 
+    calculateLightParameters() {
+        let width, depth;
+
+        if (this.geometry.rectangular) {
+            width = this.geometry.rectangular.width * this.scaler;
+            depth = this.geometry.rectangular.depth * this.scaler;
+        } else if (this.geometry.circular) {
+            width = depth = this.geometry.circular.radius * 2 * this.scaler;
+        } else {
+            const points = this.geometry.polygonal.points;
+            const xValues = points.map(p => p.x);
+            const yValues = points.map(p => p.y);
+            width = (Math.max(...xValues) - Math.min(...xValues)) * this.scaler;
+            depth = (Math.max(...yValues) - Math.min(...yValues)) * this.scaler;
+        }
+
+        const height = this.defaultHeight;
+        
+        const maxDiagonal = Math.sqrt(Math.pow(width / 2, 2) + Math.pow(depth / 2, 2) + Math.pow(height, 2));
+
+        const lightDistance = maxDiagonal * 1.2;
+
+        const area = width * depth;
+        const lightIntensity = area * 0.21; 
+
+        return { lightDistance, lightIntensity };
+    }
+
     getRectangularForm() {
         if (!this.geometry.rectangular)
             throw Error("The Site is not Rectangular. Try getting other forms.");
@@ -78,20 +107,42 @@ export default class FloorMesh {
         };
 
         const rectGeometry = new THREE.ExtrudeGeometry(rectShape, extrudeSettings);
-        const wallSideMat = new THREE.MeshStandardMaterial({ color: 0xcccccc });
-        const wallTopMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+        const wallSideMat = new THREE.MeshStandardMaterial({ color: 0xf8f8f8 });
+        const wallTopMat = new THREE.MeshStandardMaterial({ color: 0xf8f8f8 });
 
         const rectMesh = new THREE.Mesh(rectGeometry, [wallTopMat, wallSideMat]);
         rectMesh.rotation.x = -Math.PI / 2;
 
         rectMesh.position.set((this.x * this.scaler) + (width / 2), 0, ((this.z * this.scaler) + (depth / 2)));
 
+        const floorGeometry = new THREE.PlaneGeometry(width - (thickness * 2), depth - (thickness * 2));
+        const tileSize = 10.0; 
+        const tex = getCachedTexture('textures/Dune-Wood-Tile.jpg');
+
+        tex.repeat.set(width / tileSize, depth / tileSize);
+
+        const floorMaterial = new THREE.MeshStandardMaterial({
+            map: tex,
+            roughness: 0.5,
+            metalness: 0.0,
+            side: THREE.DoubleSide
+        });
+
         const ceilingGeometry = new THREE.PlaneGeometry(width - (thickness * 2), depth - (thickness * 2));
         const ceilingMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0xf5f5f5,
+            color: 0xf8f8f8,
             roughness: 0.8,
             metalness: 0.0
         });
+
+        const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
+        floorMesh.rotation.x = Math.PI / 2;
+        floorMesh.position.set(
+            (this.x * this.scaler) + (width / 2),
+            1.5,
+            (this.z * this.scaler) + (depth / 2)
+        );
+        floorMesh.userData = { type: 'floor', id: this.id };
         
         const ceilingMesh = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
         ceilingMesh.rotation.x = Math.PI / 2;
@@ -102,9 +153,20 @@ export default class FloorMesh {
         );
         ceilingMesh.userData = { type: 'ceiling', id: this.id };
 
+        const { lightDistance, lightIntensity } = this.calculateLightParameters();
+        const roomLight = new THREE.PointLight(0xffffff, lightIntensity, lightDistance);
+        roomLight.decay = 2;
+        roomLight.position.set(
+            (this.x * this.scaler) + (width / 2),
+            this.defaultHeight - 10.0,
+            (this.z * this.scaler) + (depth / 2)
+        );
+
         const group = new THREE.Group();
         group.add(rectMesh);
         group.add(ceilingMesh);
+        group.add(floorMesh);
+        group.add(roomLight);
         group.userData = { type: 'site', id: this.id };
 
         return group;
@@ -117,6 +179,12 @@ export default class FloorMesh {
         const points = this.geometry.polygonal.points;
         const shape = this.buildPlanShape(points);
 
+        const xValues = points.map(p => p.x);
+        const yValues = points.map(p => p.y);
+
+        const width = (Math.max(...xValues) - Math.min(...xValues)) * this.scaler;
+        const depth = (Math.max(...yValues) - Math.min(...yValues)) * this.scaler;
+
         const extrudeSettings = {
             depth: this.defaultHeight,
             bevelEnabled: true,
@@ -125,34 +193,52 @@ export default class FloorMesh {
             bevelSegments: 2
         };
 
-        const wallSideMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, side: THREE.DoubleSide})
-        const wallTopMat = new THREE.MeshStandardMaterial({ color: 0x333333, side: THREE.DoubleSide})
-        const ceilingMaterial = new THREE.MeshStandardMaterial({
-            color: 0xf5f5f5,
-            roughness: 0.8,
-            metalness: 0.0,
-            side: THREE.DoubleSide
-        });
+        const wallSideMat = new THREE.MeshStandardMaterial({ color: 0xf8f8f8, side: THREE.DoubleSide });
+        const wallTopMat = new THREE.MeshStandardMaterial({ color: 0xf8f8f8, side: THREE.DoubleSide });
 
         const wallGeometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
         const wallMesh = new THREE.Mesh(wallGeometry, [wallTopMat, wallSideMat]);
         wallMesh.rotation.x = -Math.PI / 2;
 
         const ceilingGeometry = new THREE.ShapeGeometry(shape);
+        const ceilingMaterial = new THREE.MeshStandardMaterial({ color: 0xf8f8f8, roughness: 0.8, metalness: 0.0, side: THREE.DoubleSide });
         const ceilingMesh = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
         ceilingMesh.rotation.x = -Math.PI / 2;
         ceilingMesh.position.y = this.defaultHeight;
         ceilingMesh.userData = { type: 'ceiling', id: this.id };
 
-        const group = new THREE.Group();
-        group.position.set(
-            this.x * this.scaler,
-            0,
-            this.z * this.scaler
-        );
+        const tex = getCachedTexture('textures/Dune-Wood-Tile.jpg');
 
+        const floorGeometry = new THREE.ShapeGeometry(shape);
+        const tileSize = 10.0;
+
+        const pos = floorGeometry.attributes.position;
+        const uvs = floorGeometry.attributes.uv;
+
+        for (let i = 0; i < pos.count; i++) {
+            uvs.setXY(i, pos.getX(i) / tileSize, pos.getY(i) / tileSize);
+        }
+        uvs.needsUpdate = true;
+
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(1, 1); 
+        const floorMaterial = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5, metalness: 0.0, side: THREE.DoubleSide });
+        const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
+        floorMesh.rotation.x = -Math.PI / 2;
+        floorMesh.position.y = 1.5;
+        floorMesh.userData = { type: 'floor', id: this.id };
+
+        const { lightDistance, lightIntensity } = this.calculateLightParameters();
+        const roomLight = new THREE.PointLight(0xffffff, lightIntensity, lightDistance);
+        roomLight.decay = 2;
+        roomLight.position.set(width / 2, this.defaultHeight - 10.0, depth / 2);
+
+        const group = new THREE.Group();
+        group.position.set(this.x * this.scaler, 0, this.z * this.scaler);
         group.add(wallMesh);
         group.add(ceilingMesh);
+        group.add(floorMesh);
+        group.add(roomLight);
         group.userData = { type: 'site', id: this.id };
 
         return group;
@@ -183,39 +269,44 @@ export default class FloorMesh {
             curveSegments: 64
         };
 
-        const wallSideMat = new THREE.MeshStandardMaterial({ color: 0xcccccc,  side: THREE.DoubleSide});
-        const wallTopMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+        const wallSideMat = new THREE.MeshStandardMaterial({ color: 0xf8f8f8, side: THREE.DoubleSide });
+        const wallTopMat = new THREE.MeshStandardMaterial({ color: 0xf8f8f8 });
 
-        const circleMesh = new THREE.Mesh(
-            new THREE.ExtrudeGeometry(circleShape, extrudeSettings), 
-            [wallTopMat, wallSideMat]
-        );
+        const circleMesh = new THREE.Mesh(new THREE.ExtrudeGeometry(circleShape, extrudeSettings), [wallTopMat, wallSideMat]);
         circleMesh.rotation.x = -Math.PI / 2;
-        circleMesh.position.set(0, 0, 0);
 
+        // Ceiling
         const ceilingGeometry = new THREE.CircleGeometry(innerRadius, 64);
-        const ceilingMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0xf5f5f5,
-            roughness: 0.8,
-            metalness: 0.0,
-            side: THREE.DoubleSide
-        });
+        const ceilingMaterial = new THREE.MeshStandardMaterial({ color: 0xf8f8f8, roughness: 0.8, metalness: 0.0, side: THREE.DoubleSide });
         const ceilingMesh = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
         ceilingMesh.rotation.x = -Math.PI / 2;
         ceilingMesh.position.y = height;
         ceilingMesh.userData = { type: 'ceiling', id: this.id };
 
+        // Floor
+        const floorGeometry = new THREE.CircleGeometry(innerRadius, 64);
+        const tex = getCachedTexture('textures/Dune-Wood-Tile.jpg');
+        tex.repeat.set(10, 10);
+        const floorMaterial = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5, metalness: 0.0, side: THREE.DoubleSide });
+        const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
+        floorMesh.rotation.x = -Math.PI / 2;
+        floorMesh.position.y = 1.5;
+        floorMesh.userData = { type: 'floor', id: this.id };
+
+        // Lighting
+        const { lightDistance, lightIntensity } = this.calculateLightParameters();
+        const roomLight = new THREE.PointLight(0xffffff, lightIntensity, lightDistance);
+        roomLight.decay = 2;
+        roomLight.position.set(0, this.defaultHeight - 10.0, 0);
+
         const group = new THREE.Group();
         group.add(circleMesh);
         group.add(ceilingMesh);
-
-        group.position.set(
-            (this.x * this.scaler) + radius, 
-            0, 
-            (this.z * this.scaler) + radius
-        );
-
+        group.add(floorMesh);
+        group.add(roomLight);
+        group.position.set((this.x * this.scaler) + radius, 0, (this.z * this.scaler) + radius);
         group.userData = { type: 'site', id: this.id };
+
         return group;
     }
 

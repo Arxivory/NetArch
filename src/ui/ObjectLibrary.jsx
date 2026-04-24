@@ -160,7 +160,7 @@ export default function ObjectLibrary({ canvasController }) {
               onDrop={(e) => { e.preventDefault(); processFile(e.dataTransfer.files[0]); }}
             >
               <label className="import-file-label">
-                <h1>Import Devices</h1>
+                <h1>Import</h1>
                 <input type="file" onChange={(e) => processFile(e.target.files[0])} hidden />
               </label>
             </div>

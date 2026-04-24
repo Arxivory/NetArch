@@ -307,18 +307,51 @@ export class PhysicalController {
             return;
         }
 
+        const newFloor = new FloorMesh(site, this.defaultScaler);
+        let mesh;
+
         console.log(`Creating floor ${floor.id} with altitude ${floor.altitude}`);
 
-        const floorMesh = new FloorMesh(site, this.defaultScaler);
-        const mesh = floorMesh.getRectangularForm();
+        switch (floor.shapeType) {
+            case 'rectangle':
+                mesh = newFloor.getRectangularForm();
+                break;
+            case 'polygon':
+                mesh = newFloor.getPolygonalForm();
+                break;
+            case 'circle':
+                mesh = newFloor.getCircularForm();
+                break;
+            default:
+                console.warn(`Unknown floor shape type: ${floor.shapeType}`);
+                return;
+        }
 
-        mesh.position.y = (floor.altitude || 0) + 1.5;
-
-        console.log(`Floor mesh positioned at Y=${mesh.position.y}`);
+        mesh.position.y = floor.altitude || 0;
 
         this.scene.add(mesh);
         this.floorMeshes.set(floor.id, mesh);
     }
+
+    // createFloorMesh(floor) {
+    //     const site = this.store.sites.find(s => s.id === floor.siteId);
+    //     if (!site) {
+    //         console.warn(`Site not found for floor ${floor.id}`);
+    //         return;
+    //     }
+
+    //     console.log(`Creating floor ${floor.id} with altitude ${floor.altitude}`);
+
+    //     const floorMesh = new FloorMesh(site, this.defaultScaler);
+    //     const mesh = floorMesh.getRectangularForm();
+
+    //     mesh.position.y = floor.altitude || 0;
+
+    //     console.log(`Floor mesh positioned at Y=${mesh.position.y}`);
+
+    //     this.scene.add(mesh);
+    //     this.floorMeshes.set(floor.id, mesh);
+    // }
 
     async createDeviceGLTFMesh(device) {
         const newDevice = new DeviceMesh(device, this.defaultScaler);

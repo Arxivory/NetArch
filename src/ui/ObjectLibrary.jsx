@@ -64,13 +64,23 @@ export default function ObjectLibrary({ canvasController }) {
   };
 
   const onDragStart = (event, categoryName, item, entityType, isImported = false) => {
+    const normalizedCategory = String(categoryName || '').toLowerCase();
+    const iconHint =
+      item.iconHint ||
+      item.family ||
+      (normalizedCategory.includes('switch') ? 'switch' : null) ||
+      (normalizedCategory.includes('router') ? 'router' : null) ||
+      (normalizedCategory.includes('end') ? 'pc' : null) ||
+      (normalizedCategory.includes('imported') ? 'imported' : null);
+
     const data = { 
       type: categoryName, 
       label: item.displayName || item.label || item.name,
       modelId: item.modelId || item.id, 
       catalogId: item.modelId || item.id, 
       entityType: entityType,
-      isImported: isImported
+      isImported: isImported,
+      iconHint
     };
     event.dataTransfer.setData("application/reactflow", JSON.stringify(data));
     event.dataTransfer.effectAllowed = "move";
@@ -93,9 +103,11 @@ export default function ObjectLibrary({ canvasController }) {
 
     // Determine icon based on filename
     let SelectedIcon = HardDriveDownload;
+    let selectedKeyword = 'imported';
     for (const [keyword, iconComponent] of Object.entries(ICON_MAP)) {
       if (filename.includes(keyword)) {
         SelectedIcon = iconComponent;
+        selectedKeyword = keyword;
         break;
       }
     }
@@ -107,7 +119,8 @@ export default function ObjectLibrary({ canvasController }) {
       family: "imported",
       model3D: URL.createObjectURL(file),
       sourceExtension: fileExt.slice(1),
-      icon: SelectedIcon
+      icon: SelectedIcon,
+      iconHint: selectedKeyword
     };
 
     try {

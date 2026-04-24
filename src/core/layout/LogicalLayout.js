@@ -1295,8 +1295,6 @@ _onPointerUp(e) {
           });
         }
 
-// --- NEW FLOATING LABELS ---
-        // Added 'space' to the VIP list just like you wanted!
         const isStructural = ['rectangle', 'site', 'domain', 'space', 'polygon', 'freeform', 'circle'].includes(en.type);
 
         if (isStructural) {
@@ -1318,8 +1316,7 @@ _onPointerUp(e) {
             // Circumference label at the bottom
             ctx.fillText(`C ${circumferenceInMeters}`, en.x, en.y + en.r + 35);
           }
-          // THE MAGIC SWITCH: 
-          // We no longer care what its name is. If it has multiple points, treat it like a polygon!
+
           else if (en.points && en.points.length > 1) {
             
             // PERIMETER LOGIC FOR ANY CUSTOM SHAPE
@@ -1372,7 +1369,6 @@ _onPointerUp(e) {
             }
           }
         }
-        // ---------------------------
 
         ctx.restore();
       }

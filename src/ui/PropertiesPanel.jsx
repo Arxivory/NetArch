@@ -2,18 +2,18 @@ import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import appState from "../state/AppState";
 import { UpdateEntityTransformCommand } from "../core/editor/DrawingCommands";
-
+import { Network, ArrowLeftRight, ShieldCheck, Server, Lock, Activity, Clock, Terminal, ArrowDown, Map} from "lucide-react";
 
 const DEVICE_CONFIGS = {
   router: [
-    { label: "Routing Protocol", desc: "Configure OSPF, BGP, or Static routes" },
-    { label: "NAT/PAT", desc: "Translate private IPs to public addresses" },
-    { label: "Access Control List", desc: "Create permit/deny traffic rules" },
-    { label: "DHCP Server", desc: "Manage IP address pools for the network" },
-    { label: "VPN Config", desc: "Set up secure site-to-site tunnels" },
-    { label: "SNMP/MIB", desc: "Configure remote monitoring and alerts" },
-    { label: "NTP", desc: "Synchronize device clock with time servers" },
-    { label: "Terminal/SSH", desc: "Secure remote command line access" }
+    { label: "Routing Protocol", desc: "Configure OSPF, BGP, or Static routes", icon: Network },
+    { label: "NAT/PAT", desc: "Translate private IPs to public addresses", icon: ArrowLeftRight },
+    { label: "Access Control List", desc: "Create permit/deny traffic rules", icon: ShieldCheck },
+    { label: "DHCP Server", desc: "Manage IP address pools for the network", icon: Server },
+    { label: "VPN Config", desc: "Set up secure site-to-site tunnels", icon: Lock },
+    { label: "SNMP/MIB", desc: "Configure remote monitoring and alerts", icon: Activity },
+    { label: "NTP", desc: "Synchronize device clock with time servers", icon: Clock },
+    { label: "Terminal/SSH", desc: "Secure remote command line access", icon: Terminal }
   ],
   switch: [
     { label: "VLAN Manager", desc: "Create and assign Virtual LANs" },
@@ -47,11 +47,16 @@ const DEVICE_CONFIGS = {
   ]
 };
 
-
-
 export default function PropertiesPanel({ canvasController }) {
   const [selectedEntity, setSelectedEntity] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isRoutingModalOpen, setIsRoutingModalOpen] = useState(false);
+
+  const [isOSPFModalOpen, setIsOSPFModalOpen] = useState(false);
+
+  const [activeTab, setActiveTab] = useState("basic"); // For switching tabs
+  const [ospfNetworks, setOspfNetworks] = useState([{ id: Date.now(), network: "", areaId: "" }]); // For dynamic networks
+
   const [transform, setTransform] = useState({
     position: { x: 0, y: 0, z: 0 },
     scale: { factor: 1 },
@@ -70,10 +75,8 @@ export default function PropertiesPanel({ canvasController }) {
       if (ids && ids.length > 0) {
         const entityId = ids[0];
         let entity = findEntityById(entityId);
-        
         let storeNode = null;
         
-        // 1. Check Structural Store
         if (appState.structural) {
           const { domains, sites, floors, spaces } = appState.structural;
           storeNode = 
@@ -83,17 +86,14 @@ export default function PropertiesPanel({ canvasController }) {
             (spaces || []).find(sp => sp.id === entityId);
         }
         
-        // 2. Check Network Store for Devices
         if (!storeNode && appState.network) {
             storeNode = appState.network.getDevice(entityId);
         }
         
-        // 3. Check Furniture Store
         if (!storeNode && appState.furniture) {
             storeNode = appState.furniture.getFurniture(entityId);
         }
 
-        // Merge the freshest label into the entity
         if (entity && storeNode) {
           entity = { ...entity, label: storeNode.label || storeNode.hostname || storeNode.name };
         } else if (!entity && storeNode) {
@@ -121,13 +121,11 @@ export default function PropertiesPanel({ canvasController }) {
       setSelectedEntity(null);
     };
 
-    // Subscribe to everything so the properties panel always stays in sync!
     const unsubscribeSelection = appState.selection.subscribe(updatePanelContent);
     const unsubscribeStructural = appState.structural.subscribe(updatePanelContent);
     const unsubscribeNetwork = appState.network.subscribe(updatePanelContent);
     const unsubscribeFurniture = appState.furniture.subscribe(updatePanelContent);
 
-    // Initial load
     updatePanelContent();
 
     return () => {
@@ -145,22 +143,17 @@ export default function PropertiesPanel({ canvasController }) {
 
   const getDeviceLabel = (id) => {
     if (!canvasController?.layout?.devices) return id;
-
     const d = canvasController.layout.devices.find(x => x.id === id);
-
     return d?.label || d?.name || id;
   };
 
   const getDeviceType = () => {
     if (!selectedEntity) return null;
-
     const typeStr = (selectedEntity.type || "").toLowerCase();
     const labelStr = (selectedEntity.label || "").toLowerCase().replace(/\s/g, '');
-
     if (typeStr.includes('router') || labelStr.includes('router')) return 'router';
     if (typeStr.includes('switch') || labelStr.includes('switch')) return 'switch';
     if (typeStr.includes('phone') || labelStr.includes('phone')) return 'smartphone';
-
     return "pc";
   };
 
@@ -172,22 +165,10 @@ export default function PropertiesPanel({ canvasController }) {
     }
   ];
 
-  const isDevice =
-    selectedEntity &&
-    selectedEntity.interfaces !== undefined;
-
-  const isCable =
-    selectedEntity &&
-    selectedEntity.sourceId !== undefined &&
-    selectedEntity.targetId !== undefined;
-
-  const isWall =
-    selectedEntity &&
-    selectedEntity.type === "wall";
-
-  const isStructure =
-    selectedEntity &&
-    (
+  const isDevice = selectedEntity && selectedEntity.interfaces !== undefined;
+  const isCable = selectedEntity && selectedEntity.sourceId !== undefined && selectedEntity.targetId !== undefined;
+  const isWall = selectedEntity && selectedEntity.type === "wall";
+  const isStructure = selectedEntity && (
       selectedEntity.structureType === "Domain" ||
       selectedEntity.structureType === "Site" ||
       selectedEntity.structureType === "Floor" ||
@@ -197,21 +178,12 @@ export default function PropertiesPanel({ canvasController }) {
       selectedEntity.type === "domain" ||
       selectedEntity.type === "floor"
     );
-
-  const isFurniture =
-    selectedEntity &&
-    !isDevice &&
-    !isCable &&
-    !isWall &&
-    !isStructure;
+  const isFurniture = selectedEntity && !isDevice && !isCable && !isWall && !isStructure;
 
   const handleTransformChange = (type, axis, value) => {
     if (!selectedEntity || !canvasController) return;
     let numericValue = parseFloat(value);
-
-    if (numericValue < 0 || numericValue === null) {
-      numericValue = 0;
-    }
+    if (numericValue < 0 || numericValue === null) numericValue = 0;
 
     const updates = {
       [type]: {
@@ -220,14 +192,9 @@ export default function PropertiesPanel({ canvasController }) {
       }
     };
 
-    const cmd = new UpdateEntityTransformCommand(
-      canvasController,
-      appState,
-      selectedEntity.id,
-      updates
-    );
-    
+    const cmd = new UpdateEntityTransformCommand(canvasController, appState, selectedEntity.id, updates);
     cmd.execute();
+    
     const entity = findEntityById(selectedEntity.id);
     if (entity) {
       setTransform({
@@ -236,23 +203,13 @@ export default function PropertiesPanel({ canvasController }) {
         rotation: { ...entity.transform.rotation }
       });
     }
-  }
+  };
   
-  // 2. Define handleDeviceChange AFTER the closing bracket of the previous function
-const handleDeviceChange = (field, value) => {
+  const handleDeviceChange = (field, value) => {
     if (!selectedEntity) return;
-
-    // 1. ALWAYS update the local React state so you can freely type and delete characters
     const updatedEntity = { ...selectedEntity, [field]: value };
     setSelectedEntity(updatedEntity);
-
-    // 2. Guardrail: If the label is completely empty, STOP here.
-    // This allows the input box to be empty, but protects the Canvas from getting wiped out.
-    if (field === 'label' && value.trim() === '') {
-       return; 
-    }
-
-    // 3. If it has valid text, send it to the Store!
+    if (field === 'label' && value.trim() === '') return; 
     if (appState.network && appState.network.updateDevice) {
       appState.network.updateDevice(selectedEntity.id, { [field]: value });
     }
@@ -260,37 +217,28 @@ const handleDeviceChange = (field, value) => {
 
   const handleFurnitureChange = (field, value) => {
     if (!selectedEntity) return;
-
     const updatedEntity = { ...selectedEntity, [field]: value };
     setSelectedEntity(updatedEntity);
-
-    // 1. Update the Global State (Updates Hierarchy)
     if (appState.furniture && appState.furniture.updateFurniture) {
       appState.furniture.updateFurniture(selectedEntity.id, { [field]: value });
     }
-
-    // 2. Instantly update the Logical Canvas visually!
     if (canvasController && canvasController.layout) {
       const canvasEntity = canvasController.layout.findEntityById(selectedEntity.id);
       if (canvasEntity) {
         canvasEntity[field] = value;
-        if (field === 'label') {
-           canvasEntity.name = value;
-        }
+        if (field === 'label') canvasEntity.name = value;
         canvasController.layout._render();
       }
     }
   };
 
-// --- NEW: Memorize the name when the user clicks into the text box ---
-  const handleStructureRenameFocus = (e) => {
+  const handleStructureRenameFocus = () => {
     originalLabelRef.current = selectedEntity.label || selectedEntity.name || "";
   };
 
   const handleStructureRenameChange = (e) => {
     const newName = e.target.value;
     setSelectedEntity({ ...selectedEntity, label: newName });
-    
     if (newName.trim() !== "") {
       const typeStr = (selectedEntity.structureType || selectedEntity.type || "").toLowerCase();
       if (appState.structural.renameStructure) {
@@ -300,19 +248,22 @@ const handleDeviceChange = (field, value) => {
   };
 
   const handleStructureRenameBlur = (e) => {
-    // If they left the field entirely blank, we revert to the memorized full word!
     if (e.target.value.trim() === "") {
       const previousLabel = originalLabelRef.current;
-      
-      // 1. Revert the local Properties Panel state
       setSelectedEntity({ ...selectedEntity, label: previousLabel });
-      
-      // 2. Force the Global State/Hierarchy to revert too 
-      // (Otherwise the Hierarchy stays stuck on "P")
       const typeStr = (selectedEntity.structureType || selectedEntity.type || "").toLowerCase();
       if (appState.structural.renameStructure) {
         appState.structural.renameStructure(selectedEntity.id, previousLabel, typeStr);
       }
+    }
+  };
+
+  const handleConfigItemClick = (label) => {
+    if (label === "Routing Protocol") {
+      setIsModalOpen(true);
+      setIsRoutingModalOpen(true);
+    } else {
+      console.log(`Opening ${label}`);
     }
   };
 
@@ -322,45 +273,12 @@ const handleDeviceChange = (field, value) => {
 
       {isCable && (
         <div className="properties-group">
-          <div><label>Cable Type</label>
-            <input
-              className="field-input"
-              value={selectedEntity.type || ""}
-              readOnly
-            />
-          </div>
-
-          <div><label>Source Device</label>
-            <input
-              className="field-input"
-              value={getDeviceLabel(selectedEntity.sourceId)}
-              readOnly
-            />
-          </div>
-
-          <div><label>Source Port</label>
-            <input
-              className="field-input"
-              value={selectedEntity.sourcePort || ""}
-              readOnly
-            />
-          </div>
-
-          <div><label>Target Device</label>
-            <input
-              className="field-input"
-              value={getDeviceLabel(selectedEntity.targetId)}
-              readOnly
-            />
-          </div>
-
-          <div><label>Target Port</label>
-            <input
-              className="field-input"
-              value={selectedEntity.targetPort || ""}
-              readOnly /></div>
+          <div><label>Cable Type</label><input className="field-input" value={selectedEntity.type || ""} readOnly /></div>
+          <div><label>Source Device</label><input className="field-input" value={getDeviceLabel(selectedEntity.sourceId)} readOnly /></div>
+          <div><label>Source Port</label><input className="field-input" value={selectedEntity.sourcePort || ""} readOnly /></div>
+          <div><label>Target Device</label><input className="field-input" value={getDeviceLabel(selectedEntity.targetId)} readOnly /></div>
+          <div><label>Target Port</label><input className="field-input" value={selectedEntity.targetPort || ""} readOnly /></div>
         </div>
-
       )}
 
       {isWall && (
@@ -369,10 +287,7 @@ const handleDeviceChange = (field, value) => {
           <div>
             <label>Material</label>
             <select className="field-input">
-              <option>Concrete</option>
-              <option>Wood</option>
-              <option>Glass</option>
-              <option>Metal</option>
+              <option>Concrete</option><option>Wood</option><option>Glass</option><option>Metal</option>
             </select>
           </div>
         </div>
@@ -382,79 +297,43 @@ const handleDeviceChange = (field, value) => {
         <div className="properties-group">
           <hr className="header-separator" />
           <div><label>Device Name</label>
-            <input
-              className="field-input"
-              value={selectedEntity?.label || ""}
-              onChange={(e) => handleDeviceChange('label', e.target.value)}
-            />
+            <input className="field-input" value={selectedEntity?.label || ""} onChange={(e) => handleDeviceChange('label', e.target.value)} />
           </div>
-
           <div><label>IP Address</label>
-            <input
-              className="field-input"
-              value={selectedEntity?.interfaces?.[0]?.ipv4?.address || ""}
-              onChange={(e) => handleDeviceChange('ipAddress', e.target.value)}
-            />
+            <input className="field-input" value={selectedEntity?.interfaces?.[0]?.ipv4?.address || ""} onChange={(e) => handleDeviceChange('ipAddress', e.target.value)} />
           </div>
-
           <div><label>Subnet Mask</label>
-            <input
-              className="field-input" value={selectedEntity?.interfaces?.[0]?.ipv4?.subnetMask || ""}
-              onChange={(e) => handleDeviceChange('subnetMask', e.target.value)}
-            />
+            <input className="field-input" value={selectedEntity?.interfaces?.[0]?.ipv4?.subnetMask || ""} onChange={(e) => handleDeviceChange('subnetMask', e.target.value)} />
           </div>
-
           <div><label>Default Gateway</label>
-            <input
-              className="field-input"
-              value={selectedEntity?.defaultGateway || ""}
-              onChange={(e) => handleDeviceChange('defaultGateway', e.target.value)}
-            />
+            <input className="field-input" value={selectedEntity?.defaultGateway || ""} onChange={(e) => handleDeviceChange('defaultGateway', e.target.value)} />
           </div>
-          <button
-            className="floor-specifier-btn"
-            style={{ marginTop: "12px", width: "100%" }}
-            onClick={() => setIsModalOpen(true)}
-          >
+          <button className="floor-specifier-btn" onClick={() => setIsModalOpen(true)}>
             Advanced Configuration
           </button>
         </div>
       )}
-{isFurniture && (
+
+      {isFurniture && (
         <div className="properties-group">
           <hr className="header-separator" />
-          <div>
-            <label>Furniture Name</label>
-            <input
-              className="field-input"
-              value={selectedEntity?.label || ""}
-              onChange={(e) => handleFurnitureChange('label', e.target.value)}
-            />
+          <div><label>Furniture Name</label>
+            <input className="field-input" value={selectedEntity?.label || ""} onChange={(e) => handleFurnitureChange('label', e.target.value)} />
           </div>
         </div>
       )}
 
-{isStructure && (
+      {isStructure && (
         <div className="properties-group">
           <hr className="header-separator" />
-          <div>
-            <label>Name</label>
-            <input 
-              className="field-input" 
-              value={selectedEntity.label ?? selectedEntity.name ?? ""} 
-              onFocus={handleStructureRenameFocus} // <-- Add this!
-              onChange={handleStructureRenameChange} 
-              onBlur={handleStructureRenameBlur}
-            />
+          <div><label>Name</label>
+            <input className="field-input" value={selectedEntity.label ?? selectedEntity.name ?? ""} onFocus={handleStructureRenameFocus} onChange={handleStructureRenameChange} onBlur={handleStructureRenameBlur} />
           </div>
           <div><label>Type</label><input className="field-input" value={selectedEntity.structureType || selectedEntity.type || ""} readOnly /></div>
           <div>
             <label>Material</label>
             <select className="field-input">
-              <option>Concrete</option>
-              <option>Wood</option>
-              <option>Tile</option>
-              <option>Carpet</option>
+              <option>Concrete</option><option>Wood</option><option>Tile</option><option>Carpet</option>
             </select>
           </div>
         </div>
@@ -462,7 +341,6 @@ const handleDeviceChange = (field, value) => {
 
       <hr className="header-separator" />
       <h3>Transformations</h3>
-
       {selectedEntity ? (
         <>
           <div className="transform-header"><span></span><span>X</span><span>Y</span><span>Z</span></div>
@@ -475,8 +353,7 @@ const handleDeviceChange = (field, value) => {
           <div className="transform-grid">
             <label>Scale</label>
             <input type="number" className="field-input" value={transform.scale.factor} onChange={(e) => handleTransformChange('scale', 'factor', e.target.value)} />
-            <input type="number" className="field-input" defaultValue={0} disabled />
-            <input type="number" className="field-input" defaultValue={0} disabled />
+            <input type="number" className="field-input" defaultValue={0} disabled /><input type="number" className="field-input" defaultValue={0} disabled />
           </div>
           <div className="transform-grid">
             <label>Rotation</label>
@@ -486,7 +363,7 @@ const handleDeviceChange = (field, value) => {
           </div>
         </>
       ) : (
-        <p style={{ padding: '1rem', color: '#999' }}>Select an entity to see transform properties</p>
+        <p className="empty-selection-msg">Select an entity to see transform properties</p>
       )}
 
       {isModalOpen && createPortal(
@@ -500,14 +377,21 @@ const handleDeviceChange = (field, value) => {
               {configGroups.map((group) => (
                 <div key={group.category} className="config-section">
                   <div className="config-grid">
-                    {group.items.map((item) => (
-                      <div key={item.label} className="config-item-card" onClick={() => console.log(`Opening ${item.label}`)}>
-                        <div className="config-text">
-                          <div className="config-label">{item.label}</div>
-                          <div className="config-desc">{item.desc}</div>
-                        </div>
-                      </div>
-                    ))}
+                    {group.items.map((item) => {
+            const Icon = item.icon;
+
+         return (
+            <div key={item.label} className="config-item-card" onClick={() => handleConfigItemClick(item.label)}>
+              {Icon && <Icon size={24} className="config-icon" />}
+
+            <div className="config-text">
+            <div className="config-label">{item.label}</div>
+            <div className="config-desc">{item.desc}</div>
+                  </div>
+
+              </div>
+           );
+        })}
                   </div>
                 </div>
               ))}
@@ -516,9 +400,209 @@ const handleDeviceChange = (field, value) => {
         </div>,
         document.body
       )}
+
+      {isRoutingModalOpen && createPortal(
+  <div className="config-modal-overlay routing-modal-layer">
+    <div className="config-modal-content routing-modal-size">
+      <div className="modal-header">
+        <div className="header-text-stack">
+           <h2>Routing Protocol Configuration</h2>
+           <span>Select the routing protocol you want to configure.</span>
+        </div>
+      </div>
+      <div className="modal-body">
+        <div className="routing-selection-grid">
+
+
+  <div className="routing-option-card" onClick={() => setIsOSPFModalOpen(true)}>
+    <div className="routing-icon ospf">
+      <Network size={20} />
     </div>
+    <h3>OSPF</h3>
+    <p>Open Shortest Path First Link-state routing protocol</p>
     
+  </div>
+
+  <div className="routing-option-card" onClick={() => console.log("BGP Clicked")}>
+    <div className="routing-icon bgp">
+      <ArrowLeftRight size={20} />
+    </div>
+    <h3>BGP</h3>
+    <p>Border Gateway Protocol for routing between AS</p>
+  </div>
+
+  <div className="routing-option-card" onClick={() => console.log("Static Clicked")}>
+    <div className="routing-icon static">
+      <Map size={20} />
+    </div>
+    <h3>Static Routes</h3>
+    <p>Manually configured static network paths</p>
+  </div>
+
+</div>
+      </div>
+      <div className="modal-footer">
+         <button className="cancel-btn" onClick={() => setIsRoutingModalOpen(false)}>Cancel</button>
+      </div>
+    </div>
+  </div>,
+  document.body
+)}
+
+        {isOSPFModalOpen && createPortal(
+  <div className="config-modal-overlay ospf-modal-layer">
+    <div className="config-modal-content ospf-modal-size">
+      <div className="modal-header">
+        <div className="header-with-icon">
+          <div className="settings-icon-bg">
+            <Activity size={18} className="teal-icon" />
+          </div>
+          <h2 style={{ fontSize: '16px', fontWeight: 'bold', color: '#334155' }}>OSPF CONFIGURATION</h2>
+        </div>
+        <button className="close-btn" onClick={() => setIsOSPFModalOpen(false)}>×</button>
+      </div>
+
+      <div className="modal-body">
+        {/* Tab Switching Logic */}
+        <div className="tabs">
+          <button 
+            className={`tab ${activeTab === "basic" ? "active" : ""}`} 
+            onClick={() => setActiveTab("basic")}
+          >
+            Basic
+          </button>
+          <button 
+            className={`tab ${activeTab === "advanced" ? "active" : ""}`} 
+            onClick={() => setActiveTab("advanced")}
+          >
+            Advanced
+          </button>
+        </div>
+
+        {activeTab === "basic" ? (
+          <>
+            <div className="input-grid">
+              <div className="input-field">
+                <label>Process ID</label>
+                <input type="text" defaultValue="1" />
+              </div>
+              <div className="input-field">
+                <label>Router ID</label>
+                <input type="text" placeholder="1.1.1.1" />
+              </div>
+            </div>
+
+            <div className="networks-section">
+              <label className="section-label">Networks</label>
+              {ospfNetworks.map((net, index) => (
+                <div key={net.id} className="network-entry">
+                  <div className="net-input">
+                    <span>Network</span>
+                    <input 
+                      type="text" 
+                      placeholder="192.168.1.0/24" 
+                      value={net.network}
+                      onChange={(e) => {
+                        const newNets = [...ospfNetworks];
+                        newNets[index].network = e.target.value;
+                        setOspfNetworks(newNets);
+                      }}
+                    />
+                  </div>
+                  <div className="net-input">
+                    <span>Area ID</span>
+                    <input 
+                      type="text" 
+                      placeholder="0" 
+                      value={net.areaId}
+                      onChange={(e) => {
+                        const newNets = [...ospfNetworks];
+                        newNets[index].areaId = e.target.value;
+                        setOspfNetworks(newNets);
+                      }}
+                    />
+                  </div>
+                  {ospfNetworks.length > 1 && (
+                    <button 
+                      className="delete-row-btn" 
+                      onClick={() => setOspfNetworks(ospfNetworks.filter(n => n.id !== net.id))}
+                    >
+                      <Activity size={14} />
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button 
+                className="add-network-btn" 
+                onClick={() => setOspfNetworks([...ospfNetworks, { id: Date.now(), network: "", areaId: "" }])}
+              >
+                + Add Network
+              </button>
+            </div>
+          </>
+        ) : (
+          /* OSPF Advanced Configuration Content */
+          <div className="advanced-ospf-content">
+            <div className="input-grid">
+              <div className="input-field">
+                <label>Hello Interval (sec)</label>
+                <input type="number" defaultValue="10" />
+              </div>
+              <div className="input-field">
+                <label>Dead Interval (sec)</label>
+                <input type="number" defaultValue="40" />
+              </div>
+              <div className="input-field">
+                <label>Priority</label>
+                <input type="number" defaultValue="1" />
+              </div>
+              <div className="input-field">
+                <label>Cost</label>
+                <input type="number" placeholder="Auto" />
+              </div>
+            </div>
+            <div className="checkbox-field" style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '10px' }}>
+              <input type="checkbox" id="passive" />
+              <label htmlFor="passive" style={{ fontSize: '12px', color: '#374151', fontWeight: '600' }}>Passive Interface</label>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="modal-footer">
+        <button className="cancel-btn" onClick={() => setIsOSPFModalOpen(false)}>Cancel</button>
+        // Locate the Save button in your OSPF modal code
+<button className="save-btn" onClick={() => {
+  // 1. Create the log message based on the configuration
+  const logMessage = `OSPF configured: Process ID 1, Router ID 1.1.1.1, ${ospfNetworks.length} network(s) defined.`;
+
+  // 2. Dispatch a custom event with the log data
+  const logEvent = new CustomEvent("add-system-log", {
+    detail: {
+      device: "Router",
+      deviceName: selectedEntity?.name || "R-1", // Uses the selected router's name
+      message: logMessage,
+      location: "Data Center", // Or your dynamic location variable
+    }
+  });
+  window.dispatchEvent(logEvent);
+
+  // 3. Close the modal
+  setIsOSPFModalOpen(false);
+}}>
+  Save
+</button>
+      </div>
+    </div>
+  </div>,
+  document.body
+)}
+
+      {(() => {
+        console.log("FIND → layout instance:", canvasController?.layout);
+        console.log("FIND layout === global?", canvasController?.layout === window.__layoutRef);
+        return null;
+      })()}
+    </div>
   );
-  console.log("FIND → layout instance:", canvasController.layout);
-  console.log("FIND layout === global?", canvasController.layout === window.__layoutRef);
 }

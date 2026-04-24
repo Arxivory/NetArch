@@ -16,6 +16,7 @@ export class LogicalLayout {
     this.width = opts.width || 800;
     this.height = opts.height || 600;
     this.devicePixelRatio = window.devicePixelRatio || 1;
+    this.hoveredCable = null;
 
     this.system = new System();
 
@@ -753,6 +754,51 @@ if (this.mode === 'freeform') {
     const snapped = this.grid.snapToGrid(p);
     this.currentPoint = snapped;
 
+// --- UPDATED CABLE HOVER DETECTION ---
+    if (this.mode === 'select' && !this.pointerHandler.getIsPointerDown()) {
+      let newlyHoveredCable = null;
+      
+      // 1. Determine the active structural hierarchy
+      const focusedType = appState.selection.focusedType;
+      const focusedId = appState.selection.focusedId;
+      
+      const activeSpaceId = focusedType === 'space' ? focusedId : null;
+      // Fallback to the UI's active floor if no specific space is focused
+      const activeFloorId = focusedType === 'floor' ? focusedId : appState.ui.activeFloorId;
+
+      for (const cable of this.cables) {
+        const src = this.findEntityById(cable.sourceId);
+        const dst = this.findEntityById(cable.targetId);
+        if (!src || !dst) continue;
+
+        // 2. Guardrail: Hierarchy Filtering
+        if (activeSpaceId) {
+          // STRICT MODE: If viewing a specific Space, ignore cables that don't touch this room
+          // (We use && so if a cable goes from inside the space to outside, you can still hover it)
+          if (src.spaceId !== activeSpaceId && dst.spaceId !== activeSpaceId) continue;
+        } 
+        else if (activeFloorId) {
+          // BROAD MODE: If viewing a Floor, ignore cables that belong to a completely different floor
+          const srcOnFloor = src.floorId == null || src.floorId === activeFloorId;
+          const dstOnFloor = dst.floorId == null || dst.floorId === activeFloorId;
+          if (!srcOnFloor || !dstOnFloor) continue;
+        }
+
+        // 3. Optimized Bounding Box Hit Test
+        if (this._hitTestCable(p.x, p.y, src, dst, 8)) {
+          newlyHoveredCable = cable;
+          break; 
+        }
+      }
+
+      // Only trigger a re-render if the hover state actually changed
+      if (this.hoveredCable !== newlyHoveredCable) {
+        this.hoveredCable = newlyHoveredCable;
+        this._render();
+      }
+    }
+    // -------------------------------------
+
     if (this.mode === 'cable') {
       this.hoveredDevice = this._findDeviceAt(snapped.x, snapped.y);
       this._render();
@@ -1092,6 +1138,24 @@ _onPointerUp(e) {
     ctx.restore();
   }
 
+  // Add this inside LogicalLayout class
+  _hitTestCable(px, py, src, dst, tolerance) {
+    // 1. Broadphase AABB Check (Ultra-fast cull)
+    // Prevents expensive math if the mouse isn't even near the general area of the cable
+    const minX = Math.min(src.x, dst.x) - tolerance;
+    const maxX = Math.max(src.x, dst.x) + tolerance;
+    const minY = Math.min(src.y, dst.y) - tolerance;
+    const maxY = Math.max(src.y, dst.y) + tolerance;
+
+    if (px < minX || px > maxX || py < minY || py > maxY) {
+      return false; 
+    }
+
+    // 2. Narrowphase (Actual geometric distance)
+    const dist = this._pointToLineDistance(px, py, src.x, src.y, dst.x, dst.y);
+    return dist <= tolerance;
+  }
+
   _render() {
     if (!this.ctx) return;
 
@@ -1285,6 +1349,74 @@ _onPointerUp(e) {
             ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
           });
         }
+
+      if (this.hoveredCable && this.mode === 'select') {
+      const cable = this.hoveredCable;
+      const src = this.findEntityById(cable.sourceId);
+      const dst = this.findEntityById(cable.targetId);
+
+      if (src && dst) {
+        ctx.save();
+        
+        // 1. Highlight the hovered line so the user knows which one they are looking at
+        ctx.strokeStyle = "rgba(0, 174, 239, 0.4)";
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(dst.x, dst.y);
+        ctx.stroke();
+
+        // 2. Setup text styling
+        ctx.font = "bold 12px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        // Helper to draw a clean UI badge
+        const drawPortBadge = (x, y, text) => {
+          if (!text) return;
+          // Handle both string IDs or object structures depending on your state
+          const displayStr = typeof text === 'object' ? (text.name || text.id || "port") : text;
+          
+          const textMetrics = ctx.measureText(displayStr);
+          const bgW = textMetrics.width + 12; // 6px padding sides
+          const bgH = 20; // fixed height
+          
+          ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+          ctx.strokeStyle = "#94a3b8"; // subtle border
+          ctx.lineWidth = 1;
+          
+          ctx.beginPath();
+          ctx.roundRect(x - bgW / 2, y - bgH / 2, bgW, bgH, 4);
+          ctx.fill();
+          ctx.stroke();
+          
+          ctx.fillStyle = "#0f172a";
+          ctx.fillText(displayStr, x, y);
+        };
+
+        // 3. Calculate Geometry to offset labels from device centers
+        const dx = dst.x - src.x;
+        const dy = dst.y - src.y;
+        const angle = Math.atan2(dy, dx);
+        
+        // Push the label 40 pixels out from the absolute center of the device
+        const offset = 40; 
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        // Only render badges if the devices are far enough apart (prevents text overlap)
+        if (dist > offset * 2.5) {
+          const srcBadgeX = src.x + Math.cos(angle) * offset;
+          const srcBadgeY = src.y + Math.sin(angle) * offset;
+          drawPortBadge(srcBadgeX, srcBadgeY, cable.sourcePort);
+          
+          const dstBadgeX = dst.x - Math.cos(angle) * offset;
+          const dstBadgeY = dst.y - Math.sin(angle) * offset;
+          drawPortBadge(dstBadgeX, dstBadgeY, cable.targetPort);
+        }
+
+        ctx.restore();
+      }
+    }
 
 // --- NEW FLOATING LABELS ---
         // Added 'space' to the VIP list just like you wanted!

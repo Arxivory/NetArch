@@ -9,7 +9,8 @@ export class GizmoManager {
     this.canvas = canvas;
 
     this.control = new TransformControls(this.camera, this.canvas);
-    this.scene.add(this.control.getHelper());
+    this.helper = this.control.getHelper();
+    this.scene.add(this.helper);
     this.control.setMode('translate');
     this.raycaster = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
@@ -50,7 +51,7 @@ export class GizmoManager {
     this.raycaster.setFromCamera(this.pointer, this.camera);
 
     const intersects = this.raycaster.intersectObjects(
-        this.scene.children.filter(obj => obj !== this.control),
+      this.scene.children.filter(obj => obj !== this.helper),
         true
     );
 
@@ -81,10 +82,6 @@ export class GizmoManager {
   }
 
   attach(object) {
-    if (!this.initialized) {
-      this.scene.add(this.control);
-      this.initialized = true;
-    }
     this.control.attach(object);
   }
 

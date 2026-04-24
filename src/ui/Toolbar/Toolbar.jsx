@@ -13,6 +13,38 @@ import StructuralOption from "./StructuralOption";
 export default function Toolbar({ canvasController }) {
   const [activeTool, setActiveTool] = useState("select");
 
+  // 1. Update the state hooks
+const [canUndo, setCanUndo] = useState(false);
+const [canRedo, setCanRedo] = useState(false);
+
+useEffect(() => {
+  // 2. Subscribe directly to the global appState
+  // Your AppState calls notifyListeners() whenever this.commands updates
+  const unsubscribe = appState.subscribe((state) => {
+    setCanUndo(state.canUndo()); // Uses the delegation methods in your AppState.js
+    setCanRedo(state.canRedo());
+  });
+
+  // Set initial state
+  setCanUndo(appState.canUndo());
+  setCanRedo(appState.canRedo());
+
+  return unsubscribe;
+}, []);
+
+// 3. Update the handler functions to use your AppState delegation
+const handleUndo = () => {
+  if (canvasController?.undo) {
+    canvasController.undo();
+  }
+};
+
+const handleRedo = () => {
+  if (canvasController?.redo) {
+    canvasController.redo();
+  }
+};
+
   useEffect(() => {
     const unsubscribe = appState.tools.subscribe(() => {
       setActiveTool(appState.tools.getActiveTool() || "select");

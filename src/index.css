@@ -605,6 +605,45 @@ html,
   width: 100%;
 }
 
+/* Container for the scrollable area */
+.panel-body-scroll {
+  height: 400px;
+  overflow-y: scroll;
+  display: flex;
+  flex-direction: column;
+  position: relative; /* Ensures children stay within bounds */
+}
+
+/* Container for the blank space area */
+.empty-state-container {
+  display: flex !important; /* Force flex visibility */
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  flex-grow: 1; /* This forces the div to fill the 400px height */
+  width: 100%;
+  min-height: 400px; /* Explicitly match the parent height */
+  background-color: #f9f9f9;
+  border: 1px dashed #ccc;
+  box-sizing: border-box;
+}
+
+/* Text styling */
+.no-projects-message p {
+  color: #666666;
+  font-size: 1rem;
+  font-weight: 500;
+  text-align: center;
+  margin: 0;
+}
+
+.no-results-message {
+  color: #999999;
+  font-style: italic;
+  margin: 0;
+  text-align: center;
+}
+
 .log-button {
   padding: 5px;
   display: flex;
@@ -1011,101 +1050,557 @@ html,
 }
 
 .panel-delete-icon:hover {
-  color: #dc2626;
+  color: #302d2d52;
 } 
 
-.config-modal-overlay {
+/* ===== Console Panel Missing Styles ===== */
+
+.highlight {
+  background-color: #2424206d;
+  color: #111827;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+  color: #6b7280;
+  font-size: 13px;
+  text-align: center;
+  padding: 12px;
+}
+
+/* ===== Modal Styles ===== */
+
+.modal-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.4); 
-  display: flex; 
-  align-items: center; 
+  inset: 0;
+  background: rgba(56, 56, 56, 0.411);
+  display: flex;
+  align-items: center;
   justify-content: center;
   z-index: 9999;
 }
 
-.config-modal-content {
-  background: #ffffff; 
-  color: #333333;
-  padding: 10px 16px;      
-  border-radius: 6px;
-  width: 640px;             
-  max-width: 95vw;
-  max-height: 85vh;         
-  overflow-y: auto;         
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  border: 1px solid #ddd;
-}
-
-.config-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr); 
-  gap: 6px;                 
-  margin-bottom: 8px;
-}
-
-.config-item-card {
-  background: #fcfcfc;
-  padding: 6px;             
-  border-radius: 4px;
-  border: 1px solid #ececec;
-  cursor: pointer; 
-  transition: all 0.2s ease;
-  display: flex; 
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 60px;        
-}
-
-.config-item-card:hover { 
+.modal-container {
   background: #ffffff;
-  border-color: #007bff; 
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  border-radius: 25px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+  width: 300px;
+  max-width: 300px;
+  padding: 2px 14px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
 }
 
-.config-icon { 
-  font-size: 18px;         
-  margin-bottom: 2px; 
+.filter-modal {
+  max-width: 300px;
+  max-height: 250px;
 }
 
-.config-label { 
-  font-weight: 600; 
-  font-size: 10px;          
-  color: #111;
-  text-align: center;
+.clear-modal {
+  max-width: 380px;
+  padding: 25px;
 }
-
-.config-desc { 
-  font-size: 8px;           
-  color: #888;
-  text-align: center;
-  margin-top: 1px;
-  line-height: 1;
-}
-
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 6px;      
-  border-bottom: 1px solid #f0f0f0;
-  padding-bottom: 4px;      
+  padding: 14px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  font-weight: 600;
+  font-size: 14px;
+  color: #1b1e25;
+}
+
+.modal-close {
+  cursor: pointer;
+  color: #6b7280;
+  transition: color 0.15s ease;
+}
+
+.modal-close:hover {
+  color: #111827;
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 25px;
+}
+
+.modal-body input {
+  position: static;
+  width: 80%;
+  padding: 4px 10px;
+  font-size: 11px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.modal-body input:focus {
+  border-color: #2e3136c4;
+  background: #fff;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 8px 2px;
+}
+
+.modal-title {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight:640;
+  color: #111827;
+}
+
+.modal-text {
+  margin: 0 0 6px;
+  color: #4b5563;
+  font-size: 14px;
+}
+
+.btn-reset,
+.btn-apply,
+.btn-cancel,
+.btn-confirm {
+  padding: 8px 12px;
+  font-size: 12 px;
+  border-radius: 16px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.btn-reset,
+.btn-cancel {
+  background: #f3f4f6;
+  color: #111827;
+  border-color: #d1d5db;
+}
+
+.btn-reset:hover,
+.btn-cancel:hover {
+  background: #e5e7eb;
+}
+
+.btn-apply {
+  background: #2563eb;
+  color: white;
+}
+
+.btn-apply:hover {
+  background: #1d4ed8;
+}
+
+.btn-confirm {
+  background: #dc2626;
+  color: white;
+}
+
+.btn-confirm:hover {
+  background: #b91c1c;
+}
+
+/* --- Base Modal Styles --- */
+.config-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3); /* Lighter backdrop for minimalist feel */
+  border: 0 0 0 5px solid #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.routing-modal-layer {
+  z-index: 1001;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.config-modal-content {
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 15px; /* Sharper corners for a technical look */
+  width: 90%;
+  max-width: 700px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.routing-modal-size {
+  max-width: 650px;
+}
+
+/* --- Header Section --- */
+.modal-header {
+  padding: 15px 20px;
+  border-bottom: 1px solid #ececec;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .modal-header h2 {
-  font-size: 13px;         
-  margin: 0;
-  color: #555;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-.close-btn {
-  font-size: 18px;         
+.header-text-stack span {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+/* --- Config Grid (2 Per Row) --- */
+/* Config Grid (First Modal) */
+.config-grid {
+  display: grid;
+  /* Use a more constrained max-width to pull the two columns closer */
+  grid-template-columns: repeat(3, minmax(0, 300px)); 
+  /* Reduced gap from 20px to 12px to pull cards together */
+  gap: 15px;            
+  /* Reduced vertical padding to eliminate empty space at top/bottom */
+  padding: 40px 30px;   
+  justify-content: center; 
+  justify-items: center;   
+  align-items: start;
+}
+
+/* Fix the card layout itself */
+.config-item-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;   
+  /* Reduced internal padding to make the cards themselves more compact */
+  padding: 16px 20px;   
+  cursor: pointer;
+  width: 100%;          
+  max-width: 250px;     /* Slightly narrower cards */
+  display: flex;
+  flex-direction: column;
+  align-items: center;  
+  text-align: center;   
+  transition: border-color 0.15s ease;
+  outline: none;        
+}
+
+.config-label {
+  font-weight: 600;
+  font-size: 14px;      
+  margin-bottom: 2px;   /* Tighter spacing between title and description */
+  color: #111827;
+}
+
+.config-desc {
+  font-size: 11px;      
+  color: #6b7280;
+  line-height: 1.3;
+}
+
+/* --- Minimalist States (Blue Accent only on cursor/click) --- */
+.config-item-card:hover {
+  border-color: #878787;
+  background-color: #ffffff; /* Stays white */
+}
+
+.config-item-card:active,
+.config-item-card.selected {
+  border-color: #878787;
+  box-shadow: 0 0 0 1px #878787;
+}
+
+/* --- Routing Selection (Sub-Modal) --- */
+.routing-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px; /* Slightly wider gap */
+  padding: 30px 20px;
+}
+
+.routing-option-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 20px 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: white;
+}
+
+.routing-option-card:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.routing-icon {
+  width: 42px;
+  height: 42px;
+  margin: 0 auto 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: #f3f4f6;
+  transition: all 0.2s ease;
+}
+
+/* Default icon color */
+.routing-icon svg {
+  color: #6b7280;
+  transition: all 0.2s ease;
+}
+
+/* --- PROTOCOL COLORS (on hover) --- */
+
+.routing-option-card:hover .routing-icon.ospf {
+  background: #e6f7f5;
+}
+.routing-option-card:hover .routing-icon.ospf svg {
+  color: #14b8a6; /* teal */
+}
+
+.routing-option-card:hover .routing-icon.bgp {
+  background: #ede9fe;
+}
+.routing-option-card:hover .routing-icon.bgp svg {
+  color: #8b5cf6; /* purple */
+}
+
+.routing-option-card:hover .routing-icon.static {
+  background: #fff7ed;
+}
+.routing-option-card:hover .routing-icon.static svg {
+  color: #f97316; /* orange */
+}
+
+.routing-option-card:hover .routing-icon {
+  background: #e0edff;
+  color: #3b82f6;
+}
+
+.routing-option-card h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.routing-option-card p {
+  font-size: 10px;
+  color: #9ca3af;
+}
+
+/* --- Footer --- */
+.modal-footer {
+  padding: 12px 24px;
+  border-top: 1px solid #f3f4f6;
+  display: flex;
+  justify-content: flex-end;
+  background: #f9fafb; /* Very subtle contrast for the footer area */
+}
+
+.cancel-btn {
+  padding: 6px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: white;
+  font-size: 12px;
+  font-weight: 500;
+  color: #4b5563;
+  cursor: pointer;
+}
+
+.cancel-btn:hover {
+  border-color: #9ca3af;
+  color: #111827;
+}
+/* --- OSPF Modal Specifics --- */
+.ospf-modal-layer {
+  z-index: 2000; /* Ensure it sits above the routing selection modal */
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.ospf-modal-size {
+  width: 380px;
+  max-width: 95vw;
+}
+
+.header-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-icon-bg {
+  background: #e6f7f5;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+}
+
+.teal-icon {
+  color: #14b8a6;
+}
+
+/* Tabs Styling */
+.tabs {
+  display: flex;
+  gap: 20px;
+  border-bottom: 1px solid #f3f4f6;
+  margin-bottom: 20px;
+}
+
+.tab {
+  padding: 8px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
   background: none;
   border: none;
   cursor: pointer;
-  color: #999;
+  border-bottom: 2px solid transparent;
+}
+
+.tab.active {
+  color: #3b82f6;
+  border-bottom-color: #3b82f6;
+}
+
+/* Form Grid */
+.input-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.input-field label, .section-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.input-field input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+/* Network Rows */
+.network-entry {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  background: #f9fafb;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #f3f4f6;
+  margin-bottom: 12px;
+}
+
+.net-input span {
+  display: block;
+  font-size: 11px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.net-input input {
+  width: 100%;
+  padding: 6px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.add-network-btn {
+  background: none;
+  border: 1px solid #e5e7eb;
+  color: #3b82f6;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.save-btn {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 6px 20px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-left: 8px;
+  cursor: pointer;
+}
+
+.save-btn:hover {
+  background: #1d4ed8;
+}
+
+.network-entry {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  background: #f8fafc; /* Matches the light gray box in your image */
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  position: relative;
+}
+
+.net-input {
+  flex: 1;
+}
+
+.delete-row-btn {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.delete-row-btn:hover {
+  color: #ef4444;
+}
+
+.add-network-btn {
+  background: white;
+  border: 1px solid #e2e8f0;
+  color: #2563eb;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: all 0.2s;
+}
+
+.add-network-btn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
 }
 
 
@@ -1146,16 +1641,23 @@ html,
 
 .floor-specifier-btn {
   padding: 3px 8px;
+  font-weight: bold;
   font-size: 12px;
-  background: #2563eb;
-  color: #fff;
-  border: none;
+  background: #ffffff15;
+  border: 1px solid #4d4d4d;
+  color: #000000;
   border-radius: 3px;
   cursor: pointer;
 }
 
 .floor-specifier-btn:hover {
-  background: #1e40af;
+  background: #c3c2c21b;
+}
+
+.floor-specifier-btn:active,
+.floor-specifier-btn.selected {
+  border-color: #a9a9a9b1;
+  box-shadow: 0 0 0 1px #a9a9a92b;
 }
 
 /* visual cue when active floor changes */

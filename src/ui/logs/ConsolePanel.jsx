@@ -1,25 +1,44 @@
 import { Trash2, BrushCleaning, FunnelPlus, X } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+
+const EMPTY_FILTERS = {
+  device: "",
+  deviceName: "",
+  location: "",
+  date: "",
+};
 
 export default function ConsolePanel() {
-  const [logData, setLogData] = useState([
-    { id: 1, device: "Switch", deviceName: "Sw-3", message: "Interface Vlan 1 state is set to up", time: "2:34PM", date: "9/20/25", location: "Room 102" },
-    { id: 2, device: "Switch", deviceName: "Sw-4", message: "Added password for line console 0", time: "2:40PM", date: "9/20/25", location: "Room 801" },
-    { id: 3, device: "Switch", deviceName: "Sw-Core-01", message: "%SYS-5-CONFIG_I: Configured from console by admin", time: "02:58AM", date: "9/20/25", location: "Server Room" },
-    { id: 4, device: "Router", deviceName: "R-2", message: "Interface GigabitEthernet0/1, changed state to down", time: "3:15PM", date: "9/21/25", location: "Room 305" },
-    { id: 5, device: "Router", deviceName: "R-5", message: "Interface GigabitEthernet0/2, changed state to up", time: "4:05PM", date: "9/21/25", location: "Room 305" },
-    { id: 6, device: "End Device", deviceName: "Laptop-1", message: "Connected to WiFi 'OfficeNet'", time: "8:20AM", date: "9/22/25", location: "Room 102" },
-    { id: 7, device: "End Device", deviceName: "Printer-3", message: "Paper jam detected in Tray 2", time: "11:45AM", date: "9/22/25", location: "Room 801" },
-    { id: 8, device: "Switch", deviceName: "Sw-2", message: "Port 5 disabled due to security violation", time: "1:30PM", date: "9/23/25", location: "Room 102" },
-    { id: 9, device: "Router", deviceName: "R-3", message: "OSPF adjacency with R-4 established", time: "9:10AM", date: "9/23/25", location: "Server Room" },
-    { id: 10, device: "End Device", deviceName: "Desktop-7", message: "Disconnected from network", time: "5:50PM", date: "9/23/25", location: "Room 305" },
-  ]);
-
+  // logData starts empty to wait for system events or OSPF saves
+  const [logData, setLogData] = useState([]);
   const [search, setSearch] = useState("");
   const [showClearModal, setShowClearModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [tempFilters, setTempFilters] = useState({ device: "", deviceName: "", location: "", date: "" });
-  const [appliedFilters, setAppliedFilters] = useState({ device: "", deviceName: "", location: "", date: "" });
+  const [tempFilters, setTempFilters] = useState(EMPTY_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
+
+  // --- NEW: Custom Event Listener for OSPF and System Logs ---
+  useEffect(() => {
+    const handleNewLog = (event) => {
+      const { device, deviceName, message, location } = event.detail;
+      
+      const newEntry = {
+        id: Date.now(),
+        device: device || "System",
+        deviceName: deviceName || "Unknown",
+        message: message || "No message provided",
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        date: new Date().toLocaleDateString('en-GB'), // DD/MM/YYYY
+        location: location || "Internal"
+      };
+
+      // Add new logs to the top of the array
+      setLogData((prevLogs) => [newEntry, ...prevLogs]);
+    };
+
+    window.addEventListener("add-system-log", handleNewLog);
+    return () => window.removeEventListener("add-system-log", handleNewLog);
+  }, []);
 
   const filteredLogs = useMemo(() => {
     return logData.filter((log) => {
@@ -32,11 +51,9 @@ export default function ConsolePanel() {
     });
   }, [logData, search, appliedFilters]);
 
-  const handleApplyFilters = () => { setAppliedFilters(tempFilters); setShowFilters(false); };
-  const handleResetFilters = () => {
-    const empty = { device: "", deviceName: "", location: "", date: "" };
-    setTempFilters(empty);
-    setAppliedFilters(empty);
+  const handleApplyFilters = () => {
+    setAppliedFilters(tempFilters);
+    setShowFilters(false);
   };
   const clearAllLogs = () => { setLogData([]); setShowClearModal(false); };
   const deleteLog = (id) => setLogData(prev => prev.filter(log => log.id !== id));
@@ -59,81 +76,89 @@ export default function ConsolePanel() {
   const isFilterEmpty = logData.length > 0 && filteredLogs.length === 0;
 
   return (
-    <div className="console-panel flex flex-col h-full w-full bg-white border border-gray-300">
-      
-      {/* Header */}
-      <div className="panel-header flex justify-between items-center h-7 px-3 bg-gray-50 border-b border-gray-300 flex-shrink-0">
-        <h3 className="font-bold text-gray-700 text-sm">Logs</h3>
-        <div className="flex items-center space-x-2">
+    <div className="console-panel">
+      {/* Header Controls */}
+      <div className="console-panel-header">
+        <h3 className="panel-header-title">Logs</h3>
+        <div className="console-panel-controls">
           <input
             type="text" placeholder="Search message..." value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="border border-gray-300 rounded px-2 py-1 h-5 text-[10px] w-40 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
           />
-          <button onClick={() => setShowClearModal(true)} className="flex items-center space-x-1 p-1 text-black hover:bg-gray-200 rounded transition-colors">
-            <BrushCleaning size={12} /> <span className="text-[11px] font-medium">Clear</span>
+          <button onClick={() => setShowClearModal(true)} className="console-panel-btn">
+            <BrushCleaning size={12} className="console-panel-icon" />
+            <span>Clear</span>
           </button>
-          <button onClick={() => setShowFilters(true)} className="flex items-center space-x-1 p-1 text-black hover:bg-gray-200 rounded transition-colors">
-            <FunnelPlus size={12} /> <span className="text-[11px] font-medium">Filter</span>
+          <button
+            onClick={() => {
+              setTempFilters(appliedFilters);
+              setShowFilters(true);
+            }}
+            className="console-panel-btn"
+          >
+            <FunnelPlus size={12} className="console-panel-icon" />
+            <span>Filter</span>
           </button>
         </div>
       </div>
 
-      {/* Table Header */}
-      <div className="bg-gray-50 border-b border-gray-300 flex-shrink-0">
-        <table className="w-full table-fixed">
-          <thead>
-            <tr className="text-gray-600 h-7">
-              <th className="px-3 py-1 font-bold text-left text-[10px] w-[12%]">Device</th>
-              <th className="px-3 py-1 font-bold text-left text-[10px] w-[15%]">Name</th>
-              <th className="px-2 py-1 font-bold text-left text-[10px] w-[33%]">Message</th>
-              <th className="px-2 py-1 font-bold text-left text-[10px] w-[10%]">Time</th>
-              <th className="px-2 py-1 font-bold text-left text-[10px] w-[10%]">Date</th>
-              <th className="px-2 py-1 font-bold text-left text-[10px] w-[15%]">Location</th>
-              <th className="w-10"></th>
-            </tr>
-          </thead>
-        </table>
-      </div>
+      <div className="panel-content" style={{ overflow: 'hidden' }}>
+        <div className="panel-table-wrapper" style={{ overflow: 'hidden' }}>
+          
+          {/* Static Header Table */}
+          <table className="console-panel-table">
+            <thead>
+              <tr>
+                <th className="col-device" style={{ width: '12%' }}>Device</th>
+                <th className="col-name" style={{ width: '15%' }}>Name</th>
+                <th className="col-msg" style={{ width: '33%' }}>Message</th>
+                <th className="col-time" style={{ width: '10%' }}>Time</th>
+                <th className="col-date" style={{ width: '10%' }}>Date</th>
+                <th className="col-loc" style={{ width: '15%' }}>Location</th>
+                <th className="col-action" style={{ width: '5%' }}></th>
+              </tr>
+            </thead>
+          </table>
 
-      {/* Content */}
-      {/* Content */}
-<div className="flex-1 overflow-y-auto bg-white min-h-0 flex flex-col">
-  {filteredLogs.length === 0 ? (
-    /* Force this div to take up 100% of the available height */
-    <div className="flex-1 flex flex-col items-center justify-center w-full h-full min-h-[150px] bg-white">
-      <p className="text-gray-400 text-[12px] font-medium text-center px-10">
-        {logData.length === 0 
-          ? "No logs yet — start the project to see activity here." 
-          : "No matches found"}
-      </p>
-    </div>
-  ) : (
-    <div className="w-full">
-      <table className="w-full border-collapse table-fixed bg-white">
-        <tbody>
-          {filteredLogs.map((log) => (
-            <tr key={log.id} className="hover:bg-blue-50/50 h-9 transition-colors group border-b border-gray-100">
-              <td className="px-3 py-1 text-[11px] text-gray-700 truncate w-[12%]">{log.device}</td>
-              <td className="px-3 py-1 text-[11px] text-gray-700 truncate font-medium w-[15%]">{log.deviceName}</td>
-              <td className="px-3 py-1 text-[11px] text-gray-700 truncate italic w-[33%]">{highlightText(log.message, search)}</td>
-              <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[10%]">{log.time}</td>
-              <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[10%]">{log.date}</td>
-              <td className="px-4 py-1 text-[11px] text-gray-500 truncate w-[15%]">{log.location}</td>
-              <td className="px-4 py-1 text-center w-10">
-                <Trash2 
-                  className="text-gray-300 cursor-pointer inline-block transition-colors hover:text-red-500" 
-                  size={14} 
-                  onClick={() => deleteLog(log.id)} 
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )}
-</div>
+          {/* Scrollable Body Section */}
+          <div style={{ overflowY: 'scroll', height: '400px', background: 'white' }}>
+            {filteredLogs.length > 0 ? (
+              <table className="console-panel-table">
+                <tbody>
+                  {filteredLogs.map((log) => (
+                    <tr key={log.id}>
+                      <td className="col-device" style={{ width: '12%' }}>{log.device}</td>
+                      <td className="col-name" style={{ width: '15%' }}>{log.deviceName}</td>
+                      <td className="col-msg" style={{ width: '33%' }}>{highlightText(log.message, search)}</td>
+                      <td className="col-time" style={{ width: '10%' }}>{log.time}</td>
+                      <td className="col-date" style={{ width: '10%' }}>{log.date}</td>
+                      <td className="col-loc" style={{ width: '15%' }}>{log.location}</td>
+                      <td className="col-action" style={{ width: '5%' }}>
+                        <Trash2
+                          className="console-panel-delete"
+                          size={15}
+                          onClick={() => deleteLog(log.id)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="empty-state-container" style={{ border: 'none', marginTop: '0', height: '100%' }}>
+                {logData.length === 0 ? (
+                  <div className="no-projects-message">
+                    <p>No activity recorded — configure OSPF to see logs.</p>
+                  </div>
+                ) : (
+                  <p className="no-results-message">No matches found for your search.</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Filter Modal */}
       {showFilters && (
@@ -143,21 +168,20 @@ export default function ConsolePanel() {
               <span>Filter Settings</span>
               <X className="cursor-pointer hover:text-black" size={16} onClick={() => setShowFilters(false)} />
             </div>
-            <div className="space-y-2">
-              <input placeholder="Device" value={tempFilters.device} onChange={(e) => setTempFilters({ ...tempFilters, device: e.target.value })} className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs outline-none focus:border-blue-400" />
-              <input placeholder="Device Name" value={tempFilters.deviceName} onChange={(e) => setTempFilters({ ...tempFilters, deviceName: e.target.value })} className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs outline-none focus:border-blue-400" />
-              <input placeholder="Location" value={tempFilters.location} onChange={(e) => setTempFilters({ ...tempFilters, location: e.target.value })} className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs outline-none focus:border-blue-400" />
-              <input type="date" value={tempFilters.date} onChange={(e) => setTempFilters({ ...tempFilters, date: e.target.value })} className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs outline-none text-gray-500" />
+            <div className="modal-body">
+              <input placeholder="Device" value={tempFilters.device} onChange={(e) => setTempFilters({ ...tempFilters, device: e.target.value })} />
+              <input placeholder="Device Name" value={tempFilters.deviceName} onChange={(e) => setTempFilters({ ...tempFilters, deviceName: e.target.value })} />
+              <input placeholder="Location" value={tempFilters.location} onChange={(e) => setTempFilters({ ...tempFilters, location: e.target.value })} />
+              <input type="date" value={tempFilters.date} onChange={(e) => setTempFilters({ ...tempFilters, date: e.target.value })} />
             </div>
-            <div className="flex justify-end gap-3 mt-4">
-              <button onClick={handleResetFilters} className="text-[11px] text-gray-400 hover:text-gray-600">Reset</button>
-              <button onClick={handleApplyFilters} className="bg-gray-600 text-white px-4 py-1.5 rounded text-[11px] hover:bg-gray-600 transition-all">Apply</button>
+            <div className="modal-footer">
+              <button className="btn-apply" onClick={handleApplyFilters}>Apply</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Clear Modal */}
+      {/* Clear Confirmation Modal */}
       {showClearModal && (
         <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-[100]">
           <div className="bg-white rounded-lg p-6 w-80 h-55 shadow-2xl border border-gray-200">

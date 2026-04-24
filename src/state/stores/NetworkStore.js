@@ -135,6 +135,53 @@ updateDevice(deviceId, updates) {
     return link;
   }
 
+  // Helper to safely detach a port so it returns to the dropdown
+  _freePort(deviceId, portId) {
+    const dev = this.devices.find(d => d.id === deviceId);
+    if (dev && dev.interfaces) {
+      const port = dev.interfaces.find(i => 
+        i.id === portId || i.name === portId || i.label === portId
+      );
+      if (port) {
+        port.status = 'available';
+        port.connected = false;
+        delete port.connectedTo;
+        delete port.linkId;
+        delete port.targetDevice;
+        delete port.targetInterface;
+      }
+    }
+  }
+
+  // The main update function
+  updateLinkEndpoint(linkId, endpointType, newDeviceId, newPortId) {
+    const link = this.getLink(linkId);
+    if (!link) return false;
+
+    // 1. Free the old port on the old device
+    const oldDeviceId = endpointType === 'source' ? link.sourceId : link.targetId;
+    const oldPortId = endpointType === 'source' ? link.sourcePort : link.targetPort;
+    this._freePort(oldDeviceId, oldPortId);
+
+    // 2. Update the link with the new destination
+    if (endpointType === 'source') {
+      link.sourceId = newDeviceId;
+      link.sourcePort = newPortId;
+    } else {
+      link.targetId = newDeviceId;
+      link.targetPort = newPortId;
+    }
+
+    this.updateModified();
+    this.notify();
+
+    // Force UI properties panel to re-render to reflect the freed/used ports
+    if (appState.selection && typeof appState.selection.notify === 'function') {
+      appState.selection.notify();
+    }
+    return true;
+  }
+
 removeLink(linkId) {
     const index = this.links.findIndex(l => l.id === linkId);
     if (index === -1) return false;

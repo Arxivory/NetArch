@@ -4,7 +4,7 @@ import { createDeviceInstance } from '../data/deviceCatalog';
 import { createFurnitureInstance } from '../data/furnitureCatalog';
 import { validateConnection } from '../data/deviceCatalog';
 import { validatePortSelection } from '../data/deviceCatalog';
-import { showErrorModal } from '../util/ErrorHandling.js';
+import { showErrorModal, showConfirmationModal } from '../util/ErrorHandling.js';
 import { CommandHistory } from './editor/CommandHistory.js';
 import {
   CreateDomainCommand,
@@ -65,8 +65,61 @@ export class LogicalCanvasController {
             }
         }
     });
-    this.pendingMoveEntities = new Map();
+    window.addEventListener('requestLinkUpdate', (e) => {
+        const { linkId, cableType, endpointType, newDevice, clientX, clientY } = e.detail; 
+        
+        // Pass cableType as the 5th parameter
+        this._handlePortSelect(newDevice, clientX, clientY, (selectedPort) => {
+            if (!selectedPort) {
+                this.layout._render();
+                return; 
+            }
+            
+            // 1. Execute the data update in the Store
+            if (appState.network && typeof appState.network.updateLinkEndpoint === 'function') {
+                appState.network.updateLinkEndpoint(linkId, endpointType, newDevice.id, selectedPort);
+            }
+
+            // 2. CRITICAL FIX: Sync the visual layout cable!
+            if (this.layout && this.layout.cables) {
+                const canvasCable = this.layout.cables.find(c => c.id === linkId);
+                if (canvasCable) {
+                    if (endpointType === 'source') {
+                        canvasCable.sourceId = newDevice.id;
+                        canvasCable.sourcePort = selectedPort;
+                    } else {
+                        canvasCable.targetId = newDevice.id;
+                        canvasCable.targetPort = selectedPort;
+                    }
+                }
+            }
+            
+            // 3. Force UI refresh so the cable visually snaps to the new device
+            this.layout._render();
+            
+        }, cableType); 
+    });
+
+    window.addEventListener('requestLinkDeletion', (e) => {
+        const { linkId, sourceName, targetName } = e.detail;
+        
+        showConfirmationModal(
+            `Are you sure you want to delete the connection between ${sourceName} and ${targetName}?\n\nThe link will be removed and the device ports will become available again.`,
+            "Confirm Deletion",
+            () => {
+                // If the user clicks "Delete Link", execute the deletion
+                this.executeDelete(linkId);
+                
+                // Switch the tool back to select so they aren't stuck in delete mode
+                if (appState.tools) {
+                    appState.tools.setActiveTool('select');
+                }
+            }
+        );
+    });
+
     this.invalidMoveAlerted = new Set();
+    this.pendingMoveEntities = new Map(); 
     window.addEventListener('pointerdown', () => {
         this.positionSnapshot.clear();
         this.pendingMoveEntities.clear();
@@ -94,6 +147,57 @@ export class LogicalCanvasController {
     window.addEventListener('pointerup', () => {
       this._commitPendingMoveCommands();
     }, { capture: true });
+
+    // --- NEW: Global Keyboard Listener for Deletions ---
+    window.addEventListener('keydown', (e) => {
+        // Listen for both Backspace and Delete keys
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+            
+            // 1. GUARDRAIL: Do nothing if the user is typing in an input field
+            const activeElement = document.activeElement;
+            const isTyping = activeElement.tagName === 'INPUT' || 
+                             activeElement.tagName === 'TEXTAREA' || 
+                             activeElement.isContentEditable;
+            if (isTyping) return;
+
+            if (!appState || !appState.selection) return;
+
+            // 2. Figure out what is currently selected (Mirroring your Toolbar logic)
+            let ids = appState.selection.getSelectedDeviceIds();
+            if (!ids || ids.length === 0) {
+                const focused = appState.selection.getFocusedId();
+                if (focused) ids = [focused];
+            }
+
+            // 3. Execute the deletion
+            if (ids && ids.length > 0) {
+                const idToDelete = ids[0]; 
+
+                // If it's a cable, route it to the Confirmation Modal we built
+                if (appState.selection.focusedType === 'cable' && this.layout) {
+                    const cable = this.layout.cables.find(c => c.id === idToDelete) || 
+                                  appState.network?.getLink?.(idToDelete);
+                                  
+                    if (cable) {
+                        const src = this.layout.findEntityById(cable.sourceId);
+                        const dst = this.layout.findEntityById(cable.targetId);
+                        
+                        window.dispatchEvent(new CustomEvent('requestLinkDeletion', {
+                            detail: {
+                                linkId: cable.id,
+                                sourceName: src?.label || src?.name || "Device",
+                                targetName: dst?.label || dst?.name || "Device"
+                            }
+                        }));
+                    }
+                } else {
+                    // If it's a structure/device, route it to our Gatekeeper
+                    this.executeDelete(idToDelete);
+                }
+            }
+        }
+    });
+    // ---------------------------------------------------
 
     // Add this to the bottom of your constructor
     this.lastKnownPositions = new Map();
@@ -214,7 +318,27 @@ export class LogicalCanvasController {
   }
 
 executeDelete(idToDelete) {
-        let deletedIds = [];
+    // 1. Calculate how many items will be destroyed alongside this one
+    const blastInfo = this._calculateBlastRadius(idToDelete);
+
+    // 2. If children exist, throw the confirmation modal
+    if (blastInfo.count > 0) {
+        showConfirmationModal(
+            `Are you sure you want to delete "${blastInfo.name}"?\n\nThis will permanently delete ${blastInfo.count} dependent item(s) located inside it.`,
+            "Confirm Cascading Deletion",
+            () => {
+                this._commitDelete(idToDelete);
+            }
+        );
+    } else {
+        // 3. If it's empty (or just a standalone device), delete instantly
+        this._commitDelete(idToDelete);
+    }
+  }
+
+  // Rename your old executeDelete to this:
+  _commitDelete(idToDelete) {
+      let deletedIds = [];
 
     // 1. Try deleting from structural state by finding the specific type
     if (appState.structural) {
@@ -988,7 +1112,7 @@ addFurniture(furnitureData, x, y) {
   // STATE MANAGEMENT HANDLERS
   // =========================================================
 
-_handlePortSelect(device, x, y, callback) {
+_handlePortSelect(device, x, y, callback, overrideCableType = null) {
     const existingMenu = document.getElementById('canvas-port-menu');
     if (existingMenu) existingMenu.remove();
 
@@ -1053,7 +1177,7 @@ item.onclick = (e) => {
 
         if (activeCable === 'straight') activeCable = 'copper-straight';
         if (activeCable === 'crossover') activeCable = 'copper-crossover';
-        if (activeCable && activeCable !== 'cable') {
+        if (activeCable && activeCable !== 'cable' && activeCable !== 'select') {
             const validation = validatePortSelection(activeCable, port);
             if (!validation.valid) {
               showErrorModal(validation.error, "Connection Error");
@@ -1295,6 +1419,61 @@ _handleShapeCreated(shapeData, shapeType) {
     }
   }
 
+  _calculateBlastRadius(idToDelete) {
+    const st = appState.structural;
+    if (!st) return { count: 0 };
+
+    let targetType = null;
+    let targetObj = null;
+
+    // 1. Identify what type of structure is being deleted
+    if (st.domains?.some(d => d.id === idToDelete)) { targetType = 'domain'; targetObj = st.domains.find(d => d.id === idToDelete); }
+    else if (st.sites?.some(s => s.id === idToDelete)) { targetType = 'site'; targetObj = st.sites.find(s => s.id === idToDelete); }
+    else if (st.floors?.some(f => f.id === idToDelete)) { targetType = 'floor'; targetObj = st.floors.find(f => f.id === idToDelete); }
+    else if (st.spaces?.some(s => s.id === idToDelete)) { targetType = 'space'; targetObj = st.spaces.find(s => s.id === idToDelete); }
+
+    // If it's a device or standalone object, the cascading blast radius is 0
+    if (!targetType) return { count: 0 }; 
+
+    // 2. Map the structural descendants
+    let childSites = [], childFloors = [], childSpaces = [];
+
+    if (targetType === 'domain') {
+        childSites = (st.sites || []).filter(s => s.domainId === idToDelete);
+        childFloors = (st.floors || []).filter(f => childSites.some(s => s.id === f.siteId));
+        childSpaces = (st.spaces || []).filter(sp => childFloors.some(f => f.id === sp.floorId));
+    } else if (targetType === 'site') {
+        childFloors = (st.floors || []).filter(f => f.siteId === idToDelete);
+        childSpaces = (st.spaces || []).filter(sp => childFloors.some(f => f.id === sp.floorId));
+    } else if (targetType === 'floor') {
+        childSpaces = (st.spaces || []).filter(sp => sp.floorId === idToDelete);
+    }
+
+    const structuralChildrenCount = childSites.length + childFloors.length + childSpaces.length;
+
+    // 3. Map the dependent physical assets (Devices & Furniture)
+    const affectedFloorIds = childFloors.map(f => f.id);
+    if (targetType === 'floor') affectedFloorIds.push(idToDelete);
+
+    const affectedSpaceIds = childSpaces.map(sp => sp.id);
+    if (targetType === 'space') affectedSpaceIds.push(idToDelete);
+
+    const isAssetAffected = (item) => {
+        return affectedFloorIds.includes(item.floorId) || affectedSpaceIds.includes(item.spaceId);
+    };
+
+    // We check the layout arrays to guarantee we count exactly what the user sees on canvas
+    const dependentDevices = (this.layout?.devices || []).filter(isAssetAffected).length;
+    const dependentFurniture = (this.layout?.furnitures || []).filter(isAssetAffected).length;
+
+    const totalChildren = structuralChildrenCount + dependentDevices + dependentFurniture;
+
+    return {
+        count: totalChildren,
+        name: targetObj.label || targetObj.name || targetType
+    };
+  }
+
   _handleWallCreated(wallData) {
     const activeFloorId = appState.ui?.activeFloorId;
     if (activeFloorId && appState.structural.addFenestration) {
@@ -1392,17 +1571,32 @@ _handleEntitySelected(entity) {
     }
 
     // --- Intercept clicks for Delete Mode safely ---
-    if (appState.tools && appState.tools.activeTool === 'delete') {
-        // Wait for the user to physically release the mouse button
+if (appState.tools && appState.tools.activeTool === 'delete') {
         window.addEventListener('pointerup', () => {
-            // Push the deletion to the very end of the Javascript event queue
             setTimeout(() => {
-                if (this.executeDelete) {
-                    this.executeDelete(entity.id);
+                // NEW: Check if the clicked entity is a Cable (cables have source/target IDs)
+                if (entity.sourceId && entity.targetId) {
+                    const src = this.layout.findEntityById(entity.sourceId);
+                    const dst = this.layout.findEntityById(entity.targetId);
+                    
+                    // Trigger the confirmation modal!
+                    window.dispatchEvent(new CustomEvent('requestLinkDeletion', { 
+                        detail: { 
+                            linkId: entity.id, 
+                            sourceName: src?.label || src?.name || "Device", 
+                            targetName: dst?.label || dst?.name || "Device" 
+                        } 
+                    }));
+                } else {
+                    // Standard instant-delete for Devices, Furniture, and Spaces
+                    if (this.executeDelete) {
+                        this.executeDelete(entity.id);
+                    }
+                    // Reset tool back to select
+                    if (appState.tools) appState.tools.setActiveTool('select');
                 }
             }, 0);
         }, { once: true }); 
-        
         return; 
     }
 

@@ -42,7 +42,20 @@ export class LogicalCanvasController {
             const { id, updates } = e.detail;
             const canvasEntity = this.layout.findEntityById(id);
             if (canvasEntity) {
-                Object.assign(canvasEntity, updates);
+                const isLogicalDevice =
+                  canvasEntity.interfaces !== undefined ||
+                  canvasEntity.catalogId !== undefined ||
+                  typeof canvasEntity.tileX === 'number';
+
+                if (isLogicalDevice) {
+                    // Logical canvas devices use a 2D transform shape (`scale.factor`).
+                    // The physical store uses a 3D transform shape (`scale.x/y/z`).
+                    // Never overwrite the logical transform with the physical one.
+                    const { transform, ...safeUpdates } = updates || {};
+                    Object.assign(canvasEntity, safeUpdates);
+                } else {
+                    Object.assign(canvasEntity, updates);
+                }
                 // Ensure text properties sync
                 if (updates.label !== undefined) {
                     canvasEntity.hostname = updates.label;
@@ -1449,26 +1462,8 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
     }
 
     if (isDevice) {
-        const persistedDevice = appState.network?.getDevice?.(en.id);
-
-        if (persistedDevice) {
-            const centerX = en.tileX + (en.tileWidth / 2);
-            const centerY = en.tileY + (en.tileHeight / 2);
-
-            appState.network.updateDevice(en.id, {
-                floorId: en.floorId ?? persistedDevice.floorId ?? null,
-                spaceId: en.spaceId ?? persistedDevice.spaceId ?? null,
-                transform: {
-                    ...persistedDevice.transform,
-                    position: {
-                        ...persistedDevice.transform.position,
-                        x: centerX,
-                        y: centerY
-                    }
-                }
-            });
-        }
-
+        // Logical layout transforms are independent from the physical 3D device transform.
+        // A click or drag in the logical canvas must not rewrite the physical mesh position/scale.
         appState.selection.notify?.();
         return;
     }

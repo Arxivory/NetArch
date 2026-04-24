@@ -65,7 +65,27 @@ export class LogicalCanvasController {
             }
         }
     });
+
+    window.addEventListener('requestLinkDeletion', (e) => {
+        const { linkId, sourceName, targetName } = e.detail;
+        
+        showConfirmationModal(
+            `Are you sure you want to delete the connection between ${sourceName} and ${targetName}?\n\nThe link will be removed and the device ports will become available again.`,
+            "Confirm Deletion",
+            () => {
+                // If the user clicks "Delete Link", execute the deletion
+                this.executeDelete(linkId);
+                
+                // Switch the tool back to select so they aren't stuck in delete mode
+                if (appState.tools) {
+                    appState.tools.setActiveTool('select');
+                }
+            }
+        );
+    });
+
     this.invalidMoveAlerted = new Set();
+    this.pendingMoveEntities = new Map(); 
     window.addEventListener('pointerdown', () => {
         this.positionSnapshot.clear();
         this.pendingMoveEntities.clear();

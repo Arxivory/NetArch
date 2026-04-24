@@ -167,7 +167,7 @@ export function showConfirmationModal(message, title, onConfirm) {
   const confirmBtn = document.createElement('button');
   confirmBtn.innerText = 'Delete Link';
   confirmBtn.style.backgroundColor = '#f1f5f9';
-  confirmBtn.style.color = '#ffffff';
+  confirmBtn.style.color = '#0f172a';
   confirmBtn.style.border = 'none';
   confirmBtn.style.padding = '8px 16px';
   confirmBtn.style.borderRadius = '6px';

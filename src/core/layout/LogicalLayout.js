@@ -535,6 +535,34 @@ export class LogicalLayout {
         return;
       }
 
+      // --- NEW: SMART CABLE DETACHMENT ---
+      // If the selected entity is a cable (has sourceId and targetId)
+      if (en.sourceId && en.targetId) {
+          const src = this.findEntityById(en.sourceId);
+          const dst = this.findEntityById(en.targetId);
+          
+          if (src && dst) {
+              const zoom = this.pointerHandler.getZoom();
+              const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
+              
+              // Calculate which end the user clicked closer to
+              const distToSrc = Math.hypot(p.x - src.x, p.y - src.y);
+              const distToDst = Math.hypot(p.x - dst.x, p.y - dst.y);
+
+              if (distToSrc < distToDst) {
+                  // Detach the Source end
+                  this.interaction = { mode: 'update_cable', cable: en, endpointType: 'source', fixedDevice: dst };
+              } else {
+                  // Detach the Target end
+                  this.interaction = { mode: 'update_cable', cable: en, endpointType: 'target', fixedDevice: src };
+              }
+              
+              this.currentPoint = p;
+              this.pointerHandler.setPointerDown(true);
+              return; // CRITICAL: Return early so it doesn't try to bodily move the cable!
+          }
+      }
+
       if (en.saveCurrentPosition) {
         en.saveCurrentPosition();
       }
@@ -858,6 +886,14 @@ if (this.mode === 'freeform') {
     }
 
     if (this.pointerHandler.getIsPointerDown()) {
+
+      if (this.interaction.mode === 'update_cable') {
+         this.currentPoint = p;
+         this.hoveredDevice = this._findDeviceAt(snapped.x, snapped.y);
+         this._render();
+         return;
+      }
+
       if (this.mode === 'pan') {
         this._pan(e.clientX, e.clientY);
         this._render();
@@ -874,7 +910,7 @@ if (this.mode === 'freeform') {
           if (this._isDeviceEntity(en) || this._isFurnitureEntity(en)) {
             const clamped = this._clampMovementWithinParent(en, dx, dy);
             en.move(clamped.dx, clamped.dy);
-          } else {
+          } else if (typeof en.move === 'function') {
             en.move(dx, dy);
           }
         }
@@ -953,6 +989,32 @@ if (this.mode === 'freeform') {
   }
 
 _onPointerUp(e) {
+
+  if (this.interaction && this.interaction.mode === 'update_cable') {
+        const dropDevice = this._findDeviceAt(this.currentPoint.x, this.currentPoint.y);
+        
+        if (dropDevice) {
+            // Tell the controller we want to re-attach this cable
+            window.dispatchEvent(new CustomEvent('requestLinkUpdate', {
+                detail: {
+                    linkId: this.interaction.cable.id,
+                    cableType: this.interaction.cable.type,
+                    endpointType: this.interaction.endpointType,
+                    newDevice: dropDevice,
+                    clientX: e.clientX,
+                    clientY: e.clientY
+                }
+            }));
+        }
+        
+        // Reset interaction state
+        this.interaction = { mode: null, handle: null, start: null };
+        this.pointerHandler.setPointerDown(false);
+        this.hoveredDevice = null;
+        this._render(); // Snaps the cable back if dropped on empty space
+        return;
+    }
+
     console.log('[LogicalLayout] _onPointerUp', {
       mode: this.mode,
       pointerDown: this.pointerHandler.getIsPointerDown(),
@@ -1136,8 +1198,12 @@ _onPointerUp(e) {
   _renderDeviceCables(ctx, activeFloor) {
     ctx.save();
     ctx.lineWidth = 2;
-
+  
     for (const cable of this.cables) {
+      if (this.interaction && this.interaction.mode === 'update_cable' && this.interaction.cable.id === cable.id) {
+          continue; 
+      }
+
       const src = this.findEntityById(cable.sourceId);
       const dst = this.findEntityById(cable.targetId);
 
@@ -1616,6 +1682,19 @@ _onPointerUp(e) {
       }
     }
 
+    if (this.interaction && this.interaction.mode === 'update_cable' && this.currentPoint) {
+        const fixed = this.interaction.fixedDevice;
+        ctx.save();
+        ctx.strokeStyle = "#ff9900"; // Orange dragging line
+        ctx.lineWidth = 3;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(fixed.x, fixed.y);
+        ctx.lineTo(this.currentPoint.x, this.currentPoint.y);
+        ctx.stroke();
+        ctx.restore();
+    }
+      
     if (this.pendingCableSource) {
       const en = this.pendingCableSource;
 
@@ -1623,7 +1702,7 @@ _onPointerUp(e) {
       const h = en.renderHeight + 4;
       const x = en.x - 2;
       const y = en.y - 2;
-
+      
       ctx.save();
       ctx.strokeStyle = "#ff9900";
       ctx.lineWidth = 3;

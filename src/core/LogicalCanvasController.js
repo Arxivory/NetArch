@@ -4,7 +4,7 @@ import { createDeviceInstance } from '../data/deviceCatalog';
 import { createFurnitureInstance } from '../data/furnitureCatalog';
 import { validateConnection } from '../data/deviceCatalog';
 import { validatePortSelection } from '../data/deviceCatalog';
-import { showErrorModal } from '../util/ErrorHandling.js';
+import { showErrorModal, showConfirmationModal } from '../util/ErrorHandling.js';
 
 export class LogicalCanvasController {
   constructor(container, opts = {}) {
@@ -37,6 +37,25 @@ export class LogicalCanvasController {
             }
         }
     });
+
+    window.addEventListener('requestLinkDeletion', (e) => {
+        const { linkId, sourceName, targetName } = e.detail;
+        
+        showConfirmationModal(
+            `Are you sure you want to delete the connection between ${sourceName} and ${targetName}?\n\nThe link will be removed and the device ports will become available again.`,
+            "Confirm Deletion",
+            () => {
+                // If the user clicks "Delete Link", execute the deletion
+                this.executeDelete(linkId);
+                
+                // Switch the tool back to select so they aren't stuck in delete mode
+                if (appState.tools) {
+                    appState.tools.setActiveTool('select');
+                }
+            }
+        );
+    });
+
     this.invalidMoveAlerted = new Set();
     window.addEventListener('pointerdown', () => {
         this.positionSnapshot.clear();
@@ -968,17 +987,32 @@ _handleEntitySelected(entity) {
     }
 
     // --- Intercept clicks for Delete Mode safely ---
-    if (appState.tools && appState.tools.activeTool === 'delete') {
-        // Wait for the user to physically release the mouse button
+if (appState.tools && appState.tools.activeTool === 'delete') {
         window.addEventListener('pointerup', () => {
-            // Push the deletion to the very end of the Javascript event queue
             setTimeout(() => {
-                if (this.executeDelete) {
-                    this.executeDelete(entity.id);
+                // NEW: Check if the clicked entity is a Cable (cables have source/target IDs)
+                if (entity.sourceId && entity.targetId) {
+                    const src = this.layout.findEntityById(entity.sourceId);
+                    const dst = this.layout.findEntityById(entity.targetId);
+                    
+                    // Trigger the confirmation modal!
+                    window.dispatchEvent(new CustomEvent('requestLinkDeletion', { 
+                        detail: { 
+                            linkId: entity.id, 
+                            sourceName: src?.label || src?.name || "Device", 
+                            targetName: dst?.label || dst?.name || "Device" 
+                        } 
+                    }));
+                } else {
+                    // Standard instant-delete for Devices, Furniture, and Spaces
+                    if (this.executeDelete) {
+                        this.executeDelete(entity.id);
+                    }
+                    // Reset tool back to select
+                    if (appState.tools) appState.tools.setActiveTool('select');
                 }
             }, 0);
         }, { once: true }); 
-        
         return; 
     }
 

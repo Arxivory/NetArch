@@ -564,6 +564,41 @@ isPointInsideShape(id, x, y) {
       }
    }
 
+   if (this.mode === 'delete') {
+      const zoomFactor = this.pointerHandler.getZoom();
+      const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoomFactor);
+      
+      const shouldFilterByFloor = appState.selection.focusedType === 'floor';
+      const activeFloorId = shouldFilterByFloor ? (this.activeFloorId || appState.ui.activeFloorId) : null;
+      const activeSpaceId = appState.selection.focusedType === 'space' ? appState.selection.focusedId : null;
+
+      for (const cable of this.cables) {
+        const src = this.findEntityById(cable.sourceId);
+        const dst = this.findEntityById(cable.targetId);
+        if (!src || !dst) continue;
+
+        if (activeSpaceId) {
+          if (src.spaceId !== activeSpaceId && dst.spaceId !== activeSpaceId) continue;
+        } else if (activeFloorId) {
+          const srcOnFloor = src.floorId == null || src.floorId === activeFloorId;
+          const dstOnFloor = dst.floorId == null || dst.floorId === activeFloorId;
+          if (!srcOnFloor || !dstOnFloor) continue;
+        }
+
+        // Use the exact same highly-optimized bounding box we built for hovering
+        if (this._hitTestCable(p.x, p.y, src, dst, 8)) {
+          // Dispatch a custom event telling the UI a link was clicked for deletion
+          window.dispatchEvent(new CustomEvent('requestLinkDeletion', { 
+            detail: { linkId: cable.id, sourceName: src.label || src.name, targetName: dst.label || dst.name } 
+          }));
+          
+          // Reset the tool back to select automatically
+          this.pointerHandler.setPointerDown(false);
+          return;
+        }
+      }
+    }
+
       this.interaction = {
         mode: 'move',
         start: { x: p.x, y: p.y }
@@ -1628,33 +1663,32 @@ updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {
     return false;
   }
 
-  identifyEntity(x, y) {
-    const entities = this.getAllSelectableEntities();
-    let en = this.selection.identifyEntity(x, y, entities, this.ctx);
+identifyEntity(x, y) {
+    // 1. HIGHEST PRIORITY: Check Foreground Cables First
+    for (const cable of this.cables) {
+      const src = this.findEntityById(cable.sourceId);
+      const dst = this.findEntityById(cable.targetId);
+      if (!src || !dst) continue;
 
-    if (!en) {
-      for (const cable of this.cables) {
-        const src = this.findEntityById(cable.sourceId);
-        const dst = this.findEntityById(cable.targetId);
-
-        if (!src || !dst) continue;
-
-        const dist = this._pointToLineDistance(
-          x, y,
-          src.x, src.y,
-          dst.x, dst.y
-        );
-
-        if (dist < 6) {
-          en = cable;
-          break;
-        }
+      // Re-use our optimized hit test with a generous 8px click radius
+      if (this._hitTestCable(x, y, src, dst, 8)) {
+        this.selectedEntity = cable;
+        
+        // Temporarily notify the state so the Controller can intercept it
+        appState.selection.focusedId = cable.id;
+        appState.selection.focusedType = 'cable';
+        
+        if (this.onEntitySelected) this.onEntitySelected(cable);
+        this._render();
+        return cable;
       }
     }
 
-    this.selectedEntity = en || null;
+    // 2. LOWER PRIORITY: Check Devices, Furniture, and Background Structures
+    const entities = this.getAllSelectableEntities();
+    let en = this.selection.identifyEntity(x, y, entities, this.ctx);
 
-    console.log("SELECTED ENTITY:", en);
+    this.selectedEntity = en || null;
 
     if (en) {
       if (en.structureType) {

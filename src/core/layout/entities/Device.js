@@ -31,7 +31,8 @@ export class Device {
             'server': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>`,
             'pc': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>`,
             'switch': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6" y2="6"/><line x1="6" y1="18" x2="6" y2="18"/></svg>`,
-            'firewall': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>`
+            'firewall': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>`,
+            'imported': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7 11 5 5 5-5"/><rect x="3" y="18" width="18" height="3" rx="1"/></svg>`
         };
         Object.keys(svgs).forEach(key => {
             const img = new Image();
@@ -41,7 +42,14 @@ export class Device {
     }
 
     initIconImage(deviceData) {
-        const rawType = (deviceData.type + ' ' + deviceData.name).toLowerCase();
+        const rawType = [
+            deviceData.iconHint,
+            deviceData.type,
+            deviceData.name,
+            deviceData.label,
+            deviceData.catalogId,
+            deviceData.modelId
+        ].filter(Boolean).join(' ').toLowerCase();
 
         let iconKey = null;
 
@@ -49,6 +57,8 @@ export class Device {
             iconKey = 'router';
         } else if (rawType.includes('switch') || rawType.includes('catalyst') || rawType.includes('2960') || rawType.includes('9200')) {
             iconKey = 'switch';
+        } else if (rawType.includes('wifi') || rawType.includes('wireless') || rawType.includes('ap')) {
+            iconKey = 'router';
         } else if (rawType.includes('server')) {
             iconKey = 'server';
         } else if (rawType.includes('firewall') || rawType.includes('asa')) {
@@ -58,7 +68,7 @@ export class Device {
         } else if (rawType.includes('phone')) {
             iconKey = 'pc';
         }
-        this.icon = this.deviceIcons[iconKey];
+        this.icon = this.deviceIcons[iconKey] || this.deviceIcons.imported;
     }
 
     initPath() {

@@ -8,7 +8,7 @@ import {
   Armchair,
   Import,
   MonitorSmartphone,
-  Cpu,
+  HardDriveDownload,
   X
 } from "lucide-react";
 import appState from "../state/AppState";
@@ -92,7 +92,7 @@ export default function ObjectLibrary({ canvasController }) {
     }
 
     // Determine icon based on filename
-    let SelectedIcon = Cpu;
+    let SelectedIcon = HardDriveDownload;
     for (const [keyword, iconComponent] of Object.entries(ICON_MAP)) {
       if (filename.includes(keyword)) {
         SelectedIcon = iconComponent;

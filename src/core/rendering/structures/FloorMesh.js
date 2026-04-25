@@ -364,6 +364,32 @@ export default class FloorMesh {
             curveSegments: 64
         };
 
+        const baseboardHeight = 1.7;
+        const baseboardDepth = 0.2;
+        const baseboardInnerRadius = Math.max(innerRadius - baseboardDepth, 0.01);
+
+        const baseboardShape = new THREE.Shape();
+        baseboardShape.absarc(0, 0, innerRadius, 0, Math.PI * 2, false);
+
+        const baseboardHole = new THREE.Path();
+        baseboardHole.absarc(0, 0, baseboardInnerRadius, 0, Math.PI * 2, true);
+        baseboardShape.holes.push(baseboardHole);
+
+        const baseboardSettings = {
+            depth: baseboardHeight,
+            bevelEnabled: true,
+            bevelThickness: 0.05,
+            bevelSize: 0.05,
+            bevelSegments: 2,
+            curveSegments: 64
+        };
+
+        const baseBoardMaterial = new THREE.MeshStandardMaterial({ color: 0xf9f9f9 });
+        const baseBoardMesh = new THREE.Mesh(new THREE.ExtrudeGeometry(baseboardShape, baseboardSettings), baseBoardMaterial);
+        
+        baseBoardMesh.rotation.x = -Math.PI / 2;
+        baseBoardMesh.position.y = 1.5;
+
         const wallSideMat = new THREE.MeshStandardMaterial({ color: 0xf8f8f8, side: THREE.DoubleSide });
         const wallTopMat = new THREE.MeshStandardMaterial({ color: 0xf8f8f8 });
 
@@ -393,6 +419,7 @@ export default class FloorMesh {
 
         const group = new THREE.Group();
         group.add(circleMesh);
+        group.add(baseBoardMesh);
         group.add(ceilingMesh);
         group.add(floorMesh);
         group.add(roomLight);

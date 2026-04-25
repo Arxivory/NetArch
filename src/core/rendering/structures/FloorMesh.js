@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import getCachedTexture from '../utils/TextureLoader';
+import { thickness } from 'three/tsl';
 
 export default class FloorMesh {
     constructor(opts = {}, defaultScaler) {
@@ -67,6 +68,35 @@ export default class FloorMesh {
         const lightIntensity = area * 0.21; 
 
         return { lightDistance, lightIntensity };
+    }
+
+    calculateInsetPoints(points, thickness) {
+        let area = 0;
+        for (let i = 0; i < points.length; i++) {
+            const j = (i + 1) % points.length;
+            area += (points[i].x * points[j].y) - (points[j].x * points[i].y);
+        }
+        const isCCW = area > 0;
+
+        return points.map((p, i) => {
+            const prev = points[(i - 1 + points.length) % points.length];
+            const next = points[(i + 1) % points.length];
+
+            const v1 = new THREE.Vector2(p.x - prev.x, p.y - prev.y).normalize();
+            const v2 = new THREE.Vector2(next.x - p.x, next.y - p.y).normalize();
+
+            const n1 = new THREE.Vector2(-v1.y, v1.x);
+            const n2 = new THREE.Vector2(-v2.y, v2.x);
+
+            const bisector = new THREE.Vector2(n1.x + n2.x, n1.y + n2.y).normalize();
+
+            const directionMultiplier = isCCW ? 1 : -1;
+
+            return {
+                x: p.x + bisector.x * thickness * directionMultiplier,
+                y: p.y + bisector.y * thickness * directionMultiplier
+            };
+        });
     }
 
     getRectangularForm() {
@@ -228,6 +258,35 @@ export default class FloorMesh {
             bevelSegments: 2
         };
 
+        const baseboardHeight = 1.7;
+        const baseboardThickness = 0.7;
+        
+        const baseBoardShape = shape.clone();
+        const holePath = new THREE.Path();
+        const insetPoints = this.calculateInsetPoints(points, baseboardThickness);
+        
+        insetPoints.forEach((p, i) => {
+            const localX = (p.x - this.x) * this.scaler;
+            const localY = -(p.y - this.z) * this.scaler;
+            if (i === 0) holePath.moveTo(localX, localY);
+            else holePath.lineTo(localX, localY);
+        });
+        holePath.closePath();
+        baseBoardShape.holes.push(holePath);
+
+        const baseboardSettings = {
+            depth: baseboardHeight,
+            bevelEnabled: true,
+            bevelThickness: 0.05,
+            bevelSize: 0.05,
+            bevelSegments: 2
+        };
+
+        const baseBoardMaterial = new THREE.MeshStandardMaterial({ color: 0xf9f9f9 });
+        const baseBoardMesh = new THREE.Mesh(new THREE.ExtrudeGeometry(baseBoardShape, baseboardSettings), baseBoardMaterial);
+        baseBoardMesh.rotation.x = -Math.PI / 2;
+        baseBoardMesh.position.y = 1.5;
+
         const wallSideMat = new THREE.MeshStandardMaterial({ color: 0xf8f8f8, side: THREE.DoubleSide });
         const wallTopMat = new THREE.MeshStandardMaterial({ color: 0xf8f8f8, side: THREE.DoubleSide });
 
@@ -271,6 +330,7 @@ export default class FloorMesh {
         const group = new THREE.Group();
         group.position.set(this.x * this.scaler, 0, this.z * this.scaler);
         group.add(wallMesh);
+        group.add(baseBoardMesh);
         group.add(ceilingMesh);
         group.add(floorMesh);
         group.add(roomLight);
@@ -310,7 +370,6 @@ export default class FloorMesh {
         const circleMesh = new THREE.Mesh(new THREE.ExtrudeGeometry(circleShape, extrudeSettings), [wallTopMat, wallSideMat]);
         circleMesh.rotation.x = -Math.PI / 2;
 
-        // Ceiling
         const ceilingGeometry = new THREE.CircleGeometry(innerRadius, 64);
         const ceilingMaterial = new THREE.MeshStandardMaterial({ color: 0xf8f8f8, roughness: 0.8, metalness: 0.0, side: THREE.DoubleSide });
         const ceilingMesh = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
@@ -318,7 +377,6 @@ export default class FloorMesh {
         ceilingMesh.position.y = height;
         ceilingMesh.userData = { type: 'ceiling', id: this.id };
 
-        // Floor
         const floorGeometry = new THREE.CircleGeometry(innerRadius, 64);
         const tex = getCachedTexture('textures/Dune-Wood-Tile.jpg');
         tex.repeat.set(10, 10);
@@ -328,7 +386,6 @@ export default class FloorMesh {
         floorMesh.position.y = 1.5;
         floorMesh.userData = { type: 'floor', id: this.id };
 
-        // Lighting
         const { lightDistance, lightIntensity } = this.calculateLightParameters();
         const roomLight = new THREE.PointLight(0xffffff, lightIntensity, lightDistance);
         roomLight.decay = 2;

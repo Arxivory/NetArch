@@ -167,6 +167,59 @@ export class LogicalLayout {
       .filter(Boolean);
   }
 
+  _getMovableSelectedEntities(primaryEntity = null) {
+    const entities = this.selectedEntities?.length
+      ? this.selectedEntities
+      : (primaryEntity ? [primaryEntity] : []);
+
+    const unique = new Map();
+    for (const entity of entities) {
+      if (!entity || entity.sourceId || typeof entity.move !== 'function') continue;
+      unique.set(entity.id, entity);
+    }
+
+    if (primaryEntity && !primaryEntity.sourceId && typeof primaryEntity.move === 'function') {
+      unique.set(primaryEntity.id, primaryEntity);
+    }
+
+    return [...unique.values()];
+  }
+
+  _prepareMoveSelection(primaryEntity = null) {
+    const moveEntities = this._getMovableSelectedEntities(primaryEntity);
+    moveEntities.forEach((entity) => {
+      if (entity?.saveCurrentPosition) {
+        entity.saveCurrentPosition();
+      }
+    });
+    return moveEntities;
+  }
+
+  _resolveGroupMoveDelta(entities, dx, dy) {
+    if (!entities?.length) return { dx, dy };
+
+    let clampedDx = dx;
+    let clampedDy = dy;
+
+    for (const entity of entities) {
+      if (!entity) continue;
+
+      if (this._isDeviceEntity(entity) || this._isFurnitureEntity(entity)) {
+        const clamped = this._clampMovementWithinParent(entity, clampedDx, clampedDy);
+
+        if (Math.abs(clamped.dx) < Math.abs(clampedDx)) {
+          clampedDx = clamped.dx;
+        }
+
+        if (Math.abs(clamped.dy) < Math.abs(clampedDy)) {
+          clampedDy = clamped.dy;
+        }
+      }
+    }
+
+    return { dx: clampedDx, dy: clampedDy };
+  }
+
   _initCanvas() {
     const c = document.createElement('canvas');
     c.style.display = 'block';
@@ -579,9 +632,7 @@ isPointInsideShape(id, x, y) {
           }
       }
 
-      if (en.saveCurrentPosition) {
-        en.saveCurrentPosition();
-      }
+      const moveEntities = this._prepareMoveSelection(en);
 
       const zoom = this.pointerHandler.getZoom();
       const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
@@ -661,7 +712,8 @@ isPointInsideShape(id, x, y) {
 
       this.interaction = {
         mode: 'move',
-        start: { x: p.x, y: p.y }
+        start: { x: p.x, y: p.y },
+        entities: moveEntities
       };
 
       this.pointerHandler.setPointerDown(true);
@@ -918,17 +970,34 @@ if (this.mode === 'freeform') {
 
       if (this.mode === 'select' && this.selectedEntity && this.interaction.mode) {
         const en = this.selectedEntity;
+        const moveEntities = this.interaction.entities?.length
+          ? this.interaction.entities
+          : [en];
 
         const dx = p.x - this.interaction.start.x;
         const dy = p.y - this.interaction.start.y;
 
         if (this.interaction.mode === "move") {
-          if (this._isDeviceEntity(en) || this._isFurnitureEntity(en)) {
-            const clamped = this._clampMovementWithinParent(en, dx, dy);
-            en.move(clamped.dx, clamped.dy);
-          } else if (typeof en.move === 'function') {
-            en.move(dx, dy);
+          const groupDelta = this._resolveGroupMoveDelta(moveEntities, dx, dy);
+
+          for (const entity of moveEntities) {
+            if (!entity || typeof entity.move !== 'function') continue;
+            entity.move(groupDelta.dx, groupDelta.dy);
           }
+
+          this.interaction.start = {
+            x: this.interaction.start.x + groupDelta.dx,
+            y: this.interaction.start.y + groupDelta.dy
+          };
+
+          const structuralEntities = moveEntities.filter(entity => !!entity?.structureType);
+          if (structuralEntities.length > 0 && this.onEntityChanged) {
+            structuralEntities.forEach((entity) => {
+              this.onEntityChanged(entity, groupDelta.dx, groupDelta.dy);
+            });
+          }
+          this._render();
+          return;
         }
 
         if (this.interaction.mode === "resize" && en.type === 'rectangle') {
@@ -1047,28 +1116,36 @@ _onPointerUp(e) {
     }
 
     if (this.selectedEntity && (this.interaction.mode === 'move' || this.interaction.mode === 'resize')) {
-      let restoreDx = 0;
-      let restoreDy = 0;
       const isMove = this.interaction.mode === 'move';
-      const hasSavedPosition = this.selectedEntity.savedPosition !== undefined;
+      const entitiesToCommit = isMove
+        ? (this.interaction.entities?.length ? this.interaction.entities : [this.selectedEntity])
+        : [this.selectedEntity];
 
-      if (isMove && this._checkForOverlap(this.selectedEntity, "transformation")) {
-        if (hasSavedPosition && typeof this.selectedEntity.restoreToSavedPosition === 'function') {
-          restoreDx = this.selectedEntity.savedPosition.x - this.selectedEntity.x;
-          restoreDy = this.selectedEntity.savedPosition.y - this.selectedEntity.y;
-          this.selectedEntity.restoreToSavedPosition();
+      for (const entity of entitiesToCommit) {
+        if (!entity) continue;
+
+        let restoreDx = 0;
+        let restoreDy = 0;
+        const hasSavedPosition = entity.savedPosition !== undefined;
+
+        if (isMove && this._checkForOverlap(entity, "transformation")) {
+          if (hasSavedPosition && typeof entity.restoreToSavedPosition === 'function') {
+            restoreDx = entity.savedPosition.x - entity.x;
+            restoreDy = entity.savedPosition.y - entity.y;
+            entity.restoreToSavedPosition();
+          }
         }
-      }
 
-      const actualDx = hasSavedPosition
-        ? this.selectedEntity.x - this.selectedEntity.savedPosition.x
-        : restoreDx;
-      const actualDy = hasSavedPosition
-        ? this.selectedEntity.y - this.selectedEntity.savedPosition.y
-        : restoreDy;
+        const actualDx = hasSavedPosition
+          ? entity.x - entity.savedPosition.x
+          : restoreDx;
+        const actualDy = hasSavedPosition
+          ? entity.y - entity.savedPosition.y
+          : restoreDy;
 
-      if (this.onEntityChanged) {
-        this.onEntityChanged(this.selectedEntity, actualDx, actualDy); // CHANGED: commit device move/resize only once at drag end
+        if (this.onEntityChanged) {
+          this.onEntityChanged(entity, actualDx, actualDy);
+        }
       }
     }
 

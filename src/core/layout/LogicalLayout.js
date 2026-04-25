@@ -1859,6 +1859,32 @@ identifyEntity(x, y, options = {}) {
       return { entity: null, selectionOnly: false };
     }
 
+    const selectionCount = appState.selection.getSelectionCount?.() ?? 0;
+    const preserveExistingGroup =
+      !multiSelect &&
+      selectionCount > 1 &&
+      (
+        (en.sourceId && en.targetId && appState.selection.isLinkSelected?.(en.id)) ||
+        (this._isFurnitureEntity(en) && appState.selection.isFurnitureSelected?.(en.id)) ||
+        (!en.structureType && !this._isFurnitureEntity(en) && !en.sourceId && appState.selection.isDeviceSelected?.(en.id))
+      );
+
+    if (preserveExistingGroup) {
+      const focusType = en.sourceId && en.targetId
+        ? 'cable'
+        : this._isFurnitureEntity(en)
+          ? 'furniture'
+          : 'device';
+
+      appState.selection.focusSelection?.(en.id, focusType);
+      if (this.onEntitySelected) this.onEntitySelected(this.selectedEntity);
+      this._render();
+      return {
+        entity: this.selectedEntity,
+        selectionOnly: false
+      };
+    }
+
     if (en.structureType) {
       appState.selection.focusedNode(en.id, en.structureType.toLowerCase());
     } else if (en.sourceId && en.targetId) {

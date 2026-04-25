@@ -4,7 +4,21 @@ import { createDeviceInstance } from '../data/deviceCatalog';
 import { createFurnitureInstance } from '../data/furnitureCatalog';
 import { validateConnection } from '../data/deviceCatalog';
 import { validatePortSelection } from '../data/deviceCatalog';
-import { showErrorModal } from '../util/ErrorHandling.js';
+import { showErrorModal, showConfirmationModal } from '../util/ErrorHandling.js';
+import { CommandHistory } from './editor/CommandHistory.js';
+import {
+  CreateDomainCommand,
+  CreateSiteCommand,
+  CreateFloorCommand,
+  CreateSpaceCommand,
+  AddDeviceCommand,
+  RemoveDeviceCommand,
+  RemoveDomainCommand,
+  RemoveSiteCommand,
+  RemoveFloorCommand,
+  RemoveSpaceCommand,
+  MoveCommand
+} from './editor/DrawingCommands.js';
 
 export class LogicalCanvasController {
   constructor(container, opts = {}) {
@@ -18,12 +32,97 @@ export class LogicalCanvasController {
     // Map canvas entity IDs to structural entity IDs for tracking
     this.entityIdMap = new Map(); // canvas_id -> structural_id
     this.structuralToCanvasMap = new Map(); // structural_id -> canvas_id
+    this._suppressDeviceAddedCommand = false;
 
     // --- ADD THIS TO THE BOTTOM OF THE CONSTRUCTOR ---
     this.positionSnapshot = new Map();
+    // --- NEW: Global Listener for Entity Updates ---
+    window.addEventListener('forceCanvasUpdate', (e) => {
+        if (this.layout) {
+            const { id, updates } = e.detail;
+            const canvasEntity = this.layout.findEntityById(id);
+            if (canvasEntity) {
+                const isLogicalDevice =
+                  canvasEntity.interfaces !== undefined ||
+                  canvasEntity.catalogId !== undefined ||
+                  typeof canvasEntity.tileX === 'number';
+
+                if (isLogicalDevice) {
+                    // Logical canvas devices use a 2D transform shape (`scale.factor`).
+                    // The physical store uses a 3D transform shape (`scale.x/y/z`).
+                    // Never overwrite the logical transform with the physical one.
+                    const { transform, ...safeUpdates } = updates || {};
+                    Object.assign(canvasEntity, safeUpdates);
+                } else {
+                    Object.assign(canvasEntity, updates);
+                }
+                // Ensure text properties sync
+                if (updates.label !== undefined) {
+                    canvasEntity.hostname = updates.label;
+                    canvasEntity.name = updates.label;
+                }
+                this.layout._render(); // Force instant redraw
+            }
+        }
+    });
+    window.addEventListener('requestLinkUpdate', (e) => {
+        const { linkId, cableType, endpointType, newDevice, clientX, clientY } = e.detail; 
+        
+        // Pass cableType as the 5th parameter
+        this._handlePortSelect(newDevice, clientX, clientY, (selectedPort) => {
+            if (!selectedPort) {
+                this.layout._render();
+                return; 
+            }
+            
+            // 1. Execute the data update in the Store
+            if (appState.network && typeof appState.network.updateLinkEndpoint === 'function') {
+                appState.network.updateLinkEndpoint(linkId, endpointType, newDevice.id, selectedPort);
+            }
+
+            // 2. CRITICAL FIX: Sync the visual layout cable!
+            if (this.layout && this.layout.cables) {
+                const canvasCable = this.layout.cables.find(c => c.id === linkId);
+                if (canvasCable) {
+                    if (endpointType === 'source') {
+                        canvasCable.sourceId = newDevice.id;
+                        canvasCable.sourcePort = selectedPort;
+                    } else {
+                        canvasCable.targetId = newDevice.id;
+                        canvasCable.targetPort = selectedPort;
+                    }
+                }
+            }
+            
+            // 3. Force UI refresh so the cable visually snaps to the new device
+            this.layout._render();
+            
+        }, cableType); 
+    });
+
+    window.addEventListener('requestLinkDeletion', (e) => {
+        const { linkId, sourceName, targetName } = e.detail;
+        
+        showConfirmationModal(
+            `Are you sure you want to delete the connection between ${sourceName} and ${targetName}?\n\nThe link will be removed and the device ports will become available again.`,
+            "Confirm Deletion",
+            () => {
+                // If the user clicks "Delete Link", execute the deletion
+                this.executeDelete(linkId);
+                
+                // Switch the tool back to select so they aren't stuck in delete mode
+                if (appState.tools) {
+                    appState.tools.setActiveTool('select');
+                }
+            }
+        );
+    });
+
     this.invalidMoveAlerted = new Set();
+    this.pendingMoveEntities = new Map(); 
     window.addEventListener('pointerdown', () => {
         this.positionSnapshot.clear();
+        this.pendingMoveEntities.clear();
         this.invalidMoveAlerted.clear();
         const st = appState.structural;
         if (!st) return;
@@ -35,7 +134,70 @@ export class LogicalCanvasController {
             const y = Number(el.geometry ? el.geometry.y : (el.y || 0));
             this.positionSnapshot.set(el.id, { x, y });
         });
+
+        // Also snapshot all devices for drag undo/redo support
+        const allDevices = typeof appState.getAllDevices === 'function' ? appState.getAllDevices() : [];
+        allDevices.forEach(device => {
+            const x = Number(device.transform?.position?.x || 0);
+            const y = Number(device.transform?.position?.y || 0);
+            this.positionSnapshot.set(device.id, { x, y });
+        });
     }, { capture: true });
+
+    window.addEventListener('pointerup', () => {
+      this._commitPendingMoveCommands();
+    }, { capture: true });
+
+    // --- NEW: Global Keyboard Listener for Deletions ---
+    window.addEventListener('keydown', (e) => {
+        // Listen for both Backspace and Delete keys
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+            
+            // 1. GUARDRAIL: Do nothing if the user is typing in an input field
+            const activeElement = document.activeElement;
+            const isTyping = activeElement.tagName === 'INPUT' || 
+                             activeElement.tagName === 'TEXTAREA' || 
+                             activeElement.isContentEditable;
+            if (isTyping) return;
+
+            if (!appState || !appState.selection) return;
+
+            // 2. Figure out what is currently selected (Mirroring your Toolbar logic)
+            let ids = appState.selection.getSelectedDeviceIds();
+            if (!ids || ids.length === 0) {
+                const focused = appState.selection.getFocusedId();
+                if (focused) ids = [focused];
+            }
+
+            // 3. Execute the deletion
+            if (ids && ids.length > 0) {
+                const idToDelete = ids[0]; 
+
+                // If it's a cable, route it to the Confirmation Modal we built
+                if (appState.selection.focusedType === 'cable' && this.layout) {
+                    const cable = this.layout.cables.find(c => c.id === idToDelete) || 
+                                  appState.network?.getLink?.(idToDelete);
+                                  
+                    if (cable) {
+                        const src = this.layout.findEntityById(cable.sourceId);
+                        const dst = this.layout.findEntityById(cable.targetId);
+                        
+                        window.dispatchEvent(new CustomEvent('requestLinkDeletion', {
+                            detail: {
+                                linkId: cable.id,
+                                sourceName: src?.label || src?.name || "Device",
+                                targetName: dst?.label || dst?.name || "Device"
+                            }
+                        }));
+                    }
+                } else {
+                    // If it's a structure/device, route it to our Gatekeeper
+                    this.executeDelete(idToDelete);
+                }
+            }
+        }
+    });
+    // ---------------------------------------------------
 
     // Add this to the bottom of your constructor
     this.lastKnownPositions = new Map();
@@ -62,6 +224,9 @@ export class LogicalCanvasController {
       onPortSelect: (device, x, y, callback) => this._handlePortSelect(device, x, y, callback),
       onEntityChanged: (en, dx, dy) => this._handleEntityChanged(en, dx, dy)
     });
+
+    // Initialize CommandHistory for undo/redo
+    this.commandHistory = new CommandHistory(appState.commands);
   }
 
   destroy() {
@@ -77,6 +242,53 @@ export class LogicalCanvasController {
   // =========================================================
   // PUBLIC API
   // =========================================================
+
+  /**
+   * Undo the last command
+   */
+  undo() {
+    if (this.commandHistory) {
+      this.commandHistory.undo();
+      // Ensure canvas is refreshed after undo
+      if (this.layout && typeof this.layout._render === 'function') {
+        this.layout._render();
+      }
+    }
+  }
+
+  /**
+   * Redo the last undone command
+   */
+  redo() {
+    if (this.commandHistory) {
+      this.commandHistory.redo();
+      // Ensure canvas is refreshed after redo
+      if (this.layout && typeof this.layout._render === 'function') {
+        this.layout._render();
+      }
+    }
+  }
+
+  /**
+   * Check if undo is available
+   */
+  canUndo() {
+    return this.commandHistory ? this.commandHistory.canUndo() : false;
+  }
+
+  /**
+   * Check if redo is available
+   */
+  canRedo() {
+    return this.commandHistory ? this.commandHistory.canRedo() : false;
+  }
+
+  /**
+   * Get the command store for UI subscriptions
+   */
+  getCommandStore() {
+    return this.commandHistory ? this.commandHistory.getCommandStore() : null;
+  }
 
   removeEntity(id) {
     if (!this.layout) return;
@@ -108,7 +320,27 @@ export class LogicalCanvasController {
   }
 
 executeDelete(idToDelete) {
-    let deletedIds = [];
+    // 1. Calculate how many items will be destroyed alongside this one
+    const blastInfo = this._calculateBlastRadius(idToDelete);
+
+    // 2. If children exist, throw the confirmation modal
+    if (blastInfo.count > 0) {
+        showConfirmationModal(
+            `Are you sure you want to delete "${blastInfo.name}"?\n\nThis will permanently delete ${blastInfo.count} dependent item(s) located inside it.`,
+            "Confirm Cascading Deletion",
+            () => {
+                this._commitDelete(idToDelete);
+            }
+        );
+    } else {
+        // 3. If it's empty (or just a standalone device), delete instantly
+        this._commitDelete(idToDelete);
+    }
+  }
+
+  // Rename your old executeDelete to this:
+  _commitDelete(idToDelete) {
+      let deletedIds = [];
 
     // 1. Try deleting from structural state by finding the specific type
     if (appState.structural) {
@@ -133,24 +365,34 @@ executeDelete(idToDelete) {
         deletedIds = [idToDelete];
     }
 
-    // 3. Try furniture (just in case!)
-    if (deletedIds.length === 0 && appState.furniture && appState.furniture.removeFurniture) {
-        appState.furniture.removeFurniture(idToDelete);
-        deletedIds = [idToDelete];
-    }
+        // 3. Try furniture 
+        if (deletedIds.length === 0 && appState.furniture && appState.furniture.removeFurniture) {
+            const isFurniture = appState.furniture.furnitures && appState.furniture.furnitures.some(f => f.id === idToDelete);
+            if (isFurniture) {
+                appState.furniture.removeFurniture(idToDelete);
+                deletedIds = [idToDelete];
+            }
+        }
 
-    // 4. Clear the visual objects from the canvas
-    if (deletedIds.length > 0) {
-        deletedIds.forEach(deletedId => {
-            this.removeEntity(deletedId);
-        });
-        
-        if (appState.selection && appState.selection.clearSelection) {
-            appState.selection.clearSelection();
-            appState.selection.notify?.();
+        // 4. Fallback: If it wasn't caught above, it's likely a raw canvas shape (like a Wall)
+        if (deletedIds.length === 0) {
+            deletedIds = [idToDelete];
+        }
+
+        // 5. Clear the visual objects from the canvas
+        if (deletedIds.length > 0) {
+            deletedIds.forEach(deletedId => {
+                if (typeof this.removeEntity === 'function') {
+                    this.removeEntity(deletedId);
+                }
+            });
+            
+            if (appState.selection && appState.selection.clearSelection) {
+                appState.selection.clearSelection();
+                if (typeof appState.selection.notify === 'function') appState.selection.notify();
+            }
         }
     }
-  }
 
   setSize(w, h) {
     this.layout?.setSize(w, h);
@@ -158,6 +400,82 @@ executeDelete(idToDelete) {
 
   setGridSize(size) {
     this.layout?.setGridSize(size);
+  }
+
+  restoreCanvasShape(structure, canvasId) {
+    if (!this.layout?.shapeCreator || !structure) {
+      return null;
+    }
+
+    // If we no longer have the previous canvas mapping, fall back to the structural id.
+    if (!canvasId) {
+      canvasId = structure.id;
+    }
+
+    const structureType = structure.type || structure.structureType || '';
+    const primitiveType = structure.shapeType || structure.type || 'rectangle';
+    const geom = structure.geometry || {};
+    const x = Number(geom.x || 0);
+    const y = Number(geom.y || 0);
+    const w = Number(geom.width ?? geom.w ?? 0);
+    const h = Number(geom.height ?? geom.h ?? 0);
+    const r = Number(geom.radius ?? geom.r ?? 0);
+    const points = Array.isArray(geom.points) ? geom.points : [];
+
+    let shape = null;
+    if (primitiveType === 'rectangle') {
+      shape = this.layout.shapeCreator.createRectangle(
+        { x, y },
+        { x: x + w, y: y + h },
+        structureType
+      );
+    } else if (primitiveType === 'circle') {
+      shape = this.layout.shapeCreator.createCircle(
+        { x, y },
+        { x: x + r, y },
+        structureType
+      );
+    } else if (primitiveType === 'polygon') {
+      shape = this.layout.shapeCreator.createPolygon(points, structureType);
+    } else if (primitiveType === 'freeform') {
+      shape = this.layout.shapeCreator.createFreeform(points, structureType);
+    }
+
+    if (!shape) {
+      return null;
+    }
+
+    shape.id = canvasId;
+    shape.floorId = structure.floorId || null;
+    if (shape.body) {
+      shape.body.floorId = shape.floorId;
+      shape.body.structType = structureType;
+    }
+
+    const containerMap = {
+      rectangle: 'rectangles',
+      circle: 'circles',
+      polygon: 'polygons',
+      freeform: 'freeforms'
+    };
+    const listName = containerMap[shape.type] || 'rectangles';
+
+    if (Array.isArray(this.layout[listName])) {
+      this.layout[listName].push(shape);
+    }
+
+    if (this.entityIdMap) {
+      this.entityIdMap.set(canvasId, structure.id);
+    }
+    if (this.structuralToCanvasMap) {
+      this.structuralToCanvasMap.set(structure.id, canvasId);
+    }
+
+    if (typeof this.layout._render === 'function') {
+      this.layout._render();
+    }
+
+    return shape;
   }
 
   enableSnap(enabled) {
@@ -216,9 +534,374 @@ executeDelete(idToDelete) {
     this.layout?.clear();
   }
 
+  _applyCanvasEntityMoveById(entityId, dx, dy) {
+    if (!this.layout || typeof this.layout.findEntityById !== 'function') {
+      return null;
+    }
+
+    let canvasEntity = this.layout.findEntityById(entityId);
+    if (!canvasEntity) {
+      const mappedId = this.structuralToCanvasMap.get(entityId);
+      if (mappedId) {
+        canvasEntity = this.layout.findEntityById(mappedId);
+      }
+    }
+
+    if (canvasEntity && typeof canvasEntity.move === 'function') {
+      canvasEntity.move(dx, dy);
+    }
+
+    return canvasEntity;
+  }
+
+  _recordPendingMove(entityId, moveInfo) {
+    if (!this.pendingMoveEntities.has(entityId)) {
+      this.pendingMoveEntities.set(entityId, moveInfo);
+    }
+  }
+
+  _getStructuralObjectById(structuralId) {
+    const st = appState.structural;
+    if (!st) return null;
+    return (st.domains?.find(d => d.id === structuralId)
+      || st.sites?.find(s => s.id === structuralId)
+      || st.floors?.find(f => f.id === structuralId)
+      || st.spaces?.find(sp => sp.id === structuralId)
+      || null);
+  }
+
+  _getStructuralPosition(structure) {
+    const geom = structure.geometry || structure;
+    return {
+      x: Number(geom.x ?? geom.left ?? 0),
+      y: Number(geom.y ?? geom.top ?? 0)
+    };
+  }
+
+  _isStructuralMoveWithinBounds(structure, shapeType, dx, dy) {
+    if (!structure) return true;
+
+    const getBounds = (shape) => {
+      if (!shape) return null;
+      const src = shape.geometry || shape;
+      const x0 = Number(src.x ?? src.left ?? 0);
+      const y0 = Number(src.y ?? src.top ?? 0);
+      const w0 = Number(src.w ?? src.width ?? 0);
+      const h0 = Number(src.h ?? src.height ?? 0);
+      const minX0 = Math.min(x0, x0 + w0);
+      const minY0 = Math.min(y0, y0 + h0);
+      const maxX0 = Math.max(x0, x0 + w0);
+      const maxY0 = Math.max(y0, y0 + h0);
+      return {
+        x: x0,
+        y: y0,
+        w: Math.abs(w0),
+        h: Math.abs(h0),
+        minX: minX0,
+        minY: minY0,
+        maxX: maxX0,
+        maxY: maxY0
+      };
+    };
+
+    const st = appState.structural;
+    if (!st) return true;
+
+    const childBounds = getBounds(structure);
+    childBounds.minX += dx;
+    childBounds.minY += dy;
+    childBounds.maxX += dx;
+    childBounds.maxY += dy;
+
+    let parent = null;
+    if (shapeType === 'site') {
+      parent = st.domains?.find(d => d.id === structure.domainId);
+    } else if (shapeType === 'floor') {
+      parent = st.sites?.find(s => s.id === structure.siteId);
+    } else if (shapeType === 'space') {
+      parent = st.floors?.find(f => f.id === structure.floorId);
+      if (parent && (!parent.geometry?.w && !parent.geometry?.h)) {
+        const parentSite = st.sites?.find(s => s.id === parent.siteId);
+        if (parentSite) {
+          parent = parentSite;
+        }
+      }
+    }
+
+    if (!parent) {
+      return true;
+    }
+
+    const parentBounds = getBounds(parent);
+    if (parentBounds.w === 0 || parentBounds.h === 0) {
+      return true;
+    }
+
+    const tol = 2;
+    return !(
+      childBounds.minX < parentBounds.minX - tol ||
+      childBounds.minY < parentBounds.minY - tol ||
+      childBounds.maxX > parentBounds.maxX + tol ||
+      childBounds.maxY > parentBounds.maxY + tol
+    );
+  }
+
+  applyStructuralMove(structuralId, shapeType, dx, dy, options = {}) {
+    const structure = this._getStructuralObjectById(structuralId);
+    if (!structure || (dx === 0 && dy === 0)) {
+      return false;
+    }
+
+    const skipCanvasMove = options.skipCanvasMove === true;
+    const skipBounds = options.skipBounds === true;
+
+    if (!skipBounds && !this._isStructuralMoveWithinBounds(structure, shapeType, dx, dy)) {
+      return false;
+    }
+
+    const moveItem = (item) => {
+      if (!item) return;
+      if (item.geometry) {
+        item.geometry.x = Number(item.geometry.x) + dx;
+        item.geometry.y = Number(item.geometry.y) + dy;
+      } else {
+        item.x = Number(item.x || 0) + dx;
+        item.y = Number(item.y || 0) + dy;
+      }
+    };
+
+    moveItem(structure);
+    if (!skipCanvasMove) {
+      this._applyCanvasEntityMoveById(structuralId, dx, dy);
+    }
+
+    let childSites = [];
+    let childFloors = [];
+    let childSpaces = [];
+    const st = appState.structural;
+
+    if (shapeType === 'domain') {
+      childSites = st.sites.filter(s => s.domainId === structuralId);
+      childFloors = st.floors.filter(f => childSites.some(s => s.id === f.siteId));
+      childSpaces = st.spaces.filter(sp => childFloors.some(f => f.id === sp.floorId));
+    } else if (shapeType === 'site') {
+      childFloors = st.floors.filter(f => f.siteId === structuralId);
+      childSpaces = st.spaces.filter(sp => childFloors.some(f => f.id === sp.floorId));
+    } else if (shapeType === 'floor') {
+      childSpaces = st.spaces.filter(sp => sp.floorId === structuralId);
+    }
+
+    const allChildStructures = [...childSites, ...childFloors, ...childSpaces];
+    allChildStructures.forEach(child => {
+      moveItem(child);
+      this._applyCanvasEntityMoveById(child.id, dx, dy);
+    });
+
+    const floorIds = childFloors.map(f => f.id);
+    if (shapeType === 'floor') floorIds.push(structuralId);
+
+    const spaceIds = childSpaces.map(sp => sp.id);
+    if (shapeType === 'space') spaceIds.push(structuralId);
+
+    const moveItems = (items) => {
+      (items || []).forEach(item => {
+        if (floorIds.includes(item.floorId) || spaceIds.includes(item.spaceId)) {
+          if (item.transform?.position) {
+            item.transform.position.x = Number(item.transform.position.x || 0) + dx;
+            item.transform.position.y = Number(item.transform.position.y || 0) + dy;
+          } else {
+            item.x = Number(item.x || 0) + dx;
+            item.y = Number(item.y || 0) + dy;
+          }
+          if (!skipCanvasMove) {
+            this._applyCanvasEntityMoveById(item.id, dx, dy);
+          }
+        }
+      });
+    };
+
+    if (appState.network && typeof appState.network.getAllDevices === 'function') {
+      moveItems(appState.network.getAllDevices());
+      if (typeof appState.network.notify === 'function') {
+        appState.network.notify();
+      }
+    }
+    if (appState.furniture && appState.furniture.furnitures) {
+      moveItems(appState.furniture.furnitures);
+    }
+
+    if (appState.structural && typeof appState.structural.notify === 'function') {
+      appState.structural.notify();
+    }
+
+    if (typeof this.layout._render === 'function') {
+      this.layout._render();
+    }
+
+    return true;
+  }
+
+  applyDeviceMove(deviceId, dx, dy, options = {}) {
+    if (dx === 0 && dy === 0) {
+      return false;
+    }
+
+    const device = typeof appState.getDevice === 'function' ? appState.getDevice(deviceId) : null;
+    if (!device) {
+      return false;
+    }
+
+    device.transform = device.transform || { position: { x: 0, y: 0, z: 0 } };
+    device.transform.position.x = Number(device.transform.position.x || 0) + dx;
+    device.transform.position.y = Number(device.transform.position.y || 0) + dy;
+
+    if (!options.skipCanvasMove) {
+      this._applyCanvasEntityMoveById(deviceId, dx, dy);
+    }
+
+    if (appState.network && typeof appState.network.notify === 'function') {
+      appState.network.notify();
+    }
+
+    if (typeof this.layout._render === 'function') {
+      this.layout._render();
+    }
+
+    return true;
+  }
+
+  _commitPendingMoveCommands() {
+    if (!this.pendingMoveEntities.size) {
+      return;
+    }
+
+    this.pendingMoveEntities.forEach((moveInfo, entityId) => {
+      if (moveInfo.kind === 'structure') {
+        const startingPos = this.positionSnapshot.get(entityId);
+        const model = this._getStructuralObjectById(entityId);
+        if (!model || !startingPos) {
+          return;
+        }
+
+        const currentPos = this._getStructuralPosition(model);
+        const dx = Number(currentPos.x) - Number(startingPos.x);
+        const dy = Number(currentPos.y) - Number(startingPos.y);
+        if (dx === 0 && dy === 0) {
+          return;
+        }
+
+        const moveCommand = new MoveCommand(appState, this, entityId, 'structure', moveInfo.structureType, dx, dy);
+        this.commandHistory.executeCommand(moveCommand);
+      } else if (moveInfo.kind === 'device') {
+        const startingPos = this.positionSnapshot.get(entityId);
+        if (!startingPos) {
+          return;
+        }
+
+        const currentDevice = typeof appState.getDevice === 'function' ? appState.getDevice(entityId) : null;
+        const currentX = Number(currentDevice?.transform?.position?.x || 0);
+        const currentY = Number(currentDevice?.transform?.position?.y || 0);
+        const dx = currentX - Number(startingPos.x);
+        const dy = currentY - Number(startingPos.y);
+        if (dx === 0 && dy === 0) {
+          return;
+        }
+
+        const moveCommand = new MoveCommand(appState, this, entityId, 'device', null, dx, dy);
+        this.commandHistory.executeCommand(moveCommand);
+      }
+    });
+
+    this.pendingMoveEntities.clear();
+  }
+
   setActiveFloor(floorId) {
     appState.ui.setActiveFloor(floorId); // ADDED: keep the global active floor in sync for shape creation and overlap checks
     this.layout?.setActiveFloor(floorId);
+  }
+
+  _getEntityBounds(entity) {
+    if (!entity) return null;
+
+    if (typeof entity.tileX === 'number' && typeof entity.tileY === 'number' &&
+        typeof entity.tileWidth === 'number' && typeof entity.tileHeight === 'number') {
+      return {
+        minX: entity.tileX,
+        minY: entity.tileY,
+        maxX: entity.tileX + entity.tileWidth,
+        maxY: entity.tileY + entity.tileHeight
+      };
+    }
+
+    if (typeof entity.x === 'number' && typeof entity.y === 'number' &&
+        typeof entity.width === 'number' && typeof entity.height === 'number') {
+      return {
+        minX: entity.x,
+        minY: entity.y,
+        maxX: entity.x + entity.width,
+        maxY: entity.y + entity.height
+      };
+    }
+
+    if (typeof entity.getCurrentBounds === 'function') {
+      return entity.getCurrentBounds();
+    }
+
+    return null;
+  }
+
+  _getParentBounds(entity) {
+    if (!entity || !appState.structural) return null;
+    const st = appState.structural;
+    const getBounds = (shape) => {
+      if (!shape) return null;
+      const src = shape.geometry || shape;
+      const x = Number(src.x ?? src.left ?? 0);
+      const y = Number(src.y ?? src.top ?? 0);
+      const w = Number(src.w ?? src.width ?? 0);
+      const h = Number(src.h ?? src.height ?? 0);
+      const minX = Math.min(x, x + w);
+      const minY = Math.min(y, y + h);
+      const maxX = Math.max(x, x + w);
+      const maxY = Math.max(y, y + h);
+      return { minX, minY, maxX, maxY, width: Math.abs(w), height: Math.abs(h) };
+    };
+
+    if (entity.spaceId) {
+      const space = st.spaces?.find(s => s.id === entity.spaceId);
+      if (space) {
+        return getBounds(space);
+      }
+    }
+
+    if (entity.floorId) {
+      const floor = st.floors?.find(f => f.id === entity.floorId);
+      if (floor) {
+        const floorBounds = getBounds(floor);
+        if (floorBounds && floorBounds.width > 0 && floorBounds.height > 0) {
+          return floorBounds;
+        }
+        const parentSite = st.sites?.find(s => s.id === floor.siteId);
+        if (parentSite) {
+          return getBounds(parentSite);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  _isEntityWithinAssignedParentBounds(entity) {
+    const entityBounds = this._getEntityBounds(entity);
+    const parentBounds = this._getParentBounds(entity);
+    if (!entityBounds || !parentBounds) return true;
+    const tol = 2;
+    return !(
+      entityBounds.minX < parentBounds.minX - tol ||
+      entityBounds.minY < parentBounds.minY - tol ||
+      entityBounds.maxX > parentBounds.maxX + tol ||
+      entityBounds.maxY > parentBounds.maxY + tol
+    );
   }
 
 addDevice(deviceData, x, y) {
@@ -275,7 +958,10 @@ addDevice(deviceData, x, y) {
     }
 
     try {
-        const newDevice = createDeviceInstance(catalogId, { x, y, z: 0 });
+        const newDevice = createDeviceInstance(catalogId, { x, y, z: 0 }, {
+          iconHint: deviceData.iconHint,
+          name: deviceData.label
+        });
        newDevice.catalogId = catalogId;
 
         // AUTO NUMBER DEVICE NAME
@@ -331,15 +1017,15 @@ addDevice(deviceData, x, y) {
             appState.network.addDevice(newDevice);
         }
 
-        if (this.physicalController) {
-            this.physicalController.createDeviceGLTFMesh(newDevice);
-        } else {
-            console.error("Physical controller reference not found.");
-        }
+        // Physical scene updates through NetworkStore subscription in PhysicalController.
 
         console.log('Device added:', newDevice.id, 'with Catalog ID:', newDevice.catalogId, 'to floor/space:', focusedId);
     } catch (error) {
         console.error("Failed to add device:", error.message);
+      showErrorModal(
+        "The selected object is not supported for placement yet. Please import a supported device model and try again.",
+        "Unsupported Object"
+      );
     }
 }
 
@@ -360,6 +1046,32 @@ addFurniture(furnitureData, x, y) {
         console.error("Cannot add furniture: No floor or space is focused");
         alert('Please select a floor or space in the hierarchy before adding furniture.');
         return;
+    }
+
+    if (this.layout && typeof this.layout.isPointInsideShape === 'function') {
+        const dropIsInsideParent = this.layout.isPointInsideShape(focusedId, x, y);
+        if (!dropIsInsideParent) {
+            const prettyTypeName = focusedType.charAt(0).toUpperCase() + focusedType.slice(1);
+            showErrorModal(
+                `Placement Failed.\nYou dropped the furniture outside the physical area of the selected ${prettyTypeName}.`,
+                "Out of Bounds Error"
+            );
+            return;
+        }
+    }
+
+    if (focusedType === 'floor' && appState.structural && appState.structural.spaces) {
+        const spacesOnFloor = appState.structural.spaces.filter(s => s.floorId === focusedId);
+        const droppedInsideSpace = spacesOnFloor.find(space => 
+            this.layout.isPointInsideShape(space.id, x, y)
+        );
+        if (droppedInsideSpace) {
+            showErrorModal(
+                `You dropped the furniture inside "${droppedInsideSpace.label}".\n\nTo place furniture inside a Space, you must explicitly select that Space in the Hierarchy Panel first.`,
+                "Specific Placement Required"
+            );
+            return;
+        }
     }
 
     const catalogId = furnitureData.modelId;
@@ -412,7 +1124,7 @@ addFurniture(furnitureData, x, y) {
   // STATE MANAGEMENT HANDLERS
   // =========================================================
 
-_handlePortSelect(device, x, y, callback) {
+_handlePortSelect(device, x, y, callback, overrideCableType = null) {
     const existingMenu = document.getElementById('canvas-port-menu');
     if (existingMenu) existingMenu.remove();
 
@@ -477,7 +1189,7 @@ item.onclick = (e) => {
 
         if (activeCable === 'straight') activeCable = 'copper-straight';
         if (activeCable === 'crossover') activeCable = 'copper-crossover';
-        if (activeCable && activeCable !== 'cable') {
+        if (activeCable && activeCable !== 'cable' && activeCable !== 'select') {
             const validation = validatePortSelection(activeCable, port);
             if (!validation.valid) {
               showErrorModal(validation.error, "Connection Error");
@@ -649,20 +1361,16 @@ _handleShapeCreated(shapeData, shapeType) {
       return true; 
     };
 
-    // --- 4. SHAPE ROUTING ---
+    // --- 4. SHAPE ROUTING - Execute commands for undo/redo tracking ---
     if (structureType === 'Domain') {
       const domainData = {
         ...shapeData, label: `Domain ${this.counters.domain++}`,
-        x, y, w, h, maxX, maxY 
+        x, y, w, h, maxX, maxY, shapeType: 'rectangle'
       };
       console.log(`🏢 Creating Domain with id=${domainData.id}`);
-      const newDomain = appState.structural.addDomain(domainData);
-      // CRITICAL: Store the mapping so we can find canvas entity by structural ID later
-      if (newDomain && id) {
-        this.structuralToCanvasMap.set(newDomain.id, id);
-        this.entityIdMap.set(id, newDomain.id);
-        console.log(`🔗 Mapped: canvas(${id}) <-> structural(${newDomain.id})`);
-      }
+      
+      const command = new CreateDomainCommand(appState, this, domainData, id);
+      this.commandHistory.executeCommand(command);
     }
     else if (structureType === 'Site') {
       const parentId = appState.selection.focusedType === 'domain' ? appState.selection.focusedId : null;
@@ -675,17 +1383,13 @@ _handleShapeCreated(shapeData, shapeType) {
         return removeInvalidShape();
       }
       const siteData = {
-        id, domainId: parentId, label: `Site ${this.counters.site++}`,
-        shapeType, x, y, w, h, maxX, maxY, r, points 
+        id, shapeType, x, y, w, h, maxX, maxY, r, points,
+        label: `Site ${this.counters.site++}`
       };
       console.log(`🏪 Creating Site with id=${siteData.id}, domainId=${parentId}`);
-      const newSite = appState.structural.addSite(siteData);
-      // CRITICAL: Store the mapping
-      if (newSite && id) {
-        this.structuralToCanvasMap.set(newSite.id, id);
-        this.entityIdMap.set(id, newSite.id);
-        console.log(`🔗 Mapped: canvas(${id}) <-> structural(${newSite.id})`);
-      }
+      
+      const command = new CreateSiteCommand(appState, this, siteData, parentId, id);
+      this.commandHistory.executeCommand(command);
     } 
     else if (structureType === 'Floor') {
       const parentId = appState.selection.focusedType === 'site' ? appState.selection.focusedId : null;
@@ -698,17 +1402,13 @@ _handleShapeCreated(shapeData, shapeType) {
         return removeInvalidShape();
       }
       const floorData = {
-        id, siteId: parentId, label: `Floor ${this.counters.floor++}`,
-        shapeType, x, y, w, h, maxX, maxY, r, points 
+        id, shapeType, x, y, w, h, maxX, maxY, r, points,
+        label: `Floor ${this.counters.floor++}`
       };
       console.log(`🏗️ Creating Floor with id=${floorData.id}, siteId=${parentId}`);
-      const newFloor = appState.structural.addFloor(floorData);
-      if (newFloor && id) {
-        this.structuralToCanvasMap.set(newFloor.id, id);
-        this.entityIdMap.set(id, newFloor.id);
-        console.log(`🔗 Mapped: canvas(${id}) <-> structural(${newFloor.id})`);
-      }
-      appState.ui.setActiveFloor(id);
+      
+      const command = new CreateFloorCommand(appState, this, floorData, parentId, id);
+      this.commandHistory.executeCommand(command);
     }
     else if (structureType === 'Space') {
       const parentId = appState.selection.focusedType === 'floor' ? appState.selection.focusedId : null;
@@ -721,17 +1421,69 @@ _handleShapeCreated(shapeData, shapeType) {
         return removeInvalidShape();
       }
       const spaceData = {
-        id, floorId: parentId, label: `Space ${this.counters.space++}`,
-        shapeType, x, y, w, h, maxX, maxY, r, points 
+        id, shapeType, x, y, w, h, maxX, maxY, r, points,
+        label: `Space ${this.counters.space++}`
       };
       console.log(`🎨 Creating Space with id=${spaceData.id}, floorId=${parentId}`);
-      const newSpace = appState.structural.addSpace(spaceData);
-      if (newSpace && id) {
-        this.structuralToCanvasMap.set(newSpace.id, id);
-        this.entityIdMap.set(id, newSpace.id);
-        console.log(`🔗 Mapped: canvas(${id}) <-> structural(${newSpace.id})`);
-      }
+      
+      const command = new CreateSpaceCommand(appState, this, spaceData, parentId, id);
+      this.commandHistory.executeCommand(command);
     }
+  }
+
+  _calculateBlastRadius(idToDelete) {
+    const st = appState.structural;
+    if (!st) return { count: 0 };
+
+    let targetType = null;
+    let targetObj = null;
+
+    // 1. Identify what type of structure is being deleted
+    if (st.domains?.some(d => d.id === idToDelete)) { targetType = 'domain'; targetObj = st.domains.find(d => d.id === idToDelete); }
+    else if (st.sites?.some(s => s.id === idToDelete)) { targetType = 'site'; targetObj = st.sites.find(s => s.id === idToDelete); }
+    else if (st.floors?.some(f => f.id === idToDelete)) { targetType = 'floor'; targetObj = st.floors.find(f => f.id === idToDelete); }
+    else if (st.spaces?.some(s => s.id === idToDelete)) { targetType = 'space'; targetObj = st.spaces.find(s => s.id === idToDelete); }
+
+    // If it's a device or standalone object, the cascading blast radius is 0
+    if (!targetType) return { count: 0 }; 
+
+    // 2. Map the structural descendants
+    let childSites = [], childFloors = [], childSpaces = [];
+
+    if (targetType === 'domain') {
+        childSites = (st.sites || []).filter(s => s.domainId === idToDelete);
+        childFloors = (st.floors || []).filter(f => childSites.some(s => s.id === f.siteId));
+        childSpaces = (st.spaces || []).filter(sp => childFloors.some(f => f.id === sp.floorId));
+    } else if (targetType === 'site') {
+        childFloors = (st.floors || []).filter(f => f.siteId === idToDelete);
+        childSpaces = (st.spaces || []).filter(sp => childFloors.some(f => f.id === sp.floorId));
+    } else if (targetType === 'floor') {
+        childSpaces = (st.spaces || []).filter(sp => sp.floorId === idToDelete);
+    }
+
+    const structuralChildrenCount = childSites.length + childFloors.length + childSpaces.length;
+
+    // 3. Map the dependent physical assets (Devices & Furniture)
+    const affectedFloorIds = childFloors.map(f => f.id);
+    if (targetType === 'floor') affectedFloorIds.push(idToDelete);
+
+    const affectedSpaceIds = childSpaces.map(sp => sp.id);
+    if (targetType === 'space') affectedSpaceIds.push(idToDelete);
+
+    const isAssetAffected = (item) => {
+        return affectedFloorIds.includes(item.floorId) || affectedSpaceIds.includes(item.spaceId);
+    };
+
+    // We check the layout arrays to guarantee we count exactly what the user sees on canvas
+    const dependentDevices = (this.layout?.devices || []).filter(isAssetAffected).length;
+    const dependentFurniture = (this.layout?.furnitures || []).filter(isAssetAffected).length;
+
+    const totalChildren = structuralChildrenCount + dependentDevices + dependentFurniture;
+
+    return {
+        count: totalChildren,
+        name: targetObj.label || targetObj.name || targetType
+    };
   }
 
   _handleWallCreated(wallData) {
@@ -845,17 +1597,32 @@ _handleEntitySelected(entity) {
     }
 
     // --- Intercept clicks for Delete Mode safely ---
-    if (appState.tools && appState.tools.activeTool === 'delete') {
-        // Wait for the user to physically release the mouse button
+if (appState.tools && appState.tools.activeTool === 'delete') {
         window.addEventListener('pointerup', () => {
-            // Push the deletion to the very end of the Javascript event queue
             setTimeout(() => {
-                if (this.executeDelete) {
-                    this.executeDelete(entity.id);
+                // NEW: Check if the clicked entity is a Cable (cables have source/target IDs)
+                if (entity.sourceId && entity.targetId) {
+                    const src = this.layout.findEntityById(entity.sourceId);
+                    const dst = this.layout.findEntityById(entity.targetId);
+                    
+                    // Trigger the confirmation modal!
+                    window.dispatchEvent(new CustomEvent('requestLinkDeletion', { 
+                        detail: { 
+                            linkId: entity.id, 
+                            sourceName: src?.label || src?.name || "Device", 
+                            targetName: dst?.label || dst?.name || "Device" 
+                        } 
+                    }));
+                } else {
+                    // Standard instant-delete for Devices, Furniture, and Spaces
+                    if (this.executeDelete) {
+                        this.executeDelete(entity.id);
+                    }
+                    // Reset tool back to select
+                    if (appState.tools) appState.tools.setActiveTool('select');
                 }
             }, 0);
         }, { once: true }); 
-        
         return; 
     }
 
@@ -895,30 +1662,35 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
     }
 
     const isDevice = en.interfaces !== undefined || en.catalogId !== undefined;
+    const isFurniture = en?.type === 'furniture' || en?.entityType === 'furniture';
+    const hasSavedPosition = en && en.savedPosition !== undefined;
+    const moved = (dx !== 0 || dy !== 0) ||
+      (hasSavedPosition && (en.x !== en.savedPosition.x || en.y !== en.savedPosition.y));
+
+    if ((isDevice || isFurniture) && moved) {
+        if (!this._isEntityWithinAssignedParentBounds(en)) {
+            if (typeof en.restoreToSavedPosition === 'function') {
+                en.restoreToSavedPosition();
+            }
+
+            if (this.layout) {
+                if (typeof this.layout._render === 'function') {
+                    this.layout._render();
+                } else if (typeof this.layout.render === 'function') {
+                    this.layout.render();
+                }
+            }
+
+            appState.selection.notify?.();
+            return;
+        }
+    }
 
     if (isDevice) {
-        const persistedDevice = appState.network?.getDevice?.(en.id);
-
-        if (persistedDevice) {
-            const centerX = en.tileX + (en.tileWidth / 2);
-            const centerY = en.tileY + (en.tileHeight / 2);
-
-            appState.network.updateDevice(en.id, {
-                floorId: en.floorId ?? persistedDevice.floorId ?? null,
-                spaceId: en.spaceId ?? persistedDevice.spaceId ?? null,
-                transform: {
-                    ...persistedDevice.transform,
-                    position: {
-                        ...persistedDevice.transform.position,
-                        x: centerX, // ADDED: persist the logical center, not the tile’s top-left corner
-                        y: centerY  // ADDED: DeviceMesh reads transform.position.y for the plan-space depth axis
-                    }
-                }
-            });
-        }
-
-        appState.selection.notify?.(); // ADDED: refresh hierarchy/properties once after the drag commit
-        return; // ADDED: skip the heavy structural traversal for device drags
+        // Logical layout transforms are independent from the physical 3D device transform.
+        // A click or drag in the logical canvas must not rewrite the physical mesh position/scale.
+        appState.selection.notify?.();
+        return;
     }
 
 
@@ -960,199 +1732,18 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
             console.log(`✅ Found Space: ${shapeObj?.id}`);
         }
 
-        if (shapeObj) {
-            const getBounds = (shape) => {
-                if (!shape) return null;
-                const src = shape.geometry || shape;
-                const x0 = Number(src.x ?? src.left ?? 0);
-                const y0 = Number(src.y ?? src.top ?? 0);
-                const w0 = Number(src.w ?? src.width ?? 0);
-                const h0 = Number(src.h ?? src.height ?? 0);
-                const minX0 = Math.min(x0, x0 + w0);
-                const minY0 = Math.min(y0, y0 + h0);
-                const maxX0 = Math.max(x0, x0 + w0);
-                const maxY0 = Math.max(y0, y0 + h0);
-                return {
-                    x: x0,
-                    y: y0,
-                    w: Math.abs(w0),
-                    h: Math.abs(h0),
-                    minX: minX0,
-                    minY: minY0,
-                    maxX: maxX0,
-                    maxY: maxY0
-                };
-            };
-
-            const isWithinParent = () => {
-                if (shapeType === 'site') {
-                    const parent = st.domains?.find(d => d.id === shapeObj.domainId);
-                    if (!parent) return true;
-
-                    const childBounds = getBounds(shapeObj);
-                    childBounds.minX += dx;
-                    childBounds.minY += dy;
-                    childBounds.maxX += dx;
-                    childBounds.maxY += dy;
-
-                    const parentBounds = getBounds(parent);
-                    if (parentBounds.w === 0 || parentBounds.h === 0) return true;
-
-                    const tol = 2;
-                    return !(
-                        childBounds.minX < parentBounds.minX - tol ||
-                        childBounds.minY < parentBounds.minY - tol ||
-                        childBounds.maxX > parentBounds.maxX + tol ||
-                        childBounds.maxY > parentBounds.maxY + tol
-                    );
-                }
-
-                if (shapeType === 'space') {
-                    let parent = st.floors?.find(f => f.id === shapeObj.floorId);
-                    if (!parent) return true;
-
-                    const childBounds = getBounds(shapeObj);
-                    childBounds.minX += dx;
-                    childBounds.minY += dy;
-                    childBounds.maxX += dx;
-                    childBounds.maxY += dy;
-
-                    let parentBounds = getBounds(parent);
-                    if (parentBounds.w === 0 || parentBounds.h === 0) {
-                        const parentSite = st.sites?.find(s => s.id === parent.siteId);
-                        if (parentSite) {
-                            parent = parentSite;
-                            parentBounds = getBounds(parent);
-                        }
-                    }
-
-                    if (parentBounds.w === 0 || parentBounds.h === 0) return true;
-
-                    const tol = 2;
-                    return !(
-                        childBounds.minX < parentBounds.minX - tol ||
-                        childBounds.minY < parentBounds.minY - tol ||
-                        childBounds.maxX > parentBounds.maxX + tol ||
-                        childBounds.maxY > parentBounds.maxY + tol
-                    );
-                }
-
-                return true;
-            };
-
-            // error handling for moving outside parent bounds
-            if (!isWithinParent()) {
-                if (!this.invalidMoveAlerted.has(en.id)) {
-                    this.invalidMoveAlerted.add(en.id);
-                }
-
-                if (en && typeof en.move === 'function') {
-                    en.move(-dx, -dy);
-                } else {
-                    const originalPos = this.positionSnapshot.get(structuralId);
-                    if (originalPos) {
-                        en.x = originalPos.x;
-                        en.y = originalPos.y;
-                    }
-                }
-
-                if (this.layout && typeof this.layout.render === 'function') {
-                    this.layout.render();
-                }
-
-                appState.selection.notify?.();
-                return;
+            if (shapeObj) {
+            const success = this.applyStructuralMove(structuralId, shapeType, dx, dy, { skipCanvasMove: true });
+            if (success) {
+                this._recordPendingMove(structuralId, { kind: 'structure', structureType: shapeType });
             }
-
-            // Update the logical state of the parent
-            if (shapeObj.geometry) {
-                shapeObj.geometry.x = Number(shapeObj.geometry.x) + dx;
-                shapeObj.geometry.y = Number(shapeObj.geometry.y) + dy;
-            } else {
-                shapeObj.x = Number(shapeObj.x || 0) + dx;
-                shapeObj.y = Number(shapeObj.y || 0) + dy;
+        } else if (appState.network && typeof appState.getDevice === 'function') {
+            const deviceId = this.entityIdMap.get(en.id) || en.id;
+            const device = appState.getDevice(deviceId);
+            if (device) {
+                this.applyDeviceMove(deviceId, dx, dy, { skipCanvasMove: true });
+                this._recordPendingMove(deviceId, { kind: 'device' });
             }
-
-            // Gather all structural children
-            let childSites = [];
-            let childFloors = [];
-            let childSpaces = [];
-
-            if (shapeType === 'domain') {
-                childSites = st.sites.filter(s => s.domainId === structuralId);
-                childFloors = st.floors.filter(f => childSites.some(s => s.id === f.siteId));
-                childSpaces = st.spaces.filter(sp => childFloors.some(f => f.id === sp.floorId));
-            } else if (shapeType === 'site') {
-                childFloors = st.floors.filter(f => f.siteId === structuralId);
-                childSpaces = st.spaces.filter(sp => childFloors.some(f => f.id === sp.floorId));
-            } else if (shapeType === 'floor') {
-                childSpaces = st.spaces.filter(sp => sp.floorId === structuralId);
-            }
-
-            const allChildStructures = [...childSites, ...childFloors, ...childSpaces];
-            
-            console.log(`👶 Found ${allChildStructures.length} child structures:`, allChildStructures.map(c => ({ type: c.type, id: c.id, label: c.label })));
-
-            // Move structural children
-            allChildStructures.forEach(child => {
-                // Instantly update the logical state by exactly dx and dy
-                if (child.geometry) {
-                    child.geometry.x = Number(child.geometry.x) + dx;
-                    child.geometry.y = Number(child.geometry.y) + dy;
-                } else {
-                    child.x = Number(child.x || 0) + dx;
-                    child.y = Number(child.y || 0) + dy;
-                }
-
-                // CRITICAL: Use the mapping to find the canvas entity by structural ID
-                const canvasId = this.structuralToCanvasMap.get(child.id);
-                console.log(`🔍 Looking up canvas for structural ${child.type} (${child.id}) -> canvas(${canvasId})`);
-                
-                if (this.layout && typeof this.layout.findEntityById === 'function') {
-                    // Try both the structural ID directly and the mapped canvas ID
-                    let canvasChild = null;
-                    if (canvasId) {
-                        canvasChild = this.layout.findEntityById(canvasId);
-                    }
-                    // Fallback to direct lookup in case mapping failed
-                    if (!canvasChild) {
-                        canvasChild = this.layout.findEntityById(child.id);
-                    }
-                    
-                    if (canvasChild && typeof canvasChild.move === 'function') {
-                        console.log(`✅ Moving canvas child: ${canvasId || child.id} by (${dx}, ${dy})`);
-                        canvasChild.move(dx, dy);
-                    } else {
-                        console.log(`❌ Canvas child NOT found for structural ${child.type} (${child.id}), tried canvasId=${canvasId}`);
-                    }
-                }
-            });
-
-            // Move devices and furniture
-            const floorIds = childFloors.map(f => f.id);
-            if (shapeType === 'floor') floorIds.push(structuralId);
-
-            const spaceIds = childSpaces.map(sp => sp.id);
-            if (shapeType === 'space') spaceIds.push(structuralId);
-
-            const moveItems = (items) => {
-                items.forEach(item => {
-                    if (floorIds.includes(item.floorId) || spaceIds.includes(item.spaceId)) {
-                        item.x = Number(item.x || 0) + dx;
-                        item.y = Number(item.y || 0) + dy;
-                        
-                        if (this.layout && typeof this.layout.findEntityById === 'function') {
-                            const canvasItem = this.layout.findEntityById(item.id);
-                            if (canvasItem && typeof canvasItem.move === 'function') {
-                                canvasItem.move(dx, dy);
-                            }
-                        }
-                    }
-                });
-            };
-
-            if (appState.network && typeof appState.network.getAllDevices === 'function') moveItems(appState.network.getAllDevices());
-            if (appState.furniture && appState.furniture.furnitures) moveItems(appState.furniture.furnitures);
         }
     }
 

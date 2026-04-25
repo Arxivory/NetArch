@@ -16,6 +16,7 @@ export class LogicalLayout {
     this.width = opts.width || 800;
     this.height = opts.height || 600;
     this.devicePixelRatio = window.devicePixelRatio || 1;
+    this.hoveredCable = null;
 
     this.system = new System();
 
@@ -38,6 +39,13 @@ export class LogicalLayout {
       onWindowCreated: opts.onWindowCreated || null,
       onCableCreated: opts.onCableCreated || null,
       system: this.system
+    });
+
+    // --- NEW: Global Listener for Entity Deletions ---
+    window.addEventListener('forceCanvasDelete', (e) => {
+        if (e.detail && e.detail.id) {
+            this.removeEntityById(e.detail.id);
+        }
     });
 
     this.shapeRenderer = new ShapeRenderer({
@@ -395,9 +403,18 @@ isPointInsideShape(id, x, y) {
     const path = new Path2D();
     path.rect(px, py, size, size);
 
+    const updateFurniturePath = (entity) => {
+      const halfW = entity.width / 2;
+      const halfH = entity.height / 2;
+      const updatedPath = new Path2D();
+      updatedPath.rect(entity.x - halfW, entity.y - halfH, entity.width, entity.height);
+      entity.path = updatedPath;
+    };
+
     const furniture = {
       id: furnitureData.id || `furniture_${Math.random().toString(36).slice(2, 9)}`, // CHANGED: keep the same id as the furniture store/hierarchy node
       type: furnitureData.type || 'furniture',
+      entityType: 'furniture',
       label: furnitureData.name || furnitureData.label || 'Furniture',
       catalogId: furnitureData.catalogId || null, // ADDED: preserve catalog metadata
       floorId: furnitureData.floorId ?? appState.ui.activeFloorId ?? null, // ADDED: preserve floor context
@@ -413,7 +430,17 @@ isPointInsideShape(id, x, y) {
         rotation: { x: 0, y: 0, z: 0 }
       },
       path,
-      hitTestMode: 'path'
+      hitTestMode: 'path',
+      saveCurrentPosition() {
+        this.savedPosition = { x: this.x, y: this.y };
+      },
+      restoreToSavedPosition() {
+        if (!this.savedPosition) return;
+        this.x = this.savedPosition.x;
+        this.y = this.savedPosition.y;
+        this.transform.position.x = this.x;
+        this.transform.position.y = this.y;
+      }
     };
 
     this.furnitures.push(furniture);
@@ -515,6 +542,34 @@ isPointInsideShape(id, x, y) {
         return;
       }
 
+      // --- NEW: SMART CABLE DETACHMENT ---
+      // If the selected entity is a cable (has sourceId and targetId)
+      if (en.sourceId && en.targetId) {
+          const src = this.findEntityById(en.sourceId);
+          const dst = this.findEntityById(en.targetId);
+          
+          if (src && dst) {
+              const zoom = this.pointerHandler.getZoom();
+              const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
+              
+              // Calculate which end the user clicked closer to
+              const distToSrc = Math.hypot(p.x - src.x, p.y - src.y);
+              const distToDst = Math.hypot(p.x - dst.x, p.y - dst.y);
+
+              if (distToSrc < distToDst) {
+                  // Detach the Source end
+                  this.interaction = { mode: 'update_cable', cable: en, endpointType: 'source', fixedDevice: dst };
+              } else {
+                  // Detach the Target end
+                  this.interaction = { mode: 'update_cable', cable: en, endpointType: 'target', fixedDevice: src };
+              }
+              
+              this.currentPoint = p;
+              this.pointerHandler.setPointerDown(true);
+              return; // CRITICAL: Return early so it doesn't try to bodily move the cable!
+          }
+      }
+
       if (en.saveCurrentPosition) {
         en.saveCurrentPosition();
       }
@@ -559,6 +614,41 @@ isPointInsideShape(id, x, y) {
         }
       }
    }
+
+   if (this.mode === 'delete') {
+      const zoomFactor = this.pointerHandler.getZoom();
+      const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoomFactor);
+      
+      const shouldFilterByFloor = appState.selection.focusedType === 'floor';
+      const activeFloorId = shouldFilterByFloor ? (this.activeFloorId || appState.ui.activeFloorId) : null;
+      const activeSpaceId = appState.selection.focusedType === 'space' ? appState.selection.focusedId : null;
+
+      for (const cable of this.cables) {
+        const src = this.findEntityById(cable.sourceId);
+        const dst = this.findEntityById(cable.targetId);
+        if (!src || !dst) continue;
+
+        if (activeSpaceId) {
+          if (src.spaceId !== activeSpaceId && dst.spaceId !== activeSpaceId) continue;
+        } else if (activeFloorId) {
+          const srcOnFloor = src.floorId == null || src.floorId === activeFloorId;
+          const dstOnFloor = dst.floorId == null || dst.floorId === activeFloorId;
+          if (!srcOnFloor || !dstOnFloor) continue;
+        }
+
+        // Use the exact same highly-optimized bounding box we built for hovering
+        if (this._hitTestCable(p.x, p.y, src, dst, 8)) {
+          // Dispatch a custom event telling the UI a link was clicked for deletion
+          window.dispatchEvent(new CustomEvent('requestLinkDeletion', { 
+            detail: { linkId: cable.id, sourceName: src.label || src.name, targetName: dst.label || dst.name } 
+          }));
+          
+          // Reset the tool back to select automatically
+          this.pointerHandler.setPointerDown(false);
+          return;
+        }
+      }
+    }
 
       this.interaction = {
         mode: 'move',
@@ -750,6 +840,51 @@ if (this.mode === 'freeform') {
     const snapped = this.grid.snapToGrid(p);
     this.currentPoint = snapped;
 
+// --- UPDATED CABLE HOVER DETECTION ---
+    if (this.mode === 'select' && !this.pointerHandler.getIsPointerDown()) {
+      let newlyHoveredCable = null;
+      
+      // 1. Determine the active structural hierarchy
+      const focusedType = appState.selection.focusedType;
+      const focusedId = appState.selection.focusedId;
+      
+      const activeSpaceId = focusedType === 'space' ? focusedId : null;
+      // Fallback to the UI's active floor if no specific space is focused
+      const activeFloorId = focusedType === 'floor' ? focusedId : appState.ui.activeFloorId;
+
+      for (const cable of this.cables) {
+        const src = this.findEntityById(cable.sourceId);
+        const dst = this.findEntityById(cable.targetId);
+        if (!src || !dst) continue;
+
+        // 2. Guardrail: Hierarchy Filtering
+        if (activeSpaceId) {
+          // STRICT MODE: If viewing a specific Space, ignore cables that don't touch this room
+          // (We use && so if a cable goes from inside the space to outside, you can still hover it)
+          if (src.spaceId !== activeSpaceId && dst.spaceId !== activeSpaceId) continue;
+        } 
+        else if (activeFloorId) {
+          // BROAD MODE: If viewing a Floor, ignore cables that belong to a completely different floor
+          const srcOnFloor = src.floorId == null || src.floorId === activeFloorId;
+          const dstOnFloor = dst.floorId == null || dst.floorId === activeFloorId;
+          if (!srcOnFloor || !dstOnFloor) continue;
+        }
+
+        // 3. Optimized Bounding Box Hit Test
+        if (this._hitTestCable(p.x, p.y, src, dst, 8)) {
+          newlyHoveredCable = cable;
+          break; 
+        }
+      }
+
+      // Only trigger a re-render if the hover state actually changed
+      if (this.hoveredCable !== newlyHoveredCable) {
+        this.hoveredCable = newlyHoveredCable;
+        this._render();
+      }
+    }
+    // -------------------------------------
+
     if (this.mode === 'cable') {
       this.hoveredDevice = this._findDeviceAt(snapped.x, snapped.y);
       this._render();
@@ -758,6 +893,14 @@ if (this.mode === 'freeform') {
     }
 
     if (this.pointerHandler.getIsPointerDown()) {
+
+      if (this.interaction.mode === 'update_cable') {
+         this.currentPoint = p;
+         this.hoveredDevice = this._findDeviceAt(snapped.x, snapped.y);
+         this._render();
+         return;
+      }
+
       if (this.mode === 'pan') {
         this._pan(e.clientX, e.clientY);
         this._render();
@@ -771,7 +914,12 @@ if (this.mode === 'freeform') {
         const dy = p.y - this.interaction.start.y;
 
         if (this.interaction.mode === "move") {
-          en.move(dx, dy);
+          if (this._isDeviceEntity(en) || this._isFurnitureEntity(en)) {
+            const clamped = this._clampMovementWithinParent(en, dx, dy);
+            en.move(clamped.dx, clamped.dy);
+          } else if (typeof en.move === 'function') {
+            en.move(dx, dy);
+          }
         }
 
         if (this.interaction.mode === "resize" && en.type === 'rectangle') {
@@ -850,6 +998,32 @@ if (this.mode === 'freeform') {
   }
 
 _onPointerUp(e) {
+
+  if (this.interaction && this.interaction.mode === 'update_cable') {
+        const dropDevice = this._findDeviceAt(this.currentPoint.x, this.currentPoint.y);
+        
+        if (dropDevice) {
+            // Tell the controller we want to re-attach this cable
+            window.dispatchEvent(new CustomEvent('requestLinkUpdate', {
+                detail: {
+                    linkId: this.interaction.cable.id,
+                    cableType: this.interaction.cable.type,
+                    endpointType: this.interaction.endpointType,
+                    newDevice: dropDevice,
+                    clientX: e.clientX,
+                    clientY: e.clientY
+                }
+            }));
+        }
+        
+        // Reset interaction state
+        this.interaction = { mode: null, handle: null, start: null };
+        this.pointerHandler.setPointerDown(false);
+        this.hoveredDevice = null;
+        this._render(); // Snaps the cable back if dropped on empty space
+        return;
+    }
+
     console.log('[LogicalLayout] _onPointerUp', {
       mode: this.mode,
       pointerDown: this.pointerHandler.getIsPointerDown(),
@@ -879,8 +1053,15 @@ _onPointerUp(e) {
         }
       }
 
+      const actualDx = hasSavedPosition
+        ? this.selectedEntity.x - this.selectedEntity.savedPosition.x
+        : restoreDx;
+      const actualDy = hasSavedPosition
+        ? this.selectedEntity.y - this.selectedEntity.savedPosition.y
+        : restoreDy;
+
       if (this.onEntityChanged) {
-        this.onEntityChanged(this.selectedEntity, restoreDx, restoreDy); // CHANGED: commit device move/resize only once at drag end
+        this.onEntityChanged(this.selectedEntity, actualDx, actualDy); // CHANGED: commit device move/resize only once at drag end
       }
     }
 
@@ -1061,8 +1242,12 @@ _onPointerUp(e) {
   _renderDeviceCables(ctx, activeFloor) {
     ctx.save();
     ctx.lineWidth = 2;
-
+  
     for (const cable of this.cables) {
+      if (this.interaction && this.interaction.mode === 'update_cable' && this.interaction.cable.id === cable.id) {
+          continue; 
+      }
+
       const src = this.findEntityById(cable.sourceId);
       const dst = this.findEntityById(cable.targetId);
 
@@ -1112,6 +1297,24 @@ _onPointerUp(e) {
     }
 
     ctx.restore();
+  }
+
+  // Add this inside LogicalLayout class
+  _hitTestCable(px, py, src, dst, tolerance) {
+    // 1. Broadphase AABB Check (Ultra-fast cull)
+    // Prevents expensive math if the mouse isn't even near the general area of the cable
+    const minX = Math.min(src.x, dst.x) - tolerance;
+    const maxX = Math.max(src.x, dst.x) + tolerance;
+    const minY = Math.min(src.y, dst.y) - tolerance;
+    const maxY = Math.max(src.y, dst.y) + tolerance;
+
+    if (px < minX || px > maxX || py < minY || py > maxY) {
+      return false; 
+    }
+
+    // 2. Narrowphase (Actual geometric distance)
+    const dist = this._pointToLineDistance(px, py, src.x, src.y, dst.x, dst.y);
+    return dist <= tolerance;
   }
 
   _render() {
@@ -1343,8 +1546,142 @@ _onPointerUp(e) {
           });
         }
 
-// --- NEW FLOATING LABELS ---
-        // Added 'space' to the VIP list just like you wanted!
+      if (this.hoveredCable && this.mode === 'select') {
+      const cable = this.hoveredCable;
+      const src = this.findEntityById(cable.sourceId);
+      const dst = this.findEntityById(cable.targetId);
+
+      if (src && dst) {
+        ctx.save();
+        
+        // 1. Highlight the hovered line so the user knows which one they are looking at
+        ctx.strokeStyle = "rgba(0, 174, 239, 0.4)";
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(dst.x, dst.y);
+        ctx.stroke();
+
+        // 2. Setup text styling
+        ctx.font = "bold 12px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        // Helper to draw a clean UI badge
+        const drawPortBadge = (x, y, text) => {
+          if (!text) return;
+          // Handle both string IDs or object structures depending on your state
+          const displayStr = typeof text === 'object' ? (text.name || text.id || "port") : text;
+          
+          const textMetrics = ctx.measureText(displayStr);
+          const bgW = textMetrics.width + 12; // 6px padding sides
+          const bgH = 20; // fixed height
+          
+          ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+          ctx.strokeStyle = "#94a3b8"; // subtle border
+          ctx.lineWidth = 1;
+          
+          ctx.beginPath();
+          ctx.roundRect(x - bgW / 2, y - bgH / 2, bgW, bgH, 4);
+          ctx.fill();
+          ctx.stroke();
+          
+          ctx.fillStyle = "#0f172a";
+          ctx.fillText(displayStr, x, y);
+        };
+
+        // 3. Calculate Geometry to offset labels from device centers
+        const dx = dst.x - src.x;
+        const dy = dst.y - src.y;
+        const angle = Math.atan2(dy, dx);
+        
+        // Push the label 40 pixels out from the absolute center of the device
+        const offset = 40; 
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        // Only render badges if the devices are far enough apart (prevents text overlap)
+        if (dist > offset * 2.5) {
+          const srcBadgeX = src.x + Math.cos(angle) * offset;
+          const srcBadgeY = src.y + Math.sin(angle) * offset;
+          drawPortBadge(srcBadgeX, srcBadgeY, cable.sourcePort);
+          
+          const dstBadgeX = dst.x - Math.cos(angle) * offset;
+          const dstBadgeY = dst.y - Math.sin(angle) * offset;
+          drawPortBadge(dstBadgeX, dstBadgeY, cable.targetPort);
+        }
+
+        ctx.restore();
+      }
+    }
+
+      if (this.hoveredCable && this.mode === 'select') {
+      const cable = this.hoveredCable;
+      const src = this.findEntityById(cable.sourceId);
+      const dst = this.findEntityById(cable.targetId);
+
+      if (src && dst) {
+        ctx.save();
+        
+        // 1. Highlight the hovered line so the user knows which one they are looking at
+        ctx.strokeStyle = "rgba(0, 174, 239, 0.4)";
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(dst.x, dst.y);
+        ctx.stroke();
+
+        // 2. Setup text styling
+        ctx.font = "bold 12px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        // Helper to draw a clean UI badge
+        const drawPortBadge = (x, y, text) => {
+          if (!text) return;
+          // Handle both string IDs or object structures depending on your state
+          const displayStr = typeof text === 'object' ? (text.name || text.id || "port") : text;
+          
+          const textMetrics = ctx.measureText(displayStr);
+          const bgW = textMetrics.width + 12; // 6px padding sides
+          const bgH = 20; // fixed height
+          
+          ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+          ctx.strokeStyle = "#94a3b8"; // subtle border
+          ctx.lineWidth = 1;
+          
+          ctx.beginPath();
+          ctx.roundRect(x - bgW / 2, y - bgH / 2, bgW, bgH, 4);
+          ctx.fill();
+          ctx.stroke();
+          
+          ctx.fillStyle = "#0f172a";
+          ctx.fillText(displayStr, x, y);
+        };
+
+        // 3. Calculate Geometry to offset labels from device centers
+        const dx = dst.x - src.x;
+        const dy = dst.y - src.y;
+        const angle = Math.atan2(dy, dx);
+        
+        // Push the label 40 pixels out from the absolute center of the device
+        const offset = 40; 
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        // Only render badges if the devices are far enough apart (prevents text overlap)
+        if (dist > offset * 2.5) {
+          const srcBadgeX = src.x + Math.cos(angle) * offset;
+          const srcBadgeY = src.y + Math.sin(angle) * offset;
+          drawPortBadge(srcBadgeX, srcBadgeY, cable.sourcePort);
+          
+          const dstBadgeX = dst.x - Math.cos(angle) * offset;
+          const dstBadgeY = dst.y - Math.sin(angle) * offset;
+          drawPortBadge(dstBadgeX, dstBadgeY, cable.targetPort);
+        }
+
+        ctx.restore();
+      }
+    }
+
         const isStructural = ['rectangle', 'site', 'domain', 'space', 'polygon', 'freeform', 'circle'].includes(en.type);
 
         if (isStructural) {
@@ -1366,8 +1703,7 @@ _onPointerUp(e) {
             // Circumference label at the bottom
             ctx.fillText(`C ${circumferenceInMeters}`, en.x, en.y + en.r + 35);
           }
-          // THE MAGIC SWITCH: 
-          // We no longer care what its name is. If it has multiple points, treat it like a polygon!
+
           else if (en.points && en.points.length > 1) {
             
             // PERIMETER LOGIC FOR ANY CUSTOM SHAPE
@@ -1420,12 +1756,24 @@ _onPointerUp(e) {
             }
           }
         }
-        // ---------------------------
 
         ctx.restore();
       }
     }
 
+    if (this.interaction && this.interaction.mode === 'update_cable' && this.currentPoint) {
+        const fixed = this.interaction.fixedDevice;
+        ctx.save();
+        ctx.strokeStyle = "#ff9900"; // Orange dragging line
+        ctx.lineWidth = 3;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(fixed.x, fixed.y);
+        ctx.lineTo(this.currentPoint.x, this.currentPoint.y);
+        ctx.stroke();
+        ctx.restore();
+    }
+      
     if (this.pendingCableSource) {
       const en = this.pendingCableSource;
 
@@ -1433,7 +1781,7 @@ _onPointerUp(e) {
       const h = en.renderHeight + 4;
       const x = en.x - 2;
       const y = en.y - 2;
-
+      
       ctx.save();
       ctx.strokeStyle = "#ff9900";
       ctx.lineWidth = 3;
@@ -1467,6 +1815,7 @@ _onPointerUp(e) {
     return [
       this.cables,
       this.devices,
+      this.furnitures,
       this.rectangles,
       this.polygons,
       this.circles,
@@ -1487,7 +1836,7 @@ _onPointerUp(e) {
     for (const arr of lists) {
       if (!arr) continue; 
       for (const en of arr) {
-        if (en && en.id === id) {
+        if (en && (en.id === id || String(en.id) === id)) {
           return en;
         }
       }
@@ -1497,24 +1846,45 @@ _onPointerUp(e) {
     return null;
   }
 
-  removeEntityById(id) {
-    const lists = this.getAllSelectableEntities();
-    const collections = [
-      'devices',
-      'rectangles',
-      'polygons',
-      'circles',
-      'walls',
-      'cables',
-      'furnitures'
-    ];
+removeEntityById(id) {
+    if (!id) return false;
 
-    collections.forEach(key => {
-      if (Array.isArray(this[key])) {
-        this[key] = this[key].filter(e => e.id !== id);
-      }
-    });
-    return null;
+    // 1. Deselect it if the user is currently holding/clicking it
+    if (this.selectedEntity && this.selectedEntity.id === id) {
+        this.selectedEntity = null;
+        this.interaction = { mode: null, handle: null, start: null };
+        this.pointerHandler.setCursor('default');
+    }
+
+    // 2. Hunt down the entity in all possible canvas arrays
+    let entityToRemove = null;
+    
+    // Add or remove array names here depending on how LogicalLayout stores them!
+    const targetArrays = ['rectangles', 'circles', 'polygons', 'freeforms', 'devices', 'furnitures', 'cables', 'walls'];
+    
+    for (const arrName of targetArrays) {
+        if (this[arrName]) {
+            const index = this[arrName].findIndex(en => en.id === id);
+            if (index !== -1) {
+                entityToRemove = this[arrName][index];
+                this[arrName].splice(index, 1); // Delete it from the drawing array
+                break;
+            }
+        }
+    }
+
+    // 3. Remove it from the 2D physics/collision system so other objects can use its space
+    if (entityToRemove && entityToRemove.body && this.system) {
+        try {
+            this.system.remove(entityToRemove.body); // or this.system.removeBody(entityToRemove.body) depending on your check2d version
+        } catch (e) {
+            console.warn("Could not cleanly remove body from physics system", e);
+        }
+    }
+
+    // 4. Erase it from the canvas!
+    this._render();
+    return true;
   }
 
 updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {
@@ -1532,33 +1902,32 @@ updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {
     return false;
   }
 
-  identifyEntity(x, y) {
-    const entities = this.getAllSelectableEntities();
-    let en = this.selection.identifyEntity(x, y, entities, this.ctx);
+identifyEntity(x, y) {
+    // 1. HIGHEST PRIORITY: Check Foreground Cables First
+    for (const cable of this.cables) {
+      const src = this.findEntityById(cable.sourceId);
+      const dst = this.findEntityById(cable.targetId);
+      if (!src || !dst) continue;
 
-    if (!en) {
-      for (const cable of this.cables) {
-        const src = this.findEntityById(cable.sourceId);
-        const dst = this.findEntityById(cable.targetId);
-
-        if (!src || !dst) continue;
-
-        const dist = this._pointToLineDistance(
-          x, y,
-          src.x, src.y,
-          dst.x, dst.y
-        );
-
-        if (dist < 6) {
-          en = cable;
-          break;
-        }
+      // Re-use our optimized hit test with a generous 8px click radius
+      if (this._hitTestCable(x, y, src, dst, 8)) {
+        this.selectedEntity = cable;
+        
+        // Temporarily notify the state so the Controller can intercept it
+        appState.selection.focusedId = cable.id;
+        appState.selection.focusedType = 'cable';
+        
+        if (this.onEntitySelected) this.onEntitySelected(cable);
+        this._render();
+        return cable;
       }
     }
 
-    this.selectedEntity = en || null;
+    // 2. LOWER PRIORITY: Check Devices, Furniture, and Background Structures
+    const entities = this.getAllSelectableEntities();
+    let en = this.selection.identifyEntity(x, y, entities, this.ctx);
 
-    console.log("SELECTED ENTITY:", en);
+    this.selectedEntity = en || null;
 
     if (en) {
       if (en.structureType) {
@@ -1584,28 +1953,135 @@ updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {
   }
 
   _isDeviceEntity(en) {
-  return !!en && (en.interfaces !== undefined || en.catalogId !== undefined);
+    return !!en && (en.interfaces !== undefined || en.catalogId !== undefined);
   }
 
-_isFurnitureEntity(en) {
-  return !!en && (en.type === 'furniture' || en.id?.startsWith('furniture'));
-}
+  _isFurnitureEntity(en) {
+    return !!en && (en.type === 'furniture' || en.id?.startsWith('furniture'));
+  }
 
-_isResizableEntity(en) {
-  return !!en && (en.type === 'rectangle' || this._isDeviceEntity(en)); // ADDED: devices can now use resize handles too
-}
+  _isResizableEntity(en) {
+    return !!en && (en.type === 'rectangle' || this._isDeviceEntity(en)); // ADDED: devices can now use resize handles too
+  }
 
-_getEntityInteractionBounds(en) {
-  if (!en) return null;
+  _getEntityBounds(en) {
+    if (!en) return null;
 
-  if (this._isDeviceEntity(en)) {
+    if (this._isDeviceEntity(en)) {
+      return {
+        minX: en.tileX,
+        minY: en.tileY,
+        maxX: en.tileX + en.tileWidth,
+        maxY: en.tileY + en.tileHeight,
+        width: en.tileWidth,
+        height: en.tileHeight
+      };
+    }
+
+    if (this._isFurnitureEntity(en)) {
+      const w = (en.width ?? 0) + 32;
+      const h = (en.height ?? 0) + 45;
+      const x = en.x - w / 2;
+      const y = en.y - h / 2.5;
+      return {
+        minX: x,
+        minY: y,
+        maxX: x + w,
+        maxY: y + h,
+        width: w,
+        height: h
+      };
+    }
+
+    const x = Number(en.x ?? 0);
+    const y = Number(en.y ?? 0);
+    const w = Number(en.w ?? en.width ?? 0);
+    const h = Number(en.h ?? en.height ?? 0);
     return {
-      x: en.tileX,       // ADDED: devices are drawn/hit-tested using tile bounds, not raw x/y/w/h
-      y: en.tileY,
-      w: en.tileWidth,
-      h: en.tileHeight
+      minX: x,
+      minY: y,
+      maxX: x + w,
+      maxY: y + h,
+      width: w,
+      height: h
     };
   }
+
+  _getParentBounds(en) {
+    if (!en || !appState.structural) return null;
+    const st = appState.structural;
+    const getBounds = (shape) => {
+      if (!shape) return null;
+      const src = shape.geometry || shape;
+      const x = Number(src.x ?? src.left ?? 0);
+      const y = Number(src.y ?? src.top ?? 0);
+      const w = Number(src.w ?? src.width ?? 0);
+      const h = Number(src.h ?? src.height ?? 0);
+      return {
+        minX: Math.min(x, x + w),
+        minY: Math.min(y, y + h),
+        maxX: Math.max(x, x + w),
+        maxY: Math.max(y, y + h),
+        width: Math.abs(w),
+        height: Math.abs(h)
+      };
+    };
+
+    if (en.spaceId) {
+      const space = st.spaces?.find(s => s.id === en.spaceId);
+      if (space) return getBounds(space);
+    }
+
+    if (en.floorId) {
+      const floor = st.floors?.find(f => f.id === en.floorId);
+      if (floor) {
+        const floorBounds = getBounds(floor);
+        if (floorBounds && floorBounds.width > 0 && floorBounds.height > 0) {
+          return floorBounds;
+        }
+        const parentSite = st.sites?.find(s => s.id === floor.siteId);
+        if (parentSite) return getBounds(parentSite);
+      }
+    }
+
+    return null;
+  }
+
+  _clampMovementWithinParent(en, dx, dy) {
+    const entityBounds = this._getEntityBounds(en);
+    const parentBounds = this._getParentBounds(en);
+    if (!entityBounds || !parentBounds) return { dx, dy };
+
+    let clampedDx = dx;
+    let clampedDy = dy;
+
+    if (entityBounds.minX + clampedDx < parentBounds.minX) {
+      clampedDx = parentBounds.minX - entityBounds.minX;
+    }
+    if (entityBounds.maxX + clampedDx > parentBounds.maxX) {
+      clampedDx = parentBounds.maxX - entityBounds.maxX;
+    }
+    if (entityBounds.minY + clampedDy < parentBounds.minY) {
+      clampedDy = parentBounds.minY - entityBounds.minY;
+    }
+    if (entityBounds.maxY + clampedDy > parentBounds.maxY) {
+      clampedDy = parentBounds.maxY - entityBounds.maxY;
+    }
+
+    return { dx: clampedDx, dy: clampedDy };
+  }
+
+  _getEntityInteractionBounds(en) {
+    if (!en) return null;
+
+    if (this._isDeviceEntity(en)) {
+      return {
+        x: en.tileX,       // ADDED: devices are drawn/hit-tested using tile bounds, not raw x/y/w/h
+        y: en.tileY,
+        w: en.tileWidth,
+        h: en.tileHeight
+      };
+    }
 
   if (this._isFurnitureEntity(en)) {
     const w = (en.width ?? 0) + 32;

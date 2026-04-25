@@ -2,6 +2,7 @@
 export class SelectionStore {
   constructor() {
     this.selectedDeviceIds = [];
+    this.selectedFurnitureIds = [];
     this.selectedLinkIds = [];
     this.focusedId = null;
     this.focusedType = null;
@@ -14,6 +15,7 @@ export class SelectionStore {
     this.focusedType = type;
 
     this.selectedDeviceIds = [];
+    this.selectedFurnitureIds = [];
     this.selectedLinkIds = [];
 
     console.log(`Focused on ${type} with ID: ${id}`);
@@ -32,6 +34,7 @@ export class SelectionStore {
   selectDevice(deviceId, multiSelect = false) {
     if (!multiSelect) {
       this.selectedDeviceIds = [];
+      this.selectedFurnitureIds = [];
       this.selectedLinkIds = [];
     }
 
@@ -48,6 +51,7 @@ export class SelectionStore {
     this.selectedDeviceIds = this.selectedDeviceIds.filter(id => id !== deviceId);
     if (this.focusedId === deviceId) {
       this.focusedId = null;
+      this.focusedType = null;
     }
     this.notify();
   }
@@ -55,6 +59,7 @@ export class SelectionStore {
   selectLink(linkId, multiSelect = false) {
     if (!multiSelect) {
       this.selectedDeviceIds = [];
+      this.selectedFurnitureIds = [];
       this.selectedLinkIds = [];
     }
 
@@ -63,6 +68,7 @@ export class SelectionStore {
     }
 
     this.focusedId = linkId;
+    this.focusedType = 'link';
     this.notify();
   }
 
@@ -70,14 +76,17 @@ export class SelectionStore {
     this.selectedLinkIds = this.selectedLinkIds.filter(id => id !== linkId);
     if (this.focusedId === linkId) {
       this.focusedId = null;
+      this.focusedType = null;
     }
     this.notify();
   }
 
   clearSelection() {
     this.selectedDeviceIds = [];
+    this.selectedFurnitureIds = [];
     this.selectedLinkIds = [];
     this.focusedId = null;
+    this.focusedType = null;
     this.highlightedIds = [];
     this.notify();
   }
@@ -100,6 +109,10 @@ export class SelectionStore {
     return [...this.selectedLinkIds];
   }
 
+  getSelectedFurnitureIds() {
+    return [...this.selectedFurnitureIds];
+  }
+
   getFocusedId() {
     return this.focusedId;
   }
@@ -112,12 +125,16 @@ export class SelectionStore {
     return this.selectedLinkIds.includes(linkId);
   }
 
+  isFurnitureSelected(furnitureId) {
+    return this.selectedFurnitureIds.includes(furnitureId);
+  }
+
   isHighlighted(id) {
     return this.highlightedIds.includes(id);
   }
 
   getSelectionCount() {
-    return this.selectedDeviceIds.length + this.selectedLinkIds.length;
+    return this.selectedDeviceIds.length + this.selectedFurnitureIds.length + this.selectedLinkIds.length;
   }
 
   subscribe(callback) {

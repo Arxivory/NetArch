@@ -37,7 +37,9 @@ export class Selection {
     identifyEntity(x, y, entities, ctx) {
         x *= this.dpr;
         y *= this.dpr;
-
+        
+        const priorityMap = { 'Space': 3, 'Site': 2, 'Domain': 1 };
+        
         let bestMatch = null;
         let bestPriority = -1;
 
@@ -46,8 +48,7 @@ export class Selection {
                 if (!en || !en.path) continue;
 
                 if (this.wasHit(en, x, y, ctx)) {
-                    const priority = this.getEntityPriority(en); // CHANGED: use explicit object-first priority
-
+                    const priority = priorityMap[en.structureType] || 0;
                     if (priority > bestPriority) {
                         bestMatch = en;
                         bestPriority = priority;

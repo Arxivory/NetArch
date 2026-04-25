@@ -457,6 +457,8 @@ const endDevices = {
   }
 };
 
+const importedDevices = {}; // This will hold user-imported devices at runtime
+
 export const cables = {
   "console": {
     id: "console",
@@ -550,7 +552,11 @@ export function generateInterfaces(catalogEntry) {
 }
 
 export function createDeviceInstance(catalogId, position = { x: 0, y: 0, z: 0 }, opts = {}) {
-  const catalogEntry = switches[catalogId] || routers[catalogId] || endDevices[catalogId] ;
+  const catalogEntry =
+    switches[catalogId] ||
+    routers[catalogId] ||
+    endDevices[catalogId] ||
+    importedDevices[catalogId]; //Added catalog lookup for imported devices
   if (!catalogEntry) {
     throw new Error(`Unknown catalogId: ${catalogId}`);
   }
@@ -564,12 +570,29 @@ export function createDeviceInstance(catalogId, position = { x: 0, y: 0, z: 0 },
     catalogId: catalogEntry.modelId,
     type: catalogEntry.family,
     name,
+    iconHint: opts.iconHint || catalogEntry.iconHint || catalogEntry.family,
     position,
     rotation: opts.rotation || 0,
     properties: Object.assign({}, catalogEntry.defaults || {}, opts.properties || {}),
     interfaces,
     modeCreatedIn: opts.modeCreatedIn || 'logical'
   };
+}
+
+// Function to register an imported device into the catalog
+export function registerImportedDevice(deviceEntry) {
+  if (!deviceEntry?.modelId) {
+    throw new Error("Imported device must include a modelId.");
+  }
+
+  importedDevices[deviceEntry.modelId] = {
+    ...deviceEntry,
+    modelId: deviceEntry.modelId,
+    displayName: deviceEntry.displayName || deviceEntry.modelId,
+    family: deviceEntry.family || "end-device",
+  };
+
+  return importedDevices[deviceEntry.modelId];
 }
 
 function getPortType(portName) {
@@ -653,6 +676,7 @@ const deviceCatalog = {
   switches,
   routers,
   endDevices,
+  importedDevices, //Added importedDevices to the exported catalog object
   cables,
 };
 

@@ -5,6 +5,7 @@ import Space from "../../core/structural/Space";
 import Wall from "../../core/structural/Wall";
 import Door from "../../core/structural/Door";
 import Window from "../../core/structural/Window";
+import appState from "../AppState";
 
 export class StructuralStore {
     constructor() {
@@ -50,11 +51,34 @@ export class StructuralStore {
         const floorIds = this.floors.filter(f => siteIds.includes(f.siteId)).map(f => f.id);
         const spaceIds = this.spaces.filter(sp => floorIds.includes(sp.floorId)).map(sp => sp.id);
 
+        // --- NEW: Bulletproof Cascading Delete for Assets ---
+        if (appState.network) {
+            const allDevices = Array.isArray(appState.network.devices) ? appState.network.devices : [];
+            const devicesToDelete = allDevices.filter(d => 
+                d.domainId === domainId || siteIds.includes(d.siteId) || floorIds.includes(d.floorId) || spaceIds.includes(d.spaceId)
+            );
+            devicesToDelete.forEach(d => {
+                if (typeof appState.network.removeDevice === 'function') appState.network.removeDevice(d.id);
+            });
+        }
+
+        if (appState.furniture) {
+            const allFurniture = Array.isArray(appState.furniture.furnitures) ? appState.furniture.furnitures : [];
+            const furnituresToDelete = allFurniture.filter(f => 
+                floorIds.includes(f.floorId) || spaceIds.includes(f.spaceId)
+            );
+            furnituresToDelete.forEach(f => {
+                if (typeof appState.furniture.removeFurniture === 'function') appState.furniture.removeFurniture(f.id);
+            });
+        }
+
         // 2. Perform the deletions
         this.sites = this.sites.filter(s => s.domainId !== domainId);
         this.floors = this.floors.filter(f => !siteIds.includes(f.siteId));
         this.spaces = this.spaces.filter(sp => !floorIds.includes(sp.floorId));
         this.domains.splice(index, 1);
+        
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: domainId } })); 
         
         this.notify();
         // 3. Return an array of EVERY ID that was just deleted
@@ -99,9 +123,32 @@ export class StructuralStore {
         const floorIds = this.floors.filter(f => f.siteId === siteId).map(f => f.id);
         const spaceIds = this.spaces.filter(sp => floorIds.includes(sp.floorId)).map(sp => sp.id);
 
+        // --- NEW: Bulletproof Cascading Delete for Assets ---
+        if (appState.network) {
+            const allDevices = Array.isArray(appState.network.devices) ? appState.network.devices : [];
+            const devicesToDelete = allDevices.filter(d => 
+                d.siteId === siteId || floorIds.includes(d.floorId) || spaceIds.includes(d.spaceId)
+            );
+            devicesToDelete.forEach(d => {
+                if (typeof appState.network.removeDevice === 'function') appState.network.removeDevice(d.id);
+            });
+        }
+
+        if (appState.furniture) {
+            const allFurniture = Array.isArray(appState.furniture.furnitures) ? appState.furniture.furnitures : [];
+            const furnituresToDelete = allFurniture.filter(f => 
+                floorIds.includes(f.floorId) || spaceIds.includes(f.spaceId)
+            );
+            furnituresToDelete.forEach(f => {
+                if (typeof appState.furniture.removeFurniture === 'function') appState.furniture.removeFurniture(f.id);
+            });
+        }
+
         this.floors = this.floors.filter(f => f.siteId !== siteId);
         this.spaces = this.spaces.filter(sp => !floorIds.includes(sp.floorId));
         this.sites.splice(index, 1);
+        
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: siteId } })); 
         
         this.notify();
         return [siteId, ...floorIds, ...spaceIds];
@@ -145,8 +192,32 @@ export class StructuralStore {
         }
 
         const spaceIds = this.spaces.filter(sp => sp.floorId === floorId).map(sp => sp.id);
+
+        // --- NEW: Bulletproof Cascading Delete for Assets ---
+        if (appState.network) {
+            const allDevices = Array.isArray(appState.network.devices) ? appState.network.devices : [];
+            const devicesToDelete = allDevices.filter(d => 
+                d.floorId === floorId || spaceIds.includes(d.spaceId)
+            );
+            devicesToDelete.forEach(d => {
+                if (typeof appState.network.removeDevice === 'function') appState.network.removeDevice(d.id);
+            });
+        }
+
+        if (appState.furniture) {
+            const allFurniture = Array.isArray(appState.furniture.furnitures) ? appState.furniture.furnitures : [];
+            const furnituresToDelete = allFurniture.filter(f => 
+                f.floorId === floorId || spaceIds.includes(f.spaceId)
+            );
+            furnituresToDelete.forEach(f => {
+                if (typeof appState.furniture.removeFurniture === 'function') appState.furniture.removeFurniture(f.id);
+            });
+        }
+
         this.spaces = this.spaces.filter(sp => sp.floorId !== floorId);
         this.floors.splice(index, 1);
+        
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: floorId } })); 
         
         this.notify();
         return [floorId, ...spaceIds];
@@ -186,12 +257,31 @@ export class StructuralStore {
 
     removeSpace(spaceId) {
         const index = this.spaces.findIndex(s => s.id === spaceId);
-        if (index === -1) {
-            console.warn(`Space not found: ${spaceId}`);
-            return false;
+        if (index === -1) return false;
+
+        // --- NEW: Bulletproof Cascading Delete for Assets ---
+        if (appState.network) {
+            const allDevices = Array.isArray(appState.network.devices) ? appState.network.devices : [];
+            const devicesToDelete = allDevices.filter(d => d.spaceId === spaceId);
+            
+            devicesToDelete.forEach(d => {
+                if (typeof appState.network.removeDevice === 'function') appState.network.removeDevice(d.id);
+            });
+        }
+
+        if (appState.furniture) {
+            const allFurniture = Array.isArray(appState.furniture.furnitures) ? appState.furniture.furnitures : [];
+            const furnituresToDelete = allFurniture.filter(f => f.spaceId === spaceId);
+            
+            furnituresToDelete.forEach(f => {
+                if (typeof appState.furniture.removeFurniture === 'function') appState.furniture.removeFurniture(f.id);
+            });
         }
 
         this.spaces.splice(index, 1);
+        
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: spaceId } }));
+        
         this.notify();
         return [spaceId];
     }

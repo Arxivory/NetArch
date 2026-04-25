@@ -51,15 +51,25 @@ export class NetworkStore {
     return device;
   }
 
-  removeDevice(deviceId) {
+removeDevice(deviceId) {
     const index = this.devices.findIndex(d => d.id === deviceId);
     if (index === -1) return false;
 
-    this.devices.splice(index, 1);
+    // 1. Use the correct property names: sourceId and targetId
+    const linksToRemove = this.links
+        .filter(l => l.sourceId === deviceId || l.targetId === deviceId)
+        .map(l => l.id);
 
-    this.links = this.links.filter(
-      l => l.sourceDevice !== deviceId && l.targetDevice !== deviceId
-    );
+    // 2. Delete those cables first to free up surviving ports!
+    linksToRemove.forEach(linkId => {
+        this.removeLink(linkId); 
+    });
+
+    // 3. Now safely destroy the device itself
+    this.devices.splice(index, 1);
+    
+    // Tell the Canvas to visually destroy the device graphic
+    window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: deviceId } }));
 
     this.updateModified();
     this.notify();
@@ -67,14 +77,30 @@ export class NetworkStore {
     return true;
   }
 
-  updateDevice(deviceId, updates) {
+updateDevice(deviceId, updates) {
     const device = this.devices.find(d => d.id === deviceId);
     if (!device) return false;
 
-    Object.assign(device, updates);
-    this.updateModified();
-    this.notify();
+    // 1. Guardrail: Prevent Empty Names
+    if (updates.label !== undefined) {
+        if (updates.label.trim() === '') {
+            delete updates.label; // Cancel this specific update
+        } else {
+            device.hostname = updates.label;
+            device.name = updates.label;
+            device.label = updates.label;
+        }
+    }
 
+    Object.assign(device, updates);
+
+    // 2. Dispatch event to instantly update Canvas
+    window.dispatchEvent(new CustomEvent('forceCanvasUpdate', { 
+        detail: { id: deviceId, updates } 
+    }));
+    
+    this.updateModified();
+    this.notify(); 
     return true;
   }
 
@@ -109,13 +135,96 @@ export class NetworkStore {
     return link;
   }
 
-  removeLink(linkId) {
+  // Helper to safely detach a port so it returns to the dropdown
+  _freePort(deviceId, portId) {
+    const dev = this.devices.find(d => d.id === deviceId);
+    if (dev && dev.interfaces) {
+      const port = dev.interfaces.find(i => 
+        i.id === portId || i.name === portId || i.label === portId
+      );
+      if (port) {
+        port.status = 'available';
+        port.connected = false;
+        delete port.connectedTo;
+        delete port.linkId;
+        delete port.targetDevice;
+        delete port.targetInterface;
+      }
+    }
+  }
+
+  // The main update function
+  updateLinkEndpoint(linkId, endpointType, newDeviceId, newPortId) {
+    const link = this.getLink(linkId);
+    if (!link) return false;
+
+    // 1. Free the old port on the old device
+    const oldDeviceId = endpointType === 'source' ? link.sourceId : link.targetId;
+    const oldPortId = endpointType === 'source' ? link.sourcePort : link.targetPort;
+    this._freePort(oldDeviceId, oldPortId);
+
+    // 2. Update the link with the new destination
+    if (endpointType === 'source') {
+      link.sourceId = newDeviceId;
+      link.sourcePort = newPortId;
+    } else {
+      link.targetId = newDeviceId;
+      link.targetPort = newPortId;
+    }
+
+    this.updateModified();
+    this.notify();
+
+    // Force UI properties panel to re-render to reflect the freed/used ports
+    if (appState.selection && typeof appState.selection.notify === 'function') {
+      appState.selection.notify();
+    }
+    return true;
+  }
+
+removeLink(linkId) {
     const index = this.links.findIndex(l => l.id === linkId);
     if (index === -1) return false;
 
+    const link = this.links[index];
+
+    // Helper function to thoroughly scrub a port clean
+    const freePort = (devId, portId) => {
+        const dev = this.devices.find(d => d.id === devId);
+        if (dev && dev.interfaces) {
+            const port = dev.interfaces.find(i => 
+                i.id === portId || i.name === portId || i.label === portId
+            );
+            
+            if (port) {
+                // Completely free the port so it returns to the dropdown
+                port.status = 'available';
+                port.connected = false;
+                delete port.connectedTo;
+                delete port.linkId;
+                delete port.targetDevice;
+                delete port.targetInterface;
+            }
+        }
+    };
+
+    // 1. Free the ports using the CORRECT cable properties!
+    freePort(link.sourceId, link.sourcePort);
+    freePort(link.targetId, link.targetPort);
+
+    // 2. Destroy the Link data
     this.links.splice(index, 1);
+
+    // 3. Tell the Canvas to visually destroy the cable
+    window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: linkId } }));
+
     this.updateModified();
     this.notify();
+
+    // 4. Force the Properties Panel to re-render so the dropdown updates instantly
+    if (appState.selection && typeof appState.selection.notify === 'function') {
+        appState.selection.notify();
+    }
 
     return true;
   }

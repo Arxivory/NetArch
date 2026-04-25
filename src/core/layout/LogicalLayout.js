@@ -521,10 +521,15 @@ isPointInsideShape(id, x, y) {
 
 
     if (this.mode === 'select') {
-      const en = this.identifyEntity(e.clientX, e.clientY);
+      const multiSelect = e.ctrlKey || e.metaKey || e.shiftKey;
+      const selectionResult = this.identifyEntity(e.clientX, e.clientY, { multiSelect });
+
+      if (selectionResult.selectionOnly) {
+        return;
+      }
+
+      const en = selectionResult.entity;
       if (!en) {
-        // Clear focus when clicking on empty canvas
-        appState.selection.focusedNode(null, null);
         return;
       }
 
@@ -1816,7 +1821,9 @@ updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {
     return false;
   }
 
-identifyEntity(x, y) {
+identifyEntity(x, y, options = {}) {
+    const multiSelect = !!options.multiSelect;
+
     // 1. HIGHEST PRIORITY: Check Foreground Cables First
     for (const cable of this.cables) {
       const src = this.findEntityById(cable.sourceId);
@@ -1825,15 +1832,7 @@ identifyEntity(x, y) {
 
       // Re-use our optimized hit test with a generous 8px click radius
       if (this._hitTestCable(x, y, src, dst, 8)) {
-        this.selectedEntity = cable;
-        
-        // Temporarily notify the state so the Controller can intercept it
-        appState.selection.focusedId = cable.id;
-        appState.selection.focusedType = 'cable';
-        
-        if (this.onEntitySelected) this.onEntitySelected(cable);
-        this._render();
-        return cable;
+        return this._applySelectionForEntity(cable, multiSelect);
       }
     }
 
@@ -1841,24 +1840,62 @@ identifyEntity(x, y) {
     const entities = this.getAllSelectableEntities();
     let en = this.selection.identifyEntity(x, y, entities, this.ctx);
 
+    if (!en) {
+      this.selectedEntity = null;
+
+      if (!multiSelect) {
+        appState.selection.clearSelection?.();
+        if (this.onEntitySelected) this.onEntitySelected(null);
+        this._render();
+      }
+
+      return { entity: null, selectionOnly: multiSelect };
+    }
+
+    return this._applySelectionForEntity(en, multiSelect);
+  }
+
+  _applySelectionForEntity(en, multiSelect = false) {
     this.selectedEntity = en || null;
 
-    if (en) {
-      if (en.structureType) {
-        appState.selection.focusedId = en.id;
-        appState.selection.focusedType = en.structureType.toLowerCase();
-        appState.selection.notify?.();
+    if (!en) {
+      if (this.onEntitySelected) this.onEntitySelected(null);
+      this._render();
+      return { entity: null, selectionOnly: false };
+    }
+
+    if (en.structureType) {
+      appState.selection.focusedNode(en.id, en.structureType.toLowerCase());
+    } else if (en.sourceId && en.targetId) {
+      if (multiSelect) {
+        const stillSelected = appState.selection.toggleLinkSelection?.(en.id);
+        this.selectedEntity = stillSelected ? en : this.findEntityById(appState.selection.getFocusedId?.());
+      } else {
+        appState.selection.selectLink?.(en.id, false);
+      }
+    } else if (this._isFurnitureEntity(en)) {
+      if (multiSelect) {
+        const stillSelected = appState.selection.toggleFurnitureSelection?.(en.id);
+        this.selectedEntity = stillSelected ? en : this.findEntityById(appState.selection.getFocusedId?.());
+      } else {
+        appState.selection.selectFurniture?.(en.id, false);
+      }
+    } else {
+      if (multiSelect) {
+        const stillSelected = appState.selection.toggleDeviceSelection?.(en.id);
+        this.selectedEntity = stillSelected ? en : this.findEntityById(appState.selection.getFocusedId?.());
       } else {
         appState.selection.selectDevice?.(en.id, false);
       }
-    } else {
-      appState.selection.clearSelection?.();
     }
 
-    if (this.onEntitySelected) this.onEntitySelected(en);
+    if (this.onEntitySelected) this.onEntitySelected(this.selectedEntity);
 
     this._render();
-    return en;
+    return {
+      entity: multiSelect ? null : this.selectedEntity,
+      selectionOnly: multiSelect
+    };
   }
 
   setZoom(zoom) {

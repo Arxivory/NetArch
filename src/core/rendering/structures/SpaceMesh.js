@@ -62,6 +62,35 @@ export default class SpaceMesh {
         });
     }
 
+    calculateInsetPoints(points, thickness) {
+        let area = 0;
+        for (let i = 0; i < points.length; i++) {
+            const j = (i + 1) % points.length;
+            area += (points[i].x * points[j].y) - (points[j].x * points[i].y);
+        }
+        const isCCW = area > 0;
+
+        return points.map((p, i) => {
+            const prev = points[(i - 1 + points.length) % points.length];
+            const next = points[(i + 1) % points.length];
+
+            const v1 = new THREE.Vector2(p.x - prev.x, p.y - prev.y).normalize();
+            const v2 = new THREE.Vector2(next.x - p.x, next.y - p.y).normalize();
+
+            const n1 = new THREE.Vector2(-v1.y, v1.x);
+            const n2 = new THREE.Vector2(-v2.y, v2.x);
+
+            const bisector = new THREE.Vector2(n1.x + n2.x, n1.y + n2.y).normalize();
+
+            const directionMultiplier = isCCW ? 1 : -1;
+
+            return {
+                x: p.x + bisector.x * thickness * directionMultiplier,
+                y: p.y + bisector.y * thickness * directionMultiplier
+            };
+        });
+    }
+
 
     getRectangularForm() {
         if (!this.geometry.rectangular)
@@ -100,6 +129,14 @@ export default class SpaceMesh {
             bevelSegments: 2
         };
 
+        const baseboardExtrudeSettings = {
+            depth: 1.7,
+            bevelEnabled: true,
+            bevelThickness: 0.05,
+            bevelSize: 0.05,
+            bevelSegments: 2
+        };
+
         const rectGeometry = new THREE.ExtrudeGeometry(rectShape, extrudeSettings);
         const wallSideMat = new THREE.MeshStandardMaterial({ color: 0xcccccc });
         const wallTopMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
@@ -108,6 +145,31 @@ export default class SpaceMesh {
         rectMesh.rotation.x = -Math.PI / 2;
 
         rectMesh.position.set((this.x * this.scaler) + (width / 2), 0, ((this.z * this.scaler) + (depth / 2)));
+
+        const baseBoardShape = rectShape.clone();
+        
+        baseBoardShape.holes = [];
+
+        const inset = thickness * 2.2;
+        const insetPath = new THREE.Path();
+        insetPath.moveTo(points[0].x + inset, points[0].z + inset);
+        insetPath.lineTo(points[1].x - inset, points[1].z + inset);
+        insetPath.lineTo(points[2].x - inset, points[2].z - inset);
+        insetPath.lineTo(points[3].x + inset, points[3].z - inset);
+        insetPath.closePath();
+
+        baseBoardShape.holes.push(insetPath);
+
+        const baseBoardGeometry = new THREE.ExtrudeGeometry(baseBoardShape, baseboardExtrudeSettings);
+        const baseBoardMaterial = new THREE.MeshStandardMaterial({ color: 0xf9f9f9 });
+        const baseBoardMesh = new THREE.Mesh(baseBoardGeometry, baseBoardMaterial);
+
+        baseBoardMesh.rotation.x = -Math.PI / 2;
+        baseBoardMesh.position.set(
+            (this.x * this.scaler) + (width / 2),
+            1.5,
+            (this.z * this.scaler) + (depth / 2)
+        );
 
         const ceilingGeometry = new THREE.PlaneGeometry(width - (thickness * 2), depth - (thickness * 2));
         const ceilingMaterial = new THREE.MeshStandardMaterial({ 
@@ -127,11 +189,13 @@ export default class SpaceMesh {
 
         const group = new THREE.Group();
         group.add(rectMesh);
+        group.add(baseBoardMesh);
         group.add(ceilingMesh);
         group.userData = { type: 'space', id: this.id };
 
         return group;
     }
+
     getPolygonalForm() {
         if (!this.geometry.polygonal || !this.geometry.polygonal.points?.length)
             throw Error("The Space is not Polygonal. Try getting other forms.");
@@ -141,15 +205,25 @@ export default class SpaceMesh {
 
         const localPoints = this.buildLocalPlanPoints(this.geometry.polygonal.points);
 
-        const outerShape = new THREE.Shape();
-        this.buildClosedPath(outerShape, localPoints);
+        const wallThickness = 0.7;
+        const wallInnerPoints = this.calculateInsetPoints(localPoints, wallThickness);
 
-        const thickness = 0.7;
-        const innerPoints = this.buildInsetPoints(localPoints, thickness);
+        const wallShape = new THREE.Shape();
+        this.buildClosedPath(wallShape, localPoints);
 
-        const holePath = new THREE.Path();
-        this.buildClosedPath(holePath, innerPoints);
-        outerShape.holes.push(holePath);
+        const wallHole = new THREE.Path();
+        this.buildClosedPath(wallHole, wallInnerPoints);
+        wallShape.holes.push(wallHole);
+
+        const baseboardWidth = 0.3;
+        const baseboardInnerPoints = this.calculateInsetPoints(wallInnerPoints, baseboardWidth);
+
+        const baseboardShape = new THREE.Shape();
+        this.buildClosedPath(baseboardShape, wallInnerPoints);
+
+        const baseboardHole = new THREE.Path();
+        this.buildClosedPath(baseboardHole, baseboardInnerPoints);
+        baseboardShape.holes.push(baseboardHole);
 
         const extrudeSettings = {
             depth: this.defaultHeight,
@@ -159,46 +233,42 @@ export default class SpaceMesh {
             bevelSegments: 2
         };
 
-        const wallSideMat = new THREE.MeshStandardMaterial({
-            color: 0xcccccc,
-            side: THREE.DoubleSide
-        });
+        const wallSideMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, side: THREE.DoubleSide });
+        const wallTopMat = new THREE.MeshStandardMaterial({ color: 0x333333, side: THREE.DoubleSide });
 
-        const wallTopMat = new THREE.MeshStandardMaterial({
-            color: 0x333333,
-            side: THREE.DoubleSide
-        });
-
-        const ceilingMaterial = new THREE.MeshStandardMaterial({
-            color: 0xf5f5f5,
-            roughness: 0.8,
-            metalness: 0.0,
-            side: THREE.DoubleSide
-        });
-
-        const wallGeometry = new THREE.ExtrudeGeometry(outerShape, extrudeSettings);
+        const wallGeometry = new THREE.ExtrudeGeometry(wallShape, extrudeSettings);
         const wallMesh = new THREE.Mesh(wallGeometry, [wallTopMat, wallSideMat]);
         wallMesh.rotation.x = -Math.PI / 2;
 
-        const ceilingShape = new THREE.Shape();
-        this.buildClosedPath(ceilingShape, innerPoints);
+        const baseboardSettings = {
+            depth: 1.7,
+            bevelEnabled: true,
+            bevelThickness: 0.05,
+            bevelSize: 0.05,
+            bevelSegments: 2
+        };
 
+        const baseBoardMaterial = new THREE.MeshStandardMaterial({ color: 0xf9f9f9 });
+        const baseBoardMesh = new THREE.Mesh(new THREE.ExtrudeGeometry(baseboardShape, baseboardSettings), baseBoardMaterial);
+        baseBoardMesh.rotation.x = -Math.PI / 2;
+        baseBoardMesh.position.y = 1.5;
+
+        const ceilingShape = new THREE.Shape();
+        this.buildClosedPath(ceilingShape, wallInnerPoints);
         const ceilingGeometry = new THREE.ShapeGeometry(ceilingShape);
+        const ceilingMaterial = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.8, side: THREE.DoubleSide });
+        
         const ceilingMesh = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
         ceilingMesh.rotation.x = -Math.PI / 2;
         ceilingMesh.position.y = this.defaultHeight;
         ceilingMesh.userData = { type: 'ceiling', id: this.id };
 
         const group = new THREE.Group();
-        group.position.set(
-            this.x * this.scaler,
-            0,
-            this.z * this.scaler
-        );
-
+        group.position.set(this.x * this.scaler, 0, this.z * this.scaler);
         group.add(wallMesh);
+        group.add(baseBoardMesh);
         group.add(ceilingMesh);
-        group.userData = { type: 'space', id: this.id, shape: 'polygon' }; // ADDED: mark this mesh as a polygonal space
+        group.userData = { type: 'space', id: this.id, shape: 'polygon' };
 
         return group;
     }
@@ -242,6 +312,32 @@ export default class SpaceMesh {
         const wallMesh = new THREE.Mesh(wallGeometry, [wallTopMat, wallSideMat]);
         wallMesh.rotation.x = -Math.PI / 2;
 
+        const baseboardHeight = 1.7;
+        const baseboardDepth = 0.2;
+        const baseboardInnerRadius = Math.max(innerRadius - baseboardDepth, 0.01);
+
+        const baseboardShape = new THREE.Shape();
+        baseboardShape.absarc(0, 0, innerRadius, 0, Math.PI * 2, false);
+
+        const baseboardHole = new THREE.Path();
+        baseboardHole.absarc(0, 0, baseboardInnerRadius, 0, Math.PI * 2, true);
+        baseboardShape.holes.push(baseboardHole);
+
+        const baseboardSettings = {
+            depth: baseboardHeight,
+            bevelEnabled: true,
+            bevelThickness: 0.05,
+            bevelSize: 0.05,
+            bevelSegments: 2,
+            curveSegments: 64
+        };
+
+        const baseBoardMaterial = new THREE.MeshStandardMaterial({ color: 0xf9f9f9 });
+        const baseBoardMesh = new THREE.Mesh(new THREE.ExtrudeGeometry(baseboardShape, baseboardSettings), baseBoardMaterial);
+        
+        baseBoardMesh.rotation.x = -Math.PI / 2;
+        baseBoardMesh.position.y = 1.5;
+
         const group = new THREE.Group();
         group.position.set(
             (this.x * this.scaler) + radius,
@@ -250,6 +346,7 @@ export default class SpaceMesh {
         );
 
         group.add(wallMesh);
+        group.add(baseBoardMesh);
         group.userData = { type: 'space', id: this.id, shape: 'circle' };
 
         return group;

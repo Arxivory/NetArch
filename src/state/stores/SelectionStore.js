@@ -162,6 +162,11 @@ export class SelectionStore {
     this.notify();
   }
 
+  focusSelection(id, type) {
+    this._setFocus(id, type);
+    this.notify();
+  }
+
   setHighlight(ids) {
     this.highlightedIds = Array.isArray(ids) ? ids : [ids];
     this.notify();

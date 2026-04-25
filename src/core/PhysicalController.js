@@ -33,6 +33,7 @@ export class PhysicalController {
         this.spaceMeshes = new Map();
         this.deviceMeshes =  new Map();
         this.furnitureMeshes = new Map();
+        this.selectionHelpers = new Map();
 
         this.furnitureCatalog = furnitureCatalog.furnitures;
 
@@ -40,22 +41,12 @@ export class PhysicalController {
         this.unsubscribeNetwork = this.networkStore.subscribe(() => this.syncWithState());
         
         this.gizmoManager = new GizmoManager(getCamera(), getRenderer().domElement, getScene());
+        this.gizmoManager.onTransformsApplied = () => {
+            this.syncSelectionState(appState.selection);
+        };
         
         appState.selection.subscribe((selectionStore) => {
-            const focusedId = selectionStore.getFocusedId();
-            console.log("Focused ID changed:", focusedId);
-    
-            if (focusedId) {
-                const selectedMesh = this.getMeshById(focusedId);
-                console.log("Selected mesh:", selectedMesh);
-                if (selectedMesh && (selectedMesh.userData.type === 'device' || selectedMesh.userData.type === 'furniture')) {
-                    this.gizmoManager.attach(selectedMesh);
-                } else {
-                    this.gizmoManager.detach();
-                }
-            } else {
-                this.gizmoManager.detach();
-            }
+            this.syncSelectionState(selectionStore);
         });
 
         this.syncWithState();
@@ -229,6 +220,7 @@ export class PhysicalController {
             if (!activeDeviceIds.has(id)) {
                 this.scene.remove(mesh);
                 this.deviceMeshes.delete(id);
+                this.removeSelectionHelper(id);
             }
         }
 
@@ -236,8 +228,73 @@ export class PhysicalController {
             if (!activeFurnitureIds.has(id)) {
                 this.scene.remove(mesh);
                 this.furnitureMeshes.delete(id);
+                this.removeSelectionHelper(id);
             }
         }
+
+        this.syncSelectionState(appState.selection);
+    }
+
+    syncSelectionState(selectionStore) {
+        if (!selectionStore) return;
+
+        const selectedIds = new Set([
+            ...(selectionStore.getSelectedDeviceIds?.() || []),
+            ...(selectionStore.getSelectedFurnitureIds?.() || [])
+        ]);
+
+        const focusedId = selectionStore.getFocusedId?.();
+        const focusedType = selectionStore.focusedType;
+        const focusedIsPhysicalAsset = focusedId && (focusedType === 'device' || focusedType === 'furniture');
+        if (focusedIsPhysicalAsset) {
+            selectedIds.add(focusedId);
+        }
+
+        for (const [id] of this.selectionHelpers) {
+            if (!selectedIds.has(id)) {
+                this.removeSelectionHelper(id);
+            }
+        }
+
+        for (const id of selectedIds) {
+            const mesh = this.getMeshById(id);
+            if (!mesh || (mesh.userData.type !== 'device' && mesh.userData.type !== 'furniture')) {
+                this.removeSelectionHelper(id);
+                continue;
+            }
+
+            let helper = this.selectionHelpers.get(id);
+            if (!helper) {
+                helper = new THREE.BoxHelper(mesh, 0x00AEEF);
+                helper.material.depthTest = false;
+                helper.renderOrder = 999;
+                this.scene.add(helper);
+                this.selectionHelpers.set(id, helper);
+            }
+
+            helper.update();
+            helper.visible = true;
+        }
+
+        if (focusedIsPhysicalAsset) {
+            const selectedMesh = this.getMeshById(focusedId);
+            if (selectedMesh && (selectedMesh.userData.type === 'device' || selectedMesh.userData.type === 'furniture')) {
+                this.gizmoManager.attach(selectedMesh);
+                return;
+            }
+        }
+
+        this.gizmoManager.detach();
+    }
+
+    removeSelectionHelper(id) {
+        const helper = this.selectionHelpers.get(id);
+        if (!helper) return;
+
+        this.scene.remove(helper);
+        helper.geometry?.dispose?.();
+        helper.material?.dispose?.();
+        this.selectionHelpers.delete(id);
     }
 
     createRectangularDomainMesh(domain) {

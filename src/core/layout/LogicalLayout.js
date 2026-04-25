@@ -64,6 +64,7 @@ export class LogicalLayout {
     this.entityTransformer = new EntityTransformer();
 
     this.selectedEntity = null;
+    this.selectedEntities = [];
     this.isResizing = false;
     this.resizeStart = null;
 
@@ -110,6 +111,7 @@ export class LogicalLayout {
     this.onPortSelect = opts.onPortSelect || null;
 
     this.selectedEntity = null;
+    this.selectedEntities = [];
     this.originalEntity = null;
 
     this.interaction = {
@@ -146,7 +148,23 @@ export class LogicalLayout {
 
   syncWithState() {
     this.selectedEntity = this.findEntityById(this.store.getFocusedId());
+    this.selectedEntities = this._getSelectedEntitiesFromStore();
     this._render();
+  }
+
+  _getSelectedEntitiesFromStore() {
+    const ids = new Set([
+      ...(this.store.getSelectedDeviceIds?.() || []),
+      ...(this.store.getSelectedFurnitureIds?.() || []),
+      ...(this.store.getSelectedLinkIds?.() || [])
+    ]);
+
+    const focusedId = this.store.getFocusedId?.();
+    if (focusedId) ids.add(focusedId);
+
+    return [...ids]
+      .map(id => this.findEntityById(id))
+      .filter(Boolean);
   }
 
   _initCanvas() {
@@ -1354,18 +1372,21 @@ _onPointerUp(e) {
     this.shapeRenderer.renderDevices(ctx, filterForFloor(this.devices));
     this.shapeRenderer.renderFurnitures(ctx, filterForFloor(this.furnitures));
 
-    if (this.selectedEntity && this.selectedEntity.sourceId) {
-      const cable = this.selectedEntity;
-      const src = this.findEntityById(cable.sourceId);
-      const dst = this.findEntityById(cable.targetId);
+    const entitiesToOutline = this.selectedEntities?.length
+      ? this.selectedEntities
+      : (this.selectedEntity ? [this.selectedEntity] : []);
+
+    for (const selected of entitiesToOutline) {
+      if (!selected?.sourceId) continue;
+
+      const src = this.findEntityById(selected.sourceId);
+      const dst = this.findEntityById(selected.targetId);
 
       if (src && dst) {
-
         ctx.save();
         ctx.strokeStyle = "#00AEEF";
         ctx.lineWidth = 4;
         ctx.setLineDash([4, 4]);
-
         ctx.beginPath();
         ctx.moveTo(src.x, src.y);
         ctx.lineTo(dst.x, dst.y);
@@ -1413,267 +1434,164 @@ _onPointerUp(e) {
       ctx.restore();
     }
 
-    if (this.selectedEntity && !this.selectedEntity.sourceId) {
-      const en = this.selectedEntity;
-      const bounds = this._getEntityInteractionBounds(en); // CHANGED: use the same bounds logic for shapes, devices, and furniture
+    for (const en of entitiesToOutline) {
+      if (!en || en.sourceId) continue;
 
+      const bounds = this._getEntityInteractionBounds(en);
       const x = bounds?.x;
       const y = bounds?.y;
       const w = bounds?.w;
       const h = bounds?.h;
-
-      // For circles, we only need x, y, and radius defined
       const isCircle = en.type === 'circle' && en.r !== undefined;
-      
+      const isFocused = this.selectedEntity?.id === en.id;
+
       if (isCircle || (x !== undefined && w !== undefined)) {
         ctx.save();
         ctx.strokeStyle = "#00AEEF";
-        ctx.lineWidth = 2;
+        ctx.lineWidth = isFocused ? 2 : 1.5;
 
-        // Draw selection indicators
         if (isCircle) {
-          // For circles, draw a circle outline
           ctx.beginPath();
           ctx.arc(en.x, en.y, en.r, 0, Math.PI * 2);
           ctx.stroke();
 
-          // Draw handles at cardinal points
-          const size = 8;
-          const handles = [
-            [en.x, en.y - en.r],     // top
-            [en.x, en.y + en.r],     // bottom
-            [en.x - en.r, en.y],     // left
-            [en.x + en.r, en.y]      // right
-          ];
+          if (isFocused) {
+            const size = 8;
+            const handles = [
+              [en.x, en.y - en.r],
+              [en.x, en.y + en.r],
+              [en.x - en.r, en.y],
+              [en.x + en.r, en.y]
+            ];
 
-          ctx.fillStyle = "#00AEEF";
-          handles.forEach(([hx, hy]) => {
-            ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
-          });
+            ctx.fillStyle = "#00AEEF";
+            handles.forEach(([hx, hy]) => {
+              ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
+            });
+          }
         } else {
-          // For rectangles, draw bounding box
           ctx.strokeRect(x, y, w, h);
 
-          const size = 8;
-          const handles = [
-            [x, y], [x + w, y], [x, y + h], [x + w, y + h]
-          ];
+          if (isFocused) {
+            const size = 8;
+            const handles = [
+              [x, y], [x + w, y], [x, y + h], [x + w, y + h]
+            ];
 
-          ctx.fillStyle = "#00AEEF";
-          handles.forEach(([hx, hy]) => {
-            ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
-          });
-        }
-
-      if (this.hoveredCable && this.mode === 'select') {
-      const cable = this.hoveredCable;
-      const src = this.findEntityById(cable.sourceId);
-      const dst = this.findEntityById(cable.targetId);
-
-      if (src && dst) {
-        ctx.save();
-        
-        // 1. Highlight the hovered line so the user knows which one they are looking at
-        ctx.strokeStyle = "rgba(0, 174, 239, 0.4)";
-        ctx.lineWidth = 6;
-        ctx.beginPath();
-        ctx.moveTo(src.x, src.y);
-        ctx.lineTo(dst.x, dst.y);
-        ctx.stroke();
-
-        // 2. Setup text styling
-        ctx.font = "bold 12px Arial";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-
-        // Helper to draw a clean UI badge
-        const drawPortBadge = (x, y, text) => {
-          if (!text) return;
-          // Handle both string IDs or object structures depending on your state
-          const displayStr = typeof text === 'object' ? (text.name || text.id || "port") : text;
-          
-          const textMetrics = ctx.measureText(displayStr);
-          const bgW = textMetrics.width + 12; // 6px padding sides
-          const bgH = 20; // fixed height
-          
-          ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-          ctx.strokeStyle = "#94a3b8"; // subtle border
-          ctx.lineWidth = 1;
-          
-          ctx.beginPath();
-          ctx.roundRect(x - bgW / 2, y - bgH / 2, bgW, bgH, 4);
-          ctx.fill();
-          ctx.stroke();
-          
-          ctx.fillStyle = "#0f172a";
-          ctx.fillText(displayStr, x, y);
-        };
-
-        // 3. Calculate Geometry to offset labels from device centers
-        const dx = dst.x - src.x;
-        const dy = dst.y - src.y;
-        const angle = Math.atan2(dy, dx);
-        
-        // Push the label 40 pixels out from the absolute center of the device
-        const offset = 40; 
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        
-        // Only render badges if the devices are far enough apart (prevents text overlap)
-        if (dist > offset * 2.5) {
-          const srcBadgeX = src.x + Math.cos(angle) * offset;
-          const srcBadgeY = src.y + Math.sin(angle) * offset;
-          drawPortBadge(srcBadgeX, srcBadgeY, cable.sourcePort);
-          
-          const dstBadgeX = dst.x - Math.cos(angle) * offset;
-          const dstBadgeY = dst.y - Math.sin(angle) * offset;
-          drawPortBadge(dstBadgeX, dstBadgeY, cable.targetPort);
-        }
-
-        ctx.restore();
-      }
-    }
-
-      if (this.hoveredCable && this.mode === 'select') {
-      const cable = this.hoveredCable;
-      const src = this.findEntityById(cable.sourceId);
-      const dst = this.findEntityById(cable.targetId);
-
-      if (src && dst) {
-        ctx.save();
-        
-        // 1. Highlight the hovered line so the user knows which one they are looking at
-        ctx.strokeStyle = "rgba(0, 174, 239, 0.4)";
-        ctx.lineWidth = 6;
-        ctx.beginPath();
-        ctx.moveTo(src.x, src.y);
-        ctx.lineTo(dst.x, dst.y);
-        ctx.stroke();
-
-        // 2. Setup text styling
-        ctx.font = "bold 12px Arial";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-
-        // Helper to draw a clean UI badge
-        const drawPortBadge = (x, y, text) => {
-          if (!text) return;
-          // Handle both string IDs or object structures depending on your state
-          const displayStr = typeof text === 'object' ? (text.name || text.id || "port") : text;
-          
-          const textMetrics = ctx.measureText(displayStr);
-          const bgW = textMetrics.width + 12; // 6px padding sides
-          const bgH = 20; // fixed height
-          
-          ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-          ctx.strokeStyle = "#94a3b8"; // subtle border
-          ctx.lineWidth = 1;
-          
-          ctx.beginPath();
-          ctx.roundRect(x - bgW / 2, y - bgH / 2, bgW, bgH, 4);
-          ctx.fill();
-          ctx.stroke();
-          
-          ctx.fillStyle = "#0f172a";
-          ctx.fillText(displayStr, x, y);
-        };
-
-        // 3. Calculate Geometry to offset labels from device centers
-        const dx = dst.x - src.x;
-        const dy = dst.y - src.y;
-        const angle = Math.atan2(dy, dx);
-        
-        // Push the label 40 pixels out from the absolute center of the device
-        const offset = 40; 
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        
-        // Only render badges if the devices are far enough apart (prevents text overlap)
-        if (dist > offset * 2.5) {
-          const srcBadgeX = src.x + Math.cos(angle) * offset;
-          const srcBadgeY = src.y + Math.sin(angle) * offset;
-          drawPortBadge(srcBadgeX, srcBadgeY, cable.sourcePort);
-          
-          const dstBadgeX = dst.x - Math.cos(angle) * offset;
-          const dstBadgeY = dst.y - Math.sin(angle) * offset;
-          drawPortBadge(dstBadgeX, dstBadgeY, cable.targetPort);
-        }
-
-        ctx.restore();
-      }
-    }
-
-        const isStructural = ['rectangle', 'site', 'domain', 'space', 'polygon', 'freeform', 'circle'].includes(en.type);
-
-        if (isStructural) {
-          ctx.fillStyle = "black";
-          ctx.font = "bold 14px Arial";
-          ctx.textAlign = "center";
-
-          // CIRCLE LOGIC: Display diameter and circumference
-          if (en.type === 'circle' && en.r !== undefined) {
-            const diameter = en.r * 2;
-            const circumference = 2 * Math.PI * en.r;
-
-            const diameterInMeters = UnitSystem.format(GridScale.toMeters(diameter), 'm');
-            const circumferenceInMeters = UnitSystem.format(GridScale.toMeters(circumference), 'm');
-
-            // Diameter label at the top
-            ctx.fillText(`Ø ${diameterInMeters}`, en.x, en.y - en.r - 20);
-
-            // Circumference label at the bottom
-            ctx.fillText(`C ${circumferenceInMeters}`, en.x, en.y + en.r + 35);
+            ctx.fillStyle = "#00AEEF";
+            handles.forEach(([hx, hy]) => {
+              ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
+            });
           }
+        }
 
-          else if (en.points && en.points.length > 1) {
-            
-            // PERIMETER LOGIC FOR ANY CUSTOM SHAPE
-            for (let i = 0; i < en.points.length; i++) {
-              const p1 = en.points[i];
-              const p2 = en.points[(i + 1) % en.points.length];
+        if (isFocused) {
+          const isStructural = ['rectangle', 'site', 'domain', 'space', 'polygon', 'freeform', 'circle'].includes(en.type);
 
-              const dx = p2.x - p1.x;
-              const dy = p2.y - p1.y;
-              const pixelDistance = Math.sqrt(dx * dx + dy * dy);
+          if (isStructural) {
+            ctx.fillStyle = "black";
+            ctx.font = "bold 14px Arial";
+            ctx.textAlign = "center";
 
-              const meters = UnitSystem.format(GridScale.toMeters(pixelDistance), 'm');
+            if (en.type === 'circle' && en.r !== undefined) {
+              const diameter = en.r * 2;
+              const circumference = 2 * Math.PI * en.r;
 
-              const midX = (p1.x + p2.x) / 2;
-              const midY = (p1.y + p2.y) / 2;
+              const diameterInMeters = UnitSystem.format(GridScale.toMeters(diameter), 'm');
+              const circumferenceInMeters = UnitSystem.format(GridScale.toMeters(circumference), 'm');
 
-              let angle = Math.atan2(dy, dx);
-              
-              if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
-                 angle += Math.PI;
+              ctx.fillText(`Ø ${diameterInMeters}`, en.x, en.y - en.r - 20);
+              ctx.fillText(`C ${circumferenceInMeters}`, en.x, en.y + en.r + 35);
+            } else if (en.points && en.points.length > 1) {
+              for (let i = 0; i < en.points.length; i++) {
+                const p1 = en.points[i];
+                const p2 = en.points[(i + 1) % en.points.length];
+                const dx = p2.x - p1.x;
+                const dy = p2.y - p1.y;
+                const pixelDistance = Math.sqrt(dx * dx + dy * dy);
+                const meters = UnitSystem.format(GridScale.toMeters(pixelDistance), 'm');
+                const midX = (p1.x + p2.x) / 2;
+                const midY = (p1.y + p2.y) / 2;
+
+                let angle = Math.atan2(dy, dx);
+                if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
+                  angle += Math.PI;
+                }
+
+                ctx.save();
+                ctx.translate(midX, midY);
+                ctx.rotate(angle);
+                ctx.fillText(meters, 0, -8);
+                ctx.restore();
+              }
+            } else {
+              if (w !== undefined) {
+                const widthInMeters = UnitSystem.format(GridScale.toMeters(w), 'm');
+                ctx.fillText(widthInMeters, x + (w / 2), y - 15);
               }
 
-              ctx.save();
-              ctx.translate(midX, midY);
-              ctx.rotate(angle);
-              ctx.fillText(meters, 0, -8); 
-              ctx.restore();
-            }
-          } else {
-            // BOUNDING BOX LOGIC FOR STANDARD WxH RECTANGLES
-            let boxX = x;
-            let boxY = y;
-            let boxW = w;
-            let boxH = h;
-
-            // Top Label: Overall Width
-            if (boxW !== undefined) {
-              const widthInMeters = UnitSystem.format(GridScale.toMeters(boxW), 'm');
-              ctx.fillText(widthInMeters, boxX + (boxW / 2), boxY - 15);
-            }
-
-            // Right Label: Overall Height
-            if (boxH !== undefined) {
-              const heightInMeters = UnitSystem.format(GridScale.toMeters(boxH), 'm');
-              ctx.save();
-              ctx.translate(boxX + boxW + 20, boxY + (boxH / 2));
-              ctx.rotate(Math.PI / 2);
-              ctx.fillText(heightInMeters, 0, 0);
-              ctx.restore();
+              if (h !== undefined) {
+                const heightInMeters = UnitSystem.format(GridScale.toMeters(h), 'm');
+                ctx.save();
+                ctx.translate(x + w + 20, y + (h / 2));
+                ctx.rotate(Math.PI / 2);
+                ctx.fillText(heightInMeters, 0, 0);
+                ctx.restore();
+              }
             }
           }
+        }
+
+        ctx.restore();
+      }
+    }
+
+    if (this.hoveredCable && this.mode === 'select') {
+      const cable = this.hoveredCable;
+      const src = this.findEntityById(cable.sourceId);
+      const dst = this.findEntityById(cable.targetId);
+
+      if (src && dst) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(0, 174, 239, 0.4)";
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(dst.x, dst.y);
+        ctx.stroke();
+
+        ctx.font = "bold 12px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        const drawPortBadge = (x, y, text) => {
+          if (!text) return;
+          const displayStr = typeof text === 'object' ? (text.name || text.id || "port") : text;
+          const textMetrics = ctx.measureText(displayStr);
+          const bgW = textMetrics.width + 12;
+          const bgH = 20;
+
+          ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+          ctx.strokeStyle = "#94a3b8";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(x - bgW / 2, y - bgH / 2, bgW, bgH, 4);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = "#0f172a";
+          ctx.fillText(displayStr, x, y);
+        };
+
+        const dx = dst.x - src.x;
+        const dy = dst.y - src.y;
+        const angle = Math.atan2(dy, dx);
+        const offset = 40;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > offset * 2.5) {
+          drawPortBadge(src.x + Math.cos(angle) * offset, src.y + Math.sin(angle) * offset, cable.sourcePort);
+          drawPortBadge(dst.x - Math.cos(angle) * offset, dst.y - Math.sin(angle) * offset, cable.targetPort);
         }
 
         ctx.restore();

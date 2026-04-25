@@ -1600,6 +1600,20 @@ if (appState.tools && appState.tools.activeTool === 'delete') {
         return; 
     }
 
+    const selectionCount = appState.selection.getSelectionCount?.() ?? 0;
+    const isAlreadyMultiSelected =
+      selectionCount > 1 &&
+      (
+        appState.selection.isDeviceSelected?.(entity.id) ||
+        appState.selection.isFurnitureSelected?.(entity.id) ||
+        appState.selection.isLinkSelected?.(entity.id)
+      );
+
+    if (isAlreadyMultiSelected) {
+      appState.selection.notify?.();
+      return;
+    }
+
     if (entity.structureType) {
         const typeStr = entity.structureType.toLowerCase(); 
       

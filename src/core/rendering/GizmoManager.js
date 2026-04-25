@@ -15,6 +15,12 @@ export class GizmoManager {
     this.raycaster = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
     this.initialized = false;
+    this.isTransformInteracting = false;
+    this.activeDragSelectionIds = [];
+    this.dragPrimaryId = null;
+    this.lastPrimaryPosition = null;
+    this.isApplyingGroupTransform = false;
+    this.onTransformsApplied = null;
     
     this._setupEventListeners();
   }
@@ -22,7 +28,19 @@ export class GizmoManager {
   _setupEventListeners() {
     
     this.control.addEventListener('objectChange', () => {
+      this._applyGroupTranslation();
       this._syncTransformToStore();
+    });
+
+    this.control.addEventListener('dragging-changed', (event) => {
+      this.isTransformInteracting = !!event.value;
+      if (event.value) {
+        this._captureDragSelectionState();
+      } else {
+        this.activeDragSelectionIds = [];
+        this.dragPrimaryId = null;
+        this.lastPrimaryPosition = null;
+      }
     });
 
     window.addEventListener('keydown', (event) => {
@@ -41,6 +59,7 @@ export class GizmoManager {
 
   _onPointerDown(event) {
     if (event.button !== 0) return;
+    if (this.isTransformInteracting || this.control.dragging || this.control.axis) return;
     const multiSelect = event.ctrlKey || event.metaKey || event.shiftKey;
 
     console.log('Selected a Mesh');
@@ -104,28 +123,100 @@ export class GizmoManager {
     this.control.detach();
   }
 
+  _captureDragSelectionState() {
+    const object = this.control.object;
+    if (!object?.userData?.id) return;
+
+    this.dragPrimaryId = object.userData.id;
+    this.lastPrimaryPosition = object.position.clone();
+
+    const ids = new Set([
+      ...(appState.selection.getSelectedDeviceIds?.() || []),
+      ...(appState.selection.getSelectedFurnitureIds?.() || [])
+    ]);
+    ids.add(this.dragPrimaryId);
+
+    this.activeDragSelectionIds = [...ids];
+  }
+
+  _applyGroupTranslation() {
+    const object = this.control.object;
+    if (!object?.userData?.id) return;
+    if (this.isApplyingGroupTransform) return;
+    if (this.control.getMode?.() !== 'translate') return;
+    if (!this.isTransformInteracting || !this.lastPrimaryPosition) return;
+    if (!this.activeDragSelectionIds || this.activeDragSelectionIds.length <= 1) {
+      this.lastPrimaryPosition = object.position.clone();
+      return;
+    }
+
+    const delta = new THREE.Vector3().subVectors(object.position, this.lastPrimaryPosition);
+    if (delta.lengthSq() === 0) return;
+
+    this.isApplyingGroupTransform = true;
+    try {
+      for (const id of this.activeDragSelectionIds) {
+        if (id === object.userData.id) continue;
+        const mesh = this._findMeshById(id);
+        if (!mesh) continue;
+
+        mesh.position.add(delta);
+        mesh.updateMatrixWorld?.();
+      }
+    } finally {
+      this.isApplyingGroupTransform = false;
+      this.lastPrimaryPosition = object.position.clone();
+    }
+  }
+
+  _findMeshById(id) {
+    let match = null;
+
+    this.scene.traverse((obj) => {
+      if (!match && obj?.userData?.id === id) {
+        match = obj;
+      }
+    });
+
+    return match;
+  }
+
+  _syncMeshTransform(mesh) {
+    if (!mesh?.userData?.id) return;
+
+    const { id, type } = mesh.userData;
+    const updates = {
+      position: { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z },
+      rotation: { x: mesh.rotation.x, y: mesh.rotation.y, z: mesh.rotation.z },
+      scale: { x: mesh.scale.x, y: mesh.scale.y, z: mesh.scale.z }
+    };
+
+    if (type === 'device') {
+      const device = appState.network.getDevice(id);
+      if (device) device.transform = updates;
+    } else if (type === 'furniture') {
+      const furniture = appState.furniture.getFurniture(id);
+      if (furniture) furniture.transform = updates;
+    }
+  }
+
   _syncTransformToStore() {
     const object = this.control.object;
     if (!object || !object.userData.id) return;
     console.log('Syncing transform to store');
 
-    const { id, type } = object.userData;
-    const updates = {
-      position: { x: object.position.x, y: object.position.y, z: object.position.z },
-      rotation: { x: object.rotation.x, y: object.rotation.y, z: object.rotation.z },
-      scale: { x: object.scale.x, y: object.scale.y, z: object.scale.z }
-    };
-
-    if (type === 'device') {
-      const device = appState.network.getDevice(id);
-      if (device) device.transform = updates; 
-      
-    } else if (type === 'furniture') {
-      const furniture = appState.furniture.getFurniture(id);
-      if (furniture) furniture.transform = updates;
+    if (this.control.getMode?.() === 'translate' && this.activeDragSelectionIds.length > 1) {
+      for (const id of this.activeDragSelectionIds) {
+        const mesh = this._findMeshById(id);
+        if (mesh) {
+          this._syncMeshTransform(mesh);
+        }
+      }
+    } else {
+      this._syncMeshTransform(object);
     }
 
-    
+    this.onTransformsApplied?.(this.activeDragSelectionIds);
     appState.notifyListeners();
   }
 }

@@ -106,6 +106,14 @@ export default class FloorMesh {
             bevelSegments: 2
         };
 
+        const baseboardExtrudeSettings = {
+            depth: 1.7,
+            bevelEnabled: true,
+            bevelThickness: 0.05,
+            bevelSize: 0.05,
+            bevelSegments: 2
+        };
+
         const rectGeometry = new THREE.ExtrudeGeometry(rectShape, extrudeSettings);
         const wallSideMat = new THREE.MeshStandardMaterial({ color: 0xf8f8f8 });
         const wallTopMat = new THREE.MeshStandardMaterial({ color: 0xf8f8f8 });
@@ -114,6 +122,31 @@ export default class FloorMesh {
         rectMesh.rotation.x = -Math.PI / 2;
 
         rectMesh.position.set((this.x * this.scaler) + (width / 2), 0, ((this.z * this.scaler) + (depth / 2)));
+
+        const baseBoardShape = rectShape.clone();
+
+        baseBoardShape.holes = [];
+
+        const inset = thickness * 2.2;
+        const insetPath = new THREE.Path();
+        insetPath.moveTo(points[0].x + inset, points[0].z + inset);
+        insetPath.lineTo(points[1].x - inset, points[1].z + inset);
+        insetPath.lineTo(points[2].x - inset, points[2].z - inset);
+        insetPath.lineTo(points[3].x + inset, points[3].z - inset);
+        insetPath.closePath();
+
+        baseBoardShape.holes.push(insetPath);
+
+        const baseBoardGeometry = new THREE.ExtrudeGeometry(baseBoardShape, baseboardExtrudeSettings);
+        const baseBoardMaterial = new THREE.MeshStandardMaterial({ color: 0xf9f9f9 });
+        const baseBoardMesh = new THREE.Mesh(baseBoardGeometry, baseBoardMaterial);
+
+        baseBoardMesh.rotation.x = -Math.PI / 2;
+        baseBoardMesh.position.set(
+            (this.x * this.scaler) + (width / 2),
+            1.5,
+            (this.z * this.scaler) + (depth / 2)
+        );
 
         const floorGeometry = new THREE.PlaneGeometry(width - (thickness * 2), depth - (thickness * 2));
         const tileSize = 10.0; 
@@ -132,7 +165,8 @@ export default class FloorMesh {
         const ceilingMaterial = new THREE.MeshStandardMaterial({ 
             color: 0xf8f8f8,
             roughness: 0.8,
-            metalness: 0.0
+            metalness: 0.0,
+            side: THREE.DoubleSide
         });
 
         const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
@@ -164,6 +198,7 @@ export default class FloorMesh {
 
         const group = new THREE.Group();
         group.add(rectMesh);
+        group.add(baseBoardMesh);
         group.add(ceilingMesh);
         group.add(floorMesh);
         group.add(roomLight);

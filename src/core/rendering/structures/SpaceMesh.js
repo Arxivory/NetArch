@@ -229,7 +229,7 @@ export default class SpaceMesh {
         };
 
         const wallSideMat = new THREE.MeshStandardMaterial({
-            color: 0xffffff,
+            color: 0xf8f8f8,
             side: THREE.DoubleSide
         });
 
@@ -238,22 +238,9 @@ export default class SpaceMesh {
             side: THREE.DoubleSide
         });
 
-        const ceilingMaterial = new THREE.MeshStandardMaterial({
-            color: 0xf5f5f5,
-            roughness: 0.8,
-            metalness: 0.0,
-            side: THREE.DoubleSide
-        });
-
         const wallGeometry = new THREE.ExtrudeGeometry(circleShape, extrudeSettings);
         const wallMesh = new THREE.Mesh(wallGeometry, [wallTopMat, wallSideMat]);
         wallMesh.rotation.x = -Math.PI / 2;
-
-        const ceilingGeometry = new THREE.CircleGeometry(innerRadius, 64);
-        const ceilingMesh = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
-        ceilingMesh.rotation.x = -Math.PI / 2;
-        ceilingMesh.position.y = height;
-        ceilingMesh.userData = { type: 'ceiling', id: this.id };
 
         const group = new THREE.Group();
         group.position.set(
@@ -263,7 +250,6 @@ export default class SpaceMesh {
         );
 
         group.add(wallMesh);
-        group.add(ceilingMesh);
         group.userData = { type: 'space', id: this.id, shape: 'circle' };
 
         return group;

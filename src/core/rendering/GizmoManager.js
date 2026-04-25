@@ -41,6 +41,7 @@ export class GizmoManager {
 
   _onPointerDown(event) {
     if (event.button !== 0) return;
+    const multiSelect = event.ctrlKey || event.metaKey || event.shiftKey;
 
     console.log('Selected a Mesh');
 
@@ -64,20 +65,34 @@ export class GizmoManager {
 
       if (object && object.userData?.id) {
           if (object.userData.type === 'device') {
-            appState.selection.selectDevice(object.userData.id);
+            if (multiSelect) {
+              appState.selection.toggleDeviceSelection?.(object.userData.id);
+            } else {
+              appState.selection.selectDevice(object.userData.id, false);
+            }
           } else if (object.userData.type === 'furniture') {
-            appState.selection.focusedNode(object.userData.id, 'furniture');
+            if (multiSelect) {
+              appState.selection.toggleFurnitureSelection?.(object.userData.id);
+            } else {
+              appState.selection.selectFurniture?.(object.userData.id, false);
+            }
           } else {
-            appState.selection.clearSelection();
-            this.detach();
+            if (!multiSelect) {
+              appState.selection.clearSelection();
+              this.detach();
+            }
           }
       } else {
-        appState.selection.clearSelection();
-        this.detach();
+        if (!multiSelect) {
+          appState.selection.clearSelection();
+          this.detach();
+        }
       }
     } else {
-        this.detach();
-        appState.selection.clearSelection();
+        if (!multiSelect) {
+          this.detach();
+          appState.selection.clearSelection();
+        }
     }
   }
 

@@ -70,6 +70,7 @@ export class Wall {
             { x: bodyPoints.x1, y: bodyPoints.y1 },
             { x: bodyPoints.x2, y: bodyPoints.y2 }
         );
+        this.body.structType = 'Wall';
         this.system.insert(this.body);
     }
 

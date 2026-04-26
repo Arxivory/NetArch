@@ -11,6 +11,7 @@ import FurnitureMesh from './rendering/furnitures/FurnitureMesh';
 import DeviceMesh from './rendering/devices/DeviceMesh';
 import { GizmoManager } from './rendering/GizmoManager.js';
 import { getScene, getCamera, getRenderer } from './rendering/SceneAccess';
+import WallMesh from './rendering/structures/WallMesh.js';
 
 export class PhysicalController {
     constructor(scene) {
@@ -31,6 +32,7 @@ export class PhysicalController {
         this.siteMeshes = new Map();
         this.floorMeshes = new Map(); 
         this.spaceMeshes = new Map();
+        this.wallMeshes = new Map();
         this.deviceMeshes =  new Map();
         this.furnitureMeshes = new Map();
         this.selectionHelpers = new Map();
@@ -57,6 +59,7 @@ export class PhysicalController {
         const sites = this.store.sites;
         const floors = this.store.floors;
         const spaces = this.store.spaces;
+        const walls = this.store.walls;
         const devices = this.networkStore.devices;
         const furnitures = this.furnitureStore.furnitures;
 
@@ -66,6 +69,7 @@ export class PhysicalController {
         const activeSiteIds = new Set();
         const activeFloorIds = new Set();
         const activeSpaceIds = new Set();
+        const activeWallIds = new Set();
         const activeDeviceIds = new Set();
         const activeFurnitureIds = new Set();
 
@@ -76,20 +80,7 @@ export class PhysicalController {
                 continue;
             } 
 
-            switch (domain.shapeType) {
-                case 'rectangle':
-                    this.createRectangularDomainMesh(domain);
-                    break;
-                case 'polygon':
-                    this.createPolygonalDomainMesh(domain);
-                    break;
-                case 'freeform':
-                    this.createPolygonalDomainMesh(domain);
-                    break;
-                case 'circle':
-                    this.createCircularDomainMesh(domain);
-                    break;
-            }
+            this.createDomainMesh(domain);
         }
 
         for (const site of sites) {
@@ -98,22 +89,7 @@ export class PhysicalController {
             if (this.siteMeshes.has(site.id))
                 continue;
 
-            switch (site.shapeType) {
-                case 'rectangle':
-                    this.createRectangleSiteMesh(site);
-                    break;
-                case 'polygon':
-                    this.createPolygonalSiteMesh(site);
-                    break;
-                case 'freeform':
-                    this.createFreeformSiteMesh(site);
-                    break;
-                case 'circle':
-                    this.createCircularSiteMesh(site);
-                    break;
-                default:
-                    break;
-            }
+            this.createSiteMesh(site);
         }
 
         for (const floor of floors) {
@@ -134,24 +110,26 @@ export class PhysicalController {
             if (this.spaceMeshes.has(space.id))
                 continue;
 
-            switch (space.shapeType) {
-                case 'rectangle':
-                    this.createRectangleSpaceMesh(space);
-                    break;
-                case 'polygon':
-                    this.createPolygonalSpaceMesh(space); // CHANGED: polygon spaces must use SpaceMesh, not DomainMesh
-                    break;
-                case 'freeform':
-                    this.createPolygonalSpaceMesh(space); // CHANGED: freeform space temporarily reuses the polygonal space mesh logic
-                    break;
-                    case 'circle':
-                    this.createCircularSpaceMesh(space);
-                    break;
-                default:
-                    break;
-            }
+            this.createSpaceMesh(space);
         }
 
+        for (const wall of walls) {
+            activeWallIds.add(wall.id);
+
+            if (this.wallMeshes.has(wall.id)) 
+                continue;
+
+            const floor = this.store.floors.find(f => f.id === wall.floorId);
+            const altitude = floor ? floor.altitude || 0 : 0;
+
+            const newWall = new WallMesh(wall, this.defaultScaler);
+            const newWallMesh = newWall.getWallMesh();
+
+            newWallMesh.position.y = altitude;
+
+            this.scene.add(newWallMesh);
+            this.wallMeshes.set(wall.id, newWallMesh);
+        }
 
         for (const device of devices) {
             console.log('Processing device for rendering: ', device);
@@ -213,6 +191,13 @@ export class PhysicalController {
             if (!activeSpaceIds.has(id)) {
                 this.scene.remove(mesh);
                 this.spaceMeshes.delete(id);
+            }
+        }
+
+        for (const [id, mesh] of this.wallMeshes) {
+            if (!activeWallIds.has(id)) {
+                this.scene.remove(mesh);
+                this.wallMeshes.delete(id);
             }
         }
 
@@ -297,150 +282,81 @@ export class PhysicalController {
         this.selectionHelpers.delete(id);
     }
 
-    createRectangularDomainMesh(domain) {
-        const rectDomain = new DomainMesh(domain, this.defaultScaler);
-        const mesh = rectDomain.getRectangularForm();
-
-        this.scene.add(mesh);
-        this.domainMeshes.set(domain.id, mesh);
+    createDomainMesh(domain) {
+        const newDomain = new DomainMesh(domain, this.defaultScaler);
+        switch (domain.shapeType) {
+            case 'rectangle':
+                const rectangularMesh = newDomain.getRectangularForm();
+                this.scene.add(rectangularMesh);
+                this.domainMeshes.set(domain.id, rectangularMesh);
+                break;
+            case 'polygon':
+                const polygonalMesh = newDomain.getPolygonalForm();
+                this.scene.add(polygonalMesh);
+                this.domainMeshes.set(domain.id, polygonalMesh);
+                break;
+            case 'circle':
+                const circularMesh = newDomain.getCircularForm();
+                this.scene.add(circularMesh);
+                this.domainMeshes.set(domain.id, circularMesh);
+                break;
+            default:
+                console.warn(`Unknown domain shape type: ${domain.shapeType}`);
+                break;
+        }
     }
 
-    createPolygonalDomainMesh(domain) {
-    const { x, y, points } = domain.geometry; // CHANGED: use the stored anchor and absolute polygon points
-
-    if (!points?.length) { // ADDED: avoid building an empty polygon mesh
-        console.warn("Polygonal domain has no points:", domain.id);
-        return;
+    createSiteMesh(site) {
+        const newSite = new SiteMesh(site, this.defaultScaler);
+        switch (site.shapeType) {
+            case 'rectangle':
+                const rectangularMesh = newSite.getRectangularForm();
+                this.scene.add(rectangularMesh);
+                this.siteMeshes.set(site.id, rectangularMesh);
+                break;
+            case 'polygon':
+                const polygonalMesh = newSite.getPolygonalForm();
+                this.scene.add(polygonalMesh);
+                this.siteMeshes.set(site.id, polygonalMesh);
+                break;
+            case 'circle':
+                const circularMesh = newSite.getCircularForm();
+                this.scene.add(circularMesh);
+                this.siteMeshes.set(site.id, circularMesh);
+                break;
+            default:
+                console.warn(`Unknown site shape type: ${site.shapeType}`);
+                break;
+        }
     }
 
-    const shape = new THREE.Shape();
-
-    points.forEach((p, i) => {
-        const localX = (p.x - x) * this.defaultScaler;   // CHANGED: convert absolute X into local coordinates
-        const localY = -(p.y - y) * this.defaultScaler;  // CHANGED: flip Y so it maps correctly to Three.js Z
-
-        if (i === 0) shape.moveTo(localX, localY);       // CHANGED: use corrected local polygon coordinates
-        else shape.lineTo(localX, localY);               // CHANGED: use corrected local polygon coordinates
-    });
-
-    shape.closePath();
-
-    const geometry = new THREE.ExtrudeGeometry(shape, {
-        depth: 1,
-        bevelEnabled: false
-    });
-
-    geometry.rotateX(-Math.PI / 2);
-
-    const material = new THREE.MeshStandardMaterial({
-        color: 0xcccccc,
-        roughness: 0.9,
-        metalness: 0.3
-    });
-
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(
-        x * this.defaultScaler,   // CHANGED: place the whole polygon mesh at the stored anchor
-        0.1,
-        y * this.defaultScaler    // CHANGED: place the whole polygon mesh at the stored anchor
-    );
-
-    this.scene.add(mesh);
-    this.domainMeshes.set(domain.id, mesh);
-}
-
-
-
-    createCircularDomainMesh(domain) {
-        const domainMesh = new DomainMesh(domain, this.defaultScaler);
-        const mesh = domainMesh.getCircularForm();
-
-        this.scene.add(mesh);
-        this.domainMeshes.set(domain.id, mesh);
-    }
-
-    createRectangleSiteMesh(site) {
-        const rectSite = new SiteMesh(site, this.defaultScaler);
-        const mesh = rectSite.getRectangularForm();
-
-        this.scene.add(mesh);
-        this.siteMeshes.set(site.id, mesh);
-    }
-
-    createCircularSiteMesh(site) {
-        const siteMesh = new SiteMesh(site, this.defaultScaler);
-        const mesh = siteMesh.getCircularForm();
-
-        this.scene.add(mesh);
-        this.siteMeshes.set(site.id, mesh);
-    }
-
-    createPolygonalSiteMesh(site) {
-        const siteMesh = new SiteMesh(site, this.defaultScaler);
-        const mesh = siteMesh.getPolygonalForm();
-
-        this.scene.add(mesh);
-        this.siteMeshes.set(site.id, mesh);
-    }
-
-    createFreeformSiteMesh(site) {
-        const siteMesh = new SiteMesh(site, this.defaultScaler);
-        const mesh = siteMesh.getFreeformForm();
-
-        this.scene.add(mesh);
-        this.siteMeshes.set(site.id, mesh);
-    }
-
-    createRectangleSpaceMesh(space) {
+    createSpaceMesh(space) {
         const floor = this.store.floors.find(f => f.id === space.floorId);
         const altitude = floor ? floor.altitude || 0 : 0;
 
-        console.log(`Creating space ${space.id} on floor ${space.floorId} at altitude ${altitude}`);
+        const newSpace = new SpaceMesh(space, this.defaultScaler);
+        let mesh;
 
-        const rectSpace = new SpaceMesh(space, this.defaultScaler);
-        const mesh = rectSpace.getRectangularForm();
+        switch (space.shapeType) {
+            case 'rectangle':
+                mesh = newSpace.getRectangularForm();
+                break;
+            case 'polygon':
+                mesh = newSpace.getPolygonalForm();
+                break;
+            case 'circle':
+                mesh = newSpace.getCircularForm();
+                break;
+            default:
+                console.warn(`Unknown space shape type: ${space.shapeType}`);
+                return;
+        }
 
         mesh.position.y = altitude;
-
-        console.log(`Space mesh positioned at Y=${mesh.position.y}`);
 
         this.scene.add(mesh);
         this.spaceMeshes.set(space.id, mesh);
     }
-    createPolygonalSpaceMesh(space) {
-    const floor = this.store.floors.find(f => f.id === space.floorId);
-    const altitude = floor ? floor.altitude || 0 : 0; // ADDED: polygonal spaces still need to sit on the correct floor
-
-    console.log(`Creating polygonal space ${space.id} on floor ${space.floorId} at altitude ${altitude}`); // ADDED: debug log for polygon space creation
-
-    const polygonalSpace = new SpaceMesh(space, this.defaultScaler);
-    const mesh = polygonalSpace.getPolygonalForm(); // ADDED: use the dedicated polygonal space mesh builder
-
-    mesh.position.y = altitude; // ADDED: stack the whole space group on its floor altitude
-
-    console.log(`Polygonal space mesh positioned at Y=${mesh.position.y}`); // ADDED: confirm final vertical placement
-
-    this.scene.add(mesh);
-    this.spaceMeshes.set(space.id, mesh);
-}
-    createCircularSpaceMesh(space) {
-    const floor = this.store.floors.find(f => f.id === space.floorId);
-    const altitude = floor ? floor.altitude || 0 : 0; // ADDED: circular spaces still need to sit on the correct floor
-
-    console.log(`Creating circular space ${space.id} on floor ${space.floorId} at altitude ${altitude}`); // ADDED: debug log for circular space creation
-
-    const circularSpace = new SpaceMesh(space, this.defaultScaler);
-    const mesh = circularSpace.getCircularForm(); // ADDED: use the dedicated circular space mesh builder
-
-    mesh.position.y = altitude; // ADDED: stack the whole space group on its floor altitude
-
-    console.log(`Circular space mesh positioned at Y=${mesh.position.y}`); // ADDED: confirm final vertical placement
-
-    this.scene.add(mesh);
-    this.spaceMeshes.set(space.id, mesh);
-}
-
-
 
     createFloorMesh(floor) {
         const site = this.store.sites.find(s => s.id === floor.siteId);
@@ -449,18 +365,51 @@ export class PhysicalController {
             return;
         }
 
+        const newFloor = new FloorMesh(site, this.defaultScaler);
+        let mesh;
+
         console.log(`Creating floor ${floor.id} with altitude ${floor.altitude}`);
 
-        const floorMesh = new FloorMesh(site, this.defaultScaler);
-        const mesh = floorMesh.getRectangularForm();
+        switch (floor.shapeType) {
+            case 'rectangle':
+                mesh = newFloor.getRectangularForm();
+                break;
+            case 'polygon':
+                mesh = newFloor.getPolygonalForm();
+                break;
+            case 'circle':
+                mesh = newFloor.getCircularForm();
+                break;
+            default:
+                console.warn(`Unknown floor shape type: ${floor.shapeType}`);
+                return;
+        }
 
         mesh.position.y = floor.altitude || 0;
-
-        console.log(`Floor mesh positioned at Y=${mesh.position.y}`);
 
         this.scene.add(mesh);
         this.floorMeshes.set(floor.id, mesh);
     }
+
+    // createFloorMesh(floor) {
+    //     const site = this.store.sites.find(s => s.id === floor.siteId);
+    //     if (!site) {
+    //         console.warn(`Site not found for floor ${floor.id}`);
+    //         return;
+    //     }
+
+    //     console.log(`Creating floor ${floor.id} with altitude ${floor.altitude}`);
+
+    //     const floorMesh = new FloorMesh(site, this.defaultScaler);
+    //     const mesh = floorMesh.getRectangularForm();
+
+    //     mesh.position.y = floor.altitude || 0;
+
+    //     console.log(`Floor mesh positioned at Y=${mesh.position.y}`);
+
+    //     this.scene.add(mesh);
+    //     this.floorMeshes.set(floor.id, mesh);
+    // }
 
     async createDeviceGLTFMesh(device) {
         const newDevice = new DeviceMesh(device, this.defaultScaler);

@@ -1,683 +1,669 @@
+/**
+ * deviceCatalog.js
+ * 
+ * Pure data registry for all known device models and cable types.
+ * No factory logic lives here — see DeviceFactory.js for instantiation.
+ * 
+ * Port group template tokens:
+ *   {n}  → replaced with port index (e.g. GigabitEthernet0/{n} → GigabitEthernet0/1)
+ *   No token → name is used as-is (e.g. "Console", "USB")
+ * 
+ * Speed unit: bps (bits per second) across all entries.
+ */
+
+// ---------------------------------------------------------------------------
+// PORT TYPE CONSTANTS
+// Used as a formal enum across PhysicalPort, Interface, and validation logic.
+// ---------------------------------------------------------------------------
+export const PORT_TYPES = {
+  ETHERNET:  'ethernet',   // RJ-45, SFP — data plane
+  SERIAL:    'serial',     // Console / RS-232 / AUX — management plane
+  USB:       'usb',        // USB-A / USB-C — management / storage
+  WIRELESS:  'wireless',   // 802.11 radio
+  LOOPBACK:  'loopback',   // Virtual — always up, no physical port
+  UNKNOWN:   'unknown',
+};
+
+// ---------------------------------------------------------------------------
+// CONNECTOR TYPE CONSTANTS
+// Physical socket form factor on the device chassis.
+// ---------------------------------------------------------------------------
+export const CONNECTOR_TYPES = {
+  RJ45:       'rj45',
+  SFP:        'sfp',
+  SFP_PLUS:   'sfp+',
+  DB9_RJ45:   'db9_rj45',  // Console rollover
+  USB_A:      'usb-a',
+  USB_C:      'usb-c',
+  WIRELESS:   'wireless',  // No physical connector
+};
+
+// ---------------------------------------------------------------------------
+// SWITCHES
+// ---------------------------------------------------------------------------
 const switches = {
   "1200": {
-    modelId: "1200",
-    displayName: "1200",
-    family: "switch",
-    vendor: "cisco",
-    portCount: 24,
+    modelId:     "1200",
+    displayName: "Cisco 1200",
+    family:      "switch",
+    vendor:      "cisco",
+    autoMdix:    true,
     portGroups: [
       {
-        template: "Console",
-        count: 1,
-        startIndex: 0
+        template:      "Console",
+        count:         1,
+        startIndex:    0,
+        portType:      PORT_TYPES.SERIAL,
+        connectorType: CONNECTOR_TYPES.DB9_RJ45,
+        speedBps:      9600,
+        fullDuplex:    false,
       },
       {
-        template: "GigabitEthernet1/0/{n}",
-        count: 24,
-        startIndex: 1 
-      }
+        template:      "GigabitEthernet1/0/{n}",
+        count:         24,
+        startIndex:    1,
+        portType:      PORT_TYPES.ETHERNET,
+        connectorType: CONNECTOR_TYPES.RJ45,
+        speedBps:      1_000_000_000,   // 1 Gbps
+        fullDuplex:    true,
+      },
     ],
-    model3D: "/models/switch-1200.glb",
+    model3D: "/objects/devices/switches/1200.glb",
   },
+
   "1300": {
-    modelId: "1300",
-    displayName: "1300",
-    family: "switch",
-    vendor: "cisco",
-    portCount: 24,
+    modelId:     "1300",
+    displayName: "Cisco 1300",
+    family:      "switch",
+    vendor:      "cisco",
+    autoMdix:    true,
     portGroups: [
       {
-        template: "Console",
-        count: 1,
-        startIndex: 0
+        template:      "Console",
+        count:         1,
+        startIndex:    0,
+        portType:      PORT_TYPES.SERIAL,
+        connectorType: CONNECTOR_TYPES.DB9_RJ45,
+        speedBps:      9600,
+        fullDuplex:    false,
       },
       {
-        template: "GigabitEthernet1/0/{n}",
-        count: 24,
-        startIndex: 1 
-      }
+        template:      "GigabitEthernet1/0/{n}",
+        count:         24,
+        startIndex:    1,
+        portType:      PORT_TYPES.ETHERNET,
+        connectorType: CONNECTOR_TYPES.RJ45,
+        speedBps:      1_000_000_000,
+        fullDuplex:    true,
+      },
     ],
-    model3D: "/models/switch-1300.glb",
+    model3D: "/objects/devices/switches/1300.glb",
   },
-"2960": {
-    modelId: "2960",
-    displayName: "2960",
-    family: "switch",
-    vendor: "cisco",
+
+  "2960": {
+    modelId:     "2960",
+    displayName: "Cisco 2960",
+    family:      "switch",
+    vendor:      "cisco",
+    autoMdix:    true,   // 2960 supports Auto-MDIX (IOS 12.2(25)FX+)
     portGroups: [
       {
-        template: "Console",
-        count: 1,
-        startIndex: 0
+        template:      "Console",
+        count:         1,
+        startIndex:    0,
+        portType:      PORT_TYPES.SERIAL,
+        connectorType: CONNECTOR_TYPES.DB9_RJ45,
+        speedBps:      9600,
+        fullDuplex:    false,
       },
       {
-        template: "FastEthernet0/{n}",
-        count: 24,
-        startIndex: 1 
+        template:      "FastEthernet0/{n}",
+        count:         24,
+        startIndex:    1,
+        portType:      PORT_TYPES.ETHERNET,
+        connectorType: CONNECTOR_TYPES.RJ45,
+        speedBps:      100_000_000,     // 100 Mbps
+        fullDuplex:    true,
       },
       {
-        template: "GigabitEthernet0/{n}",
-        count: 2,
-        startIndex: 1 
-      }
+        template:      "GigabitEthernet0/{n}",
+        count:         2,
+        startIndex:    1,
+        portType:      PORT_TYPES.ETHERNET,
+        connectorType: CONNECTOR_TYPES.SFP,
+        speedBps:      1_000_000_000,
+        fullDuplex:    true,
+      },
     ],
     model3D: "/objects/devices/switches/2960.glb",
   },
+
   "9200": {
-    modelId: "9200",
-    displayName: "9200",
-    family: "switch",
-    vendor: "cisco",
-    portCount: 48,
+    modelId:     "9200",
+    displayName: "Cisco 9200",
+    family:      "switch",
+    vendor:      "cisco",
+    autoMdix:    true,
     portGroups: [
       {
-        template: "Console",
-        count: 1,
-        startIndex: 0
+        template:      "Console",
+        count:         1,
+        startIndex:    0,
+        portType:      PORT_TYPES.SERIAL,
+        connectorType: CONNECTOR_TYPES.DB9_RJ45,
+        speedBps:      9600,
+        fullDuplex:    false,
       },
       {
-        template: "GigabitEthernet1/0/{n}",
-        count: 48,
-        startIndex: 1 
-      }
+        template:      "GigabitEthernet1/0/{n}",
+        count:         48,
+        startIndex:    1,
+        portType:      PORT_TYPES.ETHERNET,
+        connectorType: CONNECTOR_TYPES.RJ45,
+        speedBps:      1_000_000_000,
+        fullDuplex:    true,
+      },
     ],
-    model3D: "/models/switch-9200.glb",
+    model3D: "/objects/devices/switches/9200.glb",
   },
-  // "9300": {
-  //   modelId: "9300",
-  //   displayName: "9300",
-  //   family: "switch",
-  //   vendor: "cisco",
-  //   portCount: 48,
-  //   portGroups: [
-  //     {
-  //       template: "Console",
-  //       count: 1,
-  //       startIndex: 0
-  //     },
-  //     {
-  //       template: "GigabitEthernet1/0/{n}",
-  //       count: 48,
-  //       startIndex: 1 
-  //     }
-  //   ],
-  //   model3D: "/models/switch-9300.glb",
-  // },
-  // "9400": {
-  //   modelId: "9400",
-  //   displayName: "9400",
-  //   family: "switch",
-  //   vendor: "cisco",
-  //   portCount: 48,
-  //   portGroups: [
-  //     {
-  //       template: "Console",
-  //       count: 1,
-  //       startIndex: 0
-  //     },
-  //     {
-  //       template: "GigabitEthernet1/0/{n}",
-  //       count: 48,
-  //       startIndex: 1 
-  //     }
-  //   ],
-  //   model3D: "/models/switch-9400.glb",
-  // },
-  // "9500": {
-  //   modelId: "9500",
-  //   displayName: "9500",
-  //   family: "switch",
-  //   vendor: "cisco",
-  //   portCount: 48,
-  //   portGroups: [
-  //     {
-  //       template: "Console",
-  //       count: 1,
-  //       startIndex: 0
-  //     },
-  //     {
-  //       template: "TenGigabitEthernet1/0/{n}",
-  //       count: 48,
-  //       startIndex: 1 
-  //     }
-  //   ],
-  //   model3D: "/models/switch-9500.glb",
-  // },
-  // "9600": {
-  //   modelId: "9600",
-  //   displayName: "9600",
-  //   family: "switch",
-  //   vendor: "cisco",
-  //   portCount: 48,
-  //   portGroups: [
-  //     {
-  //       template: "Console",
-  //       count: 1,
-  //       startIndex: 0
-  //     },
-  //     {
-  //       template: "TenGigabitEthernet1/0/{n}",
-  //       count: 48,
-  //       startIndex: 1 
-  //     }
-  //   ],
-  //   model3D: "/models/switch-9600.glb",
-  // },
+
   "110": {
-    modelId: "110",
-    displayName: "110",
-    family: "switch",
-    vendor: "cisco",
-    portCount: 8,
+    modelId:     "110",
+    displayName: "Cisco 110",
+    family:      "switch",
+    vendor:      "cisco",
+    autoMdix:    true,
     portGroups: [
       {
-        template: "Console",
-        count: 1,
-        startIndex: 0
+        template:      "Console",
+        count:         1,
+        startIndex:    0,
+        portType:      PORT_TYPES.SERIAL,
+        connectorType: CONNECTOR_TYPES.DB9_RJ45,
+        speedBps:      9600,
+        fullDuplex:    false,
       },
       {
-        template: "FastEthernet0/{n}",
-        count: 8,
-        startIndex: 1 
-      }
+        template:      "FastEthernet0/{n}",
+        count:         8,
+        startIndex:    1,
+        portType:      PORT_TYPES.ETHERNET,
+        connectorType: CONNECTOR_TYPES.RJ45,
+        speedBps:      100_000_000,
+        fullDuplex:    true,
+      },
     ],
-    model3D: "/models/switch-110.glb",
+    model3D: "/objects/devices/switches/110.glb",
   },
+
   "220": {
-    modelId: "220",
-    displayName: "220",
-    family: "switch",
-    vendor: "cisco",
-    portCount: 24,
+    modelId:     "220",
+    displayName: "Cisco 220",
+    family:      "switch",
+    vendor:      "cisco",
+    autoMdix:    true,
     portGroups: [
       {
-        template: "Console",
-        count: 1,
-        startIndex: 1
+        template:      "Console",
+        count:         1,
+        startIndex:    1,
+        portType:      PORT_TYPES.SERIAL,
+        connectorType: CONNECTOR_TYPES.DB9_RJ45,
+        speedBps:      9600,
+        fullDuplex:    false,
       },
       {
-        template: "FastEthernet0/{n}",
-        count: 24,
-        startIndex: 1 
-      }
+        template:      "FastEthernet0/{n}",
+        count:         24,
+        startIndex:    1,
+        portType:      PORT_TYPES.ETHERNET,
+        connectorType: CONNECTOR_TYPES.RJ45,
+        speedBps:      100_000_000,
+        fullDuplex:    true,
+      },
     ],
     model3D: "/objects/devices/switches/220.glb",
   },
+
   "350": {
-    modelId: "350",
-    displayName: "350",
-    family: "switch",
-    vendor: "cisco",
-    portCount: 48,
+    modelId:     "350",
+    displayName: "Cisco 350",
+    family:      "switch",
+    vendor:      "cisco",
+    autoMdix:    true,
     portGroups: [
       {
-        template: "Console",
-        count: 1,
-        startIndex: 0
+        template:      "Console",
+        count:         1,
+        startIndex:    0,
+        portType:      PORT_TYPES.SERIAL,
+        connectorType: CONNECTOR_TYPES.DB9_RJ45,
+        speedBps:      9600,
+        fullDuplex:    false,
       },
       {
-        template: "FastEthernet0/{n}",
-        count: 48,
-        startIndex: 1 
-      }
+        template:      "FastEthernet0/{n}",
+        count:         48,
+        startIndex:    1,
+        portType:      PORT_TYPES.ETHERNET,
+        connectorType: CONNECTOR_TYPES.RJ45,
+        speedBps:      100_000_000,
+        fullDuplex:    true,
+      },
     ],
-    model3D: "/models/switch-350.glb",
-  }
+    model3D: "/objects/devices/switches/350.glb",
+  },
 };
 
+// ---------------------------------------------------------------------------
+// ROUTERS
+// ---------------------------------------------------------------------------
 const routers = {
+  // Fixed: was missing portGroups entirely, used legacy interfaceTemplate only
   "1941": {
-    modelId: "1941",
-    displayName: "1941",
-    family: "router",
-    vendor: "cisco",
-    portCount: 2,
-    interfaceTemplate: "GigabitEthernet0/{n}",
-    model3D: "/objects/devices/routers/1941.glb"
-  },
-  "921": {
-    modelId: "921",
-    displayName: "921",
-    family: "router",
-    vendor: "cisco",
-    portCount: 2,
+    modelId:     "1941",
+    displayName: "Cisco 1941",
+    family:      "router",
+    vendor:      "cisco",
+    autoMdix:    true,
     portGroups: [
       {
-        template: "Console",
-        count: 1,
-        startIndex: 0
+        template:      "Console",
+        count:         1,
+        startIndex:    0,
+        portType:      PORT_TYPES.SERIAL,
+        connectorType: CONNECTOR_TYPES.DB9_RJ45,
+        speedBps:      9600,
+        fullDuplex:    false,
       },
       {
-        template: "USB",
-        count: 1,
-        startIndex: 1
+        template:      "GigabitEthernet0/{n}",
+        count:         2,
+        startIndex:    0,
+        portType:      PORT_TYPES.ETHERNET,
+        connectorType: CONNECTOR_TYPES.RJ45,
+        speedBps:      1_000_000_000,
+        fullDuplex:    true,
       },
-      {
-        template: "GigabitEthernet0/{n}",
-        count: 4,
-        startIndex: 1
-      }
     ],
-    model3D: "/models/router-921.glb"
+    model3D: "/objects/devices/routers/1941.glb",
+  },
+
+  "921": {
+    modelId:     "921",
+    displayName: "Cisco 921",
+    family:      "router",
+    vendor:      "cisco",
+    autoMdix:    true,
+    portGroups: [
+      {
+        template:      "Console",
+        count:         1,
+        startIndex:    0,
+        portType:      PORT_TYPES.SERIAL,
+        connectorType: CONNECTOR_TYPES.DB9_RJ45,
+        speedBps:      9600,
+        fullDuplex:    false,
+      },
+      {
+        template:      "USB{n}",
+        count:         1,
+        startIndex:    1,
+        portType:      PORT_TYPES.USB,
+        connectorType: CONNECTOR_TYPES.USB_A,
+        speedBps:      480_000_000,     // USB 2.0 Hi-Speed
+        fullDuplex:    true,
+      },
+      {
+        template:      "GigabitEthernet0/{n}",
+        count:         4,
+        startIndex:    0,
+        portType:      PORT_TYPES.ETHERNET,
+        connectorType: CONNECTOR_TYPES.RJ45,
+        speedBps:      1_000_000_000,
+        fullDuplex:    true,
+      },
+    ],
+    model3D: "/objects/devices/routers/921.glb",
   },
 
   "926": {
-    modelId: "926",
-    displayName: "926",
-    family: "router",
-    vendor: "cisco",
-    portCount: 2,
+    modelId:     "926",
+    displayName: "Cisco 926",
+    family:      "router",
+    vendor:      "cisco",
+    autoMdix:    true,
     portGroups: [
       {
-        template: "Console",
-         count: 1,
-        startIndex: 0
+        template:      "Console",
+        count:         1,
+        startIndex:    0,
+        portType:      PORT_TYPES.SERIAL,
+        connectorType: CONNECTOR_TYPES.DB9_RJ45,
+        speedBps:      9600,
+        fullDuplex:    false,
       },
       {
-        template: "USB",
-        count: 1,
-        startIndex: 1
+        template:      "USB{n}",
+        count:         1,
+        startIndex:    1,
+        portType:      PORT_TYPES.USB,
+        connectorType: CONNECTOR_TYPES.USB_A,
+        speedBps:      480_000_000,
+        fullDuplex:    true,
       },
       {
-        template: "GigabitEthernet0/{n}",
-        count: 4,
-        startIndex: 1
-      }
+        template:      "GigabitEthernet0/{n}",
+        count:         4,
+        startIndex:    0,
+        portType:      PORT_TYPES.ETHERNET,
+        connectorType: CONNECTOR_TYPES.RJ45,
+        speedBps:      1_000_000_000,
+        fullDuplex:    true,
+      },
     ],
-        
-    model3D: "/models/router-926.glb"
+    model3D: "/objects/devices/routers/926.glb",
   },
 
   "927": {
-    modelId: "927",
-    displayName: "927",
-    family: "router",
-    vendor: "cisco",
-    portCount: 2,
+    modelId:     "927",
+    displayName: "Cisco 927",
+    family:      "router",
+    vendor:      "cisco",
+    autoMdix:    true,
     portGroups: [
       {
-        template: "Console",
-         count: 1,
-        startIndex: 0
+        template:      "Console",
+        count:         1,
+        startIndex:    0,
+        portType:      PORT_TYPES.SERIAL,
+        connectorType: CONNECTOR_TYPES.DB9_RJ45,
+        speedBps:      9600,
+        fullDuplex:    false,
       },
       {
-        template: "USB",
-        count: 1,
-        startIndex: 1
+        template:      "USB{n}",
+        count:         1,
+        startIndex:    1,
+        portType:      PORT_TYPES.USB,
+        connectorType: CONNECTOR_TYPES.USB_A,
+        speedBps:      480_000_000,
+        fullDuplex:    true,
       },
       {
-        template: "GigabitEthernet0/{n}",
-        count: 4,
-        startIndex: 1
-      }
+        template:      "GigabitEthernet0/{n}",
+        count:         4,
+        startIndex:    0,
+        portType:      PORT_TYPES.ETHERNET,
+        connectorType: CONNECTOR_TYPES.RJ45,
+        speedBps:      1_000_000_000,
+        fullDuplex:    true,
+      },
     ],
-        
-    model3D: "/models/router-927.glb"
+    model3D: "/objects/devices/routers/927.glb",
   },
 
   "931": {
-    modelId: "931",
-    displayName: "931",
-    family: "router",
-    vendor: "cisco",
-    portCount: 2,
+    modelId:     "931",
+    displayName: "Cisco 931",
+    family:      "router",
+    vendor:      "cisco",
+    autoMdix:    true,
     portGroups: [
       {
-        template: "Console",
-         count: 1,
-        startIndex: 0
+        template:      "Console",
+        count:         1,
+        startIndex:    0,
+        portType:      PORT_TYPES.SERIAL,
+        connectorType: CONNECTOR_TYPES.DB9_RJ45,
+        speedBps:      9600,
+        fullDuplex:    false,
       },
       {
-        template: "USB",
-        count: 1,
-        startIndex: 1
+        template:      "USB{n}",
+        count:         1,
+        startIndex:    1,
+        portType:      PORT_TYPES.USB,
+        connectorType: CONNECTOR_TYPES.USB_A,
+        speedBps:      480_000_000,
+        fullDuplex:    true,
       },
       {
-        template: "GigabitEthernet0/{n}",
-        count: 4,
-        startIndex: 1
-      }
+        template:      "GigabitEthernet0/{n}",
+        count:         4,
+        startIndex:    0,
+        portType:      PORT_TYPES.ETHERNET,
+        connectorType: CONNECTOR_TYPES.RJ45,
+        speedBps:      1_000_000_000,
+        fullDuplex:    true,
+      },
     ],
-        
-    model3D: "/models/router-931.glb"
+    model3D: "/objects/devices/routers/931.glb",
   },
-
-  // "2901": {
-  //   modelId: "2901",
-  //   displayName: "2901",
-  //   family: "router",
-  //   vendor: "cisco",
-  //   portCount: 2,
-  //   interfaceTemplate: "GigabitEthernet0/{n}",
-  //   model3D: "/models/router-2901.glb"
-  // },
-
-  // "2911": {
-  //   modelId: "2911",
-  //   displayName: "2911",
-  //   family: "router",
-  //   vendor: "cisco",
-  //   portCount: 2,
-  //   interfaceTemplate: "GigabitEthernet0/{n}",
-  //   model3D: "/models/router-2911.glb"
-  // },
-
-  // "4321": {
-  //   modelId: "4321",
-  //   displayName: "4321",
-  //   family: "router",
-  //   vendor: "cisco",
-  //   portCount: 2,
-  //   interfaceTemplate: "GigabitEthernet0/{n}",
-  //   model3D: "/models/router-4321.glb"
-  // },
-
-  // "4331": {
-  //   modelId: "4331",
-  //   displayName: "4331",
-  //   family: "router",
-  //   vendor: "cisco",
-  //   portCount: 2,
-  //   interfaceTemplate: "GigabitEthernet0/{n}",
-  //   model3D: "/models/router-4331.glb"
-  // },
-
-  // "1240": {
-  //   modelId: "1240",
-  //   displayName: "1240",
-  //   family: "router",
-  //   vendor: "cisco",
-  //   portCount: 2,
-  //   interfaceTemplate: "GigabitEthernet0/{n}",
-  //   model3D: "/models/router-1941.glb"
-  // }
-
 };
 
+// ---------------------------------------------------------------------------
+// END DEVICES
+// ---------------------------------------------------------------------------
 const endDevices = {
   "desktop": {
-    modelId: "desktop",
-    displayName: "Desktop",
-    family: "end-device",
-    vendor: "generic",
-    portCount: 1,
+    modelId:     "desktop",
+    displayName: "Desktop PC",
+    family:      "end-device",
+    vendor:      "generic",
+    autoMdix:    true,
     portGroups: [
       {
-        template: "RS 232",
-        count: 1,
-        startIndex: 0
+        template:      "RS232",
+        count:         1,
+        startIndex:    0,
+        portType:      PORT_TYPES.SERIAL,
+        connectorType: CONNECTOR_TYPES.DB9_RJ45,
+        speedBps:      9600,
+        fullDuplex:    false,
       },
       {
-        template: "USB{n}",
-        count: 2,
-        startIndex: 0
+        template:      "USB{n}",
+        count:         2,
+        startIndex:    0,
+        portType:      PORT_TYPES.USB,
+        connectorType: CONNECTOR_TYPES.USB_A,
+        speedBps:      480_000_000,
+        fullDuplex:    true,
       },
       {
-        template: "FastEthernet{n}",
-        count: 1,
-        startIndex: 1
-      }
+        template:      "FastEthernet{n}",
+        count:         1,
+        startIndex:    1,
+        portType:      PORT_TYPES.ETHERNET,
+        connectorType: CONNECTOR_TYPES.RJ45,
+        speedBps:      100_000_000,
+        fullDuplex:    true,
+      },
     ],
-    model3D: "/models/pc-desktop.glb",
+    model3D: "/objects/devices/end-devices/pc-desktop.glb",
   },
-  "laptop": {
-    modelId: "laptop",
-    displayName: "Laptop",
-    family: "end-device",
-    vendor: "generic",
-    portCount: 1,
-    portGroups: [
-      {
-        template: "RS 232",
-        count: 1,
-        startIndex: 0
-      },
-      {
-        template: "USB{n}",
-        count: 2,
-        startIndex: 0
-      },
-      {
-        template: "FastEthernet{n}",
-        count: 2,
-        startIndex: 1
-      }
-    ],
 
-    model3D: "/models/laptop.glb",
+  "laptop": {
+    modelId:     "laptop",
+    displayName: "Laptop",
+    family:      "end-device",
+    vendor:      "generic",
+    autoMdix:    true,
+    portGroups: [
+      {
+        template:      "RS232",
+        count:         1,
+        startIndex:    0,
+        portType:      PORT_TYPES.SERIAL,
+        connectorType: CONNECTOR_TYPES.DB9_RJ45,
+        speedBps:      9600,
+        fullDuplex:    false,
+      },
+      {
+        template:      "USB{n}",
+        count:         2,
+        startIndex:    0,
+        portType:      PORT_TYPES.USB,
+        connectorType: CONNECTOR_TYPES.USB_A,
+        speedBps:      480_000_000,
+        fullDuplex:    true,
+      },
+      {
+        template:      "FastEthernet{n}",
+        count:         2,
+        startIndex:    1,
+        portType:      PORT_TYPES.ETHERNET,
+        connectorType: CONNECTOR_TYPES.RJ45,
+        speedBps:      100_000_000,
+        fullDuplex:    true,
+      },
+    ],
+    model3D: "/objects/devices/end-devices/ASUS-Laptop.glb",
   },
+
   "smartphone": {
-    modelId: "smartphone",
+    modelId:     "smartphone",
     displayName: "Smart Phone",
-    family: "end-device",
-    vendor: "generic",
-    portCount: 1,
-    interfaceTemplate: "Wireless0",
-    model3D: "/models/smartphone.glb",
-  }
+    family:      "end-device",
+    vendor:      "generic",
+    autoMdix:    false,
+    portGroups: [
+      {
+        template:      "Wireless0",
+        count:         1,
+        startIndex:    0,
+        portType:      PORT_TYPES.WIRELESS,
+        connectorType: CONNECTOR_TYPES.WIRELESS,
+        speedBps:      54_000_000,      // 802.11g baseline
+        fullDuplex:    false,
+      },
+    ],
+    model3D: "/objects/devices/end-devices/smartphone.glb",
+  },
 };
 
-const importedDevices = {}; // This will hold user-imported devices at runtime
+// ---------------------------------------------------------------------------
+// IMPORTED DEVICES (runtime registry — populated by registerImportedDevice)
+// ---------------------------------------------------------------------------
+const importedDevices = {};
 
+// ---------------------------------------------------------------------------
+// CABLES
+// All speeds in bps for consistency.
+// ---------------------------------------------------------------------------
 export const cables = {
   "console": {
-    id: "console",
-    label: "Console",
-    description: "Rollover cable for device management",
-    type: "serial", 
-    speed: 0.0096,       
-    maxDistance: 15,    
-    fullDuplex: true,
-    connectorType: "db9_rj45",
+    id:            "console",
+    label:         "Console Cable",
+    description:   "Rollover cable for out-of-band device management (RJ-45 to DB-9)",
+    type:          "serial",
+    speedBps:      9600,
+    maxDistance:   15,           // metres
+    fullDuplex:    false,
+    connectorType: CONNECTOR_TYPES.DB9_RJ45,
+    allowedPortTypes: [PORT_TYPES.SERIAL],
     visual: {
-      color: "#60A5FA",
-      thickness: 0.02,
-      dashArray: [0.1, 0.1],
-      opacity: 1.0
-    }
+      color:      "#60A5FA",
+      thickness:  0.02,
+      dashArray:  [0.1, 0.1],
+      opacity:    1.0,
+    },
   },
 
   "copper-straight": {
-    id: "copper-straight",
-    label: "Straight-Through",
-    type: "ethernet",
-    category: "cat6",
-    speed: 1000,    
-    maxDistance: 100,
-    fullDuplex: true,
-    connectorType: "rj45",
+    id:            "copper-straight",
+    label:         "Straight-Through",
+    description:   "Standard patch cable (T568B–T568B). Use for unlike devices.",
+    type:          "ethernet",
+    category:      "cat6",
+    speedBps:      1_000_000_000,
+    maxDistance:   100,
+    fullDuplex:    true,
+    connectorType: CONNECTOR_TYPES.RJ45,
+    allowedPortTypes: [PORT_TYPES.ETHERNET],
     visual: {
-      color: "#000", 
+      color:     "#000000",
       thickness: 0.03,
-      opacity: 1.0
-    }
+      opacity:   1.0,
+    },
   },
 
   "copper-crossover": {
-    id: "copper-crossover",
-    label: "Cross-Over",
-    type: "ethernet",
-    category: "cat6",
-    speed: 1000,
-    maxDistance: 100,
-    fullDuplex: true,
-    connectorType: "rj45",
+    id:            "copper-crossover",
+    label:         "Cross-Over",
+    description:   "Crossover cable (T568A–T568B). Legacy use for like devices without Auto-MDIX.",
+    type:          "ethernet",
+    category:      "cat6",
+    speedBps:      1_000_000_000,
+    maxDistance:   100,
+    fullDuplex:    true,
+    connectorType: CONNECTOR_TYPES.RJ45,
+    allowedPortTypes: [PORT_TYPES.ETHERNET],
     visual: {
-      color: "#000",
+      color:     "#000000",
       thickness: 0.03,
       dashArray: [0.2, 0.2],
-      opacity: 1.0
-    }
+      opacity:   1.0,
+    },
   },
 
   "USB": {
-    id: "USB",
-    label: "USB Cable",
-    type: "usb",
-    speed: 480,    
-    maxDistance: 5,
-    fullDuplex: true,
-    connectorType: "usb",
+    id:            "USB",
+    label:         "USB Cable",
+    description:   "USB 2.0 Hi-Speed cable for console or storage access",
+    type:          "usb",
+    speedBps:      480_000_000,
+    maxDistance:   5,
+    fullDuplex:    true,
+    connectorType: CONNECTOR_TYPES.USB_A,
+    allowedPortTypes: [PORT_TYPES.USB],
     visual: {
-      color: "#000",
+      color:     "#000000",
       thickness: 0.03,
-      opacity: 1.0
-    }
-  }
-
+      opacity:   1.0,
+    },
+  },
 };
 
-export function generateInterfaces(catalogEntry) {
-  const interfaces = [];
+// ---------------------------------------------------------------------------
+// LOOKUP HELPERS
+// ---------------------------------------------------------------------------
 
-  if (!catalogEntry) return interfaces;
-  if (catalogEntry.portGroups) {
-    catalogEntry.portGroups.forEach(group => {
-      const start = group.startIndex || 1;
-      const end = start + group.count - 1;
-      
-      for (let i = start; i <= end; i++) {
-        interfaces.push(group.template.replace(/{n}/g, i));
-      }
-    });
-  } 
-  else if (catalogEntry.portCount) {
-    const tmpl = catalogEntry.interfaceTemplate || "Eth{n}";
-    for (let i = 1; i <= catalogEntry.portCount; i++) {
-      interfaces.push(tmpl.replace(/{n}/g, i));
-    }
-  }
-
-  return interfaces;
+/**
+ * Look up a catalog entry by modelId across all device families.
+ * Returns the entry or null if not found.
+ */
+export function getCatalogEntry(catalogId) {
+  return (
+    switches[catalogId]      ||
+    routers[catalogId]       ||
+    endDevices[catalogId]    ||
+    importedDevices[catalogId] ||
+    null
+  );
 }
 
-export function createDeviceInstance(catalogId, position = { x: 0, y: 0, z: 0 }, opts = {}) {
-  const catalogEntry =
-    switches[catalogId] ||
-    routers[catalogId] ||
-    endDevices[catalogId] ||
-    importedDevices[catalogId]; //Added catalog lookup for imported devices
-  if (!catalogEntry) {
-    throw new Error(`Unknown catalogId: ${catalogId}`);
-  }
-
-  const id = `dev_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
-  const name = opts.name || catalogEntry.displayName;
-  const interfaces = generateInterfaces(catalogEntry);
-
-  return {
-    id,
-    catalogId: catalogEntry.modelId,
-    type: catalogEntry.family,
-    name,
-    iconHint: opts.iconHint || catalogEntry.iconHint || catalogEntry.family,
-    position,
-    rotation: opts.rotation || 0,
-    properties: Object.assign({}, catalogEntry.defaults || {}, opts.properties || {}),
-    interfaces,
-    modeCreatedIn: opts.modeCreatedIn || 'logical'
-  };
-}
-
-// Function to register an imported device into the catalog
+/**
+ * Register a user-imported device into the runtime catalog.
+ * The entry must include at least { modelId, portGroups[] }.
+ */
 export function registerImportedDevice(deviceEntry) {
   if (!deviceEntry?.modelId) {
     throw new Error("Imported device must include a modelId.");
   }
-
   importedDevices[deviceEntry.modelId] = {
+    family:      "end-device",
+    vendor:      "generic",
+    autoMdix:    false,
     ...deviceEntry,
-    modelId: deviceEntry.modelId,
     displayName: deviceEntry.displayName || deviceEntry.modelId,
-    family: deviceEntry.family || "end-device",
   };
-
   return importedDevices[deviceEntry.modelId];
 }
 
-function getPortType(portName) {
-  if (!portName) return "unknown";
-  const name = portName.toLowerCase();
-  
-  if (name.includes("fastethernet") || name.includes("gigabitethernet")) return "ethernet";
-  if (name.includes("console") || name.includes("rs 232")) return "serial";
-  if (name.includes("usb")) return "usb";
-  if (name.includes("wireless")) return "wireless";
-  
-  return "unknown";
-}
-
-export function validatePortSelection(cableId, portName) {
-
-  if (!cableId) return { valid: false, error: "Please select a cable from the library first." };
-
-  let normalizedCableId = cableId;
-  if (cableId === 'straight') normalizedCableId = 'copper-straight';
-  if (cableId === 'crossover') normalizedCableId = 'copper-crossover';
-
-  const cable = cables[normalizedCableId];
-  if (!cable) return { valid: false, error: `Unrecognized cable type: ${cableId}` };
-
-  const pType = getPortType(portName);
-  if (cable.type === "serial" && pType !== "serial") {
-    return { valid: false, error: "Console cables must connect to Console or RS 232 ports." };
-  }
-  if (cable.type === "usb" && pType !== "usb") {
-     return { valid: false, error: "USB cables must connect to USB ports." };
-  }
-  if (cable.type === "ethernet" && pType !== "ethernet") {
-     return { valid: false, error: "Ethernet cables must connect to Ethernet ports (FastEthernet, GigabitEthernet, etc)." };
-  }
-
-  return { valid: true, error: null };
-}
-
-export function validateConnection(cableId, sourcePort, targetPort, sourceDeviceType, targetDeviceType) {
-  if (!sourcePort || !targetPort) {
-    return { valid: false, error: "Please select a specific port on both devices." };
-  }
-  const cable = cables[cableId];
-  if (!cable) {
-    return { valid: false, error: `Unrecognized cable type: ${cableId}` };
-  }
-
-  const sType = getPortType(sourcePort);
-  const tType = getPortType(targetPort);
-
-  if (cable.type === "serial" && (sType !== "serial" || tType !== "serial")) {
-    return { valid: false, error: "Console cables must connect to Console or RS 232 ports." };
-  }
-  if (cable.type === "usb" && (sType !== "usb" || tType !== "usb")) {
-     return { valid: false, error: "USB cables must connect to USB ports." };
-  }
-  if (cable.type === "ethernet" && (sType !== "ethernet" || tType !== "ethernet")) {
-     return { valid: false, error: "Ethernet cables must connect to Ethernet ports (FastEthernet, GigabitEthernet, etc)." };
-  }
-
-  if (cable.type === "ethernet") {
-    const isLikeDevices = 
-      (sourceDeviceType === "switch" && targetDeviceType === "switch") ||
-      (sourceDeviceType === "router" && targetDeviceType === "router") ||
-      (sourceDeviceType === "end-device" && targetDeviceType === "end-device") ||
-      (sourceDeviceType === "router" && targetDeviceType === "end-device") ||
-      (sourceDeviceType === "end-device" && targetDeviceType === "router");
-    if (isLikeDevices && cableId === "copper-straight") {
-        return { valid: false, error: "You should use a Cross-Over cable to connect similar devices." };
-    }
-    if (!isLikeDevices && cableId === "copper-crossover") {
-         return { valid: false, error: "You should use a Straight-Through cable to connect these different devices." };
-    }
-  }
-
-  return { valid: true, error: null };
-}
-
-const deviceCatalog = {
-  switches,
-  routers,
-  endDevices,
-  importedDevices, //Added importedDevices to the exported catalog object
-  cables,
-};
-
+// ---------------------------------------------------------------------------
+// DEFAULT EXPORT
+// ---------------------------------------------------------------------------
+const deviceCatalog = { switches, routers, endDevices, importedDevices, cables };
 export default deviceCatalog;

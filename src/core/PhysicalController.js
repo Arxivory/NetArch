@@ -144,11 +144,14 @@ export class PhysicalController {
             console.log('Processing device for rendering: ', device);
             activeDeviceIds.add(device.id);
 
+            const floor = this.store.floors.find(f => f.id === device.floorId);
+            const altitude = floor ? floor.altitude || 0 : 0;
+
             if (this.deviceMeshes.has(device.id)) {
                 const deviceMesh = this.deviceMeshes.get(device.id);
                 console.log('Device Mesh: ', device, ' is updating');
                 if (device.transform) {
-                    deviceMesh.position.set(device.transform.position.x, device.transform.position.y, device.transform.position.z);
+                    deviceMesh.position.set(device.transform.position.x, device.transform.position.y + altitude + 1.5, device.transform.position.z);
                     deviceMesh.rotation.set(device.transform.rotation.x, device.transform.rotation.y, device.transform.rotation.z);
                     deviceMesh.scale.set(device.transform.scale.x, device.transform.scale.y, device.transform.scale.z);
                 }
@@ -334,26 +337,6 @@ export class PhysicalController {
         this.floorMeshes.set(floor.id, mesh);
     }
 
-    // createFloorMesh(floor) {
-    //     const site = this.store.sites.find(s => s.id === floor.siteId);
-    //     if (!site) {
-    //         console.warn(`Site not found for floor ${floor.id}`);
-    //         return;
-    //     }
-
-    //     console.log(`Creating floor ${floor.id} with altitude ${floor.altitude}`);
-
-    //     const floorMesh = new FloorMesh(site, this.defaultScaler);
-    //     const mesh = floorMesh.getRectangularForm();
-
-    //     mesh.position.y = floor.altitude || 0;
-
-    //     console.log(`Floor mesh positioned at Y=${mesh.position.y}`);
-
-    //     this.scene.add(mesh);
-    //     this.floorMeshes.set(floor.id, mesh);
-    // }
-
     async createDeviceGLTFMesh(device) {
         const newDevice = new DeviceMesh(device, this.defaultScaler);
         const deviceMesh = await newDevice.getMesh({
@@ -361,6 +344,10 @@ export class PhysicalController {
             objLoader: this.objLoader,
             fbxLoader: this.fbxLoader,
         }, deviceCatalog);
+
+        const floor = this.store.floors.find(f => f.id === device.floorId);
+        const altitude = floor ? floor.altitude || 0 : 0;
+        deviceMesh.position.y = altitude + 1.5;
 
         deviceMesh.userData = { id: device.id, type: 'device' };
 

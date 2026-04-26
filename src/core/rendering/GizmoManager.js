@@ -19,6 +19,10 @@ export class GizmoManager {
     this._setupEventListeners();
   }
 
+  setTransformMode(mode) {
+    this.control.setMode(mode);
+  }
+
   _setupEventListeners() {
     
     this.control.addEventListener('objectChange', () => {

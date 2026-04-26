@@ -394,4 +394,8 @@ export class PhysicalController {
         if (this.furnitureMeshes.has(id)) return this.furnitureMeshes.get(id);
         return null;
     }
+
+    setGizmoTransformMode(mode) {
+        this.gizmoManager.setTransformMode(mode);
+    }
 }

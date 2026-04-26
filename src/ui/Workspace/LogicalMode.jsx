@@ -164,6 +164,7 @@ const onDrop = (event) => {
       if (data.entityType === "furniture") {
         controllerRef.current.addFurniture(data, coords.x, coords.y);
       } else {
+        console.log('Data from LogicalMode.jsx: ', data)
         controllerRef.current.addDevice(data, coords.x, coords.y);
       }
     }

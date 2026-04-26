@@ -1,9 +1,9 @@
 import appState from '../state/AppState.js';
 import LogicalLayout from '../core/layout/LogicalLayout.js';
-import { createDeviceInstance } from '../data/deviceCatalog';
+import DeviceFactory from '../data/DeviceFactory.js';
 import { createFurnitureInstance } from '../data/furnitureCatalog';
-import { validateConnection } from '../data/deviceCatalog';
-import { validatePortSelection } from '../data/deviceCatalog';
+import Link from './network/Link.js';
+import { validateConnection } from './utils/ValidateConnection.js';
 import { showErrorModal, showConfirmationModal } from '../util/ErrorHandling.js';
 import { CommandHistory } from './editor/CommandHistory.js';
 import {
@@ -216,7 +216,7 @@ export class LogicalCanvasController {
       onFreeformCreated: (freeform) => this._handleShapeCreated(freeform, 'freeform'),
       onWallCreated: (wall) => this._handleWallCreated(wall),
       onCableCreated: (cable) => this._handleCableCreated(cable),
-      // onDeviceAdded: (device) => this._handleDeviceAdded(device),
+      onDeviceAdded: (device) => this._handleDeviceAdded(device),
       onDoorCreated: (door) => this._handleDoorCreated(door),
       onWindowCreated: (window) => this._handleWindowCreated(window),
       onFurnitureAdded: (furniture) => this._handleFurnitureAdded(furniture),
@@ -298,6 +298,15 @@ export class LogicalCanvasController {
       this.layout.removeShapeById(id);
     }
 
+    if (this.layout.cables) {
+        const before = this.layout.cables.length;
+        this.layout.cables = this.layout.cables.filter(c => c.id !== id);
+        if (this.layout.cables.length < before) {
+            this.layout._render?.();
+            return; // was a cable, done
+        }
+    }
+
     // 2. Try removing it as a Device or Furniture
     if (typeof this.layout.removeDevice === 'function') {
       this.layout.removeDevice(id);
@@ -340,9 +349,8 @@ executeDelete(idToDelete) {
 
   // Rename your old executeDelete to this:
   _commitDelete(idToDelete) {
-      let deletedIds = [];
+    let deletedIds = [];
 
-    // 1. Try deleting from structural state by finding the specific type
     if (appState.structural) {
         const st = appState.structural;
         
@@ -359,40 +367,45 @@ executeDelete(idToDelete) {
         }
     }
 
-    // 2. If it wasn't a structure, try devices
     if (deletedIds.length === 0 && appState.devices && appState.devices.removeDevice) {
         appState.devices.removeDevice(idToDelete); 
         deletedIds = [idToDelete];
     }
 
-        // 3. Try furniture 
-        if (deletedIds.length === 0 && appState.furniture && appState.furniture.removeFurniture) {
-            const isFurniture = appState.furniture.furnitures && appState.furniture.furnitures.some(f => f.id === idToDelete);
-            if (isFurniture) {
-                appState.furniture.removeFurniture(idToDelete);
-                deletedIds = [idToDelete];
-            }
-        }
-
-        // 4. Fallback: If it wasn't caught above, it's likely a raw canvas shape (like a Wall)
-        if (deletedIds.length === 0) {
-            deletedIds = [idToDelete];
-        }
-
-        // 5. Clear the visual objects from the canvas
-        if (deletedIds.length > 0) {
-            deletedIds.forEach(deletedId => {
-                if (typeof this.removeEntity === 'function') {
-                    this.removeEntity(deletedId);
-                }
-            });
-            
-            if (appState.selection && appState.selection.clearSelection) {
-                appState.selection.clearSelection();
-                if (typeof appState.selection.notify === 'function') appState.selection.notify();
-            }
+    if (deletedIds.length === 0 && appState.network) {
+        const isLink = appState.network.getLink(idToDelete);
+        if (isLink) {
+            isLink.bringDown?.();
+            appState.network.removeLink(idToDelete);
+            return;
         }
     }
+
+    if (deletedIds.length === 0 && appState.furniture && appState.furniture.removeFurniture) {
+        const isFurniture = appState.furniture.furnitures && appState.furniture.furnitures.some(f => f.id === idToDelete);
+        if (isFurniture) {
+            appState.furniture.removeFurniture(idToDelete);
+            deletedIds = [idToDelete];
+        }
+    }
+
+    if (deletedIds.length === 0) {
+        deletedIds = [idToDelete];
+    }
+
+    if (deletedIds.length > 0) {
+      deletedIds.forEach(deletedId => {
+          if (typeof this.removeEntity === 'function') {
+              this.removeEntity(deletedId);
+          }
+      });
+      
+      if (appState.selection && appState.selection.clearSelection) {
+          appState.selection.clearSelection();
+          if (typeof appState.selection.notify === 'function') appState.selection.notify();
+      }
+    }
+  }
 
   setSize(w, h) {
     this.layout?.setSize(w, h);
@@ -958,14 +971,12 @@ addDevice(deviceData, x, y) {
     }
 
     try {
-        const newDevice = createDeviceInstance(catalogId, { x, y, z: 0 }, {
-          iconHint: deviceData.iconHint,
-          name: deviceData.label
+        const newDevice = DeviceFactory.create(catalogId, { x, y, z: 0 }, {
+          hostname: deviceData.label,
+          id: deviceData.id
         });
-       newDevice.catalogId = catalogId;
 
-        // AUTO NUMBER DEVICE NAME
-        const baseName = newDevice.name;
+        const baseName = newDevice.hostname;
 
         const existing = this.layout.devices.filter(
           d => d.name === baseName || d.label?.startsWith(baseName)
@@ -1008,16 +1019,13 @@ addDevice(deviceData, x, y) {
 
         this.layout.devices.push(layoutDevice);
         this.layout._render();
-        this.layout._render();
 
 
-        console.log("ADDING DEVICE TO LAYOUT:", newDevice.id);
+        console.log("ADDING DEVICE TO LAYOUT:", newDevice, "on: x: ", x, ", y: ", y);
 
         if (appState.network?.addDevice) {
             appState.network.addDevice(newDevice);
         }
-
-        // Physical scene updates through NetworkStore subscription in PhysicalController.
 
         console.log('Device added:', newDevice.id, 'with Catalog ID:', newDevice.catalogId, 'to floor/space:', focusedId);
     } catch (error) {
@@ -1128,26 +1136,34 @@ _handlePortSelect(device, x, y, callback, overrideCableType = null) {
     const existingMenu = document.getElementById('canvas-port-menu');
     if (existingMenu) existingMenu.remove();
 
-    if (!device.interfaces || device.interfaces.length === 0) {
+    console.log('🔌 _handlePortSelect called for device:', device.id, device.label);
+    
+    const realDevice = appState.network.getDevice?.(device.id);
+    
+    console.log('🔌 realDevice found:', realDevice);
+    console.log('🔌 realDevice.ports:', realDevice?.ports);
+    console.log('🔌 appState.getDevice:', typeof appState.getDevice);
+    console.log('🔌 appState.network:', appState.network);
+
+    if (!realDevice || !realDevice.ports || realDevice.ports.length === 0) {
       console.warn(`Device ${device.label} has no ports available.`);
       callback(null);
       return;
     }
 
     const usedPorts = new Set();
-    
     if (this.layout && this.layout.cables) {
       this.layout.cables.forEach(cable => {
         if (cable.sourceId === device.id && cable.sourcePort) {
-          usedPorts.add(cable.sourcePort);
+          usedPorts.add(cable.sourcePort?.name ?? cable.sourcePort);
         }
         if (cable.targetId === device.id && cable.targetPort) {
-          usedPorts.add(cable.targetPort);
+          usedPorts.add(cable.targetPort?.name ?? cable.targetPort);
         }
       });
     }
 
-    const availablePorts = device.interfaces.filter(port => !usedPorts.has(port));
+    const availablePorts = realDevice.ports.filter(port => !usedPorts.has(port.name));
 
     if (availablePorts.length === 0) {
       alert(`All ports on ${device.label} are currently in use!`);
@@ -1175,7 +1191,7 @@ _handlePortSelect(device, x, y, callback, overrideCableType = null) {
 
     availablePorts.forEach(port => {
       const item = document.createElement('div');
-      item.innerText = port;
+      item.innerText = port.name;
       item.style.padding = '8px 16px';
       item.style.cursor = 'pointer';
       item.style.transition = 'background-color 0.1s';
@@ -1183,22 +1199,8 @@ _handlePortSelect(device, x, y, callback, overrideCableType = null) {
       item.onmouseenter = () => item.style.backgroundColor = '#f1f5f9';
       item.onmouseleave = () => item.style.backgroundColor = '#ffffff';
 
-item.onclick = (e) => {
+      item.onclick = (e) => {
         e.stopPropagation();
-        let activeCable = appState.ui.selectedCable || appState.tools.activeTool;
-
-        if (activeCable === 'straight') activeCable = 'copper-straight';
-        if (activeCable === 'crossover') activeCable = 'copper-crossover';
-        if (activeCable && activeCable !== 'cable' && activeCable !== 'select') {
-            const validation = validatePortSelection(activeCable, port);
-            if (!validation.valid) {
-              showErrorModal(validation.error, "Connection Error");
-              menu.remove();
-              document.removeEventListener('pointerdown', outsideClickListener);
-              callback(null); 
-              return; 
-            }
-        }
         menu.remove();
         document.removeEventListener('pointerdown', outsideClickListener);
         callback(port);
@@ -1520,6 +1522,9 @@ _handleShapeCreated(shapeData, shapeType) {
       const sourceDevice = appState.getDevice(cableData.sourceId) || this.layout.devices.find(d => d.id === cableData.sourceId);
       const targetDevice = appState.getDevice(cableData.targetId) || this.layout.devices.find(d => d.id === cableData.targetId);
 
+      const sourceId = cableData.sourceDeviceId;
+      const targetId = cableData.targetDeviceId;
+
       if (!sourceDevice || !targetDevice) {
          console.error("Could not find source or target device.");
          return;
@@ -1536,14 +1541,12 @@ _handleShapeCreated(shapeData, shapeType) {
       if (actualCableId === 'straight') actualCableId = 'copper-straight';
       if (actualCableId === 'crossover') actualCableId = 'copper-crossover';
       if (!actualCableId) actualCableId = 'copper-straight';
-      
-      const validation = validateConnection(
-        actualCableId, 
-        cableData.sourcePort, 
-        cableData.targetPort,
-        sourceDevice.type,
-        targetDevice.type
-      );
+
+      const validation = validateConnection({
+          cableType: actualCableId,
+          sourcePort: cableData.sourcePort,
+          targetPort: cableData.targetPort
+      });
 
       if (!validation.valid) {
        showErrorModal(validation.error, "Connection Error");    
@@ -1557,23 +1560,33 @@ _handleShapeCreated(shapeData, shapeType) {
         }
         return; 
       }
-      
-      if (appState.network && typeof appState.network.connectDevices === 'function') {
-        appState.network.connectDevices(
-          cableData.sourceId,
-          cableData.targetId,
-          actualCableId 
-        );
-      } else {
-        appState.addLink({
-          id: cableData.id,
-          sourceId: cableData.sourceId,
-          targetId: cableData.targetId,
-          sourcePort: cableData.sourcePort,
-          targetPort: cableData.targetPort,
-          type: actualCableId
-        });
+
+      try {
+          const link = new Link({
+              cableType:  actualCableId,
+              sourcePort: cableData.sourcePort,
+              targetPort: cableData.targetPort,
+              geometry: {
+                  points: [
+                      { x: sourceDevice?.x ?? 0, y: sourceDevice?.y ?? 0, z: 0 },
+                      { x: targetDevice?.x ?? 0, y: targetDevice?.y ?? 0, z: 0 },
+                  ]
+              }
+          });
+
+          cableData.linkId = link.id;
+
+          console.log('Network Adding Link...');
+          appState.network.addLink(link);
+
+      } catch (err) {
+          showErrorModal(err.message, "Connection Error");
+          if (this.layout?.cables) {
+              this.layout.cables = this.layout.cables.filter(c => c.id !== cableData.id);
+              this.layout._render?.();
+          }
       }
+
     }
   }
 
@@ -1581,9 +1594,9 @@ _handleShapeCreated(shapeData, shapeType) {
     this.layout.setZoom(zoom);
   }
 
-  // _handleDeviceAdded(device) {
-  //   this.addDevice(device, device.x, device.y);
-  // }
+  _handleDeviceAdded(device) {
+    this.addDevice(device, device.x, device.y);
+  }
 
   _handleFurnitureAdded(furniture) {
     this.addFurniture(furniture, furniture.x, furniture.y);

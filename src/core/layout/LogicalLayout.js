@@ -1,5 +1,7 @@
 import Grid from './Grid.js';
 import ShapeCreator from './ShapeCreator.js';
+import CableEntity from './entities/CableEntity.js';
+import { buildDeviceIconImages } from './entities/DeviceIcons.js';
 import ShapeRenderer from '../rendering/ShapeRenderer.js';
 import PointerHandler from '../rendering/PointerHandler.js';
 import { Selection } from '../editor/Selection.js';
@@ -34,6 +36,7 @@ export class LogicalLayout {
       onCircleCreated: opts.onCircleCreated || null,
       onPolygonCreated: opts.onPolygonCreated || null,
       onFreeformCreated: opts.onFreeformCreated || null,
+      onDeviceAdded: opts.onDeviceAdded || null,
       onWallCreated: opts.onWallCreated || null,
       onDoorCreated: opts.onDoorCreated || null,
       onWindowCreated: opts.onWindowCreated || null,
@@ -95,10 +98,10 @@ export class LogicalLayout {
 
     this.store.subscribe(() => this.syncWithState());
 
-    this.pendingCableSource = null;
-    this.currentCableType = "straight";
-    this.hoveredDevice = null;
-    this.activeCableType = "straight";
+    this.pendingCableSource     = null;   // { device } | null — port stored separately
+    this.pendingCableSourcePort = null;   // PhysicalPort | null
+    this.activeCableType        = 'copper-straight'; // catalog key, not UI alias
+    this.hoveredDevice          = null;
 
     this.structureType = '';
     this.bgColor = opts.bgColor || '#ffffffff';
@@ -121,23 +124,8 @@ export class LogicalLayout {
     };
 
 
-    this.deviceIcons = {};
-
-    const svgs = {
-      'router': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6.01 18h.01"/><path d="M10.01 18h.01"/><path d="M15 10v4"/><path d="M17.84 7.17a4 4 0 0 0-5.66 0"/><path d="M20.66 4.34a8 8 0 0 0-11.31 0"/></svg>`,
-      'server': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>`,
-      'pc': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>`,
-      'switch': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6" y2="6"/><line x1="6" y1="18" x2="6" y2="18"/></svg>`,
-      'desk': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-armchair-icon lucide-armchair"><path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/><path d="M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0z"/><path d="M5 18v2"/><path d="M19 18v2"/></svg>',
-      'chair': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-armchair-icon lucide-armchair"><path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/><path d="M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0z"/><path d="M5 18v2"/><path d="M19 18v2"/></svg>',
-      'firewall': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>`
-    };
-
-    Object.keys(svgs).forEach(key => {
-      const img = new Image();
-      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgs[key]);
-      this.deviceIcons[key] = img;
-    });
+    // Icon images are now managed in DeviceIcons.js — single source of truth.
+    this.deviceIcons = buildDeviceIconImages();
 
     this._initCanvas();
     this._render();
@@ -334,9 +322,20 @@ isPointInsideShape(id, x, y) {
     this._updateCursor();
   }
 
-  startDrawCable(type = "straight") {
+  // Map legacy UI aliases to catalog keys so cables[type] lookups never miss.
+  static _normalizeCableType(type) {
+    const aliases = {
+      straight:      'copper-straight',
+      crossover:     'copper-crossover',
+      'cross-over':  'copper-crossover',
+      serial:        'console',
+    };
+    return aliases[type] ?? type;
+  }
+
+  startDrawCable(type = 'copper-straight') {
     this.mode = 'cable';
-    this.activeCableType = type;
+    this.activeCableType = LogicalLayout._normalizeCableType(type);
     this._updateCursor();
   }
 
@@ -499,35 +498,56 @@ isPointInsideShape(id, x, y) {
         this.onPortSelect(device, e.clientX, e.clientY, (selectedPort) => {
           if (!selectedPort) return;
 
+          // ── First click: record source device + port ──────────────────────
           if (!this.pendingCableSource) {
-            this.pendingCableSource = device;
-            this.pendingCableSourcePort = selectedPort;
+            this.pendingCableSource     = device;
+            this.pendingCableSourcePort = selectedPort; // PhysicalPort instance
             this._render();
-          } else {
-            const cable = {
-              id: `cable_${Math.random().toString(36).slice(2, 9)}`,
-              type: this.activeCableType,
-              sourceId: this.pendingCableSource.id,
-              sourcePort: this.pendingCableSourcePort,
-              targetId: device.id,
-              targetPort: selectedPort,
-              properties: {
-                bandwidth: null,
-                latency: null,
-                status: "up"
-              }
-            };
-
-            this.cables.push(cable);
-
-            if (this.shapeCreator.onCableCreated) {
-              this.shapeCreator.onCableCreated(cable);
-            }
-
-            this.pendingCableSource = null;
-            this.pendingCableSourcePort = null;
-            this._render();
+            return;
           }
+
+          // ── Second click: validate → Link → CableEntity ───────────────────
+          const srcDevice = this.pendingCableSource;
+          const srcPort   = this.pendingCableSourcePort; // PhysicalPort
+          const dstDevice = device;
+          const dstPort   = selectedPort;               // PhysicalPort
+
+          // Rough geometry for cable-length calculation inside Link
+          const geometry = {
+            points: [
+              { x: srcDevice.x, y: srcDevice.y, z: 0 },
+              { x: dstDevice.x, y: dstDevice.y, z: 0 },
+            ],
+          };
+
+          console.log('Source Port: ', srcPort);
+          console.log('Dst Port: ', dstPort);
+
+          const result = this.shapeCreator.createCable({
+            cableType:      this.activeCableType,
+            sourcePort:     srcPort,
+            targetPort:     dstPort,
+            sourceDeviceId: srcDevice.id,
+            targetDeviceId: dstDevice.id,
+            geometry,
+            floorId:        srcDevice.floorId ?? null,
+            spaceId:        srcDevice.spaceId ?? null,
+          });
+
+          if (result.error) {
+            // Surface validation failure. Replace alert() with your toast system.
+            console.warn(`[Cable] ${result.error}`);
+            alert(result.error);
+          } else {
+            if (result.warnings.length > 0) {
+              console.warn(`[Cable warnings] ${result.warnings.join('\n')}`);
+            }
+            this.cables.push(result.cable);
+          }
+
+          this.pendingCableSource     = null;
+          this.pendingCableSourcePort = null;
+          this._render();
         });
       }
       return;
@@ -535,7 +555,10 @@ isPointInsideShape(id, x, y) {
 
 
     if (this.mode === 'select') {
-      const en = this.identifyEntity(e.clientX, e.clientY);
+      const zoom = this.pointerHandler.getZoom();
+      const worldPos = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
+      const en = this.identifyEntity(worldPos.x, worldPos.y);
+      console.log('[DOWN] identifyEntity result:', en?.id, en?.type, en?.entityType);
       if (!en) {
         // Clear focus when clicking on empty canvas
         appState.selection.focusedNode(null, null);
@@ -549,7 +572,6 @@ isPointInsideShape(id, x, y) {
           const dst = this.findEntityById(en.targetId);
           
           if (src && dst) {
-              const zoom = this.pointerHandler.getZoom();
               const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
               
               // Calculate which end the user clicked closer to
@@ -570,11 +592,12 @@ isPointInsideShape(id, x, y) {
           }
       }
 
+      
+
       if (en.saveCurrentPosition) {
         en.saveCurrentPosition();
       }
 
-      const zoom = this.pointerHandler.getZoom();
       const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
 
       const x = en.x;
@@ -586,36 +609,36 @@ isPointInsideShape(id, x, y) {
 
       if (bounds) {
         const { x, y, w, h } = bounds;
-      const handles = {
-        nw: [x, y],
-        ne: [x + w, y],
-        sw: [x, y + h],
-        se: [x + w, y + h]
-      };
+        const handles = {
+          nw: [x, y],
+          ne: [x + w, y],
+          sw: [x, y + h],
+          se: [x + w, y + h]
+        };
 
-      for (const key in handles) {
-        const [hx, hy] = handles[key];
-        if (Math.abs(p.x - hx) < size &&
-         Math.abs(p.y - hy) < size &&
-         this._isResizableEntity(en) ){
-          if (en.saveCurrentScale) {
-            en.saveCurrentScale(); // ADDED: allow device scaling to be rolled back if needed
+        for (const key in handles) {
+          const [hx, hy] = handles[key];
+          if (Math.abs(p.x - hx) < size &&
+          Math.abs(p.y - hy) < size &&
+          this._isResizableEntity(en) ){
+            if (en.saveCurrentScale) {
+              en.saveCurrentScale(); // ADDED: allow device scaling to be rolled back if needed
+            }
+            this.interaction = {
+              mode: 'resize',
+              handle: key,
+              start: { x: p.x, y: p.y },
+              bounds,
+              center: { x: x + w / 2, y: y + h / 2 }, // ADDED: resize devices around their visual center
+              baseScale: en.transform?.scale?.factor ?? 1
+            };
+            this.pointerHandler.setPointerDown(true);
+            return;
           }
-          this.interaction = {
-            mode: 'resize',
-            handle: key,
-            start: { x: p.x, y: p.y },
-            bounds,
-            center: { x: x + w / 2, y: y + h / 2 }, // ADDED: resize devices around their visual center
-            baseScale: en.transform?.scale?.factor ?? 1
-          };
-          this.pointerHandler.setPointerDown(true);
-          return;
         }
       }
-   }
 
-   if (this.mode === 'delete') {
+    if (this.mode === 'delete') {
       const zoomFactor = this.pointerHandler.getZoom();
       const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoomFactor);
       
@@ -649,7 +672,6 @@ isPointInsideShape(id, x, y) {
         }
       }
     }
-
       this.interaction = {
         mode: 'move',
         start: { x: p.x, y: p.y }
@@ -662,57 +684,57 @@ isPointInsideShape(id, x, y) {
 
 
     if (this.mode === 'polygon') {
-  if (this.currentPolygon.length === 0) {
-    this.currentPolygon.push(snapped);
-  } else {
-    const first = this.currentPolygon[0];
-    const canClose = this.shapeCreator.canClosePolygon(
-      first,
-      snapped,
-      this.grid.getSnapTolerance()
-    );
+      if (this.currentPolygon.length === 0) {
+        this.currentPolygon.push(snapped);
+      } else {
+        const first = this.currentPolygon[0];
+        const canClose = this.shapeCreator.canClosePolygon(
+          first,
+          snapped,
+          this.grid.getSnapTolerance()
+        );
 
-    if (canClose && this.currentPolygon.length >= 3) {
-      const activeFloor = appState.ui.activeFloorId; // ADDED: capture the currently focused floor before overlap checking
+        if (canClose && this.currentPolygon.length >= 3) {
+          const activeFloor = appState.ui.activeFloorId; // ADDED: capture the currently focused floor before overlap checking
 
-      const polygon = this.shapeCreator.createPolygon(
-        [...this.currentPolygon],
-        this.structureType,
-        this.system
-      );
+          const polygon = this.shapeCreator.createPolygon(
+            [...this.currentPolygon],
+            this.structureType,
+            this.system
+          );
 
-      if (polygon) {
-        polygon.floorId = activeFloor || null; // ADDED: assign the polygon to the active floor for correct hierarchy overlap checks
+          if (polygon) {
+            polygon.floorId = activeFloor || null; // ADDED: assign the polygon to the active floor for correct hierarchy overlap checks
 
-        if (polygon.body) {
-          polygon.body.floorId = activeFloor || null; // ADDED: assign the collision body to the same floor
-        }
+            if (polygon.body) {
+              polygon.body.floorId = activeFloor || null; // ADDED: assign the collision body to the same floor
+            }
 
-        if (!this._checkForOverlap(polygon, "creation")) {
-          if (this.shapeCreator.onPolygonCreated) {
-            this.shapeCreator.onPolygonCreated(polygon);
+            if (!this._checkForOverlap(polygon, "creation")) {
+              if (this.shapeCreator.onPolygonCreated) {
+                this.shapeCreator.onPolygonCreated(polygon);
+              }
+              this.polygons.push(polygon);
+            } else if (polygon.body) {
+              this.system.remove(polygon.body); // ADDED: clean up inserted collision body if creation fails
+            }
           }
-          this.polygons.push(polygon);
-        } else if (polygon.body) {
-          this.system.remove(polygon.body); // ADDED: clean up inserted collision body if creation fails
+
+          this.currentPolygon = [];
+          this.mode = 'none';
+          this.currentPoint = null;
+          this._updateCursor();
+          this._render();
+          return;
         }
+
+        this.currentPolygon.push(snapped);
       }
 
-      this.currentPolygon = [];
-      this.mode = 'none';
-      this.currentPoint = null;
-      this._updateCursor();
+      this.currentPoint = snapped;
       this._render();
       return;
     }
-
-    this.currentPolygon.push(snapped);
-  }
-
-  this.currentPoint = snapped;
-  this._render();
-  return;
-}
 
 
 if (this.mode === 'freeform') {
@@ -1204,12 +1226,6 @@ _onPointerUp(e) {
           this.system.remove(window.body);
           alert('Windows must be placed in a Space or Floor.');
         }
-      }
-    } else if (this.mode === 'cable') {
-      const cable = this.shapeCreator.createCable(this.startPoint, this.currentPoint);
-      if (cable) {
-        cable.floorId = activeFloor || null;
-        this.cables.push(cable);
       }
     } else if (this.mode === 'polygon') {
       const polygon = this.shapeCreator.createPolygon(this.currentPolygon, this.structureType);
@@ -1774,14 +1790,13 @@ _onPointerUp(e) {
         ctx.restore();
     }
       
-    if (this.pendingCableSource) {
+    if (this.pendingCableSource && this.interaction?.mode !== 'update_cable') {
       const en = this.pendingCableSource;
-
       const w = en.renderWidth + 4;
       const h = en.renderHeight + 4;
       const x = en.x - 2;
       const y = en.y - 2;
-      
+
       ctx.save();
       ctx.strokeStyle = "#ff9900";
       ctx.lineWidth = 3;
@@ -1792,22 +1807,38 @@ _onPointerUp(e) {
       ctx.restore();
     }
 
-    if (this.hoveredDevice && this.mode === 'cable') {
-      const en = this.hoveredDevice;
+    if (this.interaction?.mode === 'update_cable' && this.hoveredDevice) {
+        const en = this.hoveredDevice;
+        const w = en.renderWidth + 4;
+        const h = en.renderHeight + 4;
+        const x = en.x - 2;
+        const y = en.y - 2;
 
-      const w = en.renderWidth + 4;
-      const h = en.renderHeight + 4;
-      const x = en.x - 2;
-      const y = en.y - 2;
+        ctx.save();
+        ctx.strokeStyle = "#ff9900";  // same orange as "on hold"
+        ctx.lineWidth = 3;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, 8);
+        ctx.stroke();
+        ctx.restore();
+    }
 
-      ctx.save();
-      ctx.strokeStyle = "#00ff00";
-      ctx.lineWidth = 3;
-      ctx.setLineDash([3, 3]);
-      ctx.beginPath();
-      ctx.roundRect(x, y, w, h, 8);
-      ctx.stroke();
-      ctx.restore();
+    if (this.hoveredDevice && this.mode === 'cable' && this.interaction?.mode !== 'update_cable') {
+        const en = this.hoveredDevice;
+        const w = en.renderWidth + 4;
+        const h = en.renderHeight + 4;
+        const x = en.x - 2;
+        const y = en.y - 2;
+
+        ctx.save();
+        ctx.strokeStyle = "#00ff00";
+        ctx.lineWidth = 3;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, 8);
+        ctx.stroke();
+        ctx.restore();
     }
   }
 
@@ -1830,8 +1861,6 @@ _onPointerUp(e) {
 
   findEntityById(id) {
     const lists = this.getAllSelectableEntities();
-    console.log("Searching for:", id);
-    console.log("Device list:", this.devices.map(d => d.id));
 
     for (const arr of lists) {
       if (!arr) continue; 
@@ -1841,58 +1870,84 @@ _onPointerUp(e) {
         }
       }
     }
-    // If entity not found in layout, log for debugging
-    console.log(`⚠️ No canvas entity found in layout with id: ${id}`);
+    
     return null;
   }
 
 removeEntityById(id) {
     if (!id) return false;
 
-    // 1. Deselect it if the user is currently holding/clicking it
+    // 1. Deselect if currently selected
     if (this.selectedEntity && this.selectedEntity.id === id) {
-        this.selectedEntity = null;
-        this.interaction = { mode: null, handle: null, start: null };
-        this.pointerHandler.setCursor('default');
+      this.selectedEntity = null;
+      this.interaction    = { mode: null, handle: null, start: null };
+      this.pointerHandler.setCursor('default');
     }
 
-    // 2. Hunt down the entity in all possible canvas arrays
+    // 2. Cascade: remove all cables connected to this device BEFORE the device
+    //    itself is spliced, so sourceDeviceId / targetDeviceId lookups still resolve.
+    this._removeCablesForDevice(id);
+
+    // 3. Find and splice the entity from its array
     let entityToRemove = null;
-    
-    // Add or remove array names here depending on how LogicalLayout stores them!
-    const targetArrays = ['rectangles', 'circles', 'polygons', 'freeforms', 'devices', 'furnitures', 'cables', 'walls'];
-    
+    const targetArrays = ['rectangles', 'circles', 'polygons', 'freeforms',
+                          'devices', 'furnitures', 'cables', 'walls'];
+
     for (const arrName of targetArrays) {
-        if (this[arrName]) {
-            const index = this[arrName].findIndex(en => en.id === id);
-            if (index !== -1) {
-                entityToRemove = this[arrName][index];
-                this[arrName].splice(index, 1); // Delete it from the drawing array
-                break;
-            }
-        }
+      if (!this[arrName]) continue;
+      const index = this[arrName].findIndex(en => en.id === id);
+      if (index !== -1) {
+        entityToRemove = this[arrName][index];
+        this[arrName].splice(index, 1);
+        break;
+      }
     }
 
-    // 3. Remove it from the 2D physics/collision system so other objects can use its space
-    if (entityToRemove && entityToRemove.body && this.system) {
-        try {
-            this.system.remove(entityToRemove.body); // or this.system.removeBody(entityToRemove.body) depending on your check2d version
-        } catch (e) {
-            console.warn("Could not cleanly remove body from physics system", e);
-        }
+    // 4. Remove from physics system
+    if (entityToRemove?.body && this.system) {
+      try { this.system.remove(entityToRemove.body); }
+      catch (e) { console.warn('Could not remove body from physics system', e); }
     }
 
-    // 4. Erase it from the canvas!
     this._render();
     return true;
   }
 
-updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {
+  /**
+   * Remove all canvas cables connected to a given device and dispatch
+   * a teardown event so the controller can call link.bringDown() on the
+   * logical networking layer without creating a circular dependency here.
+   *
+   * @param {string} deviceId
+   */
+  _removeCablesForDevice(deviceId) {
+    const connected = this.cables.filter(
+      c => c.sourceDeviceId === deviceId || c.targetDeviceId === deviceId
+    );
+
+    for (const cable of connected) {
+      // Ask the controller to tear down the logical Link
+      if (cable.linkId) {
+        window.dispatchEvent(new CustomEvent('requestLinkTeardown', {
+          detail: { linkId: cable.linkId },
+        }));
+      }
+
+      // Clear any canvas references to this cable
+      if (this.selectedEntity?.id === cable.id) this.selectedEntity = null;
+      if (this.hoveredCable?.id  === cable.id) this.hoveredCable  = null;
+    }
+
+    // Remove from canvas cable array
+    this.cables = this.cables.filter(
+      c => c.sourceDeviceId !== deviceId && c.targetDeviceId !== deviceId
+    );
+  }
+
+  updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {
     const en = this.findEntityById(id);
     if (!en) return false;
 
-    // If skipOverlapCheck is true, we provide a dummy function that always returns false (no overlap).
-    // Otherwise, we bind the strict physical overlap checker.
     const overlapValidator = skipOverlapCheck ? () => false : this._checkForOverlap.bind(this);
 
     if (this.entityTransformer.applyEntityTransform(en, updates, overlapValidator)) {
@@ -1902,8 +1957,7 @@ updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {
     return false;
   }
 
-identifyEntity(x, y) {
-    // 1. HIGHEST PRIORITY: Check Foreground Cables First
+  identifyEntity(x, y) {
     for (const cable of this.cables) {
       const src = this.findEntityById(cable.sourceId);
       const dst = this.findEntityById(cable.targetId);
@@ -1923,10 +1977,40 @@ identifyEntity(x, y) {
       }
     }
 
-    // 2. LOWER PRIORITY: Check Devices, Furniture, and Background Structures
     const entities = this.getAllSelectableEntities();
-    let en = this.selection.identifyEntity(x, y, entities, this.ctx);
+    console.log('[IDENTIFY] checking', entities.flat().length, 'entities, ctx:', !!this.ctx);
+    let en = null;
 
+    for (const device of this.devices) {
+      const bounds = this._getEntityInteractionBounds(device);
+      if (bounds && x >= bounds.x && x <= bounds.x + bounds.w
+                  && y >= bounds.y && y <= bounds.y + bounds.h) {
+        en = device;
+        break;
+      }
+    }
+
+    if (!en) {
+      for (const furniture of this.furnitures) {
+        const bounds = this._getEntityInteractionBounds(furniture);
+        if (bounds && x >= bounds.x && x <= bounds.x + bounds.w
+                    && y >= bounds.y && y <= bounds.y + bounds.h) {
+          en = furniture;
+          break;
+        }
+      }
+    }
+
+    // Only fall back to the canvas path-based hit-test for structural shapes
+    // (rectangles, polygons, circles etc.) if no device/furniture was hit.
+    if (!en) {
+      const structuralEntities = [
+        this.rectangles, this.polygons, this.circles,
+        this.walls, this.doors, this.windows, this.roofs, this.freeforms
+      ];
+      en = this.selection.identifyEntity(x, y, structuralEntities, this.ctx);
+    }
+    
     this.selectedEntity = en || null;
 
     if (en) {
@@ -1953,7 +2037,14 @@ identifyEntity(x, y) {
   }
 
   _isDeviceEntity(en) {
-    return !!en && (en.interfaces !== undefined || en.catalogId !== undefined);
+    // Primary check: stable flag set in Device (UI) constructor.
+    // Fallback duck-type handles canvas entities from older save files
+    // that pre-date the entityType field.
+    return !!en && (
+      en.entityType === 'device' ||
+      en.catalogId  !== undefined ||
+      en.interfaces !== undefined
+    );
   }
 
   _isFurnitureEntity(en) {
@@ -2108,6 +2199,7 @@ identifyEntity(x, y) {
   _findDeviceAt(x, y) {
     for (const device of this.devices) {
       const bounds = this._getEntityInteractionBounds(device); // ADDED: use the same tile bounds used for selection/highlighting
+      console.log('[FIND_DEVICE] checking', device.id, 'bounds:', bounds, 'click:', x, y);
       if (!bounds) continue;
 
 

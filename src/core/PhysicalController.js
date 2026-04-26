@@ -164,10 +164,13 @@ export class PhysicalController {
             console.log('Processing furniture for rendering:', furniture);
             activeFurnitureIds.add(furniture.id);
 
+            const floor = this.store.floors.find(f => f.id === furniture.floorId);
+            const altitude = floor ? floor.altitude || 0 : 0;
+
             if (this.furnitureMeshes.has(furniture.id)) {
                 const furnitureMesh = this.furnitureMeshes.get(furniture.id);
                 if (furniture.transform) {
-                    furnitureMesh.position.set(furniture.transform.position.x, furniture.transform.position.y, furniture.transform.position.z);
+                    furnitureMesh.position.set(furniture.transform.position.x, furniture.transform.position.y + altitude, furniture.transform.position.z);
                     furnitureMesh.rotation.set(furniture.transform.rotation.x, furniture.transform.rotation.y, furniture.transform.rotation.z);
                     furnitureMesh.scale.set(furniture.transform.scale.x, furniture.transform.scale.y, furniture.transform.scale.z);
                 }
@@ -358,6 +361,10 @@ export class PhysicalController {
     async createFurnitureGLTFMesh(furniture) {
         const newFurniture = new FurnitureMesh(furniture, this.defaultScaler);
         const furnitureMesh = await newFurniture.getMesh(this.gltfLoader, this.furnitureCatalog);
+
+        const floor = this.store.floors.find(f => f.id === furniture.floorId);
+        const altitude = floor ? floor.altitude || 0 : 0;
+        furnitureMesh.position.y = altitude + 1.5;
 
         furnitureMesh.userData = { id: furniture.id, type: 'furniture' };
 

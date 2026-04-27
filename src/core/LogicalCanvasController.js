@@ -707,7 +707,6 @@ export class LogicalCanvasController {
     // Handle both raw shape data and state-wrapped shapes (like geometry)
     const src = shapeData.geometry || shapeData;
     const srcShape = this.checkShape(src);
-    console.log(srcShape);
     if (srcShape === 'circle') {
       return this.getCircleBounds(src);
     }
@@ -726,17 +725,20 @@ export class LogicalCanvasController {
   }
 
   getCircleBounds(circ) {
-    // If it's a circle, calculate bounding box from center and radius
     const cx = Number(circ.x ?? 0);
     const cy = Number(circ.y ?? 0);
-    const r = Number(circ.r ?? 0);
+    const r = Number(circ.r ?? circ.radius ?? 0);
     return {
-      minX: cx - r, maxX: cx + r,
-      minY: cy - r, maxY: cy + r,
-      r: circ.r,
-      w: r * 2, h: r * 2, x: cx - r, y: cy - r, r,
+      minX: cx,
+      minY: cy,
+      maxX: cx + r,
+      maxY: cy + r,
+      r,
+      w: r * 2,
+      h: r * 2
     };
   }
+
 
   getPolygonBounds(poly) {
     const pol = {
@@ -793,9 +795,6 @@ export class LogicalCanvasController {
       return false;
     }
     const pBounds = this.getShapeBounds(parent);
-    console.log(parent);
-    console.log(pBounds);
-    // We only flag stale state if BOTH the floor AND its fallback site have 0 dimensions
     if (pBounds.w === 0 || pBounds.h === 0) {
       console.warn(`Bounds Check: The selected ${parentShape} has 0 width/height in state. It was likely drawn before the code fix. Please delete it and redraw it.`);
       return false;
@@ -809,10 +808,11 @@ export class LogicalCanvasController {
     const tol = 5;
     const parentShape = this.checkShape(pBounds);
     const childShape = this.checkShape(cBounds);
-    console.log('827 ', parentShape);
     switch (parentShape) {
-      case 'circle':
       case 'rectangle':
+        if (childShape === 'circle') {
+          return this.isCircleInsideRectangle(cBounds, pBounds, tol);
+        }
         if (cBounds.minX < pBounds.minX - tol ||
           cBounds.minY < pBounds.minY - tol ||
           cBounds.maxX > pBounds.maxX + tol ||
@@ -826,9 +826,11 @@ export class LogicalCanvasController {
         }
         break;
       case 'polygon':
-        console.log("Polygon parent detected. checking bounds");
         const childVerts = this.getVertices(cBounds);
         const parentVerts = this.getVertices(pBounds);
+        if (childShape === 'circle') {
+          return this.isCircleInsidePolygon(cBounds, parentVerts, tol);
+        }
         for (const v of childVerts) {
           if (!this.isPointInsideOrOnBoundary(v, parentVerts)) {
             console.error(`Child vertex (${v.x}, ${v.y}) is outside the parent polygon.`);
@@ -836,16 +838,33 @@ export class LogicalCanvasController {
           }
         }
         break;
+      case 'circle': {
+        const parentCX = pBounds.minX;
+        const parentCY = pBounds.minY;
+        const parentR = pBounds.r;
+        if (childShape === 'circle') {
+          return this.isCircleInsideCircle(cBounds, pBounds, tol);
+        }
+        const childVerts = this.getVertices(cBounds);
+        for (const v of childVerts) {
+          if (!this.isPointInCircle(v, parentCX, parentCY, parentR, tol)) {
+            console.error(`Child vertex (${v.x}, ${v.y}) is outside the parent circle.`);
+            return false;
+          }
+        }
+        break;
+      }
+
       default:
     }
     return true;
   }
 
   checkShape(bounds) {
-    if (Object.hasOwn(bounds, 'points')) {
+    if (Object.hasOwn(bounds, 'points') && bounds.points.length > 0) {
       return 'polygon';
     }
-    else if (Object.hasOwn(bounds, 'r')) {
+    else if (Object.hasOwn(bounds, 'r') || (Object.hasOwn(bounds, 'radius') && bounds.radius > 0)) {
       return 'circle';
     }
     return 'rectangle';
@@ -905,6 +924,75 @@ export class LogicalCanvasController {
     const nearestY = a.y + t * dy;
     const distSq = (p.x - nearestX) ** 2 + (p.y - nearestY) ** 2;
     return distSq <= tol * tol;
+  }
+
+  isCircleInsideRectangle(cBounds, pBounds, tol = 5) {
+    const cx = cBounds.minX;
+    const cy = cBounds.minY;
+    const r = cBounds.r;
+
+    if (cx - r < pBounds.minX - tol ||
+      cy - r < pBounds.minY - tol ||
+      cx + r > pBounds.maxX + tol ||
+      cy + r > pBounds.maxY + tol) {
+      console.error(`Circle child bleeds outside rectangle parent.`);
+      return false;
+    }
+    return true;
+  }
+
+  isCircleInsidePolygon(cBounds, parentVerts, tol = 5) {
+    const cx = cBounds.minX;
+    const cy = cBounds.minY;
+    const r = cBounds.r;
+    const center = { x: cx, y: cy };
+
+    if (!this.isPointInsideOrOnBoundary(center, parentVerts, tol)) {
+      console.error(`Circle center (${cx}, ${cy}) is outside the parent polygon.`);
+      return false;
+    }
+
+    const n = parentVerts.length;
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+      const dist = this.distanceFromPointToSegment(center, parentVerts[j], parentVerts[i]);
+      if (dist < r - tol) {
+        console.error(`Circle child bleeds through a polygon parent edge. Distance: ${dist}, r: ${r}`);
+        return false;
+      }
+    }
+    return true;
+  }
+
+  isCircleInsideCircle(cBounds, pBounds, tol = 5) {
+    const dx = cBounds.minX - pBounds.minX;
+    const dy = cBounds.minY - pBounds.minY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist + cBounds.r > pBounds.r + tol) {
+      console.error(`Child circle exceeds parent circle. dist(${dist}) + r(${cBounds.r}) > parentR(${pBounds.r})`);
+      return false;
+    }
+    return true;
+  }
+
+  isPointInCircle(point, cx, cy, r, tol = 5) {
+    const dx = point.x - cx;
+    const dy = point.y - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    return dist <= r + tol;
+  }
+
+  distanceFromPointToSegment(p, a, b) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) {
+      return Math.sqrt((p.x - a.x) ** 2 + (p.y - a.y) ** 2);
+    }
+    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq));
+    const nearestX = a.x + t * dx;
+    const nearestY = a.y + t * dy;
+    return Math.sqrt((p.x - nearestX) ** 2 + (p.y - nearestY) ** 2);
   }
 
   addDomain(shapeData, id) {

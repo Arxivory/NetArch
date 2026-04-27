@@ -1,6 +1,6 @@
 # NetArch-3D
 
-> **A Spatially-Aware, ML-Driven Network Simulation Platform**
+> **A Spatially-Aware Network Design and Simulation Platform**
 
 NetArch-3D is a high-fidelity network designer and simulator designed to bridge the gap between abstract 2D logical diagrams and 3D physical constraints. Inspired by the architecture of professional CAD tools like Sketchup and SolidWorks, it allows network engineers to validate designs within a realistic 3D environment, preventing costly physical deployment errors.
 
@@ -37,3 +37,5 @@ Follow these steps to get your development environment running:
 `Remove-Item -Recurse -Force node_modules`\
 `Remove-Item package-lock.json`\
 `npm install`
+
+**Note:** The software is currently on development mode so it is better to run it in the browser for smooth flows using `npm run start` command for now. For a better 3D experience, please enable GPU acceleration on your browser.

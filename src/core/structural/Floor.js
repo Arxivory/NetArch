@@ -1,3 +1,4 @@
+import appState from '../../state/AppState';
 import Fenestration from './Fenestration'; 
 import Space from './Space';
 
@@ -5,6 +6,7 @@ export default class Floor {
     constructor(data = {}) {
         this.id = data.id || `floor-${Math.random().toString(36).substr(2, 9)}`;
         this.siteId = data.siteId;
+        this.shapeType = appState.structural.sites.find(s => s.id === this.siteId).shapeType;
         this.label = data.label || 'Floor';
         this.structureType = data.structureType || 'Floor';
         this.shapeType = data.type;
@@ -28,6 +30,7 @@ export default class Floor {
             ? data.fenestrations.map(f => new Fenestration(f)) 
             : [];
     }
+    
     addFenestration(fenestration) {
         fenestration.parentId = this.id;
         this.fenestrations.push(fenestration);

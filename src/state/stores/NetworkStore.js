@@ -1,4 +1,5 @@
 import Device from "../../core/network/Device";
+import Link from "../../core/network/Link";
 import appState from "../AppState";
 
 export class NetworkStore {
@@ -14,7 +15,7 @@ export class NetworkStore {
   }
 
   addDevice(deviceData) {
-    if (!deviceData.id || !deviceData.type || !deviceData.position) {
+    if (!deviceData.id) {
       console.error('Invalid device data', deviceData);
       return null;
     }
@@ -26,29 +27,11 @@ export class NetworkStore {
 
     console.log(deviceData);
 
-    const floor = appState.structural.getFloor(deviceData.floorId);
-
-    const device = new Device({
-        id: deviceData.id,
-        type: deviceData.type,
-        hostname: deviceData.name || deviceData.label || deviceData.hostname,
-        catalogId: deviceData.catalogId,
-        siteId: deviceData.siteId,
-        floorId: deviceData.floorId,
-        spaceId: deviceData.spaceId,
-        domainId: deviceData.domainId,
-        transform: {
-            position: { x: deviceData.position.x * 0.7, y: floor.altitude + 1, z: deviceData.position.y * 0.7},
-            rotation: { x: 0, y: 0, z: 0 },
-            scale: { x: 7, y: 7, z: 7 }
-        }
-    });
-
-    this.devices.push(device);
+    this.devices.push(deviceData);
     this.updateModified();
     this.notify();
 
-    return device;
+    return deviceData;
   }
 
 removeDevice(deviceId) {
@@ -113,71 +96,110 @@ updateDevice(deviceId, updates) {
   }
 
   addLink(linkData) {
-    if (!linkData.id || !linkData.sourceId || !linkData.targetId) {
+    if (!linkData.id) {
       console.error('Invalid link data', linkData);
       return null;
     }
 
-    if (!this.getDevice(linkData.sourceId) || !this.getDevice(linkData.targetId)) {
-      console.error('One or both devices do not exist');
+    const sourceId = linkData.sourcePort.id.split("::")[0];
+    const targetId = linkData.targetPort.id.split("::")[0];
+
+    if (!this.getDevice(sourceId) || !this.getDevice(targetId)) {
+      console.error('One or both devices do not exist', linkData);
       return null;
     }
 
-    const link = {
-      ...linkData,
-      properties: linkData.properties || {}
-    };
+    console.log('Link Data: ', linkData);
 
-    this.links.push(link);
+    this.links.push(linkData);
     this.updateModified();
     this.notify();
 
-    return link;
+    //link array log check
+    console.log('Link Added Successfully...');
+    console.log("Links Check: ");
+
+    for (const link of this.links)
+      console.log(link);
+
+    return linkData;
   }
 
-removeLink(linkId) {
+  // Helper to safely detach a port so it returns to the dropdown
+  _freePort(deviceId, portId) {
+    const dev = this.devices.find(d => d.id === deviceId);
+    if (dev && dev.interfaces) {
+      const port = dev.interfaces.find(i => 
+        i.id === portId || i.name === portId || i.label === portId
+      );
+      if (port) {
+        port.status = 'available';
+        port.connected = false;
+        delete port.connectedTo;
+        delete port.linkId;
+        delete port.targetDevice;
+        delete port.targetInterface;
+      }
+    }
+  }
+
+  updateLinkEndpoint(linkId, endpointType, newDeviceId, newPort) {
+    const link = this.getLink(linkId);
+    if (!link) return false;
+
+    const newPortObj = (newPort && typeof newPort === 'object') 
+        ? newPort 
+        : this.getDevice(newDeviceId)?.getPortByName(newPort);
+
+    if (!newPortObj) {
+        console.error('updateLinkEndpoint: could not resolve new port');
+        return false;
+    }
+
+    // 1. Detach from the old port at Layer 1
+    if (endpointType === 'source') {
+        link.sourcePort?.detachLink?.();
+    } else {
+        link.targetPort?.detachLink?.();
+    }
+
+    const result = newPortObj.attachLink(link);
+    if (!result.success) {
+        console.error('updateLinkEndpoint: failed to attach to new port:', result.error);
+        return false;
+    }
+
+    if (endpointType === 'source') {
+        link.sourcePort = newPortObj;
+        link.sourceId   = newDeviceId;
+    } else {
+        link.targetPort = newPortObj;
+        link.targetId   = newDeviceId;
+    }
+
+    this.updateModified();
+    this.notify();
+    appState.selection?.notify?.();
+    return true;
+  }
+
+  removeLink(linkId) {
     const index = this.links.findIndex(l => l.id === linkId);
     if (index === -1) return false;
 
     const link = this.links[index];
 
-    // Helper function to thoroughly scrub a port clean
-    const freePort = (devId, portId) => {
-        const dev = this.devices.find(d => d.id === devId);
-        if (dev && dev.interfaces) {
-            const port = dev.interfaces.find(i => 
-                i.id === portId || i.name === portId || i.label === portId
-            );
-            
-            if (port) {
-                // Completely free the port so it returns to the dropdown
-                port.status = 'available';
-                port.connected = false;
-                delete port.connectedTo;
-                delete port.linkId;
-                delete port.targetDevice;
-                delete port.targetInterface;
-            }
-        }
-    };
+    if (typeof link.bringDown === 'function') {
+        link.bringDown();
+    }
 
-    // 1. Free the ports using the CORRECT cable properties!
-    freePort(link.sourceId, link.sourcePort);
-    freePort(link.targetId, link.targetPort);
-
-    // 2. Destroy the Link data
     this.links.splice(index, 1);
 
-    // 3. Tell the Canvas to visually destroy the cable
     window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: linkId } }));
 
     this.updateModified();
     this.notify();
-
-    // 4. Force the Properties Panel to re-render so the dropdown updates instantly
-    if (appState.selection && typeof appState.selection.notify === 'function') {
-        appState.selection.notify();
-    }
+    appState.selection?.notify?.();
 
     return true;
   }

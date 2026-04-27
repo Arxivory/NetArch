@@ -46,7 +46,7 @@ export default class DeviceFactory {
       transform: {
         position: { x: position.x * 0.7, y: 0.1, z: position.y * 0.7} || { x: 0, y: 0, z: 0 },
         rotation: { x: 0, y: 0, z: 0 },
-        scale:    { x: 7, y: 7, z: 7 },
+        scale:    { x: 4, y: 4, z: 4 },
       },
     });
 

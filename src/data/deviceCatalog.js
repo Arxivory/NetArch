@@ -135,7 +135,7 @@ const switches = {
         fullDuplex:    true,
       },
     ],
-    model3D: "/objects/devices/switches/2960.glb",
+    model3D: "/objects/devices/switches/2960-switch.glb",
   },
 
   "9200": {
@@ -286,7 +286,7 @@ const routers = {
         fullDuplex:    true,
       },
     ],
-    model3D: "/objects/devices/routers/1941.glb",
+    model3D: "/objects/devices/routers/1941-router.glb",
   },
 
   "921": {
@@ -481,7 +481,7 @@ const endDevices = {
         fullDuplex:    true,
       },
     ],
-    model3D: "/objects/devices/end-devices/pc-desktop.glb",
+    model3D: "/objects/devices/end-devices/desktop.glb",
   },
 
   "laptop": {

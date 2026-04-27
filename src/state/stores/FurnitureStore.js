@@ -41,7 +41,7 @@ export class FurnitureStore {
             transform: {
                 position: { x: furniture.position.x * 0.7, y: floor.altitude + 1, z: furniture.position.y * 0.7 },
                 rotation: { x: 0, y: 0, z: 0 },
-                scale: { x: 5, y: 5, z: 5 }
+                scale: { x: 4, y: 4, z: 4 }
             }
         };
 

@@ -96,13 +96,16 @@ updateDevice(deviceId, updates) {
   }
 
   addLink(linkData) {
-    if (!linkData.id || !linkData.sourceId || !linkData.targetId) {
+    if (!linkData.id) {
       console.error('Invalid link data', linkData);
       return null;
     }
 
-    if (!this.getDevice(linkData.sourceId) || !this.getDevice(linkData.targetId)) {
-      console.error('One or both devices do not exist');
+    const sourceId = linkData.sourcePort.id.split("::")[0];
+    const targetId = linkData.targetPort.id.split("::")[0];
+
+    if (!this.getDevice(sourceId) || !this.getDevice(targetId)) {
+      console.error('One or both devices do not exist', linkData);
       return null;
     }
 

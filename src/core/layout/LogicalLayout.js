@@ -2198,10 +2198,8 @@ removeEntityById(id) {
 
   _findDeviceAt(x, y) {
     for (const device of this.devices) {
-      const bounds = this._getEntityInteractionBounds(device); // ADDED: use the same tile bounds used for selection/highlighting
-      console.log('[FIND_DEVICE] checking', device.id, 'bounds:', bounds, 'click:', x, y);
+      const bounds = this._getEntityInteractionBounds(device);
       if (!bounds) continue;
-
 
       if (
         x >= bounds.x &&

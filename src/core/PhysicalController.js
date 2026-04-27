@@ -12,6 +12,7 @@ import DeviceMesh from './rendering/devices/DeviceMesh';
 import { GizmoManager } from './rendering/GizmoManager.js';
 import { getScene, getCamera, getRenderer } from './rendering/SceneAccess';
 import WallMesh from './rendering/structures/WallMesh.js';
+import CableMesh from './rendering/cables/CableMesh.js';
 
 export class PhysicalController {
     constructor(scene) {
@@ -34,6 +35,7 @@ export class PhysicalController {
         this.spaceMeshes = new Map();
         this.wallMeshes = new Map();
         this.deviceMeshes =  new Map();
+        this.cableMeshes = new Map();
         this.furnitureMeshes = new Map();
 
         this.furnitureCatalog = furnitureCatalog.furnitures;
@@ -71,6 +73,7 @@ export class PhysicalController {
         const walls = this.store.walls;
         const devices = this.networkStore.devices;
         const furnitures = this.furnitureStore.furnitures;
+        const links = this.networkStore.links;
 
         console.log(`[PhysicalController.syncWithState] Domains: ${domains.length}, Sites: ${sites.length}, Floors: ${floors.length}, Spaces: ${spaces.length}`);
 
@@ -81,6 +84,7 @@ export class PhysicalController {
         const activeWallIds = new Set();
         const activeDeviceIds = new Set();
         const activeFurnitureIds = new Set();
+        const activeLinkIds = new Set();
 
         for (const domain of domains) {
             activeDomainIds.add(domain.id);
@@ -181,6 +185,16 @@ export class PhysicalController {
             }
         }
 
+        for (const link of links) {
+            console.log(link);
+            activeLinkIds.add(link.id);
+            
+            if (this.cableMeshes.has(link.id))
+                continue;
+
+            this.createCableMesh(link);
+        }
+
         for (const [id, mesh] of this.domainMeshes) {
             if (!activeDomainIds.has(id)) {
                 this.scene.remove(mesh);
@@ -227,6 +241,13 @@ export class PhysicalController {
             if (!activeFurnitureIds.has(id)) {
                 this.scene.remove(mesh);
                 this.furnitureMeshes.delete(id);
+            }
+        }
+
+        for (const [id, mesh] of this.cableMeshes) {
+            if (!activeLinkIds.has(id)) {
+                this.scene.remove(mesh);
+                this.cableMeshes.delete(id);
             }
         }
     }
@@ -356,6 +377,14 @@ export class PhysicalController {
 
         this.scene.add(deviceMesh);
         this.deviceMeshes.set(device.id, deviceMesh);
+    }
+
+    createCableMesh(link) {
+        const newCable = new CableMesh(link, this.defaultScaler, this.deviceMeshes);
+        const cableMesh = newCable.getMesh();
+
+        this.scene.add(cableMesh);
+        this.cableMeshes.set(link.id, cableMesh);
     }
 
     async createFurnitureGLTFMesh(furniture) {

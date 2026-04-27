@@ -1422,8 +1422,6 @@ _onPointerUp(e) {
   findEntityById(id) {
     const lists = this.getAllSelectableEntities();
     console.log("Searching for:", id);
-    console.log("Device list:", this.devices.map(d => d.id));
-
     for (const arr of lists) {
       if (!arr) continue; 
       for (const en of arr) {

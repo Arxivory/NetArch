@@ -703,14 +703,15 @@ export class LogicalCanvasController {
     // --- 2. BULLETPROOF BOUNDS EXTRACTOR ---
     // Safely extracts coordinates, forces them to be numbers, and handles missing widths
     // Also handles circular shapes by converting radius to bounding box
-    console.log("Shape : ", shapeData);
     if (!shapeData) return null;
     // Handle both raw shape data and state-wrapped shapes (like geometry)
     const src = shapeData.geometry || shapeData;
-    if (src.type === 'circle' || src.shapeType === 'circle') {
+    const srcShape = this.checkShape(src);
+    console.log(srcShape);
+    if (srcShape === 'circle') {
       return this.getCircleBounds(src);
     }
-    else if (src.type === 'polygon' || src.shapeType === 'polygon') {
+    else if (srcShape === 'polygon') {
       return this.getPolygonBounds(src);
     }
     return this.getRectangleBounds(src);
@@ -732,22 +733,19 @@ export class LogicalCanvasController {
     return {
       minX: cx - r, maxX: cx + r,
       minY: cy - r, maxY: cy + r,
-      w: r * 2, h: r * 2, x: cx - r, y: cy - r, r
+      r: circ.r,
+      w: r * 2, h: r * 2, x: cx - r, y: cy - r, r,
     };
   }
 
   getPolygonBounds(poly) {
     const pol = {
-      minX: poly.x,
-      minY: poly.y,
-      maxX: poly.maxX,
-      maxY: poly.maxY,
-      w: poly.w,
-      h: poly.h,
+      minX: poly.x, minY: poly.y,
+      maxX: poly.maxX, maxY: poly.maxY,
+      w: poly.w, h: poly.h,
       points: poly.points
     }
-    console.log(poly);
-    return poly;
+    return pol;
   }
 
   removeInvalidShape(id) {
@@ -759,19 +757,18 @@ export class LogicalCanvasController {
     if (appState.tools) appState.tools.setActiveTool('pointer');
   };
 
-  checkIfChildIsFullyInside(parentType, parentId, cBounds) {
+  checkIfChildIsFullyInside(parentShape, parentId, cBounds) {
     // --- 3. BOUNDARY CHECKING LOGIC ---
-
     let parent = null;
     const st = appState.structural;
 
-    if (parentType === 'domain') {
+    if (parentShape === 'domain') {
       parent = (st.domains || []).find(d => d.id === parentId);
     }
-    else if (parentType === 'site') {
+    else if (parentShape === 'site') {
       parent = (st.sites || []).find(s => s.id === parentId);
     }
-    else if (parentType === 'floor') {
+    else if (parentShape === 'floor') {
       parent = (st.floors || []).find(f => f.id === parentId);
 
       // --- AUTO-GENERATED FLOOR FALLBACK ---
@@ -792,35 +789,122 @@ export class LogicalCanvasController {
     }
 
     if (!parent) {
-      console.error(`Bounds Check: Parent ${parentType} (ID: ${parentId}) not found in state.`);
+      console.error(`Bounds Check: Parent ${parentShape} (ID: ${parentId}) not found in state.`);
       return false;
     }
-
     const pBounds = this.getShapeBounds(parent);
     console.log(parent);
     console.log(pBounds);
     // We only flag stale state if BOTH the floor AND its fallback site have 0 dimensions
     if (pBounds.w === 0 || pBounds.h === 0) {
-      console.warn(`Bounds Check: The selected ${parentType} has 0 width/height in state. It was likely drawn before the code fix. Please delete it and redraw it.`);
+      console.warn(`Bounds Check: The selected ${parentShape} has 0 width/height in state. It was likely drawn before the code fix. Please delete it and redraw it.`);
       return false;
     }
 
-    const tol = 5;
+    const result = this.isFullyContained(pBounds, cBounds);
+    return result;
+  }
 
-    if (
-      cBounds.minX < pBounds.minX - tol ||
-      cBounds.minY < pBounds.minY - tol ||
-      cBounds.maxX > pBounds.maxX + tol ||
-      cBounds.maxY > pBounds.maxY + tol
-    ) {
-      console.error("Out of Bounds Mathematical Failure:");
-      console.table({
-        "Parent Limits (Borrowed from Site)": { MinX: pBounds.minX, MinY: pBounds.minY, MaxX: pBounds.maxX, MaxY: pBounds.maxY },
-        "Child Limits (Space)": { MinX: cBounds.minX, MinY: cBounds.minY, MaxX: cBounds.maxX, MaxY: cBounds.maxY }
-      });
-      return false;
+  isFullyContained(pBounds, cBounds) {
+    const tol = 5;
+    const parentShape = this.checkShape(pBounds);
+    const childShape = this.checkShape(cBounds);
+    console.log('827 ', parentShape);
+    switch (parentShape) {
+      case 'circle':
+      case 'rectangle':
+        if (cBounds.minX < pBounds.minX - tol ||
+          cBounds.minY < pBounds.minY - tol ||
+          cBounds.maxX > pBounds.maxX + tol ||
+          cBounds.maxY > pBounds.maxY + tol) {
+          console.error("Out of Bounds Mathematical Failure:");
+          console.table({
+            "Parent Limits (Borrowed from Site)": { MinX: pBounds.minX, MinY: pBounds.minY, MaxX: pBounds.maxX, MaxY: pBounds.maxY },
+            "Child Limits (Space)": { MinX: cBounds.minX, MinY: cBounds.minY, MaxX: cBounds.maxX, MaxY: cBounds.maxY }
+          });
+          return false;
+        }
+        break;
+      case 'polygon':
+        console.log("Polygon parent detected. checking bounds");
+        const childVerts = this.getVertices(cBounds);
+        const parentVerts = this.getVertices(pBounds);
+        for (const v of childVerts) {
+          if (!this.isPointInsideOrOnBoundary(v, parentVerts)) {
+            console.error(`Child vertex (${v.x}, ${v.y}) is outside the parent polygon.`);
+            return false;
+          }
+        }
+        break;
+      default:
     }
     return true;
+  }
+
+  checkShape(bounds) {
+    if (Object.hasOwn(bounds, 'points')) {
+      return 'polygon';
+    }
+    else if (Object.hasOwn(bounds, 'r')) {
+      return 'circle';
+    }
+    return 'rectangle';
+  }
+
+  getVertices(bounds) {
+    if (bounds.points) {
+      return Object.values(bounds.points);
+    }
+    return [
+      { x: bounds.minX, y: bounds.minY },
+      { x: bounds.maxX, y: bounds.minY },
+      { x: bounds.maxX, y: bounds.maxY },
+      { x: bounds.minX, y: bounds.maxY }
+    ];
+  }
+
+  pointInPolygon(point, vertices) {
+    let inside = false;
+    const { x, y } = point;
+    const n = vertices.length;
+
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+      const xi = vertices[i].x, yi = vertices[i].y;
+      const xj = vertices[j].x, yj = vertices[j].y;
+
+      // Does the horizontal ray from (x,y) cross this edge?
+      const crosses = (yi > y) !== (yj > y) &&
+        x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+
+      if (crosses) inside = !inside;
+    }
+    return inside;
+  }
+
+  isPointInsideOrOnBoundary(point, vertices, tol = 5) {
+    if (this.pointInPolygon(point, vertices)) return true;
+    return this.isPointOnAnyEdge(point, vertices, tol);
+  }
+
+  isPointOnAnyEdge(point, vertices, tol = 5) {
+    const n = vertices.length;
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+      if (this.isPointNearSegment(point, vertices[j], vertices[i], tol)) return true;
+    }
+    return false;
+  }
+
+  isPointNearSegment(p, a, b, tol) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return false;
+    // Project p onto the segment, clamped to [0,1]
+    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq));
+    const nearestX = a.x + t * dx;
+    const nearestY = a.y + t * dy;
+    const distSq = (p.x - nearestX) ** 2 + (p.y - nearestY) ** 2;
+    return distSq <= tol * tol;
   }
 
   addDomain(shapeData, id) {
@@ -836,71 +920,71 @@ export class LogicalCanvasController {
   }
 
   addSite(shapeData, id, cBounds) {
-      const parentId = appState.selection.focusedType === 'domain' ? appState.selection.focusedId : null;
-      if (!parentId) {
-        showErrorModal("A Domain must be selected from the Hierarchy panel before creating a Site.", "Invalid Hierarchy");
-        this.removeInvalidShape(id);
-        return;
-      }
-      if (!this.checkIfChildIsFullyInside('domain', parentId, cBounds)) {
-        showErrorModal("The Site exceeds the physical boundaries of the selected Domain.", "Out of Bounds Error");
-        this.removeInvalidShape(id);
-        return;
-      }
-      const siteData = { ...shapeData, domainId: parentId, label: `Site ${this.counters.site++}` };
-      console.log(`🏪 Creating Site with id=${siteData.id}, domainId=${parentId}`);
-      const newSite = appState.structural.addSite(siteData);
-      // CRITICAL: Store the mapping
-      if (newSite && id) {
-        this.structuralToCanvasMap.set(newSite.id, id);
-        this.entityIdMap.set(id, newSite.id);
-        console.log(`🔗 Mapped: canvas(${id}) <-> structural(${newSite.id})`);
-      }
+    const parentId = appState.selection.focusedType === 'domain' ? appState.selection.focusedId : null;
+    if (!parentId) {
+      showErrorModal("A Domain must be selected from the Hierarchy panel before creating a Site.", "Invalid Hierarchy");
+      this.removeInvalidShape(id);
+      return;
+    }
+    if (!this.checkIfChildIsFullyInside('domain', parentId, cBounds)) {
+      showErrorModal("The Site exceeds the physical boundaries of the selected Domain.", "Out of Bounds Error");
+      this.removeInvalidShape(id);
+      return;
+    }
+    const siteData = { ...shapeData, domainId: parentId, label: `Site ${this.counters.site++}` };
+    console.log(`🏪 Creating Site with id=${siteData.id}, domainId=${parentId}`);
+    const newSite = appState.structural.addSite(siteData);
+    // CRITICAL: Store the mapping
+    if (newSite && id) {
+      this.structuralToCanvasMap.set(newSite.id, id);
+      this.entityIdMap.set(id, newSite.id);
+      console.log(`🔗 Mapped: canvas(${id}) <-> structural(${newSite.id})`);
+    }
   }
 
   addFloor(shapeData, id, cBounds) {
-      const parentId = appState.selection.focusedType === 'site' ? appState.selection.focusedId : null;
-      if (!parentId) {
-        showErrorModal("A Site must be selected from the Hierarchy panel before creating a Floor.", "Invalid Hierarchy");
-        this.removeInvalidShape(id);
-        return;
-      }
-      if (!this.checkIfChildIsFullyInside('site', parentId, cBounds)) {
-        showErrorModal("The Floor exceeds the physical boundaries of the selected Site.", "Out of Bounds Error");
-        this.removeInvalidShape(id);
-        return;
-      }
-      const floorData = { ...shapeData, siteId: parentId, label: `Floor ${this.counters.floor++}` };
-      console.log(`🏗️ Creating Floor with id=${floorData.id}, siteId=${parentId}`);
-      const newFloor = appState.structural.addFloor(floorData);
-      if (newFloor && id) {
-        this.structuralToCanvasMap.set(newFloor.id, id);
-        this.entityIdMap.set(id, newFloor.id);
-        console.log(`🔗 Mapped: canvas(${id}) <-> structural(${newFloor.id})`);
-      }
-      appState.ui.setActiveFloor(id);
+    const parentId = appState.selection.focusedType === 'site' ? appState.selection.focusedId : null;
+    if (!parentId) {
+      showErrorModal("A Site must be selected from the Hierarchy panel before creating a Floor.", "Invalid Hierarchy");
+      this.removeInvalidShape(id);
+      return;
+    }
+    if (!this.checkIfChildIsFullyInside('site', parentId, cBounds)) {
+      showErrorModal("The Floor exceeds the physical boundaries of the selected Site.", "Out of Bounds Error");
+      this.removeInvalidShape(id);
+      return;
+    }
+    const floorData = { ...shapeData, siteId: parentId, label: `Floor ${this.counters.floor++}` };
+    console.log(`🏗️ Creating Floor with id=${floorData.id}, siteId=${parentId}`);
+    const newFloor = appState.structural.addFloor(floorData);
+    if (newFloor && id) {
+      this.structuralToCanvasMap.set(newFloor.id, id);
+      this.entityIdMap.set(id, newFloor.id);
+      console.log(`🔗 Mapped: canvas(${id}) <-> structural(${newFloor.id})`);
+    }
+    appState.ui.setActiveFloor(id);
   }
 
   addSpace(shapeData, id, cBounds) {
-      const parentId = appState.selection.focusedType === 'floor' ? appState.selection.focusedId : null;
-      if (!parentId) {
-        showErrorModal("A Floor must be selected from the Hierarchy panel before creating a Space.", "Invalid Hierarchy");
-        this.removeInvalidShape(id);
-        return;
-      }
-      if (!this.checkIfChildIsFullyInside('floor', parentId, cBounds)) {
-        showErrorModal("The Space exceeds the physical boundaries of the selected Floor.", "Out of Bounds Error");
-        this.removeInvalidShape(id);
-        return;
-      }
-      const spaceData = {...shapeData, floorId: parentId, label: `Space ${this.counters.space++}`};
-      console.log(`🎨 Creating Space with id=${spaceData.id}, floorId=${parentId}`);
-      const newSpace = appState.structural.addSpace(spaceData);
-      if (newSpace && id) {
-        this.structuralToCanvasMap.set(newSpace.id, id);
-        this.entityIdMap.set(id, newSpace.id);
-        console.log(`🔗 Mapped: canvas(${id}) <-> structural(${newSpace.id})`);
-      }
+    const parentId = appState.selection.focusedType === 'floor' ? appState.selection.focusedId : null;
+    if (!parentId) {
+      showErrorModal("A Floor must be selected from the Hierarchy panel before creating a Space.", "Invalid Hierarchy");
+      this.removeInvalidShape(id);
+      return;
+    }
+    if (!this.checkIfChildIsFullyInside('floor', parentId, cBounds)) {
+      showErrorModal("The Space exceeds the physical boundaries of the selected Floor.", "Out of Bounds Error");
+      this.removeInvalidShape(id);
+      return;
+    }
+    const spaceData = { ...shapeData, floorId: parentId, label: `Space ${this.counters.space++}` };
+    console.log(`🎨 Creating Space with id=${spaceData.id}, floorId=${parentId}`);
+    const newSpace = appState.structural.addSpace(spaceData);
+    if (newSpace && id) {
+      this.structuralToCanvasMap.set(newSpace.id, id);
+      this.entityIdMap.set(id, newSpace.id);
+      console.log(`🔗 Mapped: canvas(${id}) <-> structural(${newSpace.id})`);
+    }
   }
 
 

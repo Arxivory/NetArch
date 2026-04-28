@@ -27,6 +27,13 @@ export class GizmoManager {
     
     this.control.addEventListener('objectChange', () => {
       this._syncTransformToStore();
+
+      const object = this.control.object;
+      if (object?.userData?.id) {
+          window.dispatchEvent(new CustomEvent('gizmoObjectMoved', {
+              detail: { id: object.userData.id }
+          }));
+      }
     });
 
     window.addEventListener('keydown', (event) => {

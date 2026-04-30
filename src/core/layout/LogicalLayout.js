@@ -1501,7 +1501,7 @@ _onPointerUp(e) {
       } else if (this.mode === 'wall') {
         this.shapeRenderer.outlineWall(ctx, this.startPoint, this.currentPoint);
       } else if (this.mode === 'door') {
-        this.shapeRenderer.outlineRectangle(ctx, this.startPoint, this.currentPoint);
+        this.shapeRenderer.outlineDoor(ctx, this.startPoint, this.currentPoint);
       } else if (this.mode === 'window') {
         this.shapeRenderer.outlineRectangle(ctx, this.startPoint, this.currentPoint);
       } else if (this.mode === 'cable') {

@@ -448,10 +448,50 @@ executeDelete(idToDelete) {
     const getBounds = (shape) => {
       if (!shape) return null;
       const src = shape.geometry || shape;
+      const points = Array.isArray(src.points) ? src.points : [];
+      if (points.length > 0) {
+        const xs = points.map(point => Number(point.x ?? 0));
+        const ys = points.map(point => Number(point.y ?? 0));
+        const minX = Math.min(...xs);
+        const minY = Math.min(...ys);
+        const maxX = Math.max(...xs);
+        const maxY = Math.max(...ys);
+        return {
+          x: minX,
+          y: minY,
+          w: maxX - minX,
+          h: maxY - minY,
+          minX,
+          minY,
+          maxX,
+          maxY
+        };
+      }
+
+      const radius = Number(src.r ?? src.radius ?? 0);
+      if (radius > 0) {
+        const x = Number(src.x ?? 0);
+        const y = Number(src.y ?? 0);
+        return {
+          x: x - radius,
+          y: y - radius,
+          w: radius * 2,
+          h: radius * 2,
+          minX: x - radius,
+          minY: y - radius,
+          maxX: x + radius,
+          maxY: y + radius
+        };
+      }
+
       const x0 = Number(src.x ?? src.left ?? 0);
       const y0 = Number(src.y ?? src.top ?? 0);
-      const w0 = Number(src.w ?? src.width ?? 0);
-      const h0 = Number(src.h ?? src.height ?? 0);
+      let w0 = Number(src.w ?? src.width ?? 0);
+      let h0 = Number(src.h ?? src.height ?? 0);
+
+      if (!w0 && src.maxX !== undefined) w0 = Number(src.maxX) - x0;
+      if (!h0 && src.maxY !== undefined) h0 = Number(src.maxY) - y0;
+
       const minX0 = Math.min(x0, x0 + w0);
       const minY0 = Math.min(y0, y0 + h0);
       const maxX0 = Math.max(x0, x0 + w0);
@@ -477,37 +517,31 @@ executeDelete(idToDelete) {
     childBounds.maxX += dx;
     childBounds.maxY += dy;
 
-    let parent = null;
+    const parentCandidates = [];
     if (shapeType === 'site') {
-      parent = st.domains?.find(d => d.id === structure.domainId);
+      parentCandidates.push(st.domains?.find(d => d.id === structure.domainId));
     } else if (shapeType === 'floor') {
-      parent = st.sites?.find(s => s.id === structure.siteId);
+      parentCandidates.push(st.sites?.find(s => s.id === structure.siteId));
     } else if (shapeType === 'space') {
-      parent = st.floors?.find(f => f.id === structure.floorId);
-      if (parent && (!parent.geometry?.w && !parent.geometry?.h)) {
-        const parentSite = st.sites?.find(s => s.id === parent.siteId);
-        if (parentSite) {
-          parent = parentSite;
-        }
-      }
+      parentCandidates.push(st.floors?.find(f => f.id === structure.floorId));
+      parentCandidates.push(st.sites?.find(s => s.id === structure.siteId));
     }
 
-    if (!parent) {
-      return true;
-    }
+    const validParentBounds = parentCandidates
+      .map(parent => getBounds(parent))
+      .filter(parentBounds => parentBounds && parentBounds.w > 0 && parentBounds.h > 0);
 
-    const parentBounds = getBounds(parent);
-    if (parentBounds.w === 0 || parentBounds.h === 0) {
+    if (!validParentBounds.length) {
       return true;
     }
 
     const tol = 2;
-    return !(
+    return validParentBounds.every(parentBounds => !(
       childBounds.minX < parentBounds.minX - tol ||
       childBounds.minY < parentBounds.minY - tol ||
       childBounds.maxX > parentBounds.maxX + tol ||
       childBounds.maxY > parentBounds.maxY + tol
-    );
+    ));
   }
 
   applyStructuralMove(structuralId, shapeType, dx, dy, options = {}) {
@@ -1465,6 +1499,23 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
         return;
     }
 
+    if (en.structureType && en.type === 'rectangle') {
+        const structuralId = this.entityIdMap.get(en.id);
+        const shapeObj = this._getStructuralObjectById(structuralId);
+        const nextWidth = Number(en.transform?.scale?.w ?? en.w ?? 0);
+        const nextHeight = Number(en.transform?.scale?.h ?? en.h ?? 0);
+        const currentWidth = Number(shapeObj?.geometry?.width ?? 0);
+        const currentHeight = Number(shapeObj?.geometry?.height ?? 0);
+
+        if (shapeObj?.geometry && (currentWidth !== nextWidth || currentHeight !== nextHeight)) {
+            shapeObj.geometry.x = Number(en.x ?? shapeObj.geometry.x ?? 0);
+            shapeObj.geometry.y = Number(en.y ?? shapeObj.geometry.y ?? 0);
+            shapeObj.geometry.width = nextWidth;
+            shapeObj.geometry.height = nextHeight;
+            appState.structural?.notify?.();
+        }
+    }
+
 
     // Debug: Log movement
     if ((dx !== 0 || dy !== 0) && en.structureType) {
@@ -1508,6 +1559,18 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
             const success = this.applyStructuralMove(structuralId, shapeType, dx, dy, { skipCanvasMove: true });
             if (success) {
                 this._recordPendingMove(structuralId, { kind: 'structure', structureType: shapeType });
+            } else {
+        // INSTEAD OF SNAPPING BACK: 
+        // 1. Log that we hit a boundary (for debugging)
+        console.warn("Boundary reached. Clamping position.");
+        
+        // 2. Force the canvas entity to stay at the last valid position 
+        // provided by the layout engine, rather than resetting to the 'saved' start.
+        if (typeof en.restoreToSavedPosition === 'function') {
+            // Only restore if it's genuinely far outside, 
+            // otherwise, just let it 'stick' to the edge.
+            this.layout?._render?.();
+        }
             }
         } else if (appState.network && typeof appState.getDevice === 'function') {
             const deviceId = this.entityIdMap.get(en.id) || en.id;

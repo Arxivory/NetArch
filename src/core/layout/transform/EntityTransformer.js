@@ -1,10 +1,23 @@
 export class EntityTransformer {
+  _getMinimumScale(en) {
+    const isLogicalDeviceLike =
+      en?.interfaces !== undefined ||
+      en?.catalogId !== undefined ||
+      en?.type === 'furniture' ||
+      en?.entityType === 'furniture';
+
+    return isLogicalDeviceLike ? 0.25 : 0.1;
+  }
 
   applyEntityTransform(en, updates, checkForOverlap) {
     if (!en) return false;
     if (updates.position) {
       const nx = updates.position.x;
       const ny = updates.position.y;
+
+      if (!Number.isFinite(nx) || !Number.isFinite(ny)) {
+        return false;
+      }
 
       en.saveCurrentPosition();
       en.transform.position.x = nx;
@@ -59,8 +72,18 @@ export class EntityTransformer {
     }
 
     if (updates.scale !== undefined) {
+      const requestedFactor = Number(updates.scale?.factor);
+      if (!Number.isFinite(requestedFactor)) {
+        return false;
+      }
+
+      const nextScale = {
+        ...updates.scale,
+        factor: Math.max(this._getMinimumScale(en), requestedFactor)
+      };
+
       en.saveCurrentScale();
-      en.setScale(updates.scale);
+      en.setScale(nextScale);
       if (checkForOverlap(en, "transformation")) {
         console.log(`Scaling area overlapping. Please Try again`);
         en.restoreToSavedScale();

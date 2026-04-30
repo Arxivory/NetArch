@@ -183,7 +183,21 @@ export default function PropertiesPanel({ canvasController }) {
   const handleTransformChange = (type, axis, value) => {
     if (!selectedEntity || !canvasController) return;
     let numericValue = parseFloat(value);
-    if (numericValue < 0 || numericValue === null) numericValue = 0;
+
+    if (!Number.isFinite(numericValue)) {
+      return;
+    }
+
+    if (type === 'scale') {
+      const isLogicalDeviceLike =
+        selectedEntity.interfaces !== undefined ||
+        selectedEntity.catalogId !== undefined ||
+        selectedEntity.type === 'furniture' ||
+        selectedEntity.entityType === 'furniture';
+
+      const minScale = isLogicalDeviceLike ? 0.25 : 0.1;
+      numericValue = Math.max(minScale, numericValue);
+    }
 
     const updates = {
       [type]: {
@@ -352,7 +366,7 @@ export default function PropertiesPanel({ canvasController }) {
           </div>
           <div className="transform-grid">
             <label>Scale</label>
-            <input type="number" className="field-input" value={transform.scale.factor} onChange={(e) => handleTransformChange('scale', 'factor', e.target.value)} />
+            <input type="number" min="0.1" step="0.1" className="field-input" value={transform.scale.factor} onChange={(e) => handleTransformChange('scale', 'factor', e.target.value)} />
             <input type="number" className="field-input" defaultValue={0} disabled /><input type="number" className="field-input" defaultValue={0} disabled />
           </div>
           <div className="transform-grid">

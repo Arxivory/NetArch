@@ -54,8 +54,11 @@ export class Rectangle {
         this.h = h;
         this.transform.scale.w = w;
         this.transform.scale.h = h;
+        this.maxX = this.x + w;
+        this.maxY = this.y + h;
         this.body.width = w;
         this.body.height = h;
+        this.body.setPosition(this.x, this.y, true);
     }
 
     setScale(newScale) {

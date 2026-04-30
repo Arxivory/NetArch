@@ -527,6 +527,29 @@ export class LogicalLayout {
 
 
     if (this.mode === 'select') {
+      const handleHit = this._getResizeHandleAtPoint(this.selectedEntity, p);
+      if (handleHit) {
+        const { entity: en, handle: key, bounds } = handleHit;
+
+        if (en.saveCurrentPosition) {
+          en.saveCurrentPosition();
+        }
+        if (en.saveCurrentScale) {
+          en.saveCurrentScale();
+        }
+
+        this.interaction = {
+          mode: 'resize',
+          handle: key,
+          start: { x: p.x, y: p.y },
+          bounds,
+          center: { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 },
+          baseScale: en.transform?.scale?.factor ?? 1
+        };
+        this.pointerHandler.setPointerDown(true);
+        return;
+      }
+
       const en = this.identifyEntity(e.clientX, e.clientY);
       if (!en) {
         // Clear focus when clicking on empty canvas
@@ -537,14 +560,6 @@ export class LogicalLayout {
       if (en.saveCurrentPosition) {
         en.saveCurrentPosition();
       }
-
-      const zoom = this.pointerHandler.getZoom();
-      const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
-
-      const x = en.x;
-      const y = en.y;
-      const w = en.w || en.width;
-      const h = en.h || en.height;
       const bounds = this._getEntityInteractionBounds(en); // ADDED: use the correct drawn bounds for both shapes and devices
       const size = 8;
 
@@ -570,7 +585,7 @@ export class LogicalLayout {
             handle: key,
             start: { x: p.x, y: p.y },
             bounds,
-            center: { x: x + w / 2, y: y + h / 2 }, // ADDED: resize devices around their visual center
+            center: { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 }, // CHANGED: use rendered bounds so device resize centers stay aligned with the visible selection box
             baseScale: en.transform?.scale?.factor ?? 1
           };
           this.pointerHandler.setPointerDown(true);
@@ -719,11 +734,6 @@ if (this.mode === 'freeform') {
     if (this.mode === 'select') {
       if (this.selectedEntity) {
         const en = this.selectedEntity;
-
-        const x = en.x;
-        const y = en.y;
-        const w = en.w || en.width;
-        const h = en.h || en.height;
         
         const bounds = this._getEntityInteractionBounds(en); // ADDED: use correct visual bounds for devices too
         let cursor = 'move';
@@ -788,53 +798,47 @@ if (this.mode === 'freeform') {
 
         const dx = p.x - this.interaction.start.x;
         const dy = p.y - this.interaction.start.y;
+        let appliedDx = dx;
+        let appliedDy = dy;
+        let nextStart = { x: p.x, y: p.y };
 
         if (this.interaction.mode === "move") {
           if (this._isDeviceEntity(en) || this._isFurnitureEntity(en)) {
             const clamped = this._clampMovementWithinParent(en, dx, dy);
             en.move(clamped.dx, clamped.dy);
+            appliedDx = clamped.dx;
+            appliedDy = clamped.dy;
+          } else if (en.structureType) {
+            const clamped = this._clampStructuralMovementWithinParents(en, dx, dy);
+            en.move(clamped.dx, clamped.dy);
+            appliedDx = clamped.dx;
+            appliedDy = clamped.dy;
           } else {
             en.move(dx, dy);
           }
+
+          nextStart = {
+            x: this.interaction.start.x + appliedDx,
+            y: this.interaction.start.y + appliedDy
+          };
         }
 
         if (this.interaction.mode === "resize" && en.type === 'rectangle') {
-          let wKey = en.transform.scale.w;
-          let hKey = en.transform.scale.h;
-          switch (this.interaction.handle) {
-            case "se":
-              wKey += dx;
-              hKey += dy;
-              break;
-            case "nw":
-              en.move(dx, dy);
-              wKey -= dx;
-              hKey -= dy;
-              break;
-            case "ne":
-              en.move(0, dy)
-              wKey += dx;
-              hKey -= dy;
-              break;
-            case "sw":
-              en.move(dx, 0);
-              wKey -= dx;
-              hKey += dy;
-              break;
-            default:
-              throw new Error();
-          }
-          en.setWidthAndHeight(wKey, hKey);
+          const resizeResult = this._resizeRectangleWithinParents(en, p);
+          appliedDx = resizeResult.movedDx;
+          appliedDy = resizeResult.movedDy;
         }
         else if (this.interaction.mode === "resize" && this._isDeviceEntity(en)) {
           const baseBounds = this.interaction.bounds;
           const center = this.interaction.center;
           const widthRatio = (Math.abs(p.x - center.x) * 2) / baseBounds.w;
           const heightRatio = (Math.abs(p.y - center.y) * 2) / baseBounds.h;
-          const factor = Math.max(
-          0.25,
-          this.interaction.baseScale * Math.max(widthRatio, heightRatio)
-        ); // ADDED: uniformly scale the device based on dragged handle distance
+          const requestedFactor = Math.max(
+            0.25,
+            this.interaction.baseScale * Math.max(widthRatio, heightRatio)
+          ); // ADDED: uniformly scale the device based on dragged handle distance
+
+          const factor = this._clampDeviceScaleWithinParent(en, requestedFactor, center);
 
       en.setScale({ factor });
 
@@ -846,11 +850,11 @@ if (this.mode === 'freeform') {
     }
   }
 
-        this.interaction.start = { x: p.x, y: p.y };
-        const shouldSyncDuringDrag = !!en.structureType; // ADDED: only structural parents need live sync while dragging so children follow immediately
+        this.interaction.start = nextStart;
+        const shouldSyncDuringDrag = !!en.structureType && this.interaction.mode === "move";
 
         if (shouldSyncDuringDrag && this.onEntityChanged) {
-          this.onEntityChanged(en, dx, dy); // CHANGED: defer device persistence until pointerup for smoother dragging
+          this.onEntityChanged(en, appliedDx, appliedDy); // CHANGED: keep structural store sync aligned with the movement that was actually applied after clamping
         }
 
         this._render();
@@ -901,10 +905,10 @@ _onPointerUp(e) {
         }
       }
 
-      const actualDx = hasSavedPosition
+      const actualDx = isMove && hasSavedPosition
         ? this.selectedEntity.x - this.selectedEntity.savedPosition.x
         : restoreDx;
-      const actualDy = hasSavedPosition
+      const actualDy = isMove && hasSavedPosition
         ? this.selectedEntity.y - this.selectedEntity.savedPosition.y
         : restoreDy;
 
@@ -1600,10 +1604,42 @@ updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {
       };
     }
 
-    const x = Number(en.x ?? 0);
-    const y = Number(en.y ?? 0);
-    const w = Number(en.w ?? en.width ?? 0);
-    const h = Number(en.h ?? en.height ?? 0);
+    if (en.type === 'circle' && en.r !== undefined) {
+      const radius = Number(en.transform?.scale?.r ?? en.r ?? 0);
+      const x = Number(en.x ?? 0);
+      const y = Number(en.y ?? 0);
+      return {
+        minX: x - radius,
+        minY: y - radius,
+        maxX: x + radius,
+        maxY: y + radius,
+        width: radius * 2,
+        height: radius * 2
+      };
+    }
+
+    const points = en.transform?.scale?.points || en.points;
+    if (Array.isArray(points) && points.length > 0) {
+      const xs = points.map(point => Number(point.x ?? 0));
+      const ys = points.map(point => Number(point.y ?? 0));
+      const minX = Math.min(...xs);
+      const minY = Math.min(...ys);
+      const maxX = Math.max(...xs);
+      const maxY = Math.max(...ys);
+      return {
+        minX,
+        minY,
+        maxX,
+        maxY,
+        width: maxX - minX,
+        height: maxY - minY
+      };
+    }
+
+    const x = Number(en.transform?.position?.x ?? en.x ?? 0);
+    const y = Number(en.transform?.position?.y ?? en.y ?? 0);
+    const w = Number(en.transform?.scale?.w ?? en.w ?? en.width ?? 0);
+    const h = Number(en.transform?.scale?.h ?? en.h ?? en.height ?? 0);
     return {
       minX: x,
       minY: y,
@@ -1703,12 +1739,374 @@ updateEntityTransform(id, updates = {}, skipOverlapCheck = false) {
   }
 
   return {
-    x: en.x,
-    y: en.y,
-    w: en.w ?? en.width,
-    h: en.h ?? en.height
+    x: en.transform?.position?.x ?? en.x,
+    y: en.transform?.position?.y ?? en.y,
+    w: en.transform?.scale?.w ?? en.w ?? en.width,
+    h: en.transform?.scale?.h ?? en.h ?? en.height
   };
 }
+
+  _getResizeHandleAtPoint(en, point, size = 8) {
+    if (!en || !point || !this._isResizableEntity(en)) {
+      return null;
+    }
+
+    const bounds = this._getEntityInteractionBounds(en);
+    if (!bounds) {
+      return null;
+    }
+
+    const handles = {
+      nw: [bounds.x, bounds.y],
+      ne: [bounds.x + bounds.w, bounds.y],
+      sw: [bounds.x, bounds.y + bounds.h],
+      se: [bounds.x + bounds.w, bounds.y + bounds.h]
+    };
+
+    for (const [handle, [hx, hy]] of Object.entries(handles)) {
+      if (Math.abs(point.x - hx) < size && Math.abs(point.y - hy) < size) {
+        return { entity: en, handle, bounds };
+      }
+    }
+
+    return null;
+  }
+
+  _getStructuralAncestorBounds(en) {
+    if (!en?.structureType || !appState.structural) return [];
+
+    const st = appState.structural;
+    const structuralRecord =
+      (en.structureType === 'Site' && st.sites?.find(site => site.id === en.id)) ||
+      (en.structureType === 'Floor' && st.floors?.find(floor => floor.id === en.id)) ||
+      (en.structureType === 'Space' && st.spaces?.find(space => space.id === en.id)) ||
+      null;
+
+    const bounds = [];
+    const pushBounds = (shape) => {
+      const extracted = this._extractStructuralShapeBounds(shape);
+      if (extracted) {
+        bounds.push(extracted);
+      }
+    };
+
+    if (en.structureType === 'Site') {
+      pushBounds(st.domains?.find(domain => domain.id === structuralRecord?.domainId));
+    } else if (en.structureType === 'Floor') {
+      pushBounds(st.sites?.find(site => site.id === structuralRecord?.siteId));
+    } else if (en.structureType === 'Space') {
+      const parentFloor = st.floors?.find(floor => floor.id === structuralRecord?.floorId);
+      pushBounds(parentFloor);
+      pushBounds(st.sites?.find(site => site.id === (structuralRecord?.siteId ?? parentFloor?.siteId)));
+    }
+
+    return bounds.filter(parentBounds =>
+      parentBounds.width > 0 && parentBounds.height > 0
+    );
+  }
+
+  _extractStructuralShapeBounds(shape) {
+    if (!shape) return null;
+
+    const src = shape.geometry || shape;
+    const points = Array.isArray(src.points) ? src.points : [];
+    if (points.length > 0) {
+      const xs = points.map(point => Number(point.x ?? 0));
+      const ys = points.map(point => Number(point.y ?? 0));
+      const minX = Math.min(...xs);
+      const minY = Math.min(...ys);
+      const maxX = Math.max(...xs);
+      const maxY = Math.max(...ys);
+      return {
+        minX,
+        minY,
+        maxX,
+        maxY,
+        width: maxX - minX,
+        height: maxY - minY
+      };
+    }
+
+    const radius = Number(src.r ?? src.radius ?? 0);
+    if (radius > 0) {
+      const x = Number(src.x ?? 0);
+      const y = Number(src.y ?? 0);
+      return {
+        minX: x - radius,
+        minY: y - radius,
+        maxX: x + radius,
+        maxY: y + radius,
+        width: radius * 2,
+        height: radius * 2
+      };
+    }
+
+    const x = Number(src.x ?? src.left ?? 0);
+    const y = Number(src.y ?? src.top ?? 0);
+    let width = Number(src.w ?? src.width ?? 0);
+    let height = Number(src.h ?? src.height ?? 0);
+
+    if (!width && src.maxX !== undefined) {
+      width = Number(src.maxX) - x;
+    }
+    if (!height && src.maxY !== undefined) {
+      height = Number(src.maxY) - y;
+    }
+
+    return {
+      minX: Math.min(x, x + width),
+      minY: Math.min(y, y + height),
+      maxX: Math.max(x, x + width),
+      maxY: Math.max(y, y + height),
+      width: Math.abs(width),
+      height: Math.abs(height)
+    };
+  }
+
+  _clampStructuralMovementWithinParents(en, dx, dy) {
+    const entityBounds = this._getEntityBounds(en);
+    const parentBoundsList = this._getStructuralAncestorBounds(en);
+    if (!entityBounds || !parentBoundsList.length) {
+      return { dx, dy };
+    }
+
+    let clampedDx = dx;
+    let clampedDy = dy;
+
+    for (const parentBounds of parentBoundsList) {
+      if (entityBounds.minX + clampedDx < parentBounds.minX) {
+        clampedDx = parentBounds.minX - entityBounds.minX;
+      }
+      if (entityBounds.maxX + clampedDx > parentBounds.maxX) {
+        clampedDx = parentBounds.maxX - entityBounds.maxX;
+      }
+      if (entityBounds.minY + clampedDy < parentBounds.minY) {
+        clampedDy = parentBounds.minY - entityBounds.minY;
+      }
+      if (entityBounds.maxY + clampedDy > parentBounds.maxY) {
+        clampedDy = parentBounds.maxY - entityBounds.maxY;
+      }
+    }
+
+    return { dx: clampedDx, dy: clampedDy };
+  }
+
+  _resizeRectangleWithinParents(en, point) {
+    const baseBounds = this.interaction?.bounds || this._getEntityInteractionBounds(en);
+    const currentBounds = this._getEntityInteractionBounds(en);
+    if (!baseBounds || !currentBounds || !point) {
+      return { movedDx: 0, movedDy: 0 };
+    }
+
+    const center = this.interaction?.center || {
+      x: baseBounds.x + baseBounds.w / 2,
+      y: baseBounds.y + baseBounds.h / 2
+    };
+    const minScaleRatio = Math.max(
+      baseBounds.w > 0 ? 8 / baseBounds.w : 1,
+      baseBounds.h > 0 ? 8 / baseBounds.h : 1
+    );
+    const widthRatio = baseBounds.w > 0
+      ? (Math.abs(point.x - center.x) * 2) / baseBounds.w
+      : 1;
+    const heightRatio = baseBounds.h > 0
+      ? (Math.abs(point.y - center.y) * 2) / baseBounds.h
+      : 1;
+    const requestedScaleRatio = Math.max(
+      minScaleRatio,
+      Math.max(widthRatio, heightRatio)
+    );
+    const scaleRatio = this._clampStructuralScaleWithinParents(
+      en,
+      requestedScaleRatio,
+      baseBounds,
+      center,
+      minScaleRatio
+    );
+    const proposed = this._getScaledBoundsFromCenter(baseBounds, scaleRatio, center);
+    const movedDx = proposed.x - currentBounds.x;
+    const movedDy = proposed.y - currentBounds.y;
+
+    if (movedDx !== 0 || movedDy !== 0) {
+      en.move(movedDx, movedDy);
+    }
+
+    en.setWidthAndHeight(proposed.w, proposed.h);
+    return { movedDx, movedDy };
+  }
+
+  _enforceMinimumRectangleSize(proposed, currentBounds, handle, minSize) {
+    if (proposed.w < minSize) {
+      if (handle === "nw" || handle === "sw") {
+        proposed.x = currentBounds.x + currentBounds.w - minSize;
+      }
+      proposed.w = minSize;
+    }
+
+    if (proposed.h < minSize) {
+      if (handle === "nw" || handle === "ne") {
+        proposed.y = currentBounds.y + currentBounds.h - minSize;
+      }
+      proposed.h = minSize;
+    }
+  }
+
+  _getContainmentPointsFromBounds(bounds) {
+    if (!bounds) return [];
+
+    const inset = 2;
+    const left = bounds.x + inset;
+    const top = bounds.y + inset;
+    const right = bounds.x + bounds.w - inset;
+    const bottom = bounds.y + bounds.h - inset;
+    const centerX = bounds.x + bounds.w / 2;
+    const centerY = bounds.y + bounds.h / 2;
+
+    return [
+      { x: left, y: top },
+      { x: right, y: top },
+      { x: left, y: bottom },
+      { x: right, y: bottom },
+      { x: centerX, y: centerY }
+    ];
+  }
+
+  _isBoundsInsideAssignedParent(asset, bounds) {
+    const points = this._getContainmentPointsFromBounds(bounds);
+    if (!points.length) return true;
+
+    if (asset.spaceId) {
+      return points.every(point =>
+        this.isPointInsideShape(asset.spaceId, point.x, point.y)
+      );
+    }
+
+    if (asset.floorId) {
+      const insideFloor = points.every(point =>
+        this.isPointInsideShape(asset.floorId, point.x, point.y)
+      );
+
+      if (!insideFloor) {
+        return false;
+      }
+
+      const spacesOnFloor = appState.structural?.spaces?.filter(
+        space => String(space.floorId) === String(asset.floorId)
+      ) || [];
+
+      const intrudesIntoSpace = spacesOnFloor.some(space =>
+        points.some(point => this.isPointInsideShape(space.id, point.x, point.y))
+      );
+
+      return !intrudesIntoSpace;
+    }
+
+    return true;
+  }
+
+  _getDeviceBoundsForFactor(device, factor, center) {
+    const width = device.w * factor + device.tileExtraWidth;
+    const height = device.h * factor + device.tileExtraHeight;
+
+    return {
+      x: center.x - width / 2,
+      y: center.y - height / 2,
+      w: width,
+      h: height
+    };
+  }
+
+  _clampDeviceScaleWithinParent(device, requestedFactor, center) {
+    if (!this._isDeviceEntity(device)) {
+      return requestedFactor;
+    }
+
+    const currentFactor = Number(device.transform?.scale?.factor ?? 1);
+    const minScale = 0.25;
+    const normalizedRequested = Math.max(minScale, requestedFactor);
+
+    if (normalizedRequested <= currentFactor) {
+      return normalizedRequested;
+    }
+
+    const requestedBounds = this._getDeviceBoundsForFactor(device, normalizedRequested, center);
+    if (this._isBoundsInsideAssignedParent(device, requestedBounds)) {
+      return normalizedRequested;
+    }
+
+    let low = currentFactor;
+    let high = normalizedRequested;
+    let best = currentFactor;
+
+    for (let i = 0; i < 14; i++) {
+      const mid = (low + high) / 2;
+      const midBounds = this._getDeviceBoundsForFactor(device, mid, center);
+      if (this._isBoundsInsideAssignedParent(device, midBounds)) {
+        best = mid;
+        low = mid;
+      } else {
+        high = mid;
+      }
+    }
+
+    return best;
+  }
+
+  _getScaledBoundsFromCenter(bounds, scaleRatio, center) {
+    const nextWidth = bounds.w * scaleRatio;
+    const nextHeight = bounds.h * scaleRatio;
+
+    return {
+      x: center.x - nextWidth / 2,
+      y: center.y - nextHeight / 2,
+      w: nextWidth,
+      h: nextHeight
+    };
+  }
+
+  _isBoundsWithinStructuralParents(bounds, parentBoundsList) {
+    if (!bounds) {
+      return false;
+    }
+
+    return (parentBoundsList || []).every(parentBounds =>
+      bounds.x >= parentBounds.minX &&
+      bounds.y >= parentBounds.minY &&
+      bounds.x + bounds.w <= parentBounds.maxX &&
+      bounds.y + bounds.h <= parentBounds.maxY
+    );
+  }
+
+  _clampStructuralScaleWithinParents(en, requestedScaleRatio, baseBounds, center, minScaleRatio = 1) {
+    const normalizedRequested = Math.max(minScaleRatio, requestedScaleRatio);
+    const parentBoundsList = en?.structureType ? this._getStructuralAncestorBounds(en) : [];
+
+    if (!parentBoundsList.length || normalizedRequested <= 1) {
+      return normalizedRequested;
+    }
+
+    const requestedBounds = this._getScaledBoundsFromCenter(baseBounds, normalizedRequested, center);
+    if (this._isBoundsWithinStructuralParents(requestedBounds, parentBoundsList)) {
+      return normalizedRequested;
+    }
+
+    let low = 1;
+    let high = normalizedRequested;
+    let best = 1;
+
+    for (let i = 0; i < 14; i++) {
+      const mid = (low + high) / 2;
+      const midBounds = this._getScaledBoundsFromCenter(baseBounds, mid, center);
+      if (this._isBoundsWithinStructuralParents(midBounds, parentBoundsList)) {
+        best = mid;
+        low = mid;
+      } else {
+        high = mid;
+      }
+    }
+
+    return best;
+  }
   _getAssetContainmentPoints(asset) {
     const bounds = this._getEntityInteractionBounds(asset);
     if (!bounds) return [];

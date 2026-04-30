@@ -2,6 +2,10 @@ import { Box } from "check2d";
 
 export class Device {
     constructor(deviceData, cx, cy, size, system) {
+        this.tilePaddingX = 17;
+        this.tilePaddingY = 20;
+        this.tileExtraWidth = this.tilePaddingX * 2;
+        this.tileExtraHeight = 41;
         this.x = cx - size / 2;
         this.y = cy - size / 2;
         this.w = size;
@@ -75,8 +79,8 @@ export class Device {
     initTransform() {
         this.transform = {
             position: {
-                x: this.x - 17,
-                y: this.y - 20,
+                x: this.x - this.tilePaddingX,
+                y: this.y - this.tilePaddingY,
                 z: 0
             },
             scale: { factor: 1 },
@@ -95,11 +99,11 @@ export class Device {
     }
 
     get tileWidth() {
-        return this.renderWidth + 34;
+        return this.renderWidth + this.tileExtraWidth;
     }
 
     get tileHeight() {
-        return this.renderHeight + 41;
+        return this.renderHeight + this.tileExtraHeight;
     }
 
     get tileX() {
@@ -121,6 +125,7 @@ export class Device {
         this.body.setScale(newScale.factor, newScale.factor);
         this.body.width = this.tileWidth;
         this.body.height = this.tileHeight;
+        this.body.setPosition(this.tileX, this.tileY, true);
     }
 
     saveCurrentScale() {
@@ -145,7 +150,7 @@ export class Device {
         this.y = this.savedPosition.y;
         this.transform.position.x = this.savedPosition.tx;
         this.transform.position.y = this.savedPosition.ty;
-        this.body.setPosition(this.transform.position.x, this.transform.position.y,);
+        this.body.setPosition(this.tileX, this.tileY, true);
     }
 
     move(dx, dy) {
@@ -153,7 +158,7 @@ export class Device {
         this.y += dy;
         this.transform.position.x += dx;
         this.transform.position.y += dy;
-        this.body.setPosition(this.x, this.y, true);
+        this.body.setPosition(this.tileX, this.tileY, true);
     }
 
     checkIfOverlapping(floorId) {

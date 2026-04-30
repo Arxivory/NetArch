@@ -1,14 +1,14 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Square, Triangle, LineSquiggle, Circle } from "lucide-react";
+import { Square, Triangle, LineSquiggle, Circle, BrickWallFire, ChevronsUp, SquareChevronDown, SeparatorVertical, SeparatorHorizontal, ArrowDownFromLine } from "lucide-react";
 
-export default function StructuralOption({ label, icon: Icon, onSelectShape, isActive }) {
+export default function PathwayOption({ label, icon: Icon, onSelectShape, isActive }) {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef(null);
 
   const shapes = [
-    { name: "Rectangle", icon: Square },
-    { name: "Polygon", icon: Triangle },
-    { name: "Circular", icon: Circle }
+    { name: "Conduit", icon: SeparatorVertical },
+    { name: "Riser", icon: SeparatorHorizontal },
+    { name: "Underground Conduit", icon: ArrowDownFromLine }
   ];
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export default function StructuralOption({ label, icon: Icon, onSelectShape, isA
 
       {open && (
         <div className="dropdown-panel">
-          <div className="dropdown-header">Structure</div>
+          <div className="dropdown-header">Components</div>
           {shapes.map(({ name, icon: ShapeIcon }) => (
             <button
               key={name}

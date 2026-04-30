@@ -224,7 +224,7 @@
 
 
 
-import { Undo2, Redo2 } from "lucide-react"; // Add to existing lucide-react imports
+import { Undo2, Redo2, Cable } from "lucide-react"; // Add to existing lucide-react imports
 import {
   Mountain, Building, Grid, RectangleHorizontal, House, DoorOpen,
   Square, Play, File, FilePlus, Save, MousePointer, Hand, ZoomIn, ZoomOut, Trash2 // <-- Added Trash2
@@ -237,6 +237,7 @@ import {
   StartDrawDoorCommand, StartDrawWindowCommand
 } from "../../core/editor/DrawingCommands";
 import StructuralOption from "./StructuralOption";
+import PathwayOption from "./PathwayOption";
 
 export default function Toolbar({ canvasController }) {
   const [activeTool, setActiveTool] = useState("select");
@@ -446,6 +447,10 @@ const handleDelete = () => {
             onClick={() => executeCommand(StartDrawWindowCommand)}
             className={`toolbar-btn ${isActive("window") ? "active" : ""}`}
           ><Square size={16} /> Window</button>
+          <PathwayOption
+          label="Pathway" icon={Cable} isActive={activeTool === "pathway"}
+          onSelectShape={(shape) => handleStructuralShape('Pathway', shape)}
+          ></PathwayOption>
         </div>
         <span className="toolbar-label">Fenestration</span>
       </div>

@@ -37,7 +37,6 @@ export class PhysicalController {
         this.deviceMeshes =  new Map();
         this.cableMeshes = new Map();
         this.furnitureMeshes = new Map();
-        this.selectionHelpers = new Map();
 
         this.furnitureCatalog = furnitureCatalog.furnitures;
 
@@ -51,7 +50,20 @@ export class PhysicalController {
         });
         
         appState.selection.subscribe((selectionStore) => {
-            this.syncSelectionState(selectionStore);
+            const focusedId = selectionStore.getFocusedId();
+            console.log("Focused ID changed:", focusedId);
+    
+            if (focusedId) {
+                const selectedMesh = this.getMeshById(focusedId);
+                console.log("Selected mesh:", selectedMesh);
+                if (selectedMesh && (selectedMesh.userData.type === 'device' || selectedMesh.userData.type === 'furniture')) {
+                    this.gizmoManager.attach(selectedMesh);
+                } else {
+                    this.gizmoManager.detach();
+                }
+            } else {
+                this.gizmoManager.detach();
+            }
         });
 
         this.syncWithState();
@@ -226,7 +238,6 @@ export class PhysicalController {
             if (!activeDeviceIds.has(id)) {
                 this.scene.remove(mesh);
                 this.deviceMeshes.delete(id);
-                this.removeSelectionHelper(id);
             }
         }
 
@@ -234,7 +245,6 @@ export class PhysicalController {
             if (!activeFurnitureIds.has(id)) {
                 this.scene.remove(mesh);
                 this.furnitureMeshes.delete(id);
-                this.removeSelectionHelper(id);
             }
         }
 

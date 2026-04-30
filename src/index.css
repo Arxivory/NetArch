@@ -130,10 +130,10 @@ html,
 }
 
 .simulate-btn {
-  background-color: #5e5b5bd6;
-  color: white;
-  padding: 4px 12px;
-  border-radius: 4px;
+  background-color: #000000;
+  color: rgb(255, 255, 255);
+  padding: 10px 18px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -144,7 +144,10 @@ html,
 }
 
 .simulate-btn:hover {
-  background-color: #5b5a5af0;
+  background-color: #7474741d;
+  color: #000000;
+  font-weight: 100px;
+  border: 1px solid #000000;
 }
 
 .toolbar-btn-icon {
@@ -502,10 +505,38 @@ html,
 }
 
 .switch-panel {
-  display: flex;
+  border: none;
+  display: inline-flex;
   align-items: center;
-  padding: 0 0 0 5px;
-  border-bottom: 1px solid #d1d1d1;
+  background: #ffffff;
+  border-radius: 4px;
+  padding: 2px;
+  gap: 2px;
+
+  /* prevents stretching */
+  width: 155px;
+  height: 40px;
+
+  /* important */
+  flex: 0 0 auto;
+}
+
+.switch-btn {
+  border: none;
+  background: #747474aa;
+  padding: 5px 15px;
+  font-size: 11px;
+  color: #000000;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.switch-btn.active {
+  background: #000000;
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  width: 80px;
 }
 
 .item {
@@ -793,34 +824,27 @@ html,
 .console-panel {
   display: flex;
   flex-direction: column;
-  background: #fafafa;
-  border-top: 1px solid #d1d1d1;
+  background: #ffffff;
+  border-top: 1px solid #747474aa; /* keep your requirement */
   width: 100%;
-  height: 250px; /* Keep your fixed height */
-  overflow: hidden; /* Prevent the panel itself from leaking content */
+  height: 250px;
+  overflow: hidden;
   position: relative;
-  z-index: 10;
 }
 
 .console-panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: #ebeaea8c;
+  background: #fafafa;
   padding: 6px 10px;
-  border-bottom: 1.5px solid #d1d5db;
-  position: sticky;
-  top: 0;
-  z-index: 10;
 }
-
 
 .console-panel-header .panel-header-title {
-  font-weight: 700;
-  color: #333;
-  font-size: 15px;
+  font-weight: 600;
+  color: #111;
+  font-size: 14px;
 }
-
 
 .console-panel-controls {
   display: flex;
@@ -828,43 +852,45 @@ html,
   gap: 4px;
 }
 
+
 .console-panel-input {
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  padding: 3px 6px;
-  font-size: 8px;
-  outline: none;
+  border: 1px solid #b3b3b3e1;
+  border-radius: 6px;
+  padding: 2px 4px;
+  width: 150px;
+  font-size: 12px;
+  background: #fff;
+  transition: all 0.2s ease;
 }
 
 .console-panel-input:focus {
-  border-color: #a9a7a7;
-  background-color: #fff;
+  border-color: #000000;          
+  outline: none;               
+  box-shadow: none;            
 }
-
 
 .console-panel-btn {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 4px;
-  border-radius: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
   border: 1px solid transparent;
-  background: transparent;
+  background: #000000;
   cursor: pointer;
-  font-size: 10px;
-  color: #111;
-  transition: background 0.15s;
+  font-size: 11px;
+  font-weight: 200px;
+  color: #ffffff;
+  transition: all 0.2s ease;
 }
 
 .console-panel-btn:hover {
-  background-color: #f3f4f6;
+  background-color: #000000;
 }
 
-
 .console-panel-icon {
-  width: 16px;
-  height: 16px;
-  color: #111;
+  width: 14px;
+  height: 14px;
 }
 
 
@@ -890,48 +916,72 @@ html,
 }
 
 .console-panel-table th {
-  background-color: #412f2f1a; /* Match your header gray */
-  color: #3e3d3dda;
-  padding: 6px 18px;
-  font-size: 12px;
-  border-bottom: 1px solid #d1d5db; /* Ensure border is consistent */
-  text-align: left;
-  white-space: nowrap; /* Prevents headers from wrapping and breaking height */
+  background: #96969631;
+  color: #212121;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  border-top: 1px solid #747474aa;
+  border-bottom: 1px solid #747474a1;
+}
+
+.console-panel-table th:last-child {
+  border-right: none;
 }
 
 /* 3. The Scroll Wrapper */
 .panel-table-wrapper {
   flex: 1;
-  overflow-x: auto; /* Adds horizontal scroll if table is too wide */
-  overflow-y: auto; /* Adds vertical scroll for logs */
-  background-color: #fafafa; /* Match panel background to hide gaps */
+  overflow-x: auto;
+  overflow-y: auto;
+  background-color: #fff;
 }
 
+.panel-table-wrapper::-webkit-scrollbar {
+  width: 6px;
+}
+
+.panel-table-wrapper::-webkit-scrollbar-thumb {
+  background: #000;
+}
 .console-panel-table td {
-  padding: 6px 8px;
+  padding: 8px 10px;
   font-size: 11px;
-  border-bottom: 1px solid #e5e7eb;
-  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.console-panel-table tbody tr {
+  transition: background 0.15s ease;
 }
 
 .console-panel-table tbody tr:hover {
-  background-color: #f9fafb;
+  background: #f9f9f9;
+}
+.console-panel-table td:last-child {
+  border-right: none;
 }
 
+.console-panel-table tbody tr {
+  background: #fff;
+}
+
+.console-panel-table tbody tr:nth-child(even) {
+  background: #f7f7f7; /* subtle striping */
+}
+
+.console-panel-table tbody tr:hover {
+  background-color: #e5e5e5;
+}
 
 .console-panel-delete {
-  text-align: center;
-  color: #422e2e9c;
+  color: #888;
   cursor: pointer;
-  transition: color 0.15s;
+  transition: all 0.2s ease;
 }
 
 .console-panel-delete:hover {
-  color: #422e2ee1;
-}
-
-.panel-container {
-  width: 100%;
+  color: #000;
+  transform: scale(1.1);
 }
 
 .panel-header {
@@ -948,7 +998,7 @@ html,
 }
 
 .panel-header-title {
-  font-size: 1.1rem;
+  font-size: 1.0 rem;
   font-weight: 600;
   margin: 0;
 }
@@ -981,10 +1031,21 @@ html,
 .panel-table-wrapper {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden;
-  width: 100%;
+  background: #fff;
 }
 
+.panel-table-wrapper::-webkit-scrollbar {
+  width: 6px;
+}
+
+.panel-table-wrapper::-webkit-scrollbar-thumb {
+  background: #d1d1d1;
+  border-radius: 4px;
+}
+
+.panel-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #999;
+}
 .flex-1.overflow-y-auto {
   flex: 1 1 auto;
   display: flex;
@@ -998,7 +1059,7 @@ html,
 }
 
 .panel-table th {
-  background-color: #f3f4f6;
+  background-color: #ffffff;
   padding: 8px 16px;
   font-weight: 400;
   color: #4b5563;
@@ -1031,21 +1092,19 @@ html,
 /* ===== Console Panel Missing Styles ===== */
 
 .highlight {
-  background-color: #2424206d;
-  color: #111827;
+  background: #000;
+  color: #fff;
   padding: 0 2px;
   border-radius: 2px;
 }
 
-.empty-state {
+.empty-state-container {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 80px;
-  color: #6b7280;
-  font-size: 13px;
-  text-align: center;
-  padding: 12px;
+  height: 100%;
+  color: #888;
+  font-size: 12px;
 }
 
 /* ===== Modal Styles ===== */
@@ -1062,18 +1121,18 @@ html,
 
 .modal-container {
   background: #ffffff;
-  border-radius: 25px;
+  border-radius: 10px;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
-  width: 300px;
-  max-width: 300px;
+  width: 100%;
+  max-width: 600px;
   padding: 2px 14px;
   overflow: hidden;
-  border: 1px solid #e5e7eb;
 }
 
 .filter-modal {
   max-width: 300px;
-  max-height: 250px;
+  max-height: 300px;
+  padding: 20px;
 }
 
 .clear-modal {
@@ -1102,22 +1161,24 @@ html,
   color: #111827;
 }
 
+
 .modal-body {
   display: flex;
+  width:100%;
   flex-direction: column;
   gap: 10px;
-  padding: 10px 25px;
+  padding: 10px 0px;
 }
 
 .modal-body input {
   position: static;
-  width: 80%;
-  padding: 4px 10px;
-  font-size: 11px;
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 12px;
   border: 1px solid #d1d5db;
-  border-radius: 10px;
+  border-radius: 6px;
   outline: none;
-  box-sizing: border-box;
+  transition: all 0.15s ease;
 }
 
 .modal-body input:focus {
@@ -1128,15 +1189,15 @@ html,
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  padding: 8px 2px;
+  gap: 8px;
+  padding-top: 10px;
 }
 
 .modal-title {
   margin: 0 0 8px;
   font-size: 17px;
   font-weight:640;
-  color: #111827;
+  color: #000000;
 }
 
 .modal-text {
@@ -1149,49 +1210,52 @@ html,
 .btn-apply,
 .btn-cancel,
 .btn-confirm {
-  padding: 8px 12px;
-  font-size: 12 px;
-  border-radius: 16px;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 6px;
   cursor: pointer;
   border: 1px solid transparent;
   transition: all 0.15s ease;
 }
 
-.btn-reset,
 .btn-cancel {
-  background: #f3f4f6;
-  color: #111827;
-  border-color: #d1d5db;
+  background: #e0e0e038;
+  border: 1px solid #9f9f9f32;
+  font-weight: 500px;
+  color: #000000;
 }
 
-.btn-reset:hover,
 .btn-cancel:hover {
-  background: #e5e7eb;
+  background: #9f9f9f32;
 }
 
 .btn-apply {
-  background: #2563eb;
-  color: white;
+  background: #c1c1c1ab;
+  border: 1px solid #706f6f;
+  font-weight: 500px;
+  color: #000000;
 }
 
 .btn-apply:hover {
-  background: #1d4ed8;
+  background: #9f9f9f32;
 }
 
 .btn-confirm {
-  background: #dc2626;
-  color: white;
+  background: #c1c1c1ab;
+  border: 1px solid #706f6f;
+  font-weight: 500px;
+  color: #000000;
 }
 
 .btn-confirm:hover {
-  background: #b91c1c;
+  background: #9f9f9f32;
 }
 
 /* --- Base Modal Styles --- */
 .config-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.3); /* Lighter backdrop for minimalist feel */
+  background: rgba(0, 0, 0, 0.3); 
   border: 0 0 0 5px solid #000;
   display: flex;
   align-items: center;
@@ -1199,26 +1263,18 @@ html,
   z-index: 1000;
 }
 
-.routing-modal-layer {
-  z-index: 1001;
-  background: rgba(0, 0, 0, 0.1);
-}
 
 .config-modal-content {
   background: #ffffff;
   border: 1px solid #d1d5db;
-  border-radius: 15px; /* Sharper corners for a technical look */
+  border-radius: 15px; 
   width: 90%;
   max-width: 700px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   overflow: hidden;
 }
 
-.routing-modal-size {
-  max-width: 650px;
-}
 
-/* --- Header Section --- */
 .modal-header {
   padding: 15px 20px;
   border-bottom: 1px solid #ececec;
@@ -1240,31 +1296,25 @@ html,
   color: #9ca3af;
 }
 
-/* --- Config Grid (2 Per Row) --- */
-/* Config Grid (First Modal) */
+
 .config-grid {
   display: grid;
-  /* Use a more constrained max-width to pull the two columns closer */
   grid-template-columns: repeat(3, minmax(0, 300px)); 
-  /* Reduced gap from 20px to 12px to pull cards together */
   gap: 15px;            
-  /* Reduced vertical padding to eliminate empty space at top/bottom */
   padding: 40px 30px;   
   justify-content: center; 
   justify-items: center;   
   align-items: start;
 }
 
-/* Fix the card layout itself */
 .config-item-card {
   background: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;   
-  /* Reduced internal padding to make the cards themselves more compact */
   padding: 16px 20px;   
   cursor: pointer;
   width: 100%;          
-  max-width: 250px;     /* Slightly narrower cards */
+  max-width: 250px;     
   display: flex;
   flex-direction: column;
   align-items: center;  
@@ -1276,7 +1326,7 @@ html,
 .config-label {
   font-weight: 600;
   font-size: 14px;      
-  margin-bottom: 2px;   /* Tighter spacing between title and description */
+  margin-bottom: 2px;   
   color: #111827;
 }
 
@@ -1286,10 +1336,9 @@ html,
   line-height: 1.3;
 }
 
-/* --- Minimalist States (Blue Accent only on cursor/click) --- */
 .config-item-card:hover {
   border-color: #878787;
-  background-color: #ffffff; /* Stays white */
+  background-color: #ffffff; 
 }
 
 .config-item-card:active,
@@ -1298,284 +1347,571 @@ html,
   box-shadow: 0 0 0 1px #878787;
 }
 
-/* --- Routing Selection (Sub-Modal) --- */
-.routing-selection-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px; /* Slightly wider gap */
-  padding: 30px 20px;
-}
 
-.routing-option-card {
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 20px 12px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  background: white;
-}
 
-.routing-option-card:hover {
-  border-color: #3b82f6;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-}
-
-.routing-icon {
-  width: 42px;
-  height: 42px;
-  margin: 0 auto 12px;
+.nat-sidebar-layout {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  background: #f3f4f6;
-  transition: all 0.2s ease;
+  width: 750px;
+  height: 500px;
+  background: #ffffff;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.12);
+  border: 1px solid #eee;
 }
 
-/* Default icon color */
-.routing-icon svg {
-  color: #6b7280;
-  transition: all 0.2s ease;
-}
 
-/* --- PROTOCOL COLORS (on hover) --- */
 
-.routing-option-card:hover .routing-icon.ospf {
-  background: #e6f7f5;
-}
-.routing-option-card:hover .routing-icon.ospf svg {
-  color: #14b8a6; /* teal */
-}
-
-.routing-option-card:hover .routing-icon.bgp {
-  background: #ede9fe;
-}
-.routing-option-card:hover .routing-icon.bgp svg {
-  color: #8b5cf6; /* purple */
-}
-
-.routing-option-card:hover .routing-icon.static {
-  background: #fff7ed;
-}
-.routing-option-card:hover .routing-icon.static svg {
-  color: #f97316; /* orange */
-}
-
-.routing-option-card:hover .routing-icon {
-  background: #e0edff;
-  color: #3b82f6;
-}
-
-.routing-option-card h3 {
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-
-.routing-option-card p {
-  font-size: 10px;
-  color: #9ca3af;
-}
-
-/* --- Footer --- */
-.modal-footer {
-  padding: 12px 24px;
-  border-top: 1px solid #f3f4f6;
+.nat-sidebar {
+  width: 240px;
+  background: #fafafa;
+  border-right: 1px solid #eaeaea;
   display: flex;
-  justify-content: flex-end;
-  background: #f9fafb; /* Very subtle contrast for the footer area */
+  flex-direction: column;
 }
 
-.cancel-btn {
-  padding: 6px 16px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  background: white;
-  font-size: 12px;
-  font-weight: 500;
-  color: #4b5563;
-  cursor: pointer;
-}
-
-.cancel-btn:hover {
-  border-color: #9ca3af;
-  color: #111827;
-}
-/* --- OSPF Modal Specifics --- */
-.ospf-modal-layer {
-  z-index: 2000; /* Ensure it sits above the routing selection modal */
-  background: rgba(0, 0, 0, 0.2);
-}
-
-.ospf-modal-size {
-  width: 380px;
-  max-width: 95vw;
-}
-
-.header-with-icon {
+.sidebar-header {
+  padding: 18px 20px;
   display: flex;
   align-items: center;
   gap: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #111;
+  border-bottom: 1px solid #eee;
 }
 
-.settings-icon-bg {
-  background: #e6f7f5;
-  padding: 6px;
-  border-radius: 6px;
+.nav-list {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nav-item {
+  border: none;
+  background: transparent;
   display: flex;
   align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: 0.2s ease;
+  text-align: left;
 }
 
-.teal-icon {
-  color: #14b8a6;
+.nav-item:hover {
+  background: #f1f1f1;
 }
 
-/* Tabs Styling */
-.tabs {
+.nav-item.active {
+  background: #efefef;
+}
+
+.nav-icon {
+  color: #666;
+}
+
+.nav-item.active .nav-icon {
+  color: #111;
+}
+
+.nav-text strong {
+  display: block;
+  font-size: 13px;
+  color: #222;
+  font-weight: 600;
+}
+
+.nav-text p {
+  font-size: 11px;
+  color: #888;
+  margin: 0;
+}
+
+
+
+.nat-main-content {
+  flex: 1;
   display: flex;
-  gap: 20px;
-  border-bottom: 1px solid #f3f4f6;
+  flex-direction: column;
+  background: #fff;
+  overflow: hidden;
+}
+
+
+
+.modal-header-clean {
+  padding: 16px 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #eee;
+}
+
+.modal-header-clean h3 {
+  font-size: 14px;
+  letter-spacing: 0.4px;
+  color: #111;
+  margin: 0;
+  font-weight: 600;
+}
+
+
+.config-body {
+  padding: 18px 22px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.config-group-mono {
   margin-bottom: 20px;
 }
 
-.tab {
-  padding: 8px 4px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #6b7280;
-  background: none;
-  border: none;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-}
-
-.tab.active {
-  color: #3b82f6;
-  border-bottom-color: #3b82f6;
-}
-
-/* Form Grid */
-.input-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.input-field label, .section-label {
-  display: block;
+.config-group-mono label {
   font-size: 12px;
-  font-weight: 600;
-  color: #374151;
+  color: #444;
+  letter-spacing: 0.3px;
+  display: block;
   margin-bottom: 6px;
 }
 
-.input-field input {
+
+.inline-fields {
+  display: flex;
+  gap: 14px;
+}
+
+.input-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.input-wrap span {
+  font-size: 10px;
+  color: #888;
+}
+
+.input-wrap input,
+.input-wrap select {
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 13px;
+  transition: 0.2s;
+  background: #fff;
+}
+
+.input-wrap input:focus,
+.input-wrap select:focus {
+  border-color: #111;
+  outline: none;
+}
+
+.checkbox-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: #333;
+  margin-top: 10px;
+}
+
+.checkbox-wrap input {
+  width: 14px;
+  height: 14px;
+}
+
+
+.modal-footer-clean {
+  padding: 16px 22px;
+  border-top: 1px solid #eee;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  background: #fff;
+}
+
+.btn-primary {
+  background: #111;
+  color: #fff;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.btn-primary:hover {
+  background: #333;
+}
+
+.btn-secondary {
+  background: #fff;
+  color: #222;
+  border: 1px solid #ddd;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #f5f5f5;
+}
+
+
+.config-modal-content.nat-sidebar-layout {
+  width: 750px !important;
+  max-width: 750px !important;
+  height: 500px;
+  border-radius: 14px;
+}
+
+.nat-modal-layer {
+  background: rgba(0, 0, 0, 0.25) !important;
+}
+
+/* GLOBAL BOX FIX */
+.nat-sidebar-layout,
+.nat-sidebar-layout * {
+  box-sizing: border-box;
+}
+
+
+.acl-modal-layer {
+  background: rgba(0, 0, 0, 0.25) !important;
+}
+
+.acl-layout {
+  width: 820px;
+  height: 560px;
+  display: flex;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+
+.acl-sidebar {
+  width: 240px;
+  background: #fafafa;
+  border-right: 1px solid #eaeaea;
+  display: flex;
+  flex-direction: column;
+}
+
+.acl-sidebar-header {
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #111;
+  border-bottom: 1px solid #eee;
+}
+
+.acl-nav-list {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.acl-nav-item {
   width: 100%;
-  padding: 8px;
-  border: 1px solid #e5e7eb;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: 0.2s ease;
+  text-align: left;
+}
+
+.acl-nav-item:hover {
+  background: #f1f1f1;
+}
+
+.acl-nav-item.active {
+  background: #efefef;
+}
+
+.acl-nav-icon {
+  color: #666;
+  display: flex;
+  align-items: center;
+}
+
+.acl-nav-item.active .acl-nav-icon {
+  color: #111;
+}
+
+.acl-nav-text strong {
+  display: block;
+  font-size: 13px;
+  color: #222;
+  font-weight: 600;
+}
+
+.acl-nav-text p {
+  font-size: 11px;
+  color: #888;
+  margin: 0;
+}
+
+
+.acl-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  overflow: hidden;
+}
+
+.acl-header {
+  padding: 16px 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #eee;
+}
+
+.acl-header h3 {
+  font-size: 14px;
+  color: #111;
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+
+.acl-body {
+  padding: 18px 22px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.acl-section {
+  margin-bottom: 20px;
+}
+
+.acl-section label {
+  font-size: 12px;
+  color: #444;
+  display: block;
+  margin-bottom: 6px;
+}
+
+
+.acl-inline {
+  display: flex;
+  gap: 14px;
+}
+
+.acl-input {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.acl-input span {
+  font-size: 10px;
+  color: #888;
+}
+
+.acl-input input,
+.acl-input select {
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 13px;
+  background: #fff;
+  transition: 0.2s ease;
+}
+
+.acl-input input:focus,
+.acl-input select:focus {
+  border-color: #111;
+  outline: none;
+}
+
+
+.acl-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: #333;
+  margin-top: 10px;
+}
+
+.acl-checkbox input {
+  width: 14px;
+  height: 14px;
+}
+
+
+.acl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.acl-table th,
+.acl-table td {
+  border: 1px solid #e5e5e5;
+  padding: 6px;
+  text-align: center;
+}
+
+.acl-table th {
+  background: #fafafa;
+  font-weight: 600;
+  color: #333;
+}
+
+.acl-table input,
+.acl-table select {
+  width: 100%;
+  border: 1px solid #ddd;
   border-radius: 6px;
+  padding: 4px;
+  font-size: 12px;
+}
+
+
+.acl-footer {
+  padding: 16px 22px;
+  border-top: 1px solid #eee;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  background: #fff;
+}
+
+.acl-btn-primary {
+  background: #111;
+  color: #fff;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.acl-btn-primary:hover {
+  background: #333;
+}
+
+.acl-btn-secondary {
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.acl-btn-secondary:hover {
+  background: #f5f5f5;
+}
+
+/* ================= VLAN MODAL LAYER ================= */
+
+.vlan-modal-layer {
+  z-index: 9999;
+}
+
+/* ================= TABLE FIXES ================= */
+
+.vlan-modal-layer .acl-table {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  background: #111111;
+}
+
+.vlan-modal-layer .acl-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.vlan-modal-layer .acl-table th {
+  background: #181818;
+  color: #f5f5f5;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 14px;
+  border-bottom: 1px solid #2a2a2a;
+  text-align: left;
+}
+
+.vlan-modal-layer .acl-table td {
+  padding: 12px;
+  border-bottom: 1px solid #222;
+}
+
+.vlan-modal-layer .acl-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* ================= INPUTS ================= */
+
+.vlan-modal-layer input,
+.vlan-modal-layer select {
+  width: 100%;
+  background: #0d0d0d;
+  border: 1px solid #2c2c2c;
+  color: #f5f5f5;
+  padding: 10px 12px;
+  border-radius: 10px;
+  outline: none;
+  transition: 0.2s ease;
   font-size: 13px;
 }
 
-/* Network Rows */
-.network-entry {
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
-  background: #f9fafb;
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid #f3f4f6;
-  margin-bottom: 12px;
+.vlan-modal-layer input:focus,
+.vlan-modal-layer select:focus {
+  border-color: #4b8dff;
+  box-shadow: 0 0 0 1px #4b8dff;
 }
 
-.net-input span {
-  display: block;
-  font-size: 11px;
-  color: #6b7280;
-  margin-bottom: 4px;
+/* ================= STATUS COLORS ================= */
+
+.vlan-status-active {
+  color: #41d67a;
+  font-weight: 600;
 }
 
-.net-input input {
-  width: 100%;
-  padding: 6px;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  font-size: 12px;
+.vlan-status-native {
+  color: #ffb347;
+  font-weight: 600;
 }
 
-.add-network-btn {
-  background: none;
-  border: 1px solid #e5e7eb;
-  color: #3b82f6;
-  font-size: 12px;
-  padding: 6px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 500;
+/* ================= SCROLLBAR ================= */
+
+.vlan-modal-layer ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
-.save-btn {
-  background: #2563eb;
-  color: white;
-  border: none;
-  padding: 6px 20px;
-  border-radius: 4px;
-  font-size: 12px;
-  margin-left: 8px;
-  cursor: pointer;
+.vlan-modal-layer ::-webkit-scrollbar-thumb {
+  background: #2b2b2b;
+  border-radius: 10px;
 }
 
-.save-btn:hover {
-  background: #1d4ed8;
-}
-
-.network-entry {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  background: #f8fafc; /* Matches the light gray box in your image */
-  padding: 16px;
-  border-radius: 8px;
-  margin-bottom: 12px;
-  position: relative;
-}
-
-.net-input {
-  flex: 1;
-}
-
-.delete-row-btn {
-  background: none;
-  border: none;
-  color: #64748b;
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-}
-
-.delete-row-btn:hover {
-  color: #ef4444;
-}
-
-.add-network-btn {
-  background: white;
-  border: 1px solid #e2e8f0;
-  color: #2563eb;
-  font-weight: 500;
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  margin-top: 4px;
-  transition: all 0.2s;
-}
-
-.add-network-btn:hover {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
+.vlan-modal-layer ::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 

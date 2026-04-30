@@ -130,7 +130,7 @@ export default function ConsolePanel() {
           </table>
 
           {/* Scrollable Body Section */}
-          <div style={{ overflowY: 'scroll', height: '400px', background: 'white' }}>
+          <div style={{ overflowY: 'scroll', height: '400px', background: 'gray' }}>
             {filteredLogs.length > 0 ? (
               <table className="console-panel-table">
                 <tbody>
@@ -169,23 +169,41 @@ export default function ConsolePanel() {
       </div>
 
       {/* Filter Modal */}
+      
       {showFilters && (
-        <div className="modal-overlay">
-          <div className="modal-container filter-modal">
-            <div className="modal-header">
-              <span>Filter Settings</span>
-              <X className="modal-close" size={16} onClick={() => setShowFilters(false)} />
-            </div>
-            <div className="modal-body">
-              <input placeholder="Device" value={tempFilters.device} onChange={(e) => setTempFilters({ ...tempFilters, device: e.target.value })} />
-              <input placeholder="Device Name" value={tempFilters.deviceName} onChange={(e) => setTempFilters({ ...tempFilters, deviceName: e.target.value })} />
-              <input placeholder="Location" value={tempFilters.location} onChange={(e) => setTempFilters({ ...tempFilters, location: e.target.value })} />
-              <input type="date" value={tempFilters.date} onChange={(e) => setTempFilters({ ...tempFilters, date: e.target.value })} />
-            </div>
-            <div className="modal-footer">
-              <button className="btn-apply" onClick={handleApplyFilters}>Apply</button>
-            </div>
+           <div className="modal-overlay">
+           <div className="modal-container filter-modal">
+
+          <h4 className="modal-title">Filter Logs</h4>
+
+         <div className="modal-body">
+           <input
+               placeholder="Device"
+               value={tempFilters.device}onChange={(e) =>setTempFilters({ ...tempFilters, device: e.target.value })
+          }
+        />
+
+           <input
+              placeholder="Device Name"
+              value={tempFilters.deviceName}onChange={(e) =>setTempFilters({ ...tempFilters, deviceName: e.target.value })
+          }
+        />
+
+          <input
+              placeholder="Location"
+              value={tempFilters.location}onChange={(e) =>setTempFilters({ ...tempFilters, location: e.target.value })}
+        />
+
+          <input
+              type="date"
+              value={tempFilters.date}onChange={(e) =>setTempFilters({ ...tempFilters, date: e.target.value })} />
+        </div>
+
+          <div className="modal-footer">
+              <button className="btn-cancel"onClick={() => setShowFilters(false)}>Cancel</button>
+              <button className="btn-apply"onClick={handleApplyFilters}>Apply</button>
           </div>
+           </div>
         </div>
       )}
 

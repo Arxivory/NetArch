@@ -95,7 +95,11 @@ useEffect(() => {
         }
 
         if (entity && storeNode) {
-          entity = { ...entity, label: storeNode.label || storeNode.hostname || storeNode.name };
+          entity = {
+            ...entity,
+            ...storeNode,
+            label: storeNode.label || storeNode.hostname || storeNode.name || entity.label
+          };
         } else if (!entity && storeNode) {
           entity = storeNode;
         }
@@ -232,7 +236,25 @@ useEffect(() => {
   
   const handleDeviceChange = (field, value) => {
     if (!selectedEntity) return;
-    const updatedEntity = { ...selectedEntity, [field]: value };
+    let updatedEntity = { ...selectedEntity, [field]: value };
+
+    if (field === "ipAddress" || field === "subnetMask") {
+      const interfaces = Array.isArray(selectedEntity.interfaces) ? [...selectedEntity.interfaces] : [];
+      const firstInterface = interfaces[0] ? { ...interfaces[0] } : {};
+      const ipv4 = { ...(firstInterface.ipv4 || {}) };
+
+      if (field === "ipAddress") {
+        ipv4.address = value;
+      }
+      if (field === "subnetMask") {
+        ipv4.subnetMask = value;
+      }
+
+      firstInterface.ipv4 = ipv4;
+      interfaces[0] = firstInterface;
+      updatedEntity = { ...selectedEntity, interfaces, [field]: value };
+    }
+
     setSelectedEntity(updatedEntity);
     if (field === 'label' && value.trim() === '') return; 
     if (appState.network && appState.network.updateDevice) {
@@ -325,10 +347,10 @@ useEffect(() => {
             <input className="field-input" value={selectedEntity?.label || ""} onChange={(e) => handleDeviceChange('label', e.target.value)} />
           </div>
           <div><label>IP Address</label>
-            <input className="field-input" value={selectedEntity?.interfaces?.[0]?.ipv4?.address || ""} onChange={(e) => handleDeviceChange('ipAddress', e.target.value)} />
+            <input className="field-input" value={selectedEntity?.interfaces?.[0]?.ipv4?.address ?? selectedEntity?.ipAddress ?? ""} onChange={(e) => handleDeviceChange('ipAddress', e.target.value)} />
           </div>
           <div><label>Subnet Mask</label>
-            <input className="field-input" value={selectedEntity?.interfaces?.[0]?.ipv4?.subnetMask || ""} onChange={(e) => handleDeviceChange('subnetMask', e.target.value)} />
+            <input className="field-input" value={selectedEntity?.interfaces?.[0]?.ipv4?.subnetMask ?? selectedEntity?.subnetMask ?? ""} onChange={(e) => handleDeviceChange('subnetMask', e.target.value)} />
           </div>
           <div><label>Default Gateway</label>
             <input className="field-input" value={selectedEntity?.defaultGateway || ""} onChange={(e) => handleDeviceChange('defaultGateway', e.target.value)} />

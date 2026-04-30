@@ -1828,35 +1828,49 @@ _handleEntitySelected(entity) {
     return;
   }
 
-  // --- Intercept clicks for Delete Mode safely ---
-  if (appState.tools && appState.tools.activeTool === 'delete') {
-    window.addEventListener('pointerup', () => {
-      setTimeout(() => {
-        // NEW: Check if the clicked entity is a Cable (cables have source/target IDs)
-        if (entity.sourceId && entity.targetId) {
-          const src = this.layout.findEntityById(entity.sourceId);
-          const dst = this.layout.findEntityById(entity.targetId);
+    // --- Intercept clicks for Delete Mode safely ---
+if (appState.tools && appState.tools.activeTool === 'delete') {
+        window.addEventListener('pointerup', () => {
+            setTimeout(() => {
+                // NEW: Check if the clicked entity is a Cable (cables have source/target IDs)
+                if (entity.sourceId && entity.targetId) {
+                    const src = this.layout.findEntityById(entity.sourceId);
+                    const dst = this.layout.findEntityById(entity.targetId);
+                    
+                    // Trigger the confirmation modal!
+                    window.dispatchEvent(new CustomEvent('requestLinkDeletion', { 
+                        detail: { 
+                            linkId: entity.id, 
+                            sourceName: src?.label || src?.name || "Device", 
+                            targetName: dst?.label || dst?.name || "Device" 
+                        } 
+                    }));
+                } else {
+                    // Standard instant-delete for Devices, Furniture, and Spaces
+                    if (this.executeDelete) {
+                        this.executeDelete(entity.id);
+                    }
+                    // Reset tool back to select
+                    if (appState.tools) appState.tools.setActiveTool('select');
+                }
+            }, 0);
+        }, { once: true }); 
+        return; 
+    }
 
-          // Trigger the confirmation modal!
-          window.dispatchEvent(new CustomEvent('requestLinkDeletion', {
-            detail: {
-              linkId: entity.id,
-              sourceName: src?.label || src?.name || "Device",
-              targetName: dst?.label || dst?.name || "Device"
-            }
-          }));
-        } else {
-          // Standard instant-delete for Devices, Furniture, and Spaces
-          if (this.executeDelete) {
-            this.executeDelete(entity.id);
-          }
-          // Reset tool back to select
-          if (appState.tools) appState.tools.setActiveTool('select');
-        }
-      }, 0);
-    }, { once: true });
-    return;
-  }
+    const selectionCount = appState.selection.getSelectionCount?.() ?? 0;
+    const isAlreadyMultiSelected =
+      selectionCount > 1 &&
+      (
+        appState.selection.isDeviceSelected?.(entity.id) ||
+        appState.selection.isFurnitureSelected?.(entity.id) ||
+        appState.selection.isLinkSelected?.(entity.id)
+      );
+
+    if (isAlreadyMultiSelected) {
+      appState.selection.notify?.();
+      return;
+    }
 
   if (entity.structureType) {
     const typeStr = entity.structureType.toLowerCase();

@@ -44,6 +44,10 @@ export class PhysicalController {
         this.unsubscribeNetwork = this.networkStore.subscribe(() => this.syncWithState());
         
         this.gizmoManager = new GizmoManager(getCamera(), getRenderer().domElement, getScene());
+
+        window.addEventListener('gizmoObjectMoved', (e) => {
+            this._refreshCablesForDevice(e.detail.id);
+        });
         
         appState.selection.subscribe((selectionStore) => {
             const focusedId = selectionStore.getFocusedId();
@@ -252,6 +256,17 @@ export class PhysicalController {
         }
     }
 
+    _refreshCablesForDevice(deviceId) {
+        for (const [linkId, cable] of this.cableMeshes) {
+            if (
+                cable.sourceDeviceId === deviceId ||
+                cable.targetDeviceId === deviceId
+            ) {
+                cable.update();
+            }
+        }
+    }
+
     createDomainMesh(domain) {
         const newDomain = new DomainMesh(domain, this.defaultScaler);
         switch (domain.shapeType) {
@@ -384,7 +399,7 @@ export class PhysicalController {
         const cableMesh = newCable.getMesh();
 
         this.scene.add(cableMesh);
-        this.cableMeshes.set(link.id, cableMesh);
+        this.cableMeshes.set(link.id, newCable);
     }
 
     async createFurnitureGLTFMesh(furniture) {

@@ -95,7 +95,7 @@ export default function ObjectLibrary({ canvasController }) {
     if (!validExtensions.includes(fileExt)) {
       setshowImportModal(false); 
       showErrorModal(
-        "The selected object is not supported for placement yet. Please import a supported device model and try again.",
+        "The selected object is not supported. Please import a supported objects and try again.",
         "Unsupported Object"
       );
       return;

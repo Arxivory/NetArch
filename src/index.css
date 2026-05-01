@@ -11,7 +11,7 @@ html,
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   font-size: 13px;
   color: #222;
-  background-color: #f7f7f7;
+  background-color: #000000;
 }
 
 .app {
@@ -74,19 +74,6 @@ html,
   display: flex;
   gap: 6px;
   padding: 4px 10px;
-  font-size: 12px;
-  height: 70px;
-  position: relative;
-  z-index: 10;
-}
-
-.toolbar {
-  background: #ffffff;
-  border-bottom: 1px solid #d1d1d1;
-  display: flex;
-  align-items: flex-end;
-  gap: 24px;
-  padding: 8px 12px;
   font-size: 12px;
   height: 70px;
   position: relative;
@@ -223,8 +210,8 @@ html,
   z-index: 100;
   margin-top: 4px;
   width: 176px;
-  background-color: #ffffff;
-  border: 1px solid #e5e7eb;
+  background-color: #fffffff4;
+  border: 1px solid #b1afafec;
   border-radius: 4px;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 }
@@ -234,7 +221,7 @@ html,
   border-bottom: 1px solid #f3f4f6;
   font-size: 10px;
   font-weight: 600;
-  color: #4b5563;
+  color: #232932;
   text-transform: uppercase;
   letter-spacing: 0.025em;
 }
@@ -246,7 +233,7 @@ html,
   gap: 8px;
   padding: 8px 12px;
   font-size: 13px;
-  color: #374151;
+  color: #232932;
   background: none;
   border: none;
   cursor: pointer;
@@ -255,7 +242,7 @@ html,
 }
 
 .dropdown-item:hover {
-  background-color: #f3f4f6;
+  background-color: #ecececa4;
 }
 
 .dropdown-item svg {
@@ -295,19 +282,6 @@ html,
 .structural-btn-icon {
   width: 20px;
   height: 20px;
-}
-
-.simulate-btn {
-  margin-left: auto;
-  background: #2563eb;
-  color: white;
-  height: 30px;
-  font-weight: 500;
-  border-radius: 4px;
-}
-
-.simulate-btn:hover {
-  background: #1e4ed8;
 }
 
 .main-layout {
@@ -382,10 +356,6 @@ html,
   box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
 
-/* .device-tile:hover {
-  background: #f0f0f0;
-  border-color: #bdbdbd;
-} */
 
 .device-tile:hover {
   background-color: #f8fafc;
@@ -396,9 +366,6 @@ html,
   cursor: grab;
 }
 
-/* .device-tile.draggable:active {
-  cursor: grabbing;
-} */
 
 .device-tile.draggable:active {
   cursor: grabbing;
@@ -406,9 +373,6 @@ html,
   background-color: #eff6ff;
 }
 
-/* .device-icon {
-  margin-bottom: 4px;
-} */
 
 .device-icon {
   margin-bottom: 8px; /* Space between icon and text */
@@ -419,11 +383,6 @@ html,
   width: 32px;        /* Fixed size for icon container */
   height: 32px;
 }
-
-/* .device-type {
-  font-size: 11px;
-  text-align: center;
-} */
 
 .device-type {
   font-size: 11px;
@@ -483,6 +442,7 @@ html,
 .hierarchy-panel h3 {
   font-weight: 600;
   margin-bottom: 6px;
+  background-color: #ffffff;
 }
 
 .hierarchy-panel ul {
@@ -648,18 +608,18 @@ html,
   display: flex;
   flex-direction: column;
   background: #fafafa;
-  border-top: 1px solid #d1d1d1;
   z-index: 5;
   width: 100%;
   height: 120px;
-  border-radius: 7px 7px 0 0;
   top: calc(100vh - 276px);
 }
 
 .panel-content {
-  flex: 1;
-  overflow-y: auto; 
-  padding: 0.5rem;
+  flex: 1; /* This pushes the content to fill the 250px */
+  overflow-y: auto; /* This enables the scrollbar */
+  padding: 0; /* Removing padding helps table alignment, or keep 0.5rem if preferred */
+  display: flex;
+  flex-direction: column;
 }
 
 .panel-table {
@@ -768,49 +728,12 @@ html,
   cursor: pointer;
 }
 
-.mode-transform-panel {
-  position: absolute;
-  top: 160px;
-  left: 320px;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 3px 3px;
-  background: #e3e3e3;
-  border: 1px solid #d1d1d1;
-  border-radius: 7px;
-  z-index: 0;
-}
-
-.mode-transform-button {
-  background: none;
-  padding: 2px 2px;
-  margin-left: 2px;
-  margin-right: 2px;
-  border-radius: 4px;
-  border: 1px solid transparent;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  transition: background 0.15s, border 0.15s;
-  cursor: pointer;
-}
-
 .mode-switch-button:hover {
   background: #f1f1f1;
 }
 
 .mode-switch-button-active,
 .mode-switch-button-active:hover {
-  background: #ffffff;
-}
-
-.mode-transform-button:hover {
-  background: #f1f1f1;
-}
-
-.mode-transform-button-active,
-.mode-transform-button-active:hover {
   background: #ffffff;
 }
 
@@ -843,8 +766,8 @@ html,
 
 .funnel-plus {
   color: #000000;
-  width: 17px;
-  height: 17px;
+  width: 10px;
+  height: 10px;
 }
 
 .panel-header-container {
@@ -858,49 +781,6 @@ html,
   color: #4b5563;
   font-weight: 500;
   margin-bottom: 12px;
-}
-
-.device-tile {
-  border: 1px solid #d1d1d1;
-  border-radius: 4px;
-  background: #fff;
-  aspect-ratio: 1 / 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: 8px;
-  transition: all 0.15s ease;
-}
-
-.device-icon {
-  margin-bottom: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #374151;
-}
-
-.device-type {
-  font-size: 11px;
-  margin: 0;
-  text-align: center;
-}
-
-.draggable-tile {
-  cursor: grab;
-}
-
-.draggable-tile:active {
-  cursor: grabbing;
-  border-color: #2563eb;
-  background-color: #eff6ff;
-}
-
-.device-tile:hover {
-  background: #f9fafb;
-  border-color: #9ca3af;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .tree-item {
@@ -969,7 +849,7 @@ html,
 .console-panel-controls {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 
@@ -1020,12 +900,14 @@ html,
 }
 
 
+/* 1. Ensure the table fills the width */
 .console-panel-table {
   width: 100%;
   border-collapse: collapse;
+  min-width: 100%; /* Forces the table to at least match container width */
 }
 
-
+/* 2. Fix the Header Gap */
 .console-panel-table thead {
   position: sticky;
   top: 0;
@@ -1198,7 +1080,7 @@ html,
 
 .panel-delete-icon {
   text-align: center;
-  color: #f87171;
+  color: #111010;
   cursor: pointer;
   transition: color 0.15s;
 }

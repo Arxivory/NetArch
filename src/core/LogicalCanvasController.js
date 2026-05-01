@@ -936,10 +936,227 @@ executeDelete(idToDelete) {
       entityBounds.maxX > parentBounds.maxX + tol ||
       entityBounds.maxY > parentBounds.maxY + tol
     );
+  } 
+
+   _getDuplicateSelection() {
+    const deviceIds = appState.selection?.getSelectedDeviceIds?.() || [];
+    const furnitureIds = appState.selection?.getSelectedFurnitureIds?.() || [];
+    const focusedId = appState.selection?.getFocusedId?.();
+    const focusedType = appState.selection?.focusedType;
+
+    if (deviceIds.length || furnitureIds.length) {
+      return { deviceIds, furnitureIds };
+    }
+
+    if (focusedId && focusedType === 'device') {
+      return { deviceIds: [focusedId], furnitureIds: [] };
+    }
+
+    if (focusedId && focusedType === 'furniture') {
+      return { deviceIds: [], furnitureIds: [focusedId] };
+    }
+
+    return { deviceIds: [], furnitureIds: [] };
+  }
+
+  _getEntityCanvasPosition(entity) {
+    const layoutEntity = this.layout?.findEntityById?.(entity.id);
+    if (layoutEntity && typeof layoutEntity.x === 'number' && typeof layoutEntity.y === 'number') {
+      return { x: layoutEntity.x, y: layoutEntity.y };
+    }
+
+    if (entity.position && typeof entity.position.x === 'number' && typeof entity.position.y === 'number') {
+      return { x: entity.position.x, y: entity.position.y };
+    }
+
+    const physicalPosition = entity.transform?.position;
+    if (physicalPosition && typeof physicalPosition.x === 'number' && typeof physicalPosition.z === 'number') {
+      return {
+        x: physicalPosition.x / 0.7,
+        y: physicalPosition.z / 0.7
+      };
+    }
+
+    return { x: 0, y: 0 };
+  }
+
+  _getDuplicatePosition(entity, index) {
+    const basePosition = this._getEntityCanvasPosition(entity);
+    const offset = 48;
+    const stagger = index * 12;
+
+    return {
+      x: basePosition.x + offset + stagger,
+      y: basePosition.y + offset + stagger
+    };
+  }
+
+  _buildDuplicateLabel(baseLabel, existingLabels = []) {
+    const trimmedBase = (baseLabel || 'Item').trim();
+    const existing = new Set(existingLabels.filter(Boolean));
+    let nextLabel = `${trimmedBase} Copy`;
+    let counter = 2;
+
+    while (existing.has(nextLabel)) {
+      nextLabel = `${trimmedBase} Copy ${counter++}`;
+    }
+
+    return nextLabel;
+  }
+
+  _copyPrimaryInterfaceIPv4(sourceDevice, targetDevice) {
+    if (!Array.isArray(sourceDevice.interfaces) || !Array.isArray(targetDevice.interfaces)) {
+      return;
+    }
+
+    sourceDevice.interfaces.forEach((sourceInterface, index) => {
+      const targetInterface = targetDevice.interfaces[index];
+      if (!targetInterface || !sourceInterface?.ipv4) return;
+
+      const address = sourceInterface.ipv4.address || '';
+      const subnetMask = sourceInterface.ipv4.subnetMask || '';
+
+      if (typeof targetInterface.configureIPv4 === 'function') {
+        targetInterface.configureIPv4(address, subnetMask);
+      } else {
+        targetInterface.ipv4 = {
+          ...(targetInterface.ipv4 || {}),
+          address,
+          subnetMask
+        };
+      }
+    });
+  }
+
+  _selectDuplicatedEntities(duplicatedIds = []) {
+    if (!duplicatedIds.length || !appState.selection) return;
+
+    appState.selection.clearSelection?.();
+
+    duplicatedIds.forEach(({ id, type }, index) => {
+      const multiSelect = index > 0;
+      if (type === 'device') {
+        appState.selection.selectDevice?.(id, multiSelect);
+      } else if (type === 'furniture') {
+        appState.selection.selectFurniture?.(id, multiSelect);
+      }
+    });
+  }
+
+  duplicateSelection() {
+    if (!this.layout) return false;
+
+    const { deviceIds, furnitureIds } = this._getDuplicateSelection();
+    if (!deviceIds.length && !furnitureIds.length) {
+      return false;
+    }
+
+    const existingDeviceLabels = [
+      ...(this.layout.devices || []).map(device => device?.label || device?.name),
+      ...(appState.network?.devices || []).map(device => device?.label || device?.name || device?.hostname)
+    ];
+    const existingFurnitureLabels = [
+      ...(this.layout.furnitures || []).map(furniture => furniture?.label || furniture?.name),
+      ...(appState.furniture?.furnitures || []).map(furniture => furniture?.label || furniture?.name)
+    ];
+
+    const duplicatedSelections = [];
+
+    deviceIds.forEach((deviceId, index) => {
+      const sourceDevice = appState.network?.getDevice?.(deviceId);
+      if (!sourceDevice) return;
+
+      const duplicatePosition = this._getDuplicatePosition(sourceDevice, index);
+      const duplicateLabel = this._buildDuplicateLabel(
+        sourceDevice.label || sourceDevice.name || sourceDevice.hostname,
+        existingDeviceLabels
+      );
+      const catalogId = sourceDevice.catalogId || sourceDevice.modelId;
+      if (!catalogId) return;
+
+      const duplicatedDevice = DeviceFactory.create(catalogId, { ...duplicatePosition, z: 0 }, {
+        hostname: duplicateLabel
+      });
+
+      duplicatedDevice.label = duplicateLabel;
+      duplicatedDevice.name = duplicateLabel;
+      duplicatedDevice.hostname = duplicateLabel;
+      duplicatedDevice.floorId = sourceDevice.floorId || null;
+      duplicatedDevice.spaceId = sourceDevice.spaceId || null;
+      duplicatedDevice.defaultGateway = sourceDevice.defaultGateway || '';
+      duplicatedDevice.modeCreatedIn = sourceDevice.modeCreatedIn || 'logical';
+
+      this._copyPrimaryInterfaceIPv4(sourceDevice, duplicatedDevice);
+
+      const layoutDevice = this.layout.shapeCreator.createDevice(
+        duplicatedDevice,
+        duplicatePosition.x,
+        duplicatePosition.y,
+        this.layout.shapeRenderer.gridSize * 1.5
+      );
+
+      layoutDevice.id = duplicatedDevice.id;
+      layoutDevice.label = duplicatedDevice.label;
+      layoutDevice.name = duplicatedDevice.name;
+      layoutDevice.hostname = duplicatedDevice.hostname;
+      layoutDevice.catalogId = duplicatedDevice.catalogId;
+      layoutDevice.floorId = duplicatedDevice.floorId;
+      layoutDevice.spaceId = duplicatedDevice.spaceId;
+
+      this.layout.devices.push(layoutDevice);
+      appState.network?.addDevice?.(duplicatedDevice);
+
+      existingDeviceLabels.push(duplicateLabel);
+      duplicatedSelections.push({ id: duplicatedDevice.id, type: 'device' });
+    });
+
+    furnitureIds.forEach((furnitureId, index) => {
+      const sourceFurniture = appState.furniture?.getFurniture?.(furnitureId);
+      if (!sourceFurniture) return;
+
+      const duplicatePosition = this._getDuplicatePosition(sourceFurniture, index);
+      const duplicateLabel = this._buildDuplicateLabel(
+        sourceFurniture.label || sourceFurniture.name,
+        existingFurnitureLabels
+      );
+      const catalogId = sourceFurniture.catalogId || sourceFurniture.modelId || sourceFurniture.type;
+      if (!catalogId) return;
+
+      const duplicatedFurniture = createFurnitureInstance(catalogId, { ...duplicatePosition, z: 0 }, {
+        name: duplicateLabel
+      });
+
+      duplicatedFurniture.catalogId = catalogId;
+      duplicatedFurniture.modelId = catalogId;
+      duplicatedFurniture.label = duplicateLabel;
+      duplicatedFurniture.name = duplicateLabel;
+      duplicatedFurniture.floorId = sourceFurniture.floorId || null;
+      duplicatedFurniture.spaceId = sourceFurniture.spaceId || null;
+      duplicatedFurniture.rotation = sourceFurniture.rotation || 0;
+      duplicatedFurniture.properties = {
+        ...(sourceFurniture.properties || {})
+      };
+      duplicatedFurniture.modeCreatedIn = sourceFurniture.modeCreatedIn || 'logical';
+
+      this.layout.addFurniture({ ...duplicatedFurniture }, duplicatePosition.x, duplicatePosition.y);
+      appState.furniture?.addFurniture?.(duplicatedFurniture);
+      this.physicalController?.createFurnitureGLTFMesh?.(duplicatedFurniture);
+
+      existingFurnitureLabels.push(duplicateLabel);
+      duplicatedSelections.push({ id: duplicatedFurniture.id, type: 'furniture' });
+    });
+
+    if (!duplicatedSelections.length) {
+      return false;
+    }
+
+    this.layout._render();
+    this._selectDuplicatedEntities(duplicatedSelections);
+    return true;
   }
 
 addDevice(deviceData, x, y) {
-    if (!this.layout) return;
+    if (!this.layout) return; 
 
     if (deviceData.entityType === 'furniture') {
         return this.addFurniture(deviceData, x, y);

@@ -110,7 +110,9 @@ export class StructuralStore {
 
         this.sites.push(newSite);
         this.notify();
-        return site;
+        
+        // --- CRITICAL FIX: Return the instantiated class, not the raw argument ---
+        return newSite; 
     }
 
     removeSite(siteId) {
@@ -217,7 +219,12 @@ export class StructuralStore {
         this.spaces = this.spaces.filter(sp => sp.floorId !== floorId);
         this.floors.splice(index, 1);
         
-        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: floorId } })); 
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: floorId } }));
+        
+        if (appState.ui && appState.ui.activeFloorId === floorId) {
+            appState.ui.setActiveFloor(null);
+            if (window.__layoutRef) window.__layoutRef.setActiveFloor(null);
+        }
         
         this.notify();
         return [floorId, ...spaceIds];

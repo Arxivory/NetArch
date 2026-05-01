@@ -266,28 +266,27 @@ export class CreateDomainCommand extends Command {
   }
 
   execute() {
-    if (this.createdDomain) {
-      // Redo case: domain was already created
-      if (!this.appState.structural.domains.some(d => d.id === this.createdDomain.id)) {
-        this.appState.structural.domains.push(this.createdDomain);
-        this.appState.structural.notify();
-      }
-      if (this.controller?.restoreCanvasShape) {
-        this.controller.restoreCanvasShape(this.createdDomain, this.canvasId);
-      }
-      if (this.createdDomain && this.canvasId) {
-        this.controller?.structuralToCanvasMap?.set(this.createdDomain.id, this.canvasId);
-        this.controller?.entityIdMap?.set(this.canvasId, this.createdDomain.id);
-      }
-    } else {
-      // First execution: create the domain
-      this.createdDomain = this.appState.structural.addDomain(this.domainData);
-      if (this.createdDomain && this.canvasId) {
-        this.controller?.structuralToCanvasMap?.set(this.createdDomain.id, this.canvasId);
-        this.controller?.entityIdMap?.set(this.canvasId, this.createdDomain.id);
+      const cleanData = JSON.parse(JSON.stringify(this.domainData)); // The Shield
+      if (this.createdDomain) {
+        if (!this.appState.structural.domains.some(d => d.id === this.createdDomain.id)) {
+          this.appState.structural.addDomain(cleanData);
+        }
+        if (this.controller?.restoreCanvasShape) {
+          this.controller.restoreCanvasShape(cleanData, this.canvasId);
+          this.controller.layout?._render(); 
+        }
+        if (this.createdDomain && this.canvasId) {
+          this.controller?.structuralToCanvasMap?.set(this.createdDomain.id, this.canvasId);
+          this.controller?.entityIdMap?.set(this.canvasId, this.createdDomain.id);
+        }
+      } else {
+        this.createdDomain = this.appState.structural.addDomain(cleanData);
+        if (this.createdDomain && this.canvasId) {
+          this.controller?.structuralToCanvasMap?.set(this.createdDomain.id, this.canvasId);
+          this.controller?.entityIdMap?.set(this.canvasId, this.createdDomain.id);
+        }
       }
     }
-  }
 
   undo() {
     if (this.createdDomain) {
@@ -300,6 +299,7 @@ export class CreateDomainCommand extends Command {
       if (this.canvasId) {
         this.controller?.structuralToCanvasMap?.delete(this.createdDomain.id);
         this.controller?.entityIdMap?.delete(this.canvasId);
+        this.controller?.removeEntity(this.canvasId); // Ensure canvas cleanup
       }
     }
   }
@@ -325,22 +325,21 @@ export class CreateSiteCommand extends Command {
   }
 
   execute() {
+    const cleanData = JSON.parse(JSON.stringify(this.siteData)); // The Shield
     if (this.createdSite) {
-      // Redo case: site was already created
       if (!this.appState.structural.sites.some(s => s.id === this.createdSite.id)) {
-        this.appState.structural.sites.push(this.createdSite);
-        this.appState.structural.notify();
+        this.appState.structural.addSite(cleanData);
       }
       if (this.controller?.restoreCanvasShape) {
-        this.controller.restoreCanvasShape(this.createdSite, this.canvasId);
+        this.controller.restoreCanvasShape(cleanData, this.canvasId);
+        this.controller.layout?._render(); 
       }
       if (this.createdSite && this.canvasId) {
         this.controller?.structuralToCanvasMap?.set(this.createdSite.id, this.canvasId);
         this.controller?.entityIdMap?.set(this.canvasId, this.createdSite.id);
       }
     } else {
-      // First execution: create the site
-      this.createdSite = this.appState.structural.addSite(this.siteData);
+      this.createdSite = this.appState.structural.addSite(cleanData);
       if (this.createdSite && this.canvasId) {
         this.controller?.structuralToCanvasMap?.set(this.createdSite.id, this.canvasId);
         this.controller?.entityIdMap?.set(this.canvasId, this.createdSite.id);
@@ -359,6 +358,7 @@ export class CreateSiteCommand extends Command {
       if (this.canvasId) {
         this.controller?.structuralToCanvasMap?.delete(this.createdSite.id);
         this.controller?.entityIdMap?.delete(this.canvasId);
+        this.controller?.removeEntity(this.canvasId); // Ensure canvas cleanup
       }
     }
   }
@@ -384,27 +384,28 @@ export class CreateFloorCommand extends Command {
   }
 
   execute() {
+    const cleanData = JSON.parse(JSON.stringify(this.floorData)); // The Shield
     if (this.createdFloor) {
-      // Redo case: floor was already created
       if (!this.appState.structural.floors.some(f => f.id === this.createdFloor.id)) {
-        this.appState.structural.floors.push(this.createdFloor);
-        this.appState.structural.notify();
+        this.appState.structural.addFloor(cleanData);
       }
       if (this.controller?.restoreCanvasShape) {
-        this.controller.restoreCanvasShape(this.createdFloor, this.canvasId);
+        this.controller.restoreCanvasShape(cleanData, this.canvasId);
+        this.controller.layout?._render();
       }
       if (this.createdFloor) {
         this.appState.ui.setActiveFloor(this.createdFloor.id);
+        this.controller?.setActiveFloor(this.createdFloor.id); 
       }
       if (this.createdFloor && this.canvasId) {
         this.controller?.structuralToCanvasMap?.set(this.createdFloor.id, this.canvasId);
         this.controller?.entityIdMap?.set(this.canvasId, this.createdFloor.id);
       }
     } else {
-      // First execution: create the floor
-      this.createdFloor = this.appState.structural.addFloor(this.floorData);
+      this.createdFloor = this.appState.structural.addFloor(cleanData);
       if (this.createdFloor) {
         this.appState.ui.setActiveFloor(this.createdFloor.id);
+        this.controller?.setActiveFloor(this.createdFloor.id); 
       }
       if (this.createdFloor && this.canvasId) {
         this.controller?.structuralToCanvasMap?.set(this.createdFloor.id, this.canvasId);
@@ -415,6 +416,13 @@ export class CreateFloorCommand extends Command {
 
   undo() {
     if (this.createdFloor) {
+      // 1. Clear the UI filter BEFORE deleting so the Site remains visible
+      if (this.appState.ui.activeFloorId === this.createdFloor.id) {
+          this.appState.ui.setActiveFloor(null);
+          this.controller?.setActiveFloor(null);
+      }
+
+      // 2. Perform deletion
       const deletedIds = this.appState.structural.removeFloor(this.createdFloor.id);
       if (deletedIds && Array.isArray(deletedIds)) {
         deletedIds.forEach(id => {
@@ -449,22 +457,21 @@ export class CreateSpaceCommand extends Command {
   }
 
   execute() {
+    const cleanData = JSON.parse(JSON.stringify(this.spaceData)); // The Shield
     if (this.createdSpace) {
-      // Redo case: space was already created
       if (!this.appState.structural.spaces.some(s => s.id === this.createdSpace.id)) {
-        this.appState.structural.spaces.push(this.createdSpace);
-        this.appState.structural.notify();
+        this.appState.structural.addSpace(cleanData);
       }
       if (this.controller?.restoreCanvasShape) {
-        this.controller.restoreCanvasShape(this.createdSpace, this.canvasId);
+        this.controller.restoreCanvasShape(cleanData, this.canvasId);
+        this.controller.layout?._render();
       }
       if (this.createdSpace && this.canvasId) {
         this.controller?.structuralToCanvasMap?.set(this.createdSpace.id, this.canvasId);
         this.controller?.entityIdMap?.set(this.canvasId, this.createdSpace.id);
       }
     } else {
-      // First execution: create the space
-      this.createdSpace = this.appState.structural.addSpace(this.spaceData);
+      this.createdSpace = this.appState.structural.addSpace(cleanData);
       if (this.createdSpace && this.canvasId) {
         this.controller?.structuralToCanvasMap?.set(this.createdSpace.id, this.canvasId);
         this.controller?.entityIdMap?.set(this.canvasId, this.createdSpace.id);
@@ -483,6 +490,7 @@ export class CreateSpaceCommand extends Command {
       if (this.canvasId) {
         this.controller?.structuralToCanvasMap?.delete(this.createdSpace.id);
         this.controller?.entityIdMap?.delete(this.canvasId);
+        this.controller?.removeEntity(this.canvasId); // Ensure canvas cleanup
       }
     }
   }
@@ -827,6 +835,152 @@ export class RemoveSpaceCommand extends Command {
   getDescription() {
     return this.description;
   }
+}
+
+/**
+ * AddVirtualFloorCommand - For UI buttons that create virtual floors
+ * No canvas drawing required.
+ */
+/**
+ * AddVirtualFloorCommand - For UI buttons that create virtual floors
+ * No canvas drawing required.
+ */
+export class AddVirtualFloorCommand extends Command {
+  constructor(appState, floorData) {
+    super();
+    this.appState = appState;
+    this.floorData = floorData; 
+    this.description = `Added Virtual Floor`;
+    this.createdFloor = null;
+  }
+
+  execute() {
+    const cleanData = JSON.parse(JSON.stringify(this.floorData));
+    
+    if (this.createdFloor) {
+      // --- REDO ---
+      // CRITICAL FIX: Force the payload to use the exact same ID from the first run!
+      cleanData.id = this.createdFloor.id; 
+      
+      if (!this.appState.structural.floors.some(f => f.id === this.createdFloor.id)) {
+        this.createdFloor = this.appState.structural.addFloor(cleanData);
+      }
+    } else {
+      // --- FIRST EXECUTION ---
+      this.createdFloor = this.appState.structural.addFloor(cleanData);
+      
+      // CRITICAL FIX: Lock the dynamically generated ID into the command's backup data forever
+      if (this.createdFloor && this.createdFloor.id) {
+          this.floorData.id = this.createdFloor.id;
+      }
+    }
+
+    // Force UI to focus the new floor
+    if (this.createdFloor) {
+      this.appState.ui.setActiveFloor(this.createdFloor.id);
+      
+      if (window.__layoutRef) {
+          window.__layoutRef.setActiveFloor(this.createdFloor.id);
+      }
+    }
+  }
+
+  undo() {
+    if (this.createdFloor) {
+      // 1. Clear the UI filter
+      if (this.appState.ui.activeFloorId === this.createdFloor.id) {
+          this.appState.ui.setActiveFloor(null);
+          if (window.__layoutRef) window.__layoutRef.setActiveFloor(null);
+      }
+
+      // 2. Perform deletion
+      this.appState.structural.removeFloor(this.createdFloor.id);
+    }
+  }
+
+  getDescription() {
+    return this.description;
+  }
+}
+
+/**
+ * RemoveVirtualFloorCommand - For UI buttons that delete virtual floors
+ * Safely cascades the deletion and logs it for undo.
+ */
+export class RemoveVirtualFloorCommand extends Command {
+  constructor(appState, floorId) {
+    super();
+    this.appState = appState;
+    this.floorId = floorId;
+    this.description = `Removed Virtual Floor`;
+    this.backup = null;
+  }
+
+  execute() {
+    const floor = this.appState.structural.floors.find(f => f.id === this.floorId);
+    if (!floor) return;
+
+    if (!this.backup) {
+        // Deep Snapshot Dependencies
+        const spaces = this.appState.structural.spaces.filter(sp => sp.floorId === this.floorId);
+        const spaceIds = spaces.map(s => s.id);
+        
+        const devices = this.appState.network.getAllDevices().filter(d => d.floorId === this.floorId || spaceIds.includes(d.spaceId));
+        const deviceIds = devices.map(d => d.id);
+        
+        const furnitures = (this.appState.furniture?.furnitures || []).filter(f => f.floorId === this.floorId || spaceIds.includes(f.spaceId));
+        const links = this.appState.network.getAllLinks().filter(l => deviceIds.includes(l.sourceId) || deviceIds.includes(l.targetId));
+
+        this.backup = {
+          floor: JSON.parse(JSON.stringify(floor)),
+          spaces: spaces.map(sp => JSON.parse(JSON.stringify(sp))),
+          devices: devices.map(d => JSON.parse(JSON.stringify(d))),
+          furnitures: furnitures.map(f => JSON.parse(JSON.stringify(f))),
+          links: links.map(l => JSON.parse(JSON.stringify(l)))
+        };
+    }
+
+    // Wipe cascading data manually to avoid orphan data bugs
+    this.backup.links.forEach(l => this.appState.removeLink(l.id));
+    this.backup.devices.forEach(d => {
+        this.appState.removeDevice(d.id);
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: d.id } }));
+    });
+    this.backup.furnitures.forEach(f => {
+        this.appState.furniture?.removeFurniture(f.id);
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: f.id } }));
+    });
+
+    // Remove Floor and clear UI Focus
+    this.appState.structural.removeFloor(this.floorId);
+    
+    if (this.appState.ui.activeFloorId === this.floorId) {
+        this.appState.ui.setActiveFloor(null);
+        if (window.__layoutRef) window.__layoutRef.setActiveFloor(null);
+    }
+  }
+
+  undo() {
+    if (!this.backup) return;
+
+    // 1. Restore Virtual Structure
+    this.appState.structural.addFloor(this.backup.floor);
+    this.backup.spaces.forEach(space => this.appState.structural.addSpace(space));
+
+    // 2. Restore Assets
+    this.backup.devices.forEach(d => this.appState.network.addDevice(d));
+    this.backup.furnitures.forEach(f => this.appState.furniture?.addFurniture(f));
+    this.backup.links.forEach(l => this.appState.addLink(l));
+
+    // 3. Force Canvas to re-fetch and render restored assets
+    if (window.__layoutRef && typeof window.__layoutRef._render === 'function') {
+        // You may need to trigger a full re-mount of canvas assets here depending on your React sync
+        window.__layoutRef._render();
+    }
+  }
+
+  redo() { this.execute(); }
+  getDescription() { return this.description; }
 }
 
 export default DrawingCommand;

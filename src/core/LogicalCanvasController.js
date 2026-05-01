@@ -1364,13 +1364,16 @@ _handleShapeCreated(shapeData, shapeType) {
     };
 
     // --- 4. SHAPE ROUTING - Execute commands for undo/redo tracking ---
+// --- 4. SHAPE ROUTING - Execute commands for undo/redo tracking ---
     if (structureType === 'Domain') {
       const domainData = {
-        ...shapeData, label: `Domain ${this.counters.domain++}`,
-        x, y, w, h, maxX, maxY, shapeType: 'rectangle'
+        id, shapeType, structureType: 'Domain',
+        x, y, w, h, maxX, maxY, r, points,
+        // CRITICAL FIX: Match the exact property names expected by the Class constructors
+        geometry: { x, y, width: w, height: h, radius: r, points }, 
+        label: `Domain ${this.counters.domain++}`
       };
       console.log(`🏢 Creating Domain with id=${domainData.id}`);
-      
       const command = new CreateDomainCommand(appState, this, domainData, id);
       this.commandHistory.executeCommand(command);
     }
@@ -1385,11 +1388,12 @@ _handleShapeCreated(shapeData, shapeType) {
         return removeInvalidShape();
       }
       const siteData = {
-        id, shapeType, x, y, w, h, maxX, maxY, r, points,
+        id, shapeType, structureType: 'Site',
+        x, y, w, h, maxX, maxY, r, points,
+        geometry: { x, y, width: w, height: h, radius: r, points }, 
         label: `Site ${this.counters.site++}`
       };
       console.log(`🏪 Creating Site with id=${siteData.id}, domainId=${parentId}`);
-      
       const command = new CreateSiteCommand(appState, this, siteData, parentId, id);
       this.commandHistory.executeCommand(command);
     } 
@@ -1404,11 +1408,12 @@ _handleShapeCreated(shapeData, shapeType) {
         return removeInvalidShape();
       }
       const floorData = {
-        id, shapeType, x, y, w, h, maxX, maxY, r, points,
+        id, shapeType, structureType: 'Floor',
+        x, y, w, h, maxX, maxY, r, points,
+        geometry: { x, y, width: w, height: h, radius: r, points }, 
         label: `Floor ${this.counters.floor++}`
       };
       console.log(`🏗️ Creating Floor with id=${floorData.id}, siteId=${parentId}`);
-      
       const command = new CreateFloorCommand(appState, this, floorData, parentId, id);
       this.commandHistory.executeCommand(command);
     }
@@ -1423,11 +1428,12 @@ _handleShapeCreated(shapeData, shapeType) {
         return removeInvalidShape();
       }
       const spaceData = {
-        id, shapeType, x, y, w, h, maxX, maxY, r, points,
+        id, shapeType, structureType: 'Space',
+        x, y, w, h, maxX, maxY, r, points,
+        geometry: { x, y, width: w, height: h, radius: r, points },
         label: `Space ${this.counters.space++}`
       };
       console.log(`🎨 Creating Space with id=${spaceData.id}, floorId=${parentId}`);
-      
       const command = new CreateSpaceCommand(appState, this, spaceData, parentId, id);
       this.commandHistory.executeCommand(command);
     }

@@ -1013,43 +1013,89 @@ const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !=
     const hasValidDrawPoints = this.startPoint && this.currentPoint;
 
     if (isDrawMode && hasValidDrawPoints) {
-      // --- MS PAINT STYLE DOOR VALIDATION ---
+      // --- THE PAPERFECT DOOR/WINDOW VALIDATION V5 ---
       let allowCreation = true;
-      
-      if (this.mode === 'door') {
+
+      if (this.mode === 'door' || this.mode === 'window') {
         allowCreation = false;
-        const px = this.startPoint.x;
-        const py = this.startPoint.y;
-        const threshold = 25; // 25 pixels of forgiveness to count as "on the wall"
-
-        // Check if drawn near the Active Space boundary
-        const activeSpaceId = appState?.selection?.focusedType === 'space' ? appState.selection.focusedId : null;
-        const space = activeSpaceId ? this.findEntityById(activeSpaceId) : null;
         
-        if (space && space.w !== undefined && space.h !== undefined) {
-          const { x, y, w, h } = space;
-          const nearTop = Math.abs(py - y) <= threshold && px >= x - threshold && px <= x + w + threshold;
-          const nearBottom = Math.abs(py - (y + h)) <= threshold && px >= x - threshold && px <= x + w + threshold;
-          const nearLeft = Math.abs(px - x) <= threshold && py >= y - threshold && py <= y + h + threshold;
-          const nearRight = Math.abs(px - (x + w)) <= threshold && py >= y - threshold && py <= y + h + threshold;
-          
-          if (nearTop || nearBottom || nearLeft || nearRight) allowCreation = true;
-        }
+        const p1x = this.startPoint.x;
+        const p1y = this.startPoint.y;
+        const p2x = this.currentPoint.x;
+        const p2y = this.currentPoint.y;
+        const threshold = 30; // 30px forgiveness
 
-        // If it failed the check, throw the error and cancel the save!
-        if (!allowCreation) {
-          alert("🚪 Invalid Placement: Please draw the door on a valid wall or space boundary!");
-          // Remove the last (temporary) door entity from state/store
-          if (this.doors && this.doors.length > 0) {
-            const lastDoor = this.doors[this.doors.length - 1];
-            if (lastDoor && typeof this.removeEntityById === 'function') {
-              this.removeEntityById(lastDoor.id);
-            } else {
-              this.doors.pop();
+        // MATALINONG HELPER: Hahatiin niya KAHIT ANONG shape into "Straight Lines"
+        const getEdges = (entity) => {
+          const edges = [];
+          if (entity.points && entity.points.length > 1) { // Polygons/Freeforms
+            for (let i = 0; i < entity.points.length; i++) {
+              let pA = entity.points[i];
+              let pB = entity.points[(i + 1) % entity.points.length];
+              edges.push({ x1: pA.x, y1: pA.y, x2: pB.x, y2: pB.y });
+            }
+          } else if (entity.startPoint && entity.endPoint) { // Standard Lines
+            edges.push({ x1: entity.startPoint.x, y1: entity.startPoint.y, x2: entity.endPoint.x, y2: entity.endPoint.y });
+          } else if (entity.startX !== undefined && entity.endX !== undefined) { // Alternate Lines
+            edges.push({ x1: entity.startX, y1: entity.startY, x2: entity.endX, y2: entity.endY });
+          } else if (entity.x1 !== undefined && entity.x2 !== undefined) { // Alternate Lines 2
+            edges.push({ x1: entity.x1, y1: entity.y1, x2: entity.x2, y2: entity.y2 });
+          } else { // Rectangles / Spaces / Thick Walls (Boxes)
+            const b = this._getEntityBounds(entity);
+            if (b) {
+              const minX = Math.min(b.minX, b.maxX);
+              const maxX = Math.max(b.minX, b.maxX);
+              const minY = Math.min(b.minY, b.maxY);
+              const maxY = Math.max(b.minY, b.maxY);
+              edges.push({ x1: minX, y1: minY, x2: maxX, y2: minY }); // Top edge
+              edges.push({ x1: minX, y1: maxY, x2: maxX, y2: maxY }); // Bottom edge
+              edges.push({ x1: minX, y1: minY, x2: minX, y2: maxY }); // Left edge
+              edges.push({ x1: maxX, y1: minY, x2: maxX, y2: maxY }); // Right edge
             }
           }
-          this._render();
-          return;
+          return edges;
+        };
+
+        const isNearEdge = (px, py, edge) => {
+          // Ginagamit nito yung exact mathematical distance tool na ginawa mo!
+          return this._pointToLineDistance(px, py, edge.x1, edge.y1, edge.x2, edge.y2) <= threshold;
+        };
+
+        // Pagsamahin lahat ng pwedeng kabitan ng pinto/bintana
+        const possibleHosts = [];
+        if (this.walls) possibleHosts.push(...this.walls);
+        if (this.rectangles) possibleHosts.push(...this.rectangles);
+        if (this.polygons) possibleHosts.push(...this.polygons);
+        if (this.freeforms) possibleHosts.push(...this.freeforms);
+        if (appState?.structural?.spaces) possibleHosts.push(...appState.structural.spaces);
+
+        for (const host of possibleHosts) {
+          let target = host;
+          // Ayusin ang format kung galing sa appState
+          if (host.geometry) {
+             target = { 
+               x: host.geometry.x || host.geometry.left, 
+               y: host.geometry.y || host.geometry.top, 
+               w: host.geometry.w || host.geometry.width, 
+               h: host.geometry.h || host.geometry.height 
+             };
+          }
+
+          const edges = getEdges(target);
+          for (const edge of edges) {
+            // THE ULTIMATE CHECK: Dapat yung UMPISA at DULO ng bintana ay nakadikit sa IISANG EXACT line segment!
+            if (isNearEdge(p1x, p1y, edge) && isNearEdge(p2x, p2y, edge)) {
+              allowCreation = true;
+              break;
+            }
+          }
+          if (allowCreation) break;
+        }
+
+        if (!allowCreation) {
+          const itemName = this.mode === 'door' ? "door" : "window";
+          alert(`Invalid Placement: Please draw the ${itemName} strictly ALONG a valid wall or space boundary!`);
+          // NO RETURN HERE. Hinahayaan natin siyang bumaba para ma-clear yung ghost variables.
         }
       }
       // --- END VALIDATION ---
@@ -1487,14 +1533,18 @@ const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !=
       );
       ctx.restore();
     }
-    else if (this.startPoint && this.currentPoint) {
+else if (this.startPoint && this.currentPoint) {
       ctx.save();
+      
+      // --- IBALIK ANG GREEN SA LAHAT NG SPACES/DOMAINS/SITES ---
+      ctx.strokeStyle = '#00ff00'; 
+      ctx.fillStyle = 'rgba(0,255,0,0.08)';
+      ctx.lineWidth = 1.5;
+
       if (this.mode === 'door') {
         // --- GHOST DOOR OUTLINE ---
         ctx.globalAlpha = 0.5;
-        ctx.strokeStyle = '#00ff00';
-        ctx.fillStyle = 'rgba(0,255,0,0.08)';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2; // Pakapalin ng konti ang door
 
         // Door leaf (line)
         ctx.beginPath();
@@ -1523,9 +1573,9 @@ const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !=
       } else if (this.mode === 'wall') {
         this.shapeRenderer.outlineWall(ctx, this.startPoint, this.currentPoint);
 } else if (this.mode === 'window') {
-        // --- GHOST WINDOW PREVIEW (Line na siya!) ---
+        // --- GHOST WINDOW PREVIEW (GREEN ERA!) ---
         ctx.globalAlpha = 0.7;
-        ctx.strokeStyle = '#c6e0ff'; // Light blue to match your window style
+        ctx.strokeStyle = '#00ff00'; // GREEN na siya habang dino-drawing!
         ctx.lineWidth = 4; // Medyo makapal para kitang-kita
         
         ctx.beginPath();

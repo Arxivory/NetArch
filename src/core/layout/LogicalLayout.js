@@ -863,51 +863,6 @@ if (this.mode === 'freeform') {
     const snapped = this.grid.snapToGrid(p);
     this.currentPoint = snapped;
 
-// --- UPDATED CABLE HOVER DETECTION ---
-    if (this.mode === 'select' && !this.pointerHandler.getIsPointerDown()) {
-      let newlyHoveredCable = null;
-      
-      // 1. Determine the active structural hierarchy
-      const focusedType = appState.selection.focusedType;
-      const focusedId = appState.selection.focusedId;
-      
-      const activeSpaceId = focusedType === 'space' ? focusedId : null;
-      // Fallback to the UI's active floor if no specific space is focused
-      const activeFloorId = focusedType === 'floor' ? focusedId : appState.ui.activeFloorId;
-
-      for (const cable of this.cables) {
-        const src = this.findEntityById(cable.sourceId);
-        const dst = this.findEntityById(cable.targetId);
-        if (!src || !dst) continue;
-
-        // 2. Guardrail: Hierarchy Filtering
-        if (activeSpaceId) {
-          // STRICT MODE: If viewing a specific Space, ignore cables that don't touch this room
-          // (We use && so if a cable goes from inside the space to outside, you can still hover it)
-          if (src.spaceId !== activeSpaceId && dst.spaceId !== activeSpaceId) continue;
-        } 
-        else if (activeFloorId) {
-          // BROAD MODE: If viewing a Floor, ignore cables that belong to a completely different floor
-          const srcOnFloor = src.floorId == null || src.floorId === activeFloorId;
-          const dstOnFloor = dst.floorId == null || dst.floorId === activeFloorId;
-          if (!srcOnFloor || !dstOnFloor) continue;
-        }
-
-        // 3. Optimized Bounding Box Hit Test
-        if (this._hitTestCable(p.x, p.y, src, dst, 8)) {
-          newlyHoveredCable = cable;
-          break; 
-        }
-      }
-
-      // Only trigger a re-render if the hover state actually changed
-      if (this.hoveredCable !== newlyHoveredCable) {
-        this.hoveredCable = newlyHoveredCable;
-        this._render();
-      }
-    }
-    // -------------------------------------
-
     if (this.mode === 'cable') {
       this.hoveredDevice = this._findDeviceAt(snapped.x, snapped.y);
       this._render();
@@ -1054,12 +1009,56 @@ _onPointerUp(e) {
       currentPoint: this.currentPoint
     });
 
-    const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !== 'none';
+const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !== 'none';
     const hasValidDrawPoints = this.startPoint && this.currentPoint;
 
     if (isDrawMode && hasValidDrawPoints) {
-      console.log('[LogicalLayout] finalizing draw mode on pointer up');
-      this._createShapeFromMode();
+      // --- MS PAINT STYLE DOOR VALIDATION ---
+      let allowCreation = true;
+      
+      if (this.mode === 'door') {
+        allowCreation = false;
+        const px = this.startPoint.x;
+        const py = this.startPoint.y;
+        const threshold = 25; // 25 pixels of forgiveness to count as "on the wall"
+
+        // Check if drawn near the Active Space boundary
+        const activeSpaceId = appState?.selection?.focusedType === 'space' ? appState.selection.focusedId : null;
+        const space = activeSpaceId ? this.findEntityById(activeSpaceId) : null;
+        
+        if (space && space.w !== undefined && space.h !== undefined) {
+          const { x, y, w, h } = space;
+          const nearTop = Math.abs(py - y) <= threshold && px >= x - threshold && px <= x + w + threshold;
+          const nearBottom = Math.abs(py - (y + h)) <= threshold && px >= x - threshold && px <= x + w + threshold;
+          const nearLeft = Math.abs(px - x) <= threshold && py >= y - threshold && py <= y + h + threshold;
+          const nearRight = Math.abs(px - (x + w)) <= threshold && py >= y - threshold && py <= y + h + threshold;
+          
+          if (nearTop || nearBottom || nearLeft || nearRight) allowCreation = true;
+        }
+
+        // If it failed the check, throw the error and cancel the save!
+        if (!allowCreation) {
+          alert("🚪 Invalid Placement: Please draw the door on a valid wall or space boundary!");
+          // Remove the last (temporary) door entity from state/store
+          if (this.doors && this.doors.length > 0) {
+            const lastDoor = this.doors[this.doors.length - 1];
+            if (lastDoor && typeof this.removeEntityById === 'function') {
+              this.removeEntityById(lastDoor.id);
+            } else {
+              this.doors.pop();
+            }
+          }
+          this._render();
+          return;
+        }
+      }
+      // --- END VALIDATION ---
+
+      // Only save the shape if it passed validation!
+      if (allowCreation) {
+        console.log('[LogicalLayout] finalizing draw mode on pointer up');
+        this._createShapeFromMode();
+      }
     }
 
     if (this.selectedEntity && (this.interaction.mode === 'move' || this.interaction.mode === 'resize')) {
@@ -1490,24 +1489,44 @@ _onPointerUp(e) {
     }
     else if (this.startPoint && this.currentPoint) {
       ctx.save();
-      ctx.strokeStyle = '#00ff00';
-      ctx.fillStyle = 'rgba(0,255,0,0.08)';
-      ctx.lineWidth = 1.5;
+      if (this.mode === 'door') {
+        // --- GHOST DOOR OUTLINE ---
+        ctx.globalAlpha = 0.5;
+        ctx.strokeStyle = '#00ff00';
+        ctx.fillStyle = 'rgba(0,255,0,0.08)';
+        ctx.lineWidth = 2;
 
-      if (this.mode === 'rectangle') {
+        // Door leaf (line)
+        ctx.beginPath();
+        ctx.moveTo(this.startPoint.x, this.startPoint.y);
+        ctx.lineTo(this.currentPoint.x, this.currentPoint.y);
+        ctx.stroke();
+
+        // Door swing (arc)
+        const dx = this.currentPoint.x - this.startPoint.x;
+        const dy = this.currentPoint.y - this.startPoint.y;
+        const doorLength = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx);
+        const arcRadius = doorLength;
+        const arcStart = angle;
+        const arcEnd = angle + Math.PI / 2; // 90 degree swing
+
+        ctx.beginPath();
+        ctx.arc(this.startPoint.x, this.startPoint.y, arcRadius, arcStart, arcEnd, false);
+        ctx.stroke();
+
+        ctx.globalAlpha = 1.0;
+      } else if (this.mode === 'rectangle') {
         this.shapeRenderer.outlineRectangle(ctx, this.startPoint, this.currentPoint);
       } else if (this.mode === 'circle') {
         this.shapeRenderer.outlineCircle(ctx, this.startPoint, this.currentPoint);
       } else if (this.mode === 'wall') {
         this.shapeRenderer.outlineWall(ctx, this.startPoint, this.currentPoint);
-      } else if (this.mode === 'door') {
-        this.shapeRenderer.outlineDoor(ctx, this.startPoint, this.currentPoint);
       } else if (this.mode === 'window') {
         this.shapeRenderer.outlineRectangle(ctx, this.startPoint, this.currentPoint);
       } else if (this.mode === 'cable') {
         this.shapeRenderer.outlineCable(ctx, this.startPoint, this.currentPoint);
       }
-
       ctx.restore();
     }
 

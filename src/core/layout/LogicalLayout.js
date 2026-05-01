@@ -629,7 +629,7 @@ isPointInsideShape(id, x, y) {
       const zoom = this.pointerHandler.getZoom();
       const worldPos = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
       const multiSelect = e.ctrlKey || e.metaKey || e.shiftKey;
-      const selectionResult = this.identifyEntity(worldPos.x, worldPos.y);
+      const selectionResult = this.identifyEntity(worldPos.x, worldPos.y, {multiSelect});
       // console.log('[DOWN] identifyEntity result:', en?.id, en?.type, en?.entityType, { multiSelect });
       console.log('[DOWN] identifyEntity result:', selectionResult?.id, selectionResult?.type, selectionResult?.entityType, { multiSelect });
 
@@ -666,7 +666,7 @@ isPointInsideShape(id, x, y) {
               this.currentPoint = p;
               this.pointerHandler.setPointerDown(true);
               return; // CRITICAL: Return early so it doesn't try to bodily move the cable!
-          }
+          } 
       }
 
       

@@ -234,7 +234,8 @@ import appState from "../../state/AppState";
 import {
   StartDrawRectangleCommand, StartDrawCircleCommand, StartDrawPolygonCommand, StartDrawFreeformCommand, StartDrawWallCommand,
   StartSelectCommand, StartPanCommand, StartZoomInCommand, StartZoomOutCommand, CancelDrawingCommand,
-  StartDrawDoorCommand, StartDrawWindowCommand
+  StartDrawDoorCommand, StartDrawWindowCommand,
+  StartDrawConduitCommand
 } from "../../core/editor/DrawingCommands";
 import StructuralOption from "./StructuralOption";
 import PathwayOption from "./PathwayOption";
@@ -341,6 +342,24 @@ const handleDelete = () => {
     cmd.execute();
     appState.tools.setActiveTool(structureType.toLowerCase());
   };
+
+  const handlePathwayComponent = (component) => {
+    if (!canvasController) return;
+
+    let Command;
+    switch (component) {
+      case "conduit":
+        Command = StartDrawConduitCommand;
+        break;
+      default:
+        //Conduit for now
+        Command = StartDrawConduitCommand;
+    }
+
+    const cmd = new Command(canvasController, appState);
+    cmd.execute();
+    appState.tools.setActiveTool(component.toLowerCase());
+  }
 
   return (
     <div className="toolbar">
@@ -449,7 +468,7 @@ const handleDelete = () => {
           ><Square size={16} /> Window</button>
           <PathwayOption
           label="Pathway" icon={Cable} isActive={activeTool === "pathway"}
-          onSelectShape={(shape) => handleStructuralShape('Pathway', shape)}
+          onSelectComponent={(component) => handlePathwayComponent(component)}
           ></PathwayOption>
         </div>
         <span className="toolbar-label">Fenestration</span>

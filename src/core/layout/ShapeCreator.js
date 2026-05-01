@@ -6,6 +6,7 @@ import { Device }     from './entities/Device.js';
 import { Wall }       from './entities/Wall.js';
 import { Door }       from './entities/Door.js';
 import { Window }     from './entities/Window.js';
+import { Conduit }    from './entities/Conduit.js';
 
 import { validateConnection }    from '../utils/ValidateConnection.js';
 import Link                      from '../network/Link.js';
@@ -40,6 +41,7 @@ export class ShapeCreator {
     this.onWallCreated      = opts.onWallCreated      || null;
     this.onDoorCreated      = opts.onDoorCreated      || null;
     this.onWindowCreated    = opts.onWindowCreated    || null;
+    this.onConduitCreated   = opts.onConduitCreated   || null;
 
     // Network entity callbacks
     this.onCableCreated     = opts.onCableCreated     || null;
@@ -103,6 +105,13 @@ export class ShapeCreator {
     wall.id = this._genId('Wall ');
     if (this.onWallCreated) this.onWallCreated(wall);
     return wall;
+  }
+
+  createConduit(x, y) {
+    const conduit = new Conduit(x, y, this.system);
+    conduit.id = this._genId('Conduit ');
+    if (this.onConduitCreated) this.onConduitCreated(conduit);
+    return conduit;
   }
 
   createDoor(startPoint, currentPoint) {

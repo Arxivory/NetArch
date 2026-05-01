@@ -57,6 +57,13 @@ export class StartDrawDoorCommand extends DrawingCommand {
   }
 }
 
+export class StartDrawConduitCommand extends DrawingCommand {
+  execute() {
+    this.controller?.startDrawConduit();
+    this.appState.tools.setActiveTool('conduit');
+  }
+}
+
 export class StartDrawWindowCommand extends DrawingCommand {
   execute() {
     this.controller?.startDrawWindow();

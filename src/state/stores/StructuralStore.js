@@ -5,6 +5,7 @@ import Space from "../../core/structural/Space";
 import Wall from "../../core/structural/Wall";
 import Door from "../../core/structural/Door";
 import Window from "../../core/structural/Window";
+import Conduit from "../../core/structural/Conduit";
 import appState from "../AppState";
 
 export class StructuralStore {
@@ -17,6 +18,7 @@ export class StructuralStore {
         this.listeners = [];
         this.walls = [];
         this.windows = [];
+        this.conduits = [];
     }
 
     // ============= Domain Methods =============
@@ -295,6 +297,25 @@ export class StructuralStore {
         this.walls.splice(index, 1);
         this.notify();
         return [wallId];
+    }
+
+    addConduit(conduit) {
+        if (!conduit.id) throw new Error('Conduit must have an id');
+        if (this.conduits.find(c => c.id === conduit.id)) return null;
+
+        const newConduit = new Conduit(conduit);
+
+        this.conduits.push(newConduit);
+        this.notify();
+        return newConduit;
+    }
+
+    removeConduit(conduitId) {
+        const index = this.conduits.findIndex(c => c.id === conduitId);
+        if (index === -1) return false;
+        this.conduits.splice(index, 1);
+        this.notify();
+        return true;
     }
 
     getSpacesByFloor(floorId) {
@@ -588,7 +609,18 @@ export class StructuralStore {
                 children: []
             }));
 
-        return [...devicesInSpace, ...furnituresInSpace, ...wallsInSpace, ...doorsInSpace, ...windowsInSpace];
+        const conduits = this.conduits
+            .filter(c => c.spaceId === spaceId)
+            .map(conduit => ({
+                id: conduit.id,
+                label: conduit.label || `Conduit ${conduit.id}`,
+                type: 'conduit',
+                spaceId: conduit.spaceId,
+                conduitId: conduit.id,
+                children: []
+            }));
+
+        return [...devicesInSpace, ...furnituresInSpace, ...wallsInSpace, ...doorsInSpace, ...windowsInSpace, ...conduits];
     }
 
     subscribe(callback) {

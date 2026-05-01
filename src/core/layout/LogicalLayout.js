@@ -41,6 +41,7 @@ export class LogicalLayout {
       onDoorCreated: opts.onDoorCreated || null,
       onWindowCreated: opts.onWindowCreated || null,
       onCableCreated: opts.onCableCreated || null,
+      onConduitCreated: opts.onConduitCreated ||null,
       system: this.system
     });
 
@@ -94,6 +95,7 @@ export class LogicalLayout {
     this.devices = [];
     this.cables = [];
     this.furnitures = [];
+    this.conduits = [];
 
     this.store = appState.selection;
 
@@ -393,6 +395,11 @@ isPointInsideShape(id, x, y) {
     this._updateCursor();
   }
 
+  startDrawConduit() {
+    this.mode = 'conduit';
+    this._updateCursor();
+  }
+
   // Map legacy UI aliases to catalog keys so cables[type] lookups never miss.
   static _normalizeCableType(type) {
     const aliases = {
@@ -445,6 +452,8 @@ isPointInsideShape(id, x, y) {
       this._render();
     }
   }
+
+  
 
   addFurniture(furnitureData, x, y) {
     console.log('Adding furniture with data:', furnitureData, 'from LogicalLaypout bsuiyti');
@@ -540,6 +549,7 @@ isPointInsideShape(id, x, y) {
       'cable': 'crosshair',
       'pan': 'grab',
       'none': 'default',
+      'conduit': 'crosshair',
       'select': 'default'
     };
     this.pointerHandler.setCursor(cursorMap[this.mode] || 'default');
@@ -624,6 +634,11 @@ isPointInsideShape(id, x, y) {
       return;
     }
 
+    if (this.mode === 'conduit') {
+      const conduit = this._placeConduitAt(snapped.x, snapped.y);
+      this._render();
+      return;
+    }
 
     if (this.mode === 'select') {
       const zoom = this.pointerHandler.getZoom();
@@ -1248,6 +1263,94 @@ _onPointerUp(e) {
 }
 
 
+  _findSpaceEdgeAt(x, y, tolerance = 8) {
+    const focusedId   = appState.selection.focusedId;
+    const focusedType = appState.selection.focusedType?.toLowerCase();
+
+    if (!focusedId || (focusedType !== 'space' && focusedType !== 'floor')) {
+      alert('Please select a Space or Floor first before placing a conduit.');
+      return null;
+    }
+
+    // Find the focused shape on the canvas
+    const shape =
+      this.rectangles.find(r => r.id === focusedId) ||
+      this.polygons.find(p => p.id === focusedId) ||
+      this.circles.find(c => c.id === focusedId);
+
+    if (!shape) {
+      alert('Could not find the selected Space or Floor on the canvas.');
+      return null;
+    }
+
+    const edges = this._getShapeEdges(shape);
+    for (const edge of edges) {
+      const dist = this._pointToLineDistance(x, y, edge.x1, edge.y1, edge.x2, edge.y2);
+      if (dist <= tolerance) {
+        return { shape, edge };
+      }
+    }
+
+    alert('Click closer to the edge of the selected Space or Floor.');
+    return null;
+  }
+
+  _getShapeEdges(shape) {
+    if (shape.type === 'rectangle') {
+      const { x, y } = shape;
+      const w = shape.w ?? shape.width;
+      const h = shape.h ?? shape.height;
+      return [
+        { x1: x,     y1: y,     x2: x + w, y2: y     }, // top
+        { x1: x + w, y1: y,     x2: x + w, y2: y + h }, // right
+        { x1: x,     y1: y + h, x2: x + w, y2: y + h }, // bottom
+        { x1: x,     y1: y,     x2: x,     y2: y + h }, // left
+      ];
+    }
+
+    if (shape.type === 'polygon' || shape.type === 'freeform') {
+      const pts = shape.points;
+      if (!pts || pts.length < 2) return [];
+      const edges = [];
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i];
+        const b = pts[(i + 1) % pts.length];
+        edges.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+      }
+      return edges;
+    }
+
+    return [];
+  }
+
+  _placeConduitAt(clickX, clickY) {
+    const hit = this._findSpaceEdgeAt(clickX, clickY);
+    if (!hit) {
+      alert('Conduits must be placed on the edge of a Space or Floor.');
+      return null;
+    }
+
+    const { shape, edge } = hit;
+
+    // Snap to the closest point on the edge
+    const dx = edge.x2 - edge.x1, dy = edge.y2 - edge.y1;
+    const lenSq = dx * dx + dy * dy;
+    const t = lenSq > 0
+      ? Math.max(0, Math.min(1, ((clickX - edge.x1) * dx + (clickY - edge.y1) * dy) / lenSq))
+      : 0;
+    const snappedX = edge.x1 + t * dx;
+    const snappedY = edge.y1 + t * dy;
+
+    const conduit = this.shapeCreator.createConduit(snappedX, snappedY);
+    if (conduit) {
+      conduit.floorId = shape.floorId || null;
+      conduit.spaceId = shape.structureType === 'space' ? shape.id : null;
+      conduit.parentShapeId = shape.id;
+      this.conduits.push(conduit);
+    }
+    return conduit;
+  }
+
   _createShapeFromMode() {
     const activeFloor =
      appState.selection.focusedType === 'floor'
@@ -1346,6 +1449,8 @@ _onPointerUp(e) {
           }
         }
       }
+    } else if (this.mode === 'conduit') {
+      this._placeConduitAt(this.currentPoint.x, this.currentPoint.y);
     }
   }
 
@@ -1613,6 +1718,24 @@ _onPointerUp(e) {
 
       ctx.restore();
     }
+
+    ctx.save();
+    for (const conduit of this.conduits) {
+      const isOnActiveFloor = !activeFloor 
+        || conduit.floorId === activeFloor 
+        || conduit.spaceId;  // spaces are always shown when their floor is active
+
+      if (!isOnActiveFloor) continue;
+
+      ctx.beginPath();
+      ctx.arc(conduit.x, conduit.y, conduit.radius, 0, Math.PI * 2);
+      ctx.fillStyle = '#000000';
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 4;
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
 
     for (const en of entitiesToOutline) {
       if (!en || en.sourceId) continue;

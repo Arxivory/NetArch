@@ -26,7 +26,8 @@ export class LogicalCanvasController {
       domain: 0,
       site: 0,
       floor: 0,
-      space: 0
+      space: 0,
+      conduit: 0
     };
 
     // Map canvas entity IDs to structural entity IDs for tracking
@@ -215,6 +216,7 @@ export class LogicalCanvasController {
       onPolygonCreated: (poly) => this._handleShapeCreated(poly, 'polygon'),
       onFreeformCreated: (freeform) => this._handleShapeCreated(freeform, 'freeform'),
       onWallCreated: (wall) => this._handleWallCreated(wall),
+      onConduitCreated: (conduit) => this._handleConduitCreated(conduit),
       onCableCreated: (cable) => this._handleCableCreated(cable),
       onDeviceAdded: (device) => this._handleDeviceAdded(device),
       onDoorCreated: (door) => this._handleDoorCreated(door),
@@ -513,6 +515,10 @@ executeDelete(idToDelete) {
 
   startDrawWall() {
     this.layout?.startDrawWall();
+  }
+
+  startDrawConduit() {
+    this.layout?.startDrawConduit();
   }
 
   startDrawDoor() {
@@ -1493,6 +1499,14 @@ _handleShapeCreated(shapeData, shapeType) {
     if (activeFloorId && appState.structural.addFenestration) {
       console.log('New Wall Data: ', wallData);
       appState.structural.addWall({ ...wallData, floorId: activeFloorId });
+    }
+  }
+
+  _handleConduitCreated(conduitData) {
+    const activeSpaceId = appState.selection.focusedId;
+    if (activeSpaceId && appState.structural.addConduit) {
+      console.log('New Conduit Data: ', conduitData);
+      appState.structural.addConduit({ ...conduitData, spaceId: activeSpaceId, label: conduitData.label || `Conduit ${this.counters.conduit++}` });
     }
   }
 

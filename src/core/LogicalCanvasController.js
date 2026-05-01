@@ -365,11 +365,17 @@ executeDelete(idToDelete) {
         } else if (st.walls && st.walls.some(w => w.id === idToDelete)) {
             deletedIds = st.removeWall?.(idToDelete) || [idToDelete];
         }
-    }
+    } 
 
-    if (deletedIds.length === 0 && appState.devices && appState.devices.removeDevice) {
-        appState.devices.removeDevice(idToDelete); 
-        deletedIds = [idToDelete];
+    // if (deletedIds.length === 0 && appState.devices && appState.devices.removeDevice) {
+    //     appState.devices.removeDevice(idToDelete); 
+
+
+    if (deletedIds.length === 0 && typeof appState.removeDevice === 'function') {
+        const removed = appState.removeDevice(idToDelete);
+        if (removed) {
+            deletedIds = [idToDelete];
+        }
     }
 
     if (deletedIds.length === 0 && appState.network) {
@@ -1007,7 +1013,7 @@ addDevice(deviceData, x, y) {
           x,
           y,
           this.layout.shapeRenderer.gridSize * 1.5
-        );
+        ); 
 
         // preserve IDs + metadata
         layoutDevice.id = newDevice.id;

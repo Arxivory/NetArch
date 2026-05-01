@@ -227,9 +227,10 @@
 import { Undo2, Redo2 } from "lucide-react"; // Add to existing lucide-react imports
 import {
   Mountain, Building, Grid, RectangleHorizontal, House, DoorOpen,
-  Square, Play, File, FilePlus, Save, MousePointer, Hand, ZoomIn, ZoomOut, Trash2 // <-- Added Trash2
+  Square, Play, File, FilePlus, Save, MousePointer, Hand, ZoomIn, ZoomOut, Trash2, Copy // Add copy icon
 } from "lucide-react";
-import { useEffect, useState } from "react";
+// import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import appState from "../../state/AppState";
 import {
   StartDrawRectangleCommand, StartDrawCircleCommand, StartDrawPolygonCommand, StartDrawFreeformCommand, StartDrawWallCommand,
@@ -318,6 +319,35 @@ const handleDelete = () => {
     }
   };
 
+
+// Handler for duplication - will call the canvasController's duplicateSelection method if it exists
+  const handleDuplicate = useCallback(() => {
+    if (!canvasController?.duplicateSelection) return;
+    return canvasController.duplicateSelection();
+  }, [canvasController]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      const activeElement = document.activeElement;
+      const isTyping =
+        activeElement?.tagName === "INPUT" ||
+        activeElement?.tagName === "TEXTAREA" ||
+        activeElement?.isContentEditable;
+
+      if (isTyping) return;
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "d") {
+        const duplicated = handleDuplicate();
+        if (duplicated) {
+          event.preventDefault();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleDuplicate]);
+
   const handleStructuralShape = (structureType, shape) => {
     if (!canvasController) return;
 
@@ -386,6 +416,15 @@ const handleDelete = () => {
             title="Delete Selected or Toggle Eraser"
           >
             <Trash2 size={16} /> Delete
+          </button>
+          
+          // Duplicate button with Ctrl+D shortcut
+          <button
+            onClick={handleDuplicate}
+            className="toolbar-btn"
+            title="Duplicate Selected (Ctrl+D)"
+          >
+            <Copy size={16} /> Duplicate
           </button>
           <button
             onClick={() => executeCommand(StartPanCommand)}

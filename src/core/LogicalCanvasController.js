@@ -1714,8 +1714,14 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
     }
 
     if (isDevice) {
-        // Logical layout transforms are independent from the physical 3D device transform.
-        // A click or drag in the logical canvas must not rewrite the physical mesh position/scale.
+        if (dx !== 0 || dy !== 0) {
+            const deviceId = this.entityIdMap.get(en.id) || en.id;
+            const success = this.applyDeviceMove(deviceId, dx, dy, { skipCanvasMove: true });
+            if (success) {
+                this._recordPendingMove(deviceId, { kind: 'device' });
+            }
+        }
+
         appState.selection.notify?.();
         return;
     }

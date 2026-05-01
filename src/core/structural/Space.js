@@ -5,14 +5,16 @@ export default class Space {
         // keep siteId for convenience (propagated by store)
         this.siteId = data.siteId || null;
         this.label = data.label || 'Space';
-        this.shapeType = data.shapeType;
+        this.shapeType = data.type;
         this.type = 'space';
 
         this.geometry = {
             x: data.x || 0,
             y: data.y || 0,
-            width: data.w || 0,
-            height: data.h || 0,
+            maxX: data.maxX || 0,
+            maxY: data.maxY || 0,
+            w: data.w || 0,
+            h: data.h || 0,
             radius: data.r || 0,
             points: data.points ? [...data.points] : []
         };

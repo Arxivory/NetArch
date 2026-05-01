@@ -97,7 +97,7 @@ const [activeSyslogTab, setActiveSyslogTab] = useState("servers");
   });
   const originalLabelRef = useRef("");
 
-  useEffect(() => {
+useEffect(() => {
     const updatePanelContent = () => {
       let ids = appState.selection.getSelectedDeviceIds();
       if (!ids || ids.length === 0) {
@@ -170,8 +170,33 @@ const [activeSyslogTab, setActiveSyslogTab] = useState("servers");
   }, [canvasController]);
 
   const findEntityById = (id) => {
-    if (!canvasController || !canvasController.layout) return null;
-    return canvasController.layout.findEntityById(id);
+    if (canvasController?.layout) {
+      const layoutEntity = canvasController.layout.findEntityById(id);
+      if (layoutEntity) return layoutEntity;
+    }
+
+    const networkEntity = appState.network?.getDevice?.(id);
+    if (networkEntity) {
+      return {
+        ...networkEntity,
+        transform: {
+          position: {
+            x: networkEntity.position?.x ?? 0,
+            y: networkEntity.position?.y ?? 0,
+            z: networkEntity.position?.z ?? 0
+          },
+          scale: { x: 1, y: 1, z: 1 },
+          rotation: { x: 0, y: 0, z: 0 }
+        }
+      };
+    }
+
+    const furnitureEntity = appState.furniture?.getFurniture?.(id);
+    if (furnitureEntity) {
+      return furnitureEntity;
+    }
+
+    return null;
   };
 
   const getDeviceLabel = (id) => {

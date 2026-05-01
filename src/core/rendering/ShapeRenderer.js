@@ -217,6 +217,15 @@ renderFurnitures(ctx, furnitures) {
     ctx.stroke();
   }
 
+  outlineDoor(ctx, startPoint, currentPoint) {
+    ctx.beginPath();
+    ctx.moveTo(startPoint.x + 0.5, startPoint.y + 0.5);
+    ctx.lineTo(currentPoint.x + 0.5, currentPoint.y + 0.5);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#00ff00';
+    ctx.stroke();
+  }
+
   outlinePolygonOrFreeformInProgress(ctx, polygonPoints, currentPoint, snapTolerance) {
     if (polygonPoints.length > 0) {
       const pts = polygonPoints;

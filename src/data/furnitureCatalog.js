@@ -11,6 +11,12 @@ const furnitures = {
     family: "furniture",
     model3D: "objects/furnitures/chair.glb",
   },
+  "rack": {
+    modelId: "rack",
+    displayName: "Rack",
+    family: "furniture",
+    model3D: "objects/furnitures/network-rack.glb",
+  }
 };
 
 export function createFurnitureInstance(catalogId, position = { x: 0, y: 0, z: 0 }, opts = {}) {

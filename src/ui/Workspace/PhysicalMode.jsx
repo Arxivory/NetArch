@@ -2,11 +2,13 @@ import { useEffect, useRef } from "react";
 import { initRenderer } from "../../core/rendering/Renderer";
 import { startRenderLoop } from "../../core/rendering/RenderLoop";
 import { PhysicalController } from "../../core/PhysicalController";
+import TransformMode from "./TransformMode";
 
 export default function PhysicalMode({ currentMode }) {
   const canvasRef = useRef(null);
   const rendererCtxRef = useRef(null);
   const controllerRef = useRef(null);
+  const transformModeRef = useRef('translate');
 
   useEffect(() => {
     if (canvasRef.current && !rendererCtxRef.current) {
@@ -30,5 +32,10 @@ export default function PhysicalMode({ currentMode }) {
     }
   }, [currentMode]);
 
-  return <canvas ref={canvasRef} className="w-full h-full block" />;
+  return (
+    <>
+      <canvas ref={canvasRef} className="w-full h-full block" />
+      <TransformMode controllerRef={controllerRef} mode={transformModeRef}/>
+    </>
+  );
 }

@@ -2,6 +2,9 @@ import Domain from "../../core/structural/Domain";
 import Site from "../../core/structural/Site";
 import Floor from "../../core/structural/Floor";
 import Space from "../../core/structural/Space";
+import Wall from "../../core/structural/Wall";
+import Door from "../../core/structural/Door";
+import Window from "../../core/structural/Window";
 import appState from "../AppState";
 
 export class StructuralStore {
@@ -9,8 +12,11 @@ export class StructuralStore {
         this.domains = [];
         this.sites = [];
         this.floors = [];
+        this.doors = [];
         this.spaces = [];
         this.listeners = [];
+        this.walls = [];
+        this.windows = [];
     }
 
     // ============= Domain Methods =============
@@ -27,13 +33,13 @@ export class StructuralStore {
         const newDomain = new Domain(domain);
 
         console.log('Adding domain: ', newDomain);
-
+        
         this.domains.push(newDomain);
         this.notify();
         return newDomain;
     }
 
-removeDomain(domainId) {
+    removeDomain(domainId) {
         const index = this.domains.findIndex(d => d.id === domainId);
         if (index === -1) {
             console.warn(`Domain not found: ${domainId}`);
@@ -107,7 +113,7 @@ removeDomain(domainId) {
         return site;
     }
 
-removeSite(siteId) {
+    removeSite(siteId) {
         const index = this.sites.findIndex(s => s.id === siteId);
         if (index === -1) {
             console.warn(`Site not found: ${siteId}`);
@@ -178,7 +184,7 @@ removeSite(siteId) {
         return newFloor;
     }
 
-removeFloor(floorId) {
+    removeFloor(floorId) {
         const index = this.floors.findIndex(f => f.id === floorId);
         if (index === -1) {
             console.warn(`Floor not found: ${floorId}`);
@@ -249,7 +255,7 @@ removeFloor(floorId) {
         return newSpace;
     }
 
-removeSpace(spaceId) {
+    removeSpace(spaceId) {
         const index = this.spaces.findIndex(s => s.id === spaceId);
         if (index === -1) return false;
 
@@ -279,7 +285,18 @@ removeSpace(spaceId) {
         this.notify();
         return [spaceId];
     }
-    
+
+    removeWall(wallId) {
+        const index = this.walls.findIndex(w => w.id === wallId);
+        if (index === -1) {
+            console.warn(`Wall not found: ${wallId}`);
+            return false;
+        }
+        this.walls.splice(index, 1);
+        this.notify();
+        return [wallId];
+    }
+
     getSpacesByFloor(floorId) {
         return this.spaces.filter(s => s.floorId === floorId);
     }
@@ -299,6 +316,52 @@ removeSpace(spaceId) {
         return added;
     }
 
+    addWall(wall) {
+        if (!wall.id) {
+            throw Error('Wall must have an id');
+        }
+
+        const newWall = new Wall(wall);
+        this.walls.push(newWall);
+        this.notify();
+        return newWall;
+    }
+
+    addDoor(door) {
+        if (!door.id) {
+            throw new Error('Door must have an id');
+        }
+
+        if (this.doors.find(d => d.id === door.id)) {
+            console.warn(`Door already exists: ${door.id}`);
+            return null;
+        }
+
+        const newDoor = new Door(door);
+
+        console.log('Adding door: ', newDoor);
+        this.doors.push(newDoor);
+        this.notify();
+        return newDoor;
+    }
+
+    addWindow(window) {
+        if (!window.id) {
+            throw new Error('Window must have an id');
+        }
+
+        if (this.windows.find(w => w.id === window.id)) {
+            console.warn(`Window already exists: ${window.id}`);
+            return null;
+        }
+
+        const newWindow = new Window(window);
+
+        console.log('Adding window: ', newWindow);
+        this.windows.push(newWindow);
+        this.notify();
+    }
+
     renameStructure(id, newLabel, type) {
         let item = null;
         
@@ -307,6 +370,7 @@ removeSpace(spaceId) {
         else if (type === 'site') item = this.sites.find(s => s.id === id);
         else if (type === 'floor') item = this.floors.find(f => f.id === id);
         else if (type === 'space') item = this.spaces.find(sp => sp.id === id);
+        else if (type === 'wall') item = this.walls.find(w => w.id === id);
 
         // If we found it, update the label and tell the UI to re-render
         if (item) {
@@ -343,6 +407,12 @@ removeSpace(spaceId) {
         if (this.spaces.some(sp => sp.id === id)) {
             console.log(`Removing Space: ${id}`);
             return this.removeSpace(id);
+        }
+
+        // Check Walls
+        if (this.walls.some(w => w.id === id)) {
+            console.log(`Removing Wall: ${id}`);
+            return this.removeWall(id);
         }
 
         // Not found in structural store
@@ -414,8 +484,30 @@ removeSpace(spaceId) {
                 }))
             );
         }
+
+        const wallsOnFloor = this.walls
+            .filter(w => w.floorId === floorId && !w.spaceId)
+            .map(wall => ({
+                id: wall.id,
+                label: wall.label || `Wall ${wall.id}`,
+                type: 'wall',
+                floorId: wall.floorId,
+                wallId: wall.id,
+                children: []
+            }));
+
+        const windowsOnFloor = this.windows
+            .filter(w => w.floorId === floorId && !w.spaceId)
+            .map(window => ({
+                id: window.id,
+                label: window.label || `Window ${window.id}`,
+                type: 'window',
+                floorId: window.floorId,
+                windowId: window.id,
+                children: []
+            }));
         
-        return [...spaces, ...devicesWithoutSpace, ...furnituresWithoutSpace];
+        return [...spaces, ...devicesWithoutSpace, ...furnituresWithoutSpace, ...wallsOnFloor, ...windowsOnFloor];        
     }
 
     _buildSpaceChildren(floorId, networkStore = null, furnitureStore = null) {
@@ -462,8 +554,41 @@ removeSpace(spaceId) {
                 }))
             );
         }
+
+        const wallsInSpace = this.walls
+            .filter(w => w.spaceId === spaceId)
+            .map(wall => ({
+                id: wall.id,
+                label: wall.label || `Wall ${wall.id}`,
+                type: 'wall',
+                spaceId: wall.spaceId,
+                wallId: wall.id,
+                children: []
+            }));
+
+        const doorsInSpace = this.doors
+            .filter(d => d.spaceId === spaceId)
+            .map(door => ({
+                id: door.id,
+                label: door.label || `Door ${door.id}`,
+                type: 'door',
+                spaceId: door.spaceId,
+                doorId: door.id,
+                children: []
+            }));
         
-        return [...devicesInSpace, ...furnituresInSpace];
+        const windowsInSpace = this.windows
+            .filter(w => w.spaceId === spaceId)
+            .map(window => ({
+                id: window.id,
+                label: window.label || `Window ${window.id}`,
+                type: 'window',
+                spaceId: window.spaceId,
+                windowId: window.id,
+                children: []
+            }));
+
+        return [...devicesInSpace, ...furnituresInSpace, ...wallsInSpace, ...doorsInSpace, ...windowsInSpace];
     }
 
     subscribe(callback) {

@@ -6,6 +6,10 @@ export class Circle {
         this.x = startPoint.x;
         this.y = startPoint.y;
         this.initRadius(currentPoint);
+        this.maxX = this.x + this.r;
+        this.maxY = this.y + this.r;
+        this.w = this.r * 2;
+        this.h = this.r * 2;
         this.system = system;
         this.type = 'circle';
         this.structureType = structureType;

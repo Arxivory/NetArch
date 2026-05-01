@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 let yaw = 0;
 let pitch = 0;
-const sensitivity = 0.002;
+const sensitivity = 0.0027;
 const keys = { w: false, a: false, s: false, d: false, q: false, e: false };
 let eventListeners = {};
 
@@ -66,8 +66,8 @@ export function cleanupEditorControls() {
 }
 
 export function updateEditorControls(camera, delta) {
-    const moveSpeed = 40 * delta;
-    const zoomSpeed = 20 * delta; 
+    const moveSpeed = 55 * delta;
+    const zoomSpeed = 30 * delta; 
 
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);

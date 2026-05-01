@@ -851,7 +851,8 @@ if (this.mode === 'freeform') {
   }
 
         this.interaction.start = nextStart;
-        const shouldSyncDuringDrag = !!en.structureType && this.interaction.mode === "move";
+        const shouldSyncDuringDrag = !!en.structureType &&
+          (this.interaction.mode === "move" || this.interaction.mode === "resize");
 
         if (shouldSyncDuringDrag && this.onEntityChanged) {
           this.onEntityChanged(en, appliedDx, appliedDy); // CHANGED: keep structural store sync aligned with the movement that was actually applied after clamping

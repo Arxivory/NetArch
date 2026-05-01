@@ -403,6 +403,27 @@ executeDelete(idToDelete) {
       return null;
     }
 
+    const canvasEntity = this._findCanvasEntityForId(entityId);
+
+    if (canvasEntity && typeof canvasEntity.move === 'function') {
+      canvasEntity.move(dx, dy);
+    } else if (canvasEntity) {
+      canvasEntity.x = Number(canvasEntity.x || 0) + dx;
+      canvasEntity.y = Number(canvasEntity.y || 0) + dy;
+      if (canvasEntity.transform?.position) {
+        canvasEntity.transform.position.x = Number(canvasEntity.transform.position.x || 0) + dx;
+        canvasEntity.transform.position.y = Number(canvasEntity.transform.position.y || 0) + dy;
+      }
+    }
+
+    return canvasEntity;
+  }
+
+  _findCanvasEntityForId(entityId) {
+    if (!this.layout || typeof this.layout.findEntityById !== 'function') {
+      return null;
+    }
+
     let canvasEntity = this.layout.findEntityById(entityId);
     if (!canvasEntity) {
       const mappedId = this.structuralToCanvasMap.get(entityId);
@@ -411,11 +432,7 @@ executeDelete(idToDelete) {
       }
     }
 
-    if (canvasEntity && typeof canvasEntity.move === 'function') {
-      canvasEntity.move(dx, dy);
-    }
-
-    return canvasEntity;
+    return canvasEntity || null;
   }
 
   _recordPendingMove(entityId, moveInfo) {
@@ -427,10 +444,10 @@ executeDelete(idToDelete) {
   _getStructuralObjectById(structuralId) {
     const st = appState.structural;
     if (!st) return null;
-    return (st.domains?.find(d => d.id === structuralId)
-      || st.sites?.find(s => s.id === structuralId)
-      || st.floors?.find(f => f.id === structuralId)
-      || st.spaces?.find(sp => sp.id === structuralId)
+    return (st.domains?.find(d => String(d.id) === String(structuralId))
+      || st.sites?.find(s => String(s.id) === String(structuralId))
+      || st.floors?.find(f => String(f.id) === String(structuralId))
+      || st.spaces?.find(sp => String(sp.id) === String(structuralId))
       || null);
   }
 
@@ -440,6 +457,314 @@ executeDelete(idToDelete) {
       x: Number(geom.x ?? geom.left ?? 0),
       y: Number(geom.y ?? geom.top ?? 0)
     };
+  }
+
+  _getStructuralTypeById(structuralId) {
+    const st = appState.structural;
+    if (!st) return null;
+
+    if (st.domains?.some(d => String(d.id) === String(structuralId))) return 'domain';
+    if (st.sites?.some(s => String(s.id) === String(structuralId))) return 'site';
+    if (st.floors?.some(f => String(f.id) === String(structuralId))) return 'floor';
+    if (st.spaces?.some(s => String(s.id) === String(structuralId))) return 'space';
+    return null;
+  }
+
+  _getShapeBounds(shape) {
+    if (!shape) return null;
+
+    const src = shape.geometry || shape;
+    const points = Array.isArray(src.points) ? src.points : [];
+    if (points.length > 0) {
+      const xs = points.map(point => Number(point.x ?? 0));
+      const ys = points.map(point => Number(point.y ?? 0));
+      const minX = Math.min(...xs);
+      const minY = Math.min(...ys);
+      const maxX = Math.max(...xs);
+      const maxY = Math.max(...ys);
+      return {
+        x: minX,
+        y: minY,
+        w: maxX - minX,
+        h: maxY - minY,
+        minX,
+        minY,
+        maxX,
+        maxY
+      };
+    }
+
+    const radius = Number(src.r ?? src.radius ?? 0);
+    if (radius > 0) {
+      const x = Number(src.x ?? 0) - radius;
+      const y = Number(src.y ?? 0) - radius;
+      return {
+        x,
+        y,
+        w: radius * 2,
+        h: radius * 2,
+        minX: x,
+        minY: y,
+        maxX: x + radius * 2,
+        maxY: y + radius * 2
+      };
+    }
+
+    const x = Number(src.x ?? src.left ?? 0);
+    const y = Number(src.y ?? src.top ?? 0);
+    let w = Number(src.w ?? src.width ?? 0);
+    let h = Number(src.h ?? src.height ?? 0);
+    if (!w && src.maxX !== undefined) w = Number(src.maxX) - x;
+    if (!h && src.maxY !== undefined) h = Number(src.maxY) - y;
+
+    return {
+      x,
+      y,
+      w,
+      h,
+      minX: Math.min(x, x + w),
+      minY: Math.min(y, y + h),
+      maxX: Math.max(x, x + w),
+      maxY: Math.max(y, y + h)
+    };
+  }
+
+  _setShapeBounds(shape, bounds) {
+    if (!shape || !bounds) return;
+
+    const geom = shape.geometry || shape;
+    geom.x = bounds.x;
+    geom.y = bounds.y;
+
+    if ('width' in geom || shape.geometry) geom.width = bounds.w;
+    if ('height' in geom || shape.geometry) geom.height = bounds.h;
+    if ('w' in geom) geom.w = bounds.w;
+    if ('h' in geom) geom.h = bounds.h;
+    if ('maxX' in geom) geom.maxX = bounds.x + bounds.w;
+    if ('maxY' in geom) geom.maxY = bounds.y + bounds.h;
+  }
+
+  _mapPointBetweenBounds(point, oldBounds, newBounds) {
+    const scaleX = oldBounds.w !== 0 ? newBounds.w / oldBounds.w : 1;
+    const scaleY = oldBounds.h !== 0 ? newBounds.h / oldBounds.h : 1;
+
+    return {
+      x: newBounds.x + (point.x - oldBounds.x) * scaleX,
+      y: newBounds.y + (point.y - oldBounds.y) * scaleY
+    };
+  }
+
+  _mapBoundsBetweenBounds(bounds, oldParentBounds, newParentBounds) {
+    const topLeft = this._mapPointBetweenBounds(
+      { x: bounds.x, y: bounds.y },
+      oldParentBounds,
+      newParentBounds
+    );
+    const scaleX = oldParentBounds.w !== 0 ? newParentBounds.w / oldParentBounds.w : 1;
+    const scaleY = oldParentBounds.h !== 0 ? newParentBounds.h / oldParentBounds.h : 1;
+
+    return {
+      x: topLeft.x,
+      y: topLeft.y,
+      w: bounds.w * scaleX,
+      h: bounds.h * scaleY
+    };
+  }
+
+  _getCanvasEntityBounds(entity) {
+    if (!entity) return null;
+
+    if (typeof entity.tileX === 'number' && typeof entity.tileY === 'number') {
+      return {
+        x: entity.tileX,
+        y: entity.tileY,
+        w: entity.tileWidth ?? 0,
+        h: entity.tileHeight ?? 0
+      };
+    }
+
+    if (entity.type === 'furniture' || entity.entityType === 'furniture' || entity.id?.startsWith('furniture')) {
+      const scale = entity.transform?.scale?.factor || entity.transform?.scale?.x || 1;
+      const size = (entity.width ?? 0) * scale;
+      return {
+        x: Number(entity.x ?? 0) - size / 2,
+        y: Number(entity.y ?? 0) - size / 2,
+        w: size,
+        h: size
+      };
+    }
+
+    return {
+      x: Number(entity.transform?.position?.x ?? entity.x ?? 0),
+      y: Number(entity.transform?.position?.y ?? entity.y ?? 0),
+      w: Number(entity.transform?.scale?.w ?? entity.w ?? entity.width ?? 0),
+      h: Number(entity.transform?.scale?.h ?? entity.h ?? entity.height ?? 0)
+    };
+  }
+
+  _applyCanvasEntityBoundsById(entityId, bounds) {
+    const canvasEntity = this._findCanvasEntityForId(entityId);
+    if (!canvasEntity || !bounds) return null;
+
+    const currentBounds = this._getCanvasEntityBounds(canvasEntity);
+    if (!currentBounds) return canvasEntity;
+
+    const dx = bounds.x - currentBounds.x;
+    const dy = bounds.y - currentBounds.y;
+    if (dx !== 0 || dy !== 0) {
+      if (typeof canvasEntity.move === 'function') {
+        canvasEntity.move(dx, dy);
+      } else {
+        canvasEntity.x = Number(canvasEntity.x || 0) + dx;
+        canvasEntity.y = Number(canvasEntity.y || 0) + dy;
+        if (canvasEntity.transform?.position) {
+          canvasEntity.transform.position.x = Number(canvasEntity.transform.position.x || 0) + dx;
+          canvasEntity.transform.position.y = Number(canvasEntity.transform.position.y || 0) + dy;
+        }
+      }
+    }
+
+    if (typeof canvasEntity.setWidthAndHeight === 'function') {
+      canvasEntity.setWidthAndHeight(bounds.w, bounds.h);
+    }
+
+    return canvasEntity;
+  }
+
+  _applyCanvasEntityCenterById(entityId, nextCenter) {
+    const canvasEntity = this._findCanvasEntityForId(entityId);
+    if (!canvasEntity || !nextCenter) return null;
+
+    const currentBounds = this._getCanvasEntityBounds(canvasEntity);
+    if (!currentBounds) return canvasEntity;
+
+    const currentCenter = {
+      x: currentBounds.x + currentBounds.w / 2,
+      y: currentBounds.y + currentBounds.h / 2
+    };
+    const dx = nextCenter.x - currentCenter.x;
+    const dy = nextCenter.y - currentCenter.y;
+
+    if (dx !== 0 || dy !== 0) {
+      if (typeof canvasEntity.move === 'function') {
+        canvasEntity.move(dx, dy);
+      } else {
+        canvasEntity.x = Number(canvasEntity.x || 0) + dx;
+        canvasEntity.y = Number(canvasEntity.y || 0) + dy;
+        if (canvasEntity.transform?.position) {
+          canvasEntity.transform.position.x = Number(canvasEntity.transform.position.x || 0) + dx;
+          canvasEntity.transform.position.y = Number(canvasEntity.transform.position.y || 0) + dy;
+        }
+      }
+    }
+
+    return canvasEntity;
+  }
+
+  _getStructuralScaleChildren(structuralId, shapeType) {
+    const st = appState.structural;
+    if (!st) {
+      return { structures: [], floorIds: [], spaceIds: [] };
+    }
+
+    let childSites = [];
+    let childFloors = [];
+    let childSpaces = [];
+
+    if (shapeType === 'domain') {
+      childSites = st.sites.filter(site => String(site.domainId) === String(structuralId));
+      const siteIds = childSites.map(site => site.id);
+      childFloors = st.floors.filter(floor => siteIds.some(siteId => String(siteId) === String(floor.siteId)));
+      const floorIds = childFloors.map(floor => floor.id);
+      childSpaces = st.spaces.filter(space => floorIds.some(floorId => String(floorId) === String(space.floorId)));
+    } else if (shapeType === 'site') {
+      childFloors = st.floors.filter(floor => String(floor.siteId) === String(structuralId));
+      const floorIds = childFloors.map(floor => floor.id);
+      childSpaces = st.spaces.filter(space =>
+        floorIds.some(floorId => String(floorId) === String(space.floorId)) ||
+        String(space.siteId) === String(structuralId)
+      );
+    } else if (shapeType === 'floor') {
+      childFloors = st.floors.filter(floor => String(floor.id) === String(structuralId));
+      childSpaces = st.spaces.filter(space => String(space.floorId) === String(structuralId));
+    } else if (shapeType === 'space') {
+      childSpaces = st.spaces.filter(space => String(space.id) === String(structuralId));
+    }
+
+    const floorIds = childFloors.map(floor => floor.id);
+    if (shapeType === 'floor') floorIds.push(structuralId);
+
+    const spaceIds = childSpaces.map(space => space.id);
+    if (shapeType === 'space') spaceIds.push(structuralId);
+
+    return {
+      structures: [...childSites, ...childFloors, ...childSpaces],
+      floorIds,
+      spaceIds
+    };
+  }
+
+  _scaleStructuralChildren(structuralId, shapeType, oldBounds, newBounds) {
+    if (!oldBounds || !newBounds || oldBounds.w === 0 || oldBounds.h === 0) {
+      return false;
+    }
+
+    const { structures, floorIds, spaceIds } = this._getStructuralScaleChildren(structuralId, shapeType);
+
+    structures
+      .filter(child => String(child.id) !== String(structuralId))
+      .forEach(child => {
+        const childBounds = this._getShapeBounds(child);
+        if (!childBounds) return;
+
+        const nextBounds = this._mapBoundsBetweenBounds(childBounds, oldBounds, newBounds);
+        this._setShapeBounds(child, nextBounds);
+        this._applyCanvasEntityBoundsById(child.id, nextBounds);
+      });
+
+    const scaleItems = (items = []) => {
+      items.forEach(item => {
+        const inScaledFloor = floorIds.some(floorId => String(floorId) === String(item.floorId));
+        const inScaledSpace = spaceIds.some(spaceId => String(spaceId) === String(item.spaceId));
+        if (!inScaledFloor && !inScaledSpace) return;
+
+        const canvasEntity = this._findCanvasEntityForId(item.id);
+        const canvasBounds = this._getCanvasEntityBounds(canvasEntity);
+        const currentCenter = canvasBounds
+          ? { x: canvasBounds.x + canvasBounds.w / 2, y: canvasBounds.y + canvasBounds.h / 2 }
+          : {
+              x: Number(item.transform?.position?.x ?? item.x ?? 0),
+              y: Number(item.transform?.position?.y ?? item.y ?? 0)
+            };
+        const nextCenter = this._mapPointBetweenBounds(currentCenter, oldBounds, newBounds);
+        const dx = nextCenter.x - currentCenter.x;
+        const dy = nextCenter.y - currentCenter.y;
+
+        this._applyCanvasEntityCenterById(item.id, nextCenter);
+
+        if (item.transform?.position) {
+          item.transform.position.x = Number(item.transform.position.x || 0) + dx;
+          item.transform.position.y = Number(item.transform.position.y || 0) + dy;
+        } else {
+          item.x = Number(item.x || 0) + dx;
+          item.y = Number(item.y || 0) + dy;
+        }
+      });
+    };
+
+    if (appState.network && typeof appState.network.getAllDevices === 'function') {
+      scaleItems(appState.network.getAllDevices());
+      appState.network.notify?.();
+    }
+
+    if (appState.furniture?.furnitures) {
+      scaleItems(appState.furniture.furnitures);
+      appState.furniture.notify?.();
+    }
+
+    appState.structural?.notify?.();
+    this.layout?._render?.();
+    return true;
   }
 
   _isStructuralMoveWithinBounds(structure, shapeType, dx, dy) {
@@ -552,6 +877,7 @@ executeDelete(idToDelete) {
 
     const skipCanvasMove = options.skipCanvasMove === true;
     const skipBounds = options.skipBounds === true;
+    const skipParent = options.skipParent === true;
 
     if (!skipBounds && !this._isStructuralMoveWithinBounds(structure, shapeType, dx, dy)) {
       return false;
@@ -568,7 +894,9 @@ executeDelete(idToDelete) {
       }
     };
 
-    moveItem(structure);
+    if (!skipParent) {
+      moveItem(structure);
+    }
     if (!skipCanvasMove) {
       this._applyCanvasEntityMoveById(structuralId, dx, dy);
     }
@@ -611,9 +939,8 @@ executeDelete(idToDelete) {
             item.x = Number(item.x || 0) + dx;
             item.y = Number(item.y || 0) + dy;
           }
-          if (!skipCanvasMove) {
-            this._applyCanvasEntityMoveById(item.id, dx, dy);
-          }
+          // We must always move the child entities on the canvas to ensure they follow the parent
+          this._applyCanvasEntityMoveById(item.id, dx, dy);
         }
       });
     };
@@ -626,6 +953,9 @@ executeDelete(idToDelete) {
     }
     if (appState.furniture && appState.furniture.furnitures) {
       moveItems(appState.furniture.furnitures);
+      if (typeof appState.furniture.notify === 'function') {
+        appState.furniture.notify();
+      }
     }
 
     if (appState.structural && typeof appState.structural.notify === 'function') {
@@ -1459,125 +1789,91 @@ _handleEntitySelected(entity) {
   }
 
 _handleEntityChanged(en, dx = 0, dy = 0) {
-    console.log(`📢 _handleEntityChanged called: en.id=${en?.id}, en.structureType=${en?.structureType}, dx=${dx}, dy=${dy}`);
-    
     if (!en || !en.id) {
-        console.log(`⚠️ Entity is null or has no ID, skipping`);
         appState.selection.notify();
         return;
     }
 
     const isDevice = en.interfaces !== undefined || en.catalogId !== undefined;
     const isFurniture = en?.type === 'furniture' || en?.entityType === 'furniture';
+    const structuralId = this.entityIdMap.get(en.id) || en.id;
+    const shapeObj = this._getStructuralObjectById(structuralId);
+
+    // 1. Move/Bounds check for leaf entities (Devices/Furniture)
     const hasSavedPosition = en && en.savedPosition !== undefined;
     const moved = (dx !== 0 || dy !== 0) ||
       (hasSavedPosition && (en.x !== en.savedPosition.x || en.y !== en.savedPosition.y));
 
     if ((isDevice || isFurniture) && moved) {
         if (!this._isEntityWithinAssignedParentBounds(en)) {
-            if (typeof en.restoreToSavedPosition === 'function') {
-                en.restoreToSavedPosition();
-            }
-
-            if (this.layout) {
-                if (typeof this.layout._render === 'function') {
-                    this.layout._render();
-                } else if (typeof this.layout.render === 'function') {
-                    this.layout.render();
-                }
-            }
-
+            if (typeof en.restoreToSavedPosition === 'function') en.restoreToSavedPosition();
+            this.layout?._render?.();
             appState.selection.notify?.();
             return;
         }
     }
 
-    if (isDevice) {
-        // Logical layout transforms are independent from the physical 3D device transform.
-        // A click or drag in the logical canvas must not rewrite the physical mesh position/scale.
-        appState.selection.notify?.();
-        return;
-    }
+    // 2. Structural Entity Change (Move or Resize)
+    if (shapeObj && shapeObj.geometry) {
+        const oldBounds = this._getShapeBounds(shapeObj);
+        const oldX = Number(shapeObj.geometry.x);
+        const oldY = Number(shapeObj.geometry.y);
+        const newX = Number(en.x ?? oldX);
+        const newY = Number(en.y ?? oldY);
+        
+        // Calculate shift in origin. This handles both normal moves and corner resizes.
+        const effDx = newX - oldX;
+        const effDy = newY - oldY;
 
-    if (en.structureType && en.type === 'rectangle') {
-        const structuralId = this.entityIdMap.get(en.id);
-        const shapeObj = this._getStructuralObjectById(structuralId);
         const nextWidth = Number(en.transform?.scale?.w ?? en.w ?? 0);
         const nextHeight = Number(en.transform?.scale?.h ?? en.h ?? 0);
-        const currentWidth = Number(shapeObj?.geometry?.width ?? 0);
-        const currentHeight = Number(shapeObj?.geometry?.height ?? 0);
+        const currentWidth = Number(shapeObj.geometry.width ?? 0);
+        const currentHeight = Number(shapeObj.geometry.height ?? 0);
+        const isResize = (currentWidth !== nextWidth || currentHeight !== nextHeight);
 
-        if (shapeObj?.geometry && (currentWidth !== nextWidth || currentHeight !== nextHeight)) {
-            shapeObj.geometry.x = Number(en.x ?? shapeObj.geometry.x ?? 0);
-            shapeObj.geometry.y = Number(en.y ?? shapeObj.geometry.y ?? 0);
+        if (isResize || effDx !== 0 || effDy !== 0) {
+            const nextBounds = {
+                x: newX,
+                y: newY,
+                w: nextWidth,
+                h: nextHeight
+            };
+            shapeObj.geometry.x = newX;
+            shapeObj.geometry.y = newY;
             shapeObj.geometry.width = nextWidth;
             shapeObj.geometry.height = nextHeight;
+
+            const shapeType = this._getStructuralTypeById(structuralId);
+
+            if (shapeType && isResize) {
+                this._scaleStructuralChildren(structuralId, shapeType, oldBounds, nextBounds);
+            } else if (shapeType && (effDx !== 0 || effDy !== 0)) {
+                // Propagate shift to children. skipParent is used because we just updated parent geometry.
+                const success = this.applyStructuralMove(structuralId, shapeType, effDx, effDy, { 
+                    skipCanvasMove: true,
+                    skipParent: true
+                });
+                if (success) {
+                    this._recordPendingMove(structuralId, { kind: 'structure', structureType: shapeType });
+                }
+            }
             appState.structural?.notify?.();
         }
-    }
-
-
-    // Debug: Log movement
-    if ((dx !== 0 || dy !== 0) && en.structureType) {
-        console.log(`🚀 Moving ${en.structureType} canvas entity (${en.id}) by dx=${dx}, dy=${dy}`);
-        console.log(`   Canvas entity object:`, en);
-        console.log(`   Current position: x=${en.x}, y=${en.y}`);
-    }
-
-    // Only process children if the parent actually moved
-    if (dx !== 0 || dy !== 0) {
-        const st = appState.structural;
-        let shapeType = null;
-        let shapeObj = null;
-
-        // CRITICAL: Convert canvas entity ID to structural entity ID using mapping
-        const structuralId = this.entityIdMap.get(en.id);
-        console.log(`🔄 Converting canvas id(${en.id}) -> structural id(${structuralId})`);
-
-        if (st.domains && st.domains.some(d => d.id === structuralId)) { 
-            shapeType = 'domain'; 
-            shapeObj = st.domains.find(d => d.id === structuralId);
-            console.log(`✅ Found Domain: ${shapeObj?.id}`);
-        }
-        else if (st.sites && st.sites.some(s => s.id === structuralId)) { 
-            shapeType = 'site'; 
-            shapeObj = st.sites.find(s => s.id === structuralId);
-            console.log(`✅ Found Site: ${shapeObj?.id}`);
-        }
-        else if (st.floors && st.floors.some(f => f.id === structuralId)) { 
-            shapeType = 'floor'; 
-            shapeObj = st.floors.find(f => f.id === structuralId);
-            console.log(`✅ Found Floor: ${shapeObj?.id}`);
-        }
-        else if (st.spaces && st.spaces.some(s => s.id === structuralId)) { 
-            shapeType = 'space'; 
-            shapeObj = st.spaces.find(s => s.id === structuralId);
-            console.log(`✅ Found Space: ${shapeObj?.id}`);
-        }
-
-            if (shapeObj) {
-            const success = this.applyStructuralMove(structuralId, shapeType, dx, dy, { skipCanvasMove: true });
-            if (success) {
-                this._recordPendingMove(structuralId, { kind: 'structure', structureType: shapeType });
-            } else {
-        // INSTEAD OF SNAPPING BACK: 
-        // 1. Log that we hit a boundary (for debugging)
-        console.warn("Boundary reached. Clamping position.");
-        
-        // 2. Force the canvas entity to stay at the last valid position 
-        // provided by the layout engine, rather than resetting to the 'saved' start.
-        if (typeof en.restoreToSavedPosition === 'function') {
-            // Only restore if it's genuinely far outside, 
-            // otherwise, just let it 'stick' to the edge.
-            this.layout?._render?.();
-        }
-            }
-        } else if (appState.network && typeof appState.getDevice === 'function') {
-            const deviceId = this.entityIdMap.get(en.id) || en.id;
-            const device = appState.getDevice(deviceId);
-            if (device) {
-                this.applyDeviceMove(deviceId, dx, dy, { skipCanvasMove: true });
-                this._recordPendingMove(deviceId, { kind: 'device' });
+    } 
+    // 3. Direct Device/Furniture Move
+    else if ((isDevice || isFurniture) && (dx !== 0 || dy !== 0)) {
+        const entityId = structuralId || en.id;
+        if (isDevice) {
+            this.applyDeviceMove(entityId, dx, dy, { skipCanvasMove: true });
+            this._recordPendingMove(entityId, { kind: 'device' });
+        } else if (isFurniture) {
+            const furniture = appState.furniture?.furnitures?.find(f => f.id === entityId);
+            if (furniture) {
+                furniture.transform = furniture.transform || { position: { x: 0, y: 0, z: 0 } };
+                furniture.transform.position.x = Number(furniture.transform.position.x || 0) + dx;
+                furniture.transform.position.y = Number(furniture.transform.position.y || 0) + dy;
+                appState.furniture?.notify?.();
+                this._recordPendingMove(entityId, { kind: 'device' });
             }
         }
     }

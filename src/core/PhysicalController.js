@@ -37,6 +37,7 @@ export class PhysicalController {
 
         this.unsubscribe = this.store.subscribe(() => this.syncWithState());
         this.unsubscribeNetwork = this.networkStore.subscribe(() => this.syncWithState());
+        this.unsubscribeFurniture = this.furnitureStore.subscribe(() => this.syncWithState());
         
         this.gizmoManager = new GizmoManager(getCamera(), getRenderer().domElement, getScene());
         
@@ -81,6 +82,7 @@ export class PhysicalController {
             activeDomainIds.add(domain.id);
 
             if (this.domainMeshes.has(domain.id)) {
+                this.updateDomainMesh(domain);
                 continue;
             } 
 
@@ -104,7 +106,10 @@ export class PhysicalController {
             activeSiteIds.add(site.id);
 
             if (this.siteMeshes.has(site.id))
+            if (this.siteMeshes.has(site.id)) {
+                this.updateSiteMesh(site);
                 continue;
+            }
 
             switch (site.shapeType) {
                 case 'rectangle':
@@ -129,6 +134,7 @@ export class PhysicalController {
 
             if (this.floorMeshes.has(floor.id)) {
                 console.log(`Floor ${floor.id} already rendered, skipping`);
+                this.updateFloorMesh(floor);
                 continue;
             }
 
@@ -140,7 +146,10 @@ export class PhysicalController {
             activeSpaceIds.add(space.id);
 
             if (this.spaceMeshes.has(space.id))
+            if (this.spaceMeshes.has(space.id)) {
+                this.updateSpaceMesh(space);
                 continue;
+            }
 
             switch (space.shapeType) {
                 case 'rectangle':
@@ -435,6 +444,45 @@ export class PhysicalController {
         const mesh = this.domainMeshes.get(domain.id);
         mesh.scale.set(modifiedWidth, 1, modifiedHeight);
         mesh.position.set(modifiedX, 0.1, modifiedY);
+    }
+
+    updateSiteMesh(site) {
+        if (!site.geometry) return;
+        const { x, y, width, height } = site.geometry;
+        const mesh = this.siteMeshes.get(site.id);
+        if (!mesh) return;
+
+        if (site.shapeType === 'rectangle') {
+            mesh.scale.set(width * this.defaultScaler, 1, height * this.defaultScaler);
+            mesh.position.set(x * this.defaultScaler, 0, y * this.defaultScaler);
+        }
+    }
+
+    updateFloorMesh(floor) {
+        const mesh = this.floorMeshes.get(floor.id);
+        if (!mesh) return;
+
+        const site = this.store.sites.find(s => s.id === floor.siteId);
+        if (site && site.geometry) {
+            const { x, y, width, height } = site.geometry;
+            mesh.scale.set(width * this.defaultScaler, 1, height * this.defaultScaler);
+            mesh.position.set(x * this.defaultScaler, floor.altitude || 0, y * this.defaultScaler);
+        }
+    }
+
+    updateSpaceMesh(space) {
+        if (!space.geometry) return;
+        const { x, y, width, height } = space.geometry;
+        const mesh = this.spaceMeshes.get(space.id);
+        if (!mesh) return;
+
+        const floor = this.store.floors.find(f => f.id === space.floorId);
+        const altitude = floor ? floor.altitude || 0 : 0;
+
+        if (space.shapeType === 'rectangle') {
+            mesh.scale.set(width * this.defaultScaler, 1, height * this.defaultScaler);
+            mesh.position.set(x * this.defaultScaler, altitude, y * this.defaultScaler);
+        }
     }
 
     getMeshById(id) {

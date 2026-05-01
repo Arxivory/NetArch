@@ -910,11 +910,26 @@ executeDelete(idToDelete) {
     return null;
   }
 
+  // _isEntityWithinAssignedParentBounds(entity) {
+  //   const entityBounds = this._getEntityBounds(entity);
+  //   const parentBounds = this._getParentBounds(entity);
+  //   if (!entityBounds || !parentBounds) return true;
+
   _isEntityWithinAssignedParentBounds(entity) {
     const entityBounds = this._getEntityBounds(entity);
     const parentBounds = this._getParentBounds(entity);
     if (!entityBounds || !parentBounds) return true;
     const tol = 2;
+//     return !(
+//       entityBounds.minX < parentBounds.minX - tol ||
+//       entityBounds.minY < parentBounds.minY - tol ||
+//       entityBounds.maxX > parentBounds.maxX + tol ||
+//       entityBounds.maxY > parentBounds.maxY + tol
+//     );
+//   }
+
+// addDevice(deviceData, x, y) {
+//     if (!this.layout) return;
     return !(
       entityBounds.minX < parentBounds.minX - tol ||
       entityBounds.minY < parentBounds.minY - tol ||

@@ -848,6 +848,48 @@ if (this.mode === 'freeform') {
         }
       }
         this.pointerHandler.setCursor(cursor);
+        // --- RESTORED CABLE HOVER DETECTION ---
+    if (this.mode === 'select' && !this.pointerHandler.getIsPointerDown()) {
+      let newlyHoveredCable = null;
+      
+      // 1. Determine the active structural hierarchy
+      const focusedType = appState.selection.focusedType;
+      const focusedId = appState.selection.focusedId;
+      
+      const activeSpaceId = (focusedType === 'space' || focusedType === 'Space') ? focusedId : null;
+      const activeFloorId = focusedType === 'floor' ? focusedId : appState.ui.activeFloorId;
+
+      for (const cable of this.cables) {
+        const src = this.findEntityById(cable.sourceId);
+        const dst = this.findEntityById(cable.targetId);
+        if (!src || !dst) continue;
+
+        // 2. Guardrail: Hierarchy Filtering
+        if (activeSpaceId) {
+          // STRICT MODE: If viewing a specific Space, ignore cables that don't touch this room
+          if (src.spaceId !== activeSpaceId && dst.spaceId !== activeSpaceId) continue;
+        } 
+        else if (activeFloorId) {
+          // BROAD MODE: If viewing a Floor, ignore cables that belong to a completely different floor
+          const srcOnFloor = src.floorId == null || src.floorId === activeFloorId;
+          const dstOnFloor = dst.floorId == null || dst.floorId === activeFloorId;
+          if (!srcOnFloor || !dstOnFloor) continue;
+        }
+
+        // 3. Optimized Bounding Box Hit Test (Using the 'p' variable already defined in move)
+        if (this._hitTestCable(p.x, p.y, src, dst, 8)) {
+          newlyHoveredCable = cable;
+          break; 
+        }
+      }
+
+      // Only trigger a re-render if the hover state actually changed
+      if (this.hoveredCable !== newlyHoveredCable) {
+        this.hoveredCable = newlyHoveredCable;
+        this._render();
+      }
+    }
+    // -------------------------------------
       }
       else {
         this.pointerHandler.setCursor('default');

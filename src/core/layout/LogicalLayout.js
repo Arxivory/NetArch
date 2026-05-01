@@ -1522,8 +1522,18 @@ const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !=
         this.shapeRenderer.outlineCircle(ctx, this.startPoint, this.currentPoint);
       } else if (this.mode === 'wall') {
         this.shapeRenderer.outlineWall(ctx, this.startPoint, this.currentPoint);
-      } else if (this.mode === 'window') {
-        this.shapeRenderer.outlineRectangle(ctx, this.startPoint, this.currentPoint);
+} else if (this.mode === 'window') {
+        // --- GHOST WINDOW PREVIEW (Line na siya!) ---
+        ctx.globalAlpha = 0.7;
+        ctx.strokeStyle = '#c6e0ff'; // Light blue to match your window style
+        ctx.lineWidth = 4; // Medyo makapal para kitang-kita
+        
+        ctx.beginPath();
+        ctx.moveTo(this.startPoint.x, this.startPoint.y);
+        ctx.lineTo(this.currentPoint.x, this.currentPoint.y);
+        ctx.stroke();
+
+        ctx.globalAlpha = 1.0;
       } else if (this.mode === 'cable') {
         this.shapeRenderer.outlineCable(ctx, this.startPoint, this.currentPoint);
       }

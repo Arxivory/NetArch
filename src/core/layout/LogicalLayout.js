@@ -1,7 +1,8 @@
 import Grid from './Grid.js';
 import ShapeCreator from './ShapeCreator.js';
-import CableEntity from './entities/CableEntity.js';
-import { buildDeviceIconImages, resolveDeviceIconKey } from './entities/DeviceIcons.js';
+import CableEntity from './entities/CableEntity.js'; 
+// import { buildDeviceIconImages, resolveDeviceIconKey } from './entities/DeviceIcons.js';
+import { buildDeviceIconImages } from './entities/DeviceIcons.js';
 import ShapeRenderer from '../rendering/ShapeRenderer.js';
 import PointerHandler from '../rendering/PointerHandler.js';
 import { Selection } from '../editor/Selection.js';
@@ -449,7 +450,22 @@ isPointInsideShape(id, x, y) {
   addFurniture(furnitureData, x, y) {
     console.log('Adding furniture with data:', furnitureData, 'from LogicalLaypout bsuiyti');
     const size = this.shapeRenderer.gridSize * 1.5;
-    const iconKey = resolveDeviceIconKey(furnitureData);
+
+    // Combine type and name to figure out what icon to show (if you have them)
+    const rawType = (furnitureData.type + ' ' + (furnitureData.name || furnitureData.label || '')).toLowerCase();
+
+    let iconKey = null;
+
+    if (rawType.includes('desk') || rawType.includes('table')) {
+      iconKey = 'desk';
+    } else if (rawType.includes('chair') || rawType.includes('seat')) {
+      iconKey = 'chair';
+    } else if (rawType.includes('cabinet') || rawType.includes('rack')) {
+      iconKey = 'cabinet';
+    }
+
+    // Assuming you might add a furnitureIcons dictionary in the future.
+    // If it's undefined, your render loop will likely just draw the bounding box/path, which is fine!
     const iconImage = this.deviceIcons[iconKey];
 
     const half = size / 2;
@@ -480,7 +496,6 @@ isPointInsideShape(id, x, y) {
       entityType: 'furniture',
       label: furnitureData.name || furnitureData.label || 'Furniture',
       catalogId: furnitureData.catalogId || null, // ADDED: preserve catalog metadata
-      modelId: furnitureData.modelId || furnitureData.catalogId || null,
       floorId: furnitureData.floorId ?? appState.ui.activeFloorId ?? null, // ADDED: preserve floor context
       spaceId: furnitureData.spaceId ?? null, // ADDED: preserve space context
       x,
@@ -498,20 +513,13 @@ isPointInsideShape(id, x, y) {
       saveCurrentPosition() {
         this.savedPosition = { x: this.x, y: this.y };
       },
-      move(dx, dy) {
-        this.x += dx;
-        this.y += dy;
-        this.transform.position.x = this.x;
-        this.transform.position.y = this.y;
-        updateFurniturePath(this);
-      },
       restoreToSavedPosition() {
         if (!this.savedPosition) return;
         this.x = this.savedPosition.x;
         this.y = this.savedPosition.y;
         this.transform.position.x = this.x;
+        //  updateFurniturePath(this);
         this.transform.position.y = this.y;
-        updateFurniturePath(this);
       }
     };
 
@@ -522,10 +530,10 @@ isPointInsideShape(id, x, y) {
   //     this.onFurnitureAdded(furniture);
   //   }
   //   this._render();
-  // }
+  // } 
 
 
-// REFACTORED: Check for overlaps before adding to the array, and only call onFurnitureAdded if it passes.
+  // ADDED: New method to add furniture directly from the layout, bypassing the store. Useful for drag-and-drop where the store update might be async or handled separately.
   this.furnitures.push(furniture);
     this._render();
   }
@@ -2107,11 +2115,7 @@ removeEntityById(id) {
     // Primary check: stable flag set in Device (UI) constructor.
     // Fallback duck-type handles canvas entities from older save files
     // that pre-date the entityType field.
-    if (!en || this._isFurnitureEntity(en)) {
-      return false;
-    }
-
-    return (
+    return !!en && (
       en.entityType === 'device' ||
       en.catalogId  !== undefined ||
       en.interfaces !== undefined

@@ -33,7 +33,7 @@ export class StructuralStore {
         const newDomain = new Domain(domain);
 
         console.log('Adding domain: ', newDomain);
-        
+
         this.domains.push(newDomain);
         this.notify();
         return newDomain;
@@ -54,7 +54,7 @@ export class StructuralStore {
         // --- NEW: Bulletproof Cascading Delete for Assets ---
         if (appState.network) {
             const allDevices = Array.isArray(appState.network.devices) ? appState.network.devices : [];
-            const devicesToDelete = allDevices.filter(d => 
+            const devicesToDelete = allDevices.filter(d =>
                 d.domainId === domainId || siteIds.includes(d.siteId) || floorIds.includes(d.floorId) || spaceIds.includes(d.spaceId)
             );
             devicesToDelete.forEach(d => {
@@ -64,7 +64,7 @@ export class StructuralStore {
 
         if (appState.furniture) {
             const allFurniture = Array.isArray(appState.furniture.furnitures) ? appState.furniture.furnitures : [];
-            const furnituresToDelete = allFurniture.filter(f => 
+            const furnituresToDelete = allFurniture.filter(f =>
                 floorIds.includes(f.floorId) || spaceIds.includes(f.spaceId)
             );
             furnituresToDelete.forEach(f => {
@@ -77,9 +77,9 @@ export class StructuralStore {
         this.floors = this.floors.filter(f => !siteIds.includes(f.siteId));
         this.spaces = this.spaces.filter(sp => !floorIds.includes(sp.floorId));
         this.domains.splice(index, 1);
-        
-        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: domainId } })); 
-        
+
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: domainId } }));
+
         this.notify();
         // 3. Return an array of EVERY ID that was just deleted
         return [domainId, ...siteIds, ...floorIds, ...spaceIds];
@@ -128,7 +128,7 @@ export class StructuralStore {
         // --- NEW: Bulletproof Cascading Delete for Assets ---
         if (appState.network) {
             const allDevices = Array.isArray(appState.network.devices) ? appState.network.devices : [];
-            const devicesToDelete = allDevices.filter(d => 
+            const devicesToDelete = allDevices.filter(d =>
                 d.siteId === siteId || floorIds.includes(d.floorId) || spaceIds.includes(d.spaceId)
             );
             devicesToDelete.forEach(d => {
@@ -138,7 +138,7 @@ export class StructuralStore {
 
         if (appState.furniture) {
             const allFurniture = Array.isArray(appState.furniture.furnitures) ? appState.furniture.furnitures : [];
-            const furnituresToDelete = allFurniture.filter(f => 
+            const furnituresToDelete = allFurniture.filter(f =>
                 floorIds.includes(f.floorId) || spaceIds.includes(f.spaceId)
             );
             furnituresToDelete.forEach(f => {
@@ -149,9 +149,9 @@ export class StructuralStore {
         this.floors = this.floors.filter(f => f.siteId !== siteId);
         this.spaces = this.spaces.filter(sp => !floorIds.includes(sp.floorId));
         this.sites.splice(index, 1);
-        
-        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: siteId } })); 
-        
+
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: siteId } }));
+
         this.notify();
         return [siteId, ...floorIds, ...spaceIds];
     }
@@ -175,7 +175,7 @@ export class StructuralStore {
 
         if (floor.altitude === undefined || floor.altitude === null) {
             const existingFloorsForSite = this.floors.filter(f => f.siteId === floor.siteId);
-            const DEFAULT_FLOOR_HEIGHT = 50.0; 
+            const DEFAULT_FLOOR_HEIGHT = 50.0;
             floor.altitude = existingFloorsForSite.length * DEFAULT_FLOOR_HEIGHT;
             console.log(`Auto-calculated floor altitude: ${floor.altitude} for floor ${floor.id}`);
         }
@@ -198,7 +198,7 @@ export class StructuralStore {
         // --- NEW: Bulletproof Cascading Delete for Assets ---
         if (appState.network) {
             const allDevices = Array.isArray(appState.network.devices) ? appState.network.devices : [];
-            const devicesToDelete = allDevices.filter(d => 
+            const devicesToDelete = allDevices.filter(d =>
                 d.floorId === floorId || spaceIds.includes(d.spaceId)
             );
             devicesToDelete.forEach(d => {
@@ -208,7 +208,7 @@ export class StructuralStore {
 
         if (appState.furniture) {
             const allFurniture = Array.isArray(appState.furniture.furnitures) ? appState.furniture.furnitures : [];
-            const furnituresToDelete = allFurniture.filter(f => 
+            const furnituresToDelete = allFurniture.filter(f =>
                 f.floorId === floorId || spaceIds.includes(f.spaceId)
             );
             furnituresToDelete.forEach(f => {
@@ -270,7 +270,7 @@ export class StructuralStore {
         if (appState.network) {
             const allDevices = Array.isArray(appState.network.devices) ? appState.network.devices : [];
             const devicesToDelete = allDevices.filter(d => d.spaceId === spaceId);
-            
+
             devicesToDelete.forEach(d => {
                 if (typeof appState.network.removeDevice === 'function') appState.network.removeDevice(d.id);
             });
@@ -279,16 +279,16 @@ export class StructuralStore {
         if (appState.furniture) {
             const allFurniture = Array.isArray(appState.furniture.furnitures) ? appState.furniture.furnitures : [];
             const furnituresToDelete = allFurniture.filter(f => f.spaceId === spaceId);
-            
+
             furnituresToDelete.forEach(f => {
                 if (typeof appState.furniture.removeFurniture === 'function') appState.furniture.removeFurniture(f.id);
             });
         }
 
         this.spaces.splice(index, 1);
-        
+
         window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: spaceId } }));
-        
+
         this.notify();
         return [spaceId];
     }
@@ -369,9 +369,30 @@ export class StructuralStore {
         this.notify();
     }
 
+    getAncestorsId() {
+        const parentID = appState.selection.getFocusedId();
+        const ancestorsId = [parentID];
+        let ancestor = this.getById(parentID);
+        while (ancestor.getParentId){
+            ancestor = this.getById(ancestor.getParentId());
+            ancestorsId.push(ancestor.id);
+        }
+        return ancestorsId;
+    }
+
+    getById(targetId) {
+        const lookup = new Map(
+            [...this.domains, ...this.sites, ...this.floors, ...this.doors,
+            ...this.spaces, ...this.walls, ...this.windows]
+                .map(x => [x.id, x])
+        );
+        const item = lookup.get(targetId);
+        return item;
+    }
+
     renameStructure(id, newLabel, type) {
         let item = null;
-        
+
         // Find the right array based on the type
         if (type === 'domain') item = this.domains.find(d => d.id === id);
         else if (type === 'site') item = this.sites.find(s => s.id === id);
@@ -385,7 +406,7 @@ export class StructuralStore {
             this.notify();
             return true;
         }
-        
+
         console.warn(`Could not find ${type} with ID ${id} to rename.`);
         return false;
     }
@@ -397,7 +418,7 @@ export class StructuralStore {
             console.log(`Removing Domain: ${id}`);
             return this.removeDomain(id);
         }
-        
+
         // Check Sites
         if (this.sites.some(s => s.id === id)) {
             console.log(`Removing Site: ${id}`);
@@ -460,7 +481,7 @@ export class StructuralStore {
 
     _buildFloorItemChildren(floorId, networkStore = null, furnitureStore = null) {
         const spaces = this._buildSpaceChildren(floorId, networkStore, furnitureStore);
-        
+
         const devicesWithoutSpace = [];
         if (networkStore) {
             const allDevices = networkStore.getAllDevices();
@@ -513,8 +534,8 @@ export class StructuralStore {
                 windowId: window.id,
                 children: []
             }));
-        
-        return [...spaces, ...devicesWithoutSpace, ...furnituresWithoutSpace, ...wallsOnFloor, ...windowsOnFloor];        
+
+        return [...spaces, ...devicesWithoutSpace, ...furnituresWithoutSpace, ...wallsOnFloor, ...windowsOnFloor];
     }
 
     _buildSpaceChildren(floorId, networkStore = null, furnitureStore = null) {
@@ -530,7 +551,7 @@ export class StructuralStore {
 
     _buildSpaceItemChildren(spaceId, networkStore = null, furnitureStore = null) {
         const devicesInSpace = [];
-        
+
         if (networkStore) {
             const allDevices = networkStore.getAllDevices();
             devicesInSpace.push(...allDevices
@@ -583,7 +604,7 @@ export class StructuralStore {
                 doorId: door.id,
                 children: []
             }));
-        
+
         const windowsInSpace = this.windows
             .filter(w => w.spaceId === spaceId)
             .map(window => ({
@@ -601,7 +622,7 @@ export class StructuralStore {
     subscribe(callback) {
         if (typeof callback !== 'function') {
             console.error('Listener must be a function');
-            return () => {};
+            return () => { };
         }
 
         this.listeners.push(callback);

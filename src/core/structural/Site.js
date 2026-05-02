@@ -20,4 +20,8 @@ export default class Site {
         this.floors = data.floors ? data.floors.map(f => new Floor(f)) : [];
         
     }
+
+    getParentId(){
+        return this.domainId;
+    }
 }

@@ -1261,32 +1261,56 @@ _handlePortSelect(device, x, y, callback, overrideCableType = null) {
     }, 10);
   }
 
-_handleShapeCreated(shapeData, shapeType) {
-    const { structureType, id, r, points } = shapeData;
-    console.log(`📥 _handleShapeCreated: received shapeData with id=${id}, structureType=${structureType}`);
+_handleShapeCreated(shapeData) {
+  const { structureType, id } = shapeData;
+  console.log(`📥 _handleShapeCreated: received shapeData with id=${id}, structureType=${structureType}`);
+  this.checkTopLevelHiearchy(structureType, id);
+  // Prepare child coordinates for boundary checks and saving
+  const cBounds = this.getShapeBounds(shapeData);
+  // --- 4. SHAPE ROUTING ---
 
-    // --- 1. TOP-LEVEL HIERARCHY PRE-CHECK ---
-    // Stop invalid Domain creation BEFORE overlap or bounds logic runs
-    if (structureType === 'Domain') {
-      const selectedType = appState.selection?.focusedType;
-      
-      if (selectedType === 'site' || selectedType === 'floor' || selectedType === 'space') {
-        showErrorModal(
-          `You cannot create a Domain while a ${selectedType} is selected. Domains are top-level structures. Please click the canvas background to deselect before drawing.`, 
-          "Invalid Hierarchy"
-        );
-        
-        // Remove the invalid shape immediately
-        setTimeout(() => {
-          if (this.layout && typeof this.layout.removeShapeById === 'function') {
-             this.layout.removeShapeById(id);
-          }
-        }, 10);
-        if (appState.tools) appState.tools.setActiveTool('pointer');
-        
-        return; // Halt the function completely so overlap checks don't run
-      }
+  switch (structureType) {
+    case 'Domain':
+      this.addDomain(shapeData, id);
+      break;
+    case 'Site':
+      this.addSite(shapeData, id, cBounds);
+      break;
+    case 'Floor':
+      this.addFloor(shapeData, id, cBounds);
+      break;
+    case 'Space':
+      this.addSpace(shapeData, id, cBounds);
+      break;
+    default:
+      throw new Error('Unidentified Structure');
+  }
+}
+
+checkTopLevelHiearchy(structureType, id) {
+  // --- 1. TOP-LEVEL HIERARCHY PRE-CHECK ---
+  // Stop invalid Domain creation BEFORE overlap or bounds logic runs
+  if (structureType === 'Domain') {
+    const selectedType = appState.selection?.focusedType;
+
+    if (selectedType === 'site' || selectedType === 'floor' || selectedType === 'space') {
+      showErrorModal(
+        `You cannot create a Domain while a ${selectedType} is selected. Domains are top-level structures. Please click the canvas background to deselect before drawing.`,
+        "Invalid Hierarchy"
+      );
+
+      // Remove the invalid shape immediately
+      setTimeout(() => {
+        if (this.layout && typeof this.layout.removeShapeById === 'function') {
+          this.layout.removeShapeById(id);
+        }
+      }, 10);
+      if (appState.tools) appState.tools.setActiveTool('pointer');
+
+      return; // Halt the function completely so overlap checks don't run
     }
+  }
+}
 
     // --- 2. BULLETPROOF BOUNDS EXTRACTOR ---
     // Safely extracts coordinates, forces them to be numbers, and handles missing widths
@@ -1434,7 +1458,7 @@ _handleShapeCreated(shapeData, shapeType) {
       const command = new CreateSiteCommand(appState, this, siteData, parentId, id);
       this.commandHistory.executeCommand(command);
     } 
-    else if (structureType === 'Floor') {
+    else if (structureType === 'Floor') { //unused, see HiearchyContext addNode()
       const parentId = appState.selection.focusedType === 'site' ? appState.selection.focusedId : null;
       if (!parentId) {
         showErrorModal("A Site must be selected from the Hierarchy panel before creating a Floor.", "Invalid Hierarchy");

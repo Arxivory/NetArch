@@ -509,19 +509,41 @@ isPointInsideShape(id, x, y) {
         rotation: { x: 0, y: 0, z: 0 }
       },
       path,
-      hitTestMode: 'path',
+    //   hitTestMode: 'path',
+    //   saveCurrentPosition() {
+    //     this.savedPosition = { x: this.x, y: this.y };
+    //   },
+    //   restoreToSavedPosition() {
+    //     if (!this.savedPosition) return;
+    //     this.x = this.savedPosition.x;
+    //     this.y = this.savedPosition.y;
+    //     this.transform.position.x = this.x;
+    //     //  updateFurniturePath(this);
+    //     this.transform.position.y = this.y;
+    //   }
+    // };
+
+    hitTestMode: 'path',
       saveCurrentPosition() {
         this.savedPosition = { x: this.x, y: this.y };
+      },
+      move(dx, dy) {
+        this.x += dx;
+        this.y += dy;
+        this.transform.position.x = this.x;
+        this.transform.position.y = this.y;
+        updateFurniturePath(this);
       },
       restoreToSavedPosition() {
         if (!this.savedPosition) return;
         this.x = this.savedPosition.x;
         this.y = this.savedPosition.y;
         this.transform.position.x = this.x;
-        //  updateFurniturePath(this);
         this.transform.position.y = this.y;
+        updateFurniturePath(this);
       }
     };
+
 
   //   this.furnitures.push(furniture);
 
@@ -2111,16 +2133,38 @@ removeEntityById(id) {
     this._render();
   }
 
+  // _isDeviceEntity(en) {
+  //   // Primary check: stable flag set in Device (UI) constructor.
+  //   // Fallback duck-type handles canvas entities from older save files
+  //   // that pre-date the entityType field.
+  //   return !!en && (
+  //     en.entityType === 'device' ||
+  //     en.catalogId  !== undefined ||
+  //     en.interfaces !== undefined
+  //   );
+  // }
+
   _isDeviceEntity(en) {
     // Primary check: stable flag set in Device (UI) constructor.
     // Fallback duck-type handles canvas entities from older save files
     // that pre-date the entityType field.
-    return !!en && (
+    if (!en || this._isFurnitureEntity(en)) {
+      return false;
+    }
+
+    return (
       en.entityType === 'device' ||
       en.catalogId  !== undefined ||
       en.interfaces !== undefined
     );
   }
+
+
+
+
+
+
+
   
   // _isFurnitureEntity(en) {
   //   return !!en && (en.type === 'furniture' || en.id?.startsWith('furniture'));

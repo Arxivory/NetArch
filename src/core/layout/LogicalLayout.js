@@ -848,6 +848,48 @@ export class LogicalLayout {
           }
         }
         this.pointerHandler.setCursor(cursor);
+        // --- RESTORED CABLE HOVER DETECTION ---
+    if (this.mode === 'select' && !this.pointerHandler.getIsPointerDown()) {
+      let newlyHoveredCable = null;
+      
+      // 1. Determine the active structural hierarchy
+      const focusedType = appState.selection.focusedType;
+      const focusedId = appState.selection.focusedId;
+      
+      const activeSpaceId = (focusedType === 'space' || focusedType === 'Space') ? focusedId : null;
+      const activeFloorId = focusedType === 'floor' ? focusedId : appState.ui.activeFloorId;
+
+      for (const cable of this.cables) {
+        const src = this.findEntityById(cable.sourceId);
+        const dst = this.findEntityById(cable.targetId);
+        if (!src || !dst) continue;
+
+        // 2. Guardrail: Hierarchy Filtering
+        if (activeSpaceId) {
+          // STRICT MODE: If viewing a specific Space, ignore cables that don't touch this room
+          if (src.spaceId !== activeSpaceId && dst.spaceId !== activeSpaceId) continue;
+        } 
+        else if (activeFloorId) {
+          // BROAD MODE: If viewing a Floor, ignore cables that belong to a completely different floor
+          const srcOnFloor = src.floorId == null || src.floorId === activeFloorId;
+          const dstOnFloor = dst.floorId == null || dst.floorId === activeFloorId;
+          if (!srcOnFloor || !dstOnFloor) continue;
+        }
+
+        // 3. Optimized Bounding Box Hit Test (Using the 'p' variable already defined in move)
+        if (this._hitTestCable(p.x, p.y, src, dst, 8)) {
+          newlyHoveredCable = cable;
+          break; 
+        }
+      }
+
+      // Only trigger a re-render if the hover state actually changed
+      if (this.hoveredCable !== newlyHoveredCable) {
+        this.hoveredCable = newlyHoveredCable;
+        this._render();
+      }
+    }
+    // -------------------------------------
       }
       else {
         this.pointerHandler.setCursor('default');
@@ -862,51 +904,6 @@ export class LogicalLayout {
 
     const snapped = this.grid.snapToGrid(p);
     this.currentPoint = snapped;
-
-    // --- UPDATED CABLE HOVER DETECTION ---
-    if (this.mode === 'select' && !this.pointerHandler.getIsPointerDown()) {
-      let newlyHoveredCable = null;
-
-      // 1. Determine the active structural hierarchy
-      const focusedType = appState.selection.focusedType;
-      const focusedId = appState.selection.focusedId;
-
-      const activeSpaceId = focusedType === 'space' ? focusedId : null;
-      // Fallback to the UI's active floor if no specific space is focused
-      const activeFloorId = focusedType === 'floor' ? focusedId : appState.ui.activeFloorId;
-
-      for (const cable of this.cables) {
-        const src = this.findEntityById(cable.sourceId);
-        const dst = this.findEntityById(cable.targetId);
-        if (!src || !dst) continue;
-
-        // 2. Guardrail: Hierarchy Filtering
-        if (activeSpaceId) {
-          // STRICT MODE: If viewing a specific Space, ignore cables that don't touch this room
-          // (We use && so if a cable goes from inside the space to outside, you can still hover it)
-          if (src.spaceId !== activeSpaceId && dst.spaceId !== activeSpaceId) continue;
-        }
-        else if (activeFloorId) {
-          // BROAD MODE: If viewing a Floor, ignore cables that belong to a completely different floor
-          const srcOnFloor = src.floorId == null || src.floorId === activeFloorId;
-          const dstOnFloor = dst.floorId == null || dst.floorId === activeFloorId;
-          if (!srcOnFloor || !dstOnFloor) continue;
-        }
-
-        // 3. Optimized Bounding Box Hit Test
-        if (this._hitTestCable(p.x, p.y, src, dst, 8)) {
-          newlyHoveredCable = cable;
-          break;
-        }
-      }
-
-      // Only trigger a re-render if the hover state actually changed
-      if (this.hoveredCable !== newlyHoveredCable) {
-        this.hoveredCable = newlyHoveredCable;
-        this._render();
-      }
-    }
-    // -------------------------------------
 
     if (this.mode === 'cable') {
       this.hoveredDevice = this._findDeviceAt(snapped.x, snapped.y);
@@ -1054,12 +1051,102 @@ export class LogicalLayout {
       currentPoint: this.currentPoint
     });
 
-    const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !== 'none';
+const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !== 'none';
     const hasValidDrawPoints = this.startPoint && this.currentPoint;
 
     if (isDrawMode && hasValidDrawPoints) {
-      console.log('[LogicalLayout] finalizing draw mode on pointer up');
-      this._createShapeFromMode();
+      // --- THE PAPERFECT DOOR/WINDOW VALIDATION V5 ---
+      let allowCreation = true;
+
+      if (this.mode === 'door' || this.mode === 'window') {
+        allowCreation = false;
+        
+        const p1x = this.startPoint.x;
+        const p1y = this.startPoint.y;
+        const p2x = this.currentPoint.x;
+        const p2y = this.currentPoint.y;
+        const threshold = 30; // 30px forgiveness
+
+        // MATALINONG HELPER: Hahatiin niya KAHIT ANONG shape into "Straight Lines"
+        const getEdges = (entity) => {
+          const edges = [];
+          if (entity.points && entity.points.length > 1) { // Polygons/Freeforms
+            for (let i = 0; i < entity.points.length; i++) {
+              let pA = entity.points[i];
+              let pB = entity.points[(i + 1) % entity.points.length];
+              edges.push({ x1: pA.x, y1: pA.y, x2: pB.x, y2: pB.y });
+            }
+          } else if (entity.startPoint && entity.endPoint) { // Standard Lines
+            edges.push({ x1: entity.startPoint.x, y1: entity.startPoint.y, x2: entity.endPoint.x, y2: entity.endPoint.y });
+          } else if (entity.startX !== undefined && entity.endX !== undefined) { // Alternate Lines
+            edges.push({ x1: entity.startX, y1: entity.startY, x2: entity.endX, y2: entity.endY });
+          } else if (entity.x1 !== undefined && entity.x2 !== undefined) { // Alternate Lines 2
+            edges.push({ x1: entity.x1, y1: entity.y1, x2: entity.x2, y2: entity.y2 });
+          } else { // Rectangles / Spaces / Thick Walls (Boxes)
+            const b = this._getEntityBounds(entity);
+            if (b) {
+              const minX = Math.min(b.minX, b.maxX);
+              const maxX = Math.max(b.minX, b.maxX);
+              const minY = Math.min(b.minY, b.maxY);
+              const maxY = Math.max(b.minY, b.maxY);
+              edges.push({ x1: minX, y1: minY, x2: maxX, y2: minY }); // Top edge
+              edges.push({ x1: minX, y1: maxY, x2: maxX, y2: maxY }); // Bottom edge
+              edges.push({ x1: minX, y1: minY, x2: minX, y2: maxY }); // Left edge
+              edges.push({ x1: maxX, y1: minY, x2: maxX, y2: maxY }); // Right edge
+            }
+          }
+          return edges;
+        };
+
+        const isNearEdge = (px, py, edge) => {
+          // Ginagamit nito yung exact mathematical distance tool na ginawa mo!
+          return this._pointToLineDistance(px, py, edge.x1, edge.y1, edge.x2, edge.y2) <= threshold;
+        };
+
+        // Pagsamahin lahat ng pwedeng kabitan ng pinto/bintana
+        const possibleHosts = [];
+        if (this.walls) possibleHosts.push(...this.walls);
+        if (this.rectangles) possibleHosts.push(...this.rectangles);
+        if (this.polygons) possibleHosts.push(...this.polygons);
+        if (this.freeforms) possibleHosts.push(...this.freeforms);
+        if (appState?.structural?.spaces) possibleHosts.push(...appState.structural.spaces);
+
+        for (const host of possibleHosts) {
+          let target = host;
+          // Ayusin ang format kung galing sa appState
+          if (host.geometry) {
+             target = { 
+               x: host.geometry.x || host.geometry.left, 
+               y: host.geometry.y || host.geometry.top, 
+               w: host.geometry.w || host.geometry.width, 
+               h: host.geometry.h || host.geometry.height 
+             };
+          }
+
+          const edges = getEdges(target);
+          for (const edge of edges) {
+            // THE ULTIMATE CHECK: Dapat yung UMPISA at DULO ng bintana ay nakadikit sa IISANG EXACT line segment!
+            if (isNearEdge(p1x, p1y, edge) && isNearEdge(p2x, p2y, edge)) {
+              allowCreation = true;
+              break;
+            }
+          }
+          if (allowCreation) break;
+        }
+
+        if (!allowCreation) {
+          const itemName = this.mode === 'door' ? "door" : "window";
+          alert(`Invalid Placement: Please draw the ${itemName} strictly ALONG a valid wall or space boundary!`);
+          // NO RETURN HERE. Hinahayaan natin siyang bumaba para ma-clear yung ghost variables.
+        }
+      }
+      // --- END VALIDATION ---
+
+      // Only save the shape if it passed validation!
+      if (allowCreation) {
+        console.log('[LogicalLayout] finalizing draw mode on pointer up');
+        this._createShapeFromMode();
+      }
     }
 
     if (this.selectedEntity && (this.interaction.mode === 'move' || this.interaction.mode === 'resize')) {
@@ -1491,26 +1578,60 @@ export class LogicalLayout {
       );
       ctx.restore();
     }
-    else if (this.startPoint && this.currentPoint) {
+else if (this.startPoint && this.currentPoint) {
       ctx.save();
-      ctx.strokeStyle = '#00ff00';
+      
+      // --- IBALIK ANG GREEN SA LAHAT NG SPACES/DOMAINS/SITES ---
+      ctx.strokeStyle = '#00ff00'; 
       ctx.fillStyle = 'rgba(0,255,0,0.08)';
       ctx.lineWidth = 1.5;
 
-      if (this.mode === 'rectangle') {
+      if (this.mode === 'door') {
+        // --- GHOST DOOR OUTLINE ---
+        ctx.globalAlpha = 0.5;
+        ctx.lineWidth = 2; // Pakapalin ng konti ang door
+
+        // Door leaf (line)
+        ctx.beginPath();
+        ctx.moveTo(this.startPoint.x, this.startPoint.y);
+        ctx.lineTo(this.currentPoint.x, this.currentPoint.y);
+        ctx.stroke();
+
+        // Door swing (arc)
+        const dx = this.currentPoint.x - this.startPoint.x;
+        const dy = this.currentPoint.y - this.startPoint.y;
+        const doorLength = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx);
+        const arcRadius = doorLength;
+        const arcStart = angle;
+        const arcEnd = angle + Math.PI / 2; // 90 degree swing
+
+        ctx.beginPath();
+        ctx.arc(this.startPoint.x, this.startPoint.y, arcRadius, arcStart, arcEnd, false);
+        ctx.stroke();
+
+        ctx.globalAlpha = 1.0;
+      } else if (this.mode === 'rectangle') {
         this.shapeRenderer.outlineRectangle(ctx, this.startPoint, this.currentPoint);
       } else if (this.mode === 'circle') {
         this.shapeRenderer.outlineCircle(ctx, this.startPoint, this.currentPoint);
       } else if (this.mode === 'wall') {
         this.shapeRenderer.outlineWall(ctx, this.startPoint, this.currentPoint);
-      } else if (this.mode === 'door') {
-        this.shapeRenderer.outlineDoor(ctx, this.startPoint, this.currentPoint);
-      } else if (this.mode === 'window') {
-        this.shapeRenderer.outlineRectangle(ctx, this.startPoint, this.currentPoint);
+} else if (this.mode === 'window') {
+        // --- GHOST WINDOW PREVIEW (GREEN ERA!) ---
+        ctx.globalAlpha = 0.7;
+        ctx.strokeStyle = '#00ff00'; // GREEN na siya habang dino-drawing!
+        ctx.lineWidth = 4; // Medyo makapal para kitang-kita
+        
+        ctx.beginPath();
+        ctx.moveTo(this.startPoint.x, this.startPoint.y);
+        ctx.lineTo(this.currentPoint.x, this.currentPoint.y);
+        ctx.stroke();
+
+        ctx.globalAlpha = 1.0;
       } else if (this.mode === 'cable') {
         this.shapeRenderer.outlineCable(ctx, this.startPoint, this.currentPoint);
       }
-
       ctx.restore();
     }
 

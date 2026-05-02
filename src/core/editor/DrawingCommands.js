@@ -983,4 +983,67 @@ export class RemoveVirtualFloorCommand extends Command {
   getDescription() { return this.description; }
 }
 
+export class ChangePropertyCommand extends Command {
+  constructor(appState, entityId, entityType, propertyName, oldValue, newValue) {
+    super();
+    this.appState = appState;
+    this.entityId = entityId;
+    this.entityType = entityType; // 'domain', 'site', 'device', 'furniture', etc.
+    this.propertyName = propertyName;
+    this.oldValue = oldValue;
+    this.newValue = newValue;
+    
+    const displayValue = typeof newValue === 'object' ? 'Configuration' : newValue;
+    this.description = `Changed ${propertyName} to "${displayValue}"`;
+  }
+
+  _applyChange(value) {
+    // 1. Route to Network Store
+    if (this.entityType === 'device') {
+      this.appState.network.updateDevice(this.entityId, { [this.propertyName]: value });
+    } 
+    // 2. Route to Furniture Store
+    else if (this.entityType === 'furniture') {
+      this.appState.furniture.updateFurniture(this.entityId, { [this.propertyName]: value });
+      
+      // NEW: Canvas logic moved here so Undo/Redo visually updates!
+      if (window.__layoutRef) {
+         const canvasEntity = window.__layoutRef.findEntityById(this.entityId);
+         if (canvasEntity) {
+             canvasEntity[this.propertyName] = value;
+             if (this.propertyName === 'label') canvasEntity.name = value;
+             window.__layoutRef._render();
+         }
+      }
+    } 
+    // 3. Route to Structural Store
+    else {
+      if (this.propertyName === 'label' || this.propertyName === 'name') {
+        this.appState.structural.renameStructure(this.entityId, value, this.entityType);
+        
+        if (window.__layoutRef) {
+           const canvasEntity = window.__layoutRef.findEntityById(this.entityId);
+           if (canvasEntity) {
+               canvasEntity.label = value;
+               if (canvasEntity.name !== undefined) canvasEntity.name = value;
+               window.__layoutRef._render();
+           }
+        }
+      }
+    }
+  }
+
+  execute() {
+    this._applyChange(this.newValue);
+  }
+
+  undo() {
+    this._applyChange(this.oldValue);
+  }
+
+  getDescription() {
+    return this.description;
+  }
+}
+
 export default DrawingCommand;

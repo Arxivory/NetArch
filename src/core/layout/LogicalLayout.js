@@ -1058,14 +1058,17 @@ const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !=
       // --- THE PAPERFECT DOOR/WINDOW VALIDATION V5 ---
       let allowCreation = true;
 
-      if (this.mode === 'door' || this.mode === 'window') {
+if (this.mode === 'door' || this.mode === 'window') {
         allowCreation = false;
+        let failedReason = null;
         
         const p1x = this.startPoint.x;
         const p1y = this.startPoint.y;
         const p2x = this.currentPoint.x;
         const p2y = this.currentPoint.y;
-        const threshold = 30; // 30px forgiveness
+        
+        // Tighter threshold (15px) so you HAVE to click exactly on the line
+        const threshold = 15; 
 
         // MATALINONG HELPER: Hahatiin niya KAHIT ANONG shape into "Straight Lines"
         const getEdges = (entity) => {
@@ -1099,7 +1102,6 @@ const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !=
         };
 
         const isNearEdge = (px, py, edge) => {
-          // Ginagamit nito yung exact mathematical distance tool na ginawa mo!
           return this._pointToLineDistance(px, py, edge.x1, edge.y1, edge.x2, edge.y2) <= threshold;
         };
 
@@ -1123,12 +1125,12 @@ const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !=
              };
           }
 
-const edges = getEdges(target);
+          const edges = getEdges(target);
           for (const edge of edges) {
-            // 🛑 THE NEW FLEXIBLE CHECK: 
-            // Basta 'yung UMPISA (p1) O DULO (p2) ng drawing ay nakadikit sa pader, papasa na!
-            // Pwede mo na i-drawing paloob o palabas ng space!
-            if (isNearEdge(p1x, p1y, edge) || isNearEdge(p2x, p2y, edge)) {
+            // 🛑 RULE 1: Check ONLY if the FIRST click (p1x, p1y) is on the line.
+            // This forces the hinge to be locked to the black boundary line, 
+            // but the swing can go anywhere.
+            if (isNearEdge(p1x, p1y, edge)) {
               allowCreation = true;
               break;
             }
@@ -1138,8 +1140,35 @@ const edges = getEdges(target);
 
         if (!allowCreation) {
           const itemName = this.mode === 'door' ? "door" : "window";
-          alert(`Invalid Placement: Please draw the ${itemName} strictly ALONG a valid wall or space boundary!`);
-          // NO RETURN HERE. Hinahayaan natin siyang bumaba para ma-clear yung ghost variables.
+          failedReason = `Please start drawing the ${itemName} exactly ON a space boundary (black line).`;
+        }
+
+        // 🛑 RULE 2: Check if the door swing (p2x, p2y) exceeds the SITE boundaries.
+        if (allowCreation) {
+          const activeFloorId = this.activeFloorId || appState?.ui?.activeFloorId;
+          const currentFloor = appState?.structural?.floors?.find(f => f.id === activeFloorId);
+          const site = appState?.structural?.sites?.find(s => s.id === currentFloor?.siteId);
+          
+          if (site && site.geometry) {
+            const b = site.geometry;
+            const sx = b.x || b.left || 0;
+            const sy = b.y || b.top || 0;
+            const sw = b.w || b.width || 0;
+            const sh = b.h || b.height || 0;
+            
+            const margin = 5; // A 5px allowance for snapping perfectly flush to the line
+            const isInsideSite = p2x >= sx - margin && p2x <= (sx + sw) + margin &&
+                                 p2y >= sy - margin && p2y <= (sy + sh) + margin;
+            
+            if (!isInsideSite) {
+              allowCreation = false;
+              failedReason = "The door swing cannot exceed the overall Site boundaries!";
+            }
+          }
+        }
+
+        if (!allowCreation && failedReason) {
+          alert(`Invalid Placement: ${failedReason}`);
         }
       }
       // --- END VALIDATION ---

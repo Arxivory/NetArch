@@ -237,6 +237,7 @@ export class LogicalCanvasController {
     this.commandHistory = new CommandHistory(appState.commands);
   }
 
+  // Helper method to determine if an entity is a furniture asset based on its properties
   _isFurnitureAsset(entity) {
     if (!entity || entity.sourceId || entity.targetId || entity.interfaces !== undefined) {
       return false;
@@ -783,9 +784,6 @@ executeDelete(idToDelete) {
     }
     if (appState.furniture && appState.furniture.furnitures) {
       moveItems(appState.furniture.furnitures);
-      if (typeof appState.furniture.notify === 'function') {
-        appState.furniture.notify();
-      }
     }
 
     if (appState.structural && typeof appState.structural.notify === 'function') {
@@ -819,40 +817,6 @@ executeDelete(idToDelete) {
 
     if (appState.network && typeof appState.network.notify === 'function') {
       appState.network.notify();
-    }
-
-    if (typeof this.layout._render === 'function') {
-      this.layout._render();
-    }
-
-    return true;
-  }
-
-  applyFurnitureMove(furnitureId, dx, dy, options = {}) {
-    if (dx === 0 && dy === 0) {
-      return false;
-    }
-
-    const furniture = appState.furniture?.getFurniture?.(furnitureId);
-    if (!furniture) {
-      return false;
-    }
-
-    furniture.transform = furniture.transform || {
-      position: { x: 0, y: 0, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 },
-      scale: { x: 1, y: 1, z: 1 }
-    };
-
-    furniture.transform.position.x = Number(furniture.transform.position.x || 0) + (dx * 0.7);
-    furniture.transform.position.z = Number(furniture.transform.position.z || 0) + (dy * 0.7);
-
-    if (!options.skipCanvasMove) {
-      this._applyCanvasEntityMoveById(furnitureId, dx, dy);
-    }
-
-    if (appState.furniture && typeof appState.furniture.notify === 'function') {
-      appState.furniture.notify();
     }
 
     if (typeof this.layout._render === 'function') {
@@ -2007,8 +1971,8 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
         return;
     }
 
+    const isDevice = en.interfaces !== undefined || en.catalogId !== undefined;
     const isFurniture = this._isFurnitureAsset(en);
-    const isDevice = !isFurniture && (en.interfaces !== undefined || en.catalogId !== undefined);
     const hasSavedPosition = en && en.savedPosition !== undefined;
     const moved = (dx !== 0 || dy !== 0) ||
       (hasSavedPosition && (en.x !== en.savedPosition.x || en.y !== en.savedPosition.y));
@@ -2039,16 +2003,6 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
             if (success) {
                 this._recordPendingMove(deviceId, { kind: 'device' });
             }
-        }
-
-        appState.selection.notify?.();
-        return;
-    }
-
-    if (isFurniture) {
-        if (dx !== 0 || dy !== 0) {
-            const furnitureId = this.entityIdMap.get(en.id) || en.id;
-            this.applyFurnitureMove(furnitureId, dx, dy, { skipCanvasMove: true });
         }
 
         appState.selection.notify?.();

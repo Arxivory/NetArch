@@ -1,7 +1,7 @@
 import { Undo2, Redo2 } from "lucide-react"; // Add to existing lucide-react imports
 import {
   Mountain, Building, Grid, RectangleHorizontal, House, DoorOpen,
-  Square, Play, File, FilePlus, Save, MousePointer, Hand, ZoomIn, ZoomOut, Trash2, Copy // Add copy icon
+  Square, Play, File, FilePlus, Save, MousePointer, Hand, ZoomIn, ZoomOut, Trash2, Copy, Cable
 } from "lucide-react";
 // import { useEffect, useState } from "react";
 import { useCallback, useEffect, useState } from "react";
@@ -229,12 +229,12 @@ const handleDelete = () => {
           <button
             onClick={() => executeCommand(StartZoomInCommand)}
             className={`toolbar-btn ${isActive("zoom in") ? "active" : ""}`}>
-            <ZoomIn size={16} /> Zoom in
+            <ZoomIn size={16} />
           </button>
           <button
             onClick={() => executeCommand(StartZoomOutCommand)}
             className={`toolbar-btn ${isActive("zoom out") ? "active" : ""}`}>
-            <ZoomOut size={16} /> Zoom out
+            <ZoomOut size={16} />
           </button>
           
         </div>

@@ -648,6 +648,18 @@ isPointInsideShape(id, x, y) {
       // console.log('[DOWN] identifyEntity result:', en?.id, en?.type, en?.entityType, { multiSelect });
       console.log('[DOWN] identifyEntity result:', selectionResult?.id, selectionResult?.type, selectionResult?.entityType, { multiSelect });
 
+      const clickedConduit = this._findConduitAt(worldPos.x, worldPos.y);
+      if (clickedConduit) {
+        clickedConduit.saveCurrentPosition();
+        this.interaction = { mode: 'move_conduit', conduit: clickedConduit };
+        this.selectedEntity = clickedConduit;
+        this.selectedEntities = [clickedConduit];
+        appState.selection.selectConduit(clickedConduit.id);
+        this.pointerHandler.setPointerDown(true);
+        this._render();
+        return;
+      }
+
       if (selectionResult.selectionOnly) {
         return;
       }
@@ -760,6 +772,16 @@ isPointInsideShape(id, x, y) {
           this.pointerHandler.setPointerDown(false);
           return;
         }
+      }
+
+      
+      const conduitToDelete = this._findConduitAt(p.x, p.y);
+      if (conduitToDelete) {
+        window.dispatchEvent(new CustomEvent('requestConduitDeletion', {
+          detail: { conduitId: conduitToDelete.id }
+        }));
+        this.pointerHandler.setPointerDown(false);
+        return;
       }
     }
       this.interaction = {
@@ -1007,6 +1029,21 @@ if (this.mode === 'freeform') {
 
     if (this.pointerHandler.getIsPointerDown()) {
 
+      if (this.interaction.mode === 'move_conduit') {
+        const conduit = this.interaction.conduit;
+        const parentShape =
+          this.rectangles.find(r => r.id === conduit.parentShapeId) ||
+          this.polygons.find(pol => pol.id === conduit.parentShapeId);
+
+        if (parentShape) {
+          const projected = this._projectPointOntoShapeEdges(p.x, p.y, parentShape);
+          if (projected) conduit.moveTo(projected.x, projected.y);
+        }
+
+        this._render();
+        return;
+      }
+
       if (this.interaction.mode === 'update_cable') {
          this.currentPoint = p;
          this.hoveredDevice = this._findDeviceAt(snapped.x, snapped.y);
@@ -1152,6 +1189,13 @@ _onPointerUp(e) {
         this.hoveredDevice = null;
         this._render(); // Snaps the cable back if dropped on empty space
         return;
+    }
+
+    if (this.interaction?.mode === 'move_conduit') {
+      this.interaction = { mode: null, handle: null, start: null };
+      this.pointerHandler.setPointerDown(false);
+      this._render();
+      return;
     }
 
     console.log('[LogicalLayout] _onPointerUp', {
@@ -1321,6 +1365,42 @@ _onPointerUp(e) {
     }
 
     return [];
+  }
+
+  _findConduitAt(x, y) {
+    for (const conduit of this.conduits) {
+      const dist = Math.hypot(x - conduit.x, y - conduit.y);
+      if (dist <= conduit.radius + 4) return conduit; // +4 for easier clicking
+    }
+    return null;
+  }
+
+  _projectPointOntoShapeEdges(x, y, shape) {
+    const edges = this._getShapeEdges(shape);
+    let bestPoint = null;
+    let bestDist = Infinity;
+
+    for (const edge of edges) {
+      const dx = edge.x2 - edge.x1;
+      const dy = edge.y2 - edge.y1;
+      const lenSq = dx * dx + dy * dy;
+      if (lenSq === 0) continue;
+
+      const t = Math.max(0, Math.min(1,
+        ((x - edge.x1) * dx + (y - edge.y1) * dy) / lenSq
+      ));
+
+      const projX = edge.x1 + t * dx;
+      const projY = edge.y1 + t * dy;
+      const dist = Math.hypot(x - projX, y - projY);
+
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestPoint = { x: projX, y: projY };
+      }
+    }
+
+    return bestPoint;
   }
 
   _placeConduitAt(clickX, clickY) {
@@ -1720,18 +1800,23 @@ _onPointerUp(e) {
     }
 
     ctx.save();
-    for (const conduit of this.conduits) {
-      const isOnActiveFloor = !activeFloor 
-        || conduit.floorId === activeFloor 
-        || conduit.spaceId;  // spaces are always shown when their floor is active
+    for (const conduit of filterForFloor(this.conduits)) {
+      const isSelected = this.selectedEntity?.id === conduit.id ||
+        this.selectedEntities?.some(e => e?.id === conduit.id);
 
-      if (!isOnActiveFloor) continue;
+      if (isSelected) {
+        ctx.beginPath();
+        ctx.arc(conduit.x, conduit.y, conduit.radius + 5, 0, Math.PI * 2);
+        ctx.strokeStyle = '#00AEEF';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
 
       ctx.beginPath();
       ctx.arc(conduit.x, conduit.y, conduit.radius, 0, Math.PI * 2);
-      ctx.fillStyle = '#000000';
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 4;
+      ctx.fillStyle = isSelected ? '#e2e8f0' : '#000000';
+      ctx.strokeStyle = isSelected ? '#00AEEF' : '#000000';
+      ctx.lineWidth = isSelected ? 2 : 4;
       ctx.fill();
       ctx.stroke();
     }
@@ -1979,7 +2064,8 @@ _onPointerUp(e) {
       this.windows,
       this.roofs,
       this.freeforms,
-      this.furnitures
+      this.furnitures,
+      this.conduits
     ];
   }
 
@@ -2015,7 +2101,7 @@ removeEntityById(id) {
     // 3. Find and splice the entity from its array
     let entityToRemove = null;
     const targetArrays = ['rectangles', 'circles', 'polygons', 'freeforms',
-                          'devices', 'furnitures', 'cables', 'walls'];
+                          'devices', 'furnitures', 'cables', 'walls', 'conduits'];
 
     for (const arrName of targetArrays) {
       if (!this[arrName]) continue;
@@ -2347,9 +2433,11 @@ removeEntityById(id) {
   _getEntityInteractionBounds(en) {
     if (!en) return null;
 
+    if (en.type === 'conduit') return null;
+
     if (this._isDeviceEntity(en)) {
       return {
-        x: en.tileX,       // ADDED: devices are drawn/hit-tested using tile bounds, not raw x/y/w/h
+        x: en.tileX,
         y: en.tileY,
         w: en.tileWidth,
         h: en.tileHeight

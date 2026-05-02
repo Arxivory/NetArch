@@ -119,6 +119,12 @@ export class LogicalCanvasController {
         );
     });
 
+    window.addEventListener('requestConduitDeletion', (e) => {
+      const { conduitId } = e.detail;
+      appState.structural.removeConduit(conduitId);
+      this.layout.removeEntityById(conduitId);
+    });
+
     this.invalidMoveAlerted = new Set();
     this.pendingMoveEntities = new Map(); 
     window.addEventListener('pointerdown', () => {
@@ -371,6 +377,16 @@ executeDelete(idToDelete) {
 
     // if (deletedIds.length === 0 && appState.devices && appState.devices.removeDevice) {
     //     appState.devices.removeDevice(idToDelete); 
+
+    if (deletedIds.length === 0 && appState.structural) {
+      const isConduit = appState.structural.conduits?.some(c => c.id === idToDelete);
+      if (isConduit) {
+          appState.structural.removeConduit(idToDelete);
+          this.layout.removeEntityById(idToDelete);
+          appState.selection.clearSelection();
+          return;
+      }
+    }
 
 
     if (deletedIds.length === 0 && typeof appState.removeDevice === 'function') {

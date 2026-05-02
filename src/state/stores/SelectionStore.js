@@ -81,6 +81,21 @@ export class SelectionStore {
     this.notify();
   }
 
+  selectConduit(conduitId, multiSelect = false) {
+    if (!multiSelect) {
+      this._clearObjectSelections();
+    }
+    this._setFocus(conduitId, 'conduit');
+    this.notify();
+  }
+
+  deselectConduit(conduitId) {
+    if (this.focusedId === conduitId) {
+      this._setFocus(null, null);
+    }
+    this.notify();
+  }
+
   toggleDeviceSelection(deviceId) {
     if (this.isDeviceSelected(deviceId)) {
       this.deselectDevice(deviceId);

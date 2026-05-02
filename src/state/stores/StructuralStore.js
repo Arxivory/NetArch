@@ -194,6 +194,9 @@ export class StructuralStore {
         }
 
         const spaceIds = this.spaces.filter(sp => sp.floorId === floorId).map(sp => sp.id);
+        this.conduits = this.conduits.filter(c => 
+            c.floorId !== floorId && !spaceIds.includes(c.spaceId)
+        );
 
         // --- NEW: Bulletproof Cascading Delete for Assets ---
         if (appState.network) {
@@ -279,6 +282,8 @@ export class StructuralStore {
                 if (typeof appState.furniture.removeFurniture === 'function') appState.furniture.removeFurniture(f.id);
             });
         }
+
+        this.conduits = this.conduits.filter(c => c.spaceId !== spaceId);
 
         this.spaces.splice(index, 1);
         

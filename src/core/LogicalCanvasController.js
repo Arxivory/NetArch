@@ -19,6 +19,7 @@ import {
   RemoveSpaceCommand,
   MoveCommand
 } from './editor/DrawingCommands.js';
+import { DeleteEntityCommand } from './editor/DrawingCommands.js'; // Adjust path if needed
 
 export class LogicalCanvasController {
   constructor(container, opts = {}) {
@@ -359,63 +360,70 @@ executeDelete(idToDelete) {
   }
 
   // Rename your old executeDelete to this:
-  _commitDelete(idToDelete) {
-    let deletedIds = [];
+  // _commitDelete(idToDelete) {
+  //   let deletedIds = [];
 
-    if (appState.structural) {
-        const st = appState.structural;
+  //   if (appState.structural) {
+  //       const st = appState.structural;
         
-        if (st.domains && st.domains.some(d => d.id === idToDelete)) {
-            deletedIds = st.removeDomain(idToDelete) || [idToDelete];
-        } else if (st.sites && st.sites.some(s => s.id === idToDelete)) {
-            deletedIds = st.removeSite(idToDelete) || [idToDelete];
-        } else if (st.floors && st.floors.some(f => f.id === idToDelete)) {
-            deletedIds = st.removeFloor(idToDelete) || [idToDelete];
-        } else if (st.spaces && st.spaces.some(s => s.id === idToDelete)) {
-            deletedIds = st.removeSpace(idToDelete) || [idToDelete];
-        } else if (st.walls && st.walls.some(w => w.id === idToDelete)) {
-            deletedIds = st.removeWall?.(idToDelete) || [idToDelete];
-        }
-    }
+  //       if (st.domains && st.domains.some(d => d.id === idToDelete)) {
+  //           deletedIds = st.removeDomain(idToDelete) || [idToDelete];
+  //       } else if (st.sites && st.sites.some(s => s.id === idToDelete)) {
+  //           deletedIds = st.removeSite(idToDelete) || [idToDelete];
+  //       } else if (st.floors && st.floors.some(f => f.id === idToDelete)) {
+  //           deletedIds = st.removeFloor(idToDelete) || [idToDelete];
+  //       } else if (st.spaces && st.spaces.some(s => s.id === idToDelete)) {
+  //           deletedIds = st.removeSpace(idToDelete) || [idToDelete];
+  //       } else if (st.walls && st.walls.some(w => w.id === idToDelete)) {
+  //           deletedIds = st.removeWall?.(idToDelete) || [idToDelete];
+  //       }
+  //   }
 
-    if (deletedIds.length === 0 && appState.devices && appState.devices.removeDevice) {
-        appState.devices.removeDevice(idToDelete); 
-        deletedIds = [idToDelete];
-    }
+  //   if (deletedIds.length === 0 && appState.devices && appState.devices.removeDevice) {
+  //       appState.devices.removeDevice(idToDelete); 
+  //       deletedIds = [idToDelete];
+  //   }
 
-    if (deletedIds.length === 0 && appState.network) {
-        const isLink = appState.network.getLink(idToDelete);
-        if (isLink) {
-            isLink.bringDown?.();
-            appState.network.removeLink(idToDelete);
-            return;
-        }
-    }
+  //   if (deletedIds.length === 0 && appState.network) {
+  //       const isLink = appState.network.getLink(idToDelete);
+  //       if (isLink) {
+  //           isLink.bringDown?.();
+  //           appState.network.removeLink(idToDelete);
+  //           return;
+  //       }
+  //   }
 
-    if (deletedIds.length === 0 && appState.furniture && appState.furniture.removeFurniture) {
-        const isFurniture = appState.furniture.furnitures && appState.furniture.furnitures.some(f => f.id === idToDelete);
-        if (isFurniture) {
-            appState.furniture.removeFurniture(idToDelete);
-            deletedIds = [idToDelete];
-        }
-    }
+  //   if (deletedIds.length === 0 && appState.furniture && appState.furniture.removeFurniture) {
+  //       const isFurniture = appState.furniture.furnitures && appState.furniture.furnitures.some(f => f.id === idToDelete);
+  //       if (isFurniture) {
+  //           appState.furniture.removeFurniture(idToDelete);
+  //           deletedIds = [idToDelete];
+  //       }
+  //   }
 
-    if (deletedIds.length === 0) {
-        deletedIds = [idToDelete];
-    }
+  //   if (deletedIds.length === 0) {
+  //       deletedIds = [idToDelete];
+  //   }
 
-    if (deletedIds.length > 0) {
-      deletedIds.forEach(deletedId => {
-          if (typeof this.removeEntity === 'function') {
-              this.removeEntity(deletedId);
-          }
-      });
+  //   if (deletedIds.length > 0) {
+  //     deletedIds.forEach(deletedId => {
+  //         if (typeof this.removeEntity === 'function') {
+  //             this.removeEntity(deletedId);
+  //         }
+  //     });
       
-      if (appState.selection && appState.selection.clearSelection) {
-          appState.selection.clearSelection();
-          if (typeof appState.selection.notify === 'function') appState.selection.notify();
-      }
-    }
+  //     if (appState.selection && appState.selection.clearSelection) {
+  //         appState.selection.clearSelection();
+  //         if (typeof appState.selection.notify === 'function') appState.selection.notify();
+  //     }
+  //   }
+  // }
+  _commitDelete(idToDelete) {
+    // Stop bypassing the stack! Use the Time Machine.
+    const command = new DeleteEntityCommand(appState, this, idToDelete);
+    
+    appState.pushCommand(command);
+    command.execute();
   }
 
   setSize(w, h) {
@@ -436,8 +444,16 @@ executeDelete(idToDelete) {
       canvasId = structure.id;
     }
 
-    const structureType = structure.type || structure.structureType || '';
-    const primitiveType = structure.shapeType || structure.type || 'rectangle';
+    // 1. Extract the structural metadata safely
+    const structureType = structure.structureType || structure.type || '';
+    
+    // 2. CRITICAL FIX: The "Phantom Shape" Parser Shield
+    // If the parser accidentally reads "Domain" or "Site" instead of a 2D shape type, force it back to a rectangle.
+    let primitiveType = structure.shapeType || structure.type;
+    if (!['rectangle', 'circle', 'polygon', 'freeform'].includes(primitiveType)) {
+        primitiveType = 'rectangle'; 
+    }
+
     const geom = structure.geometry || {};
     const x = Number(geom.x || 0);
     const y = Number(geom.y || 0);

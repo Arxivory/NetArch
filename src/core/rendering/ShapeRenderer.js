@@ -146,7 +146,7 @@ renderFurnitures(ctx, furnitures) {
 
       if (dev.icon && dev.icon.complete && dev.icon.naturalWidth !== 0) {
         try {
-          ctx.drawImage(dev.icon, x, y, dev.renderWidth, dev.renderHeight);
+          ctx.drawImage(dev.icon, x, y, size, size);
         } catch (e) {
           console.warn("Error drawing furniture icon:", e);
           this._drawFallbackDevice(ctx, x, y, size);

@@ -797,6 +797,11 @@ executeDelete(idToDelete) {
     return true;
   }
 
+  // applyDeviceMove(deviceId, dx, dy, options = {}) {
+  //   if (dx === 0 && dy === 0) {
+  //     return false;
+  //   }
+
   applyDeviceMove(deviceId, dx, dy, options = {}) {
     if (dx === 0 && dy === 0) {
       return false;

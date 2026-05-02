@@ -1,7 +1,7 @@
 import Grid from './Grid.js';
 import ShapeCreator from './ShapeCreator.js';
 import CableEntity from './entities/CableEntity.js';
-import { buildDeviceIconImages } from './entities/DeviceIcons.js';
+import { buildDeviceIconImages, resolveDeviceIconKey } from './entities/DeviceIcons.js';
 import ShapeRenderer from '../rendering/ShapeRenderer.js';
 import PointerHandler from '../rendering/PointerHandler.js';
 import { Selection } from '../editor/Selection.js';
@@ -41,7 +41,6 @@ export class LogicalLayout {
       onDoorCreated: opts.onDoorCreated || null,
       onWindowCreated: opts.onWindowCreated || null,
       onCableCreated: opts.onCableCreated || null,
-      onConduitCreated: opts.onConduitCreated ||null,
       system: this.system
     });
 
@@ -95,7 +94,6 @@ export class LogicalLayout {
     this.devices = [];
     this.cables = [];
     this.furnitures = [];
-    this.conduits = [];
 
     this.store = appState.selection;
 
@@ -395,11 +393,6 @@ isPointInsideShape(id, x, y) {
     this._updateCursor();
   }
 
-  startDrawConduit() {
-    this.mode = 'conduit';
-    this._updateCursor();
-  }
-
   // Map legacy UI aliases to catalog keys so cables[type] lookups never miss.
   static _normalizeCableType(type) {
     const aliases = {
@@ -453,27 +446,10 @@ isPointInsideShape(id, x, y) {
     }
   }
 
-  
-
   addFurniture(furnitureData, x, y) {
     console.log('Adding furniture with data:', furnitureData, 'from LogicalLaypout bsuiyti');
     const size = this.shapeRenderer.gridSize * 1.5;
-
-    // Combine type and name to figure out what icon to show (if you have them)
-    const rawType = (furnitureData.type + ' ' + (furnitureData.name || furnitureData.label || '')).toLowerCase();
-
-    let iconKey = null;
-
-    if (rawType.includes('desk') || rawType.includes('table')) {
-      iconKey = 'desk';
-    } else if (rawType.includes('chair') || rawType.includes('seat')) {
-      iconKey = 'chair';
-    } else if (rawType.includes('cabinet') || rawType.includes('rack')) {
-      iconKey = 'cabinet';
-    }
-
-    // Assuming you might add a furnitureIcons dictionary in the future.
-    // If it's undefined, your render loop will likely just draw the bounding box/path, which is fine!
+    const iconKey = resolveDeviceIconKey(furnitureData);
     const iconImage = this.deviceIcons[iconKey];
 
     const half = size / 2;
@@ -490,14 +466,23 @@ isPointInsideShape(id, x, y) {
       entity.path = updatedPath;
     };
 
-    const furniture = {
-      id: furnitureData.id || `furniture_${Math.random().toString(36).slice(2, 9)}`, // CHANGED: keep the same id as the furniture store/hierarchy node
-      type: furnitureData.type || 'furniture',
-      entityType: 'furniture',
-      label: furnitureData.name || furnitureData.label || 'Furniture',
-      catalogId: furnitureData.catalogId || null, // ADDED: preserve catalog metadata
-      floorId: furnitureData.floorId ?? appState.ui.activeFloorId ?? null, // ADDED: preserve floor context
-      spaceId: furnitureData.spaceId ?? null, // ADDED: preserve space context
+    
+    const furniture = { 
+      id: furnitureData.id || `furniture_${Math.random().toString(36).slice(2, 9)}`, 
+      // type: furnitureData.type || 'furniture',
+      // entityType: 'furniture',
+      // label: furnitureData.name || furnitureData.label || 'Furniture',
+      // catalogId: furnitureData.catalogId || null, // ADDED: preserve catalog metadata
+      // floorId: furnitureData.floorId ?? appState.ui.activeFloorId ?? null, // ADDED: preserve floor context
+      // spaceId: furnitureData.spaceId ?? null, // ADDED: preserve space context
+      // // CHANGED: keep the same id as the furniture store/hierarchy node
+        type: furnitureData.type || 'furniture',
+        entityType: 'furniture',
+        label: furnitureData.name || furnitureData.label || 'Furniture',
+        catalogId: furnitureData.catalogId || null, // ADDED: preserve catalog metadata
+        modelId: furnitureData.modelId || furnitureData.catalogId || null,
+        floorId: furnitureData.floorId ?? appState.ui.activeFloorId ?? null, // ADDED: preserve floor context
+        spaceId: furnitureData.spaceId ?? null, // ADDED: preserve space context
       x,
       y,
       width: size,
@@ -513,21 +498,33 @@ isPointInsideShape(id, x, y) {
       saveCurrentPosition() {
         this.savedPosition = { x: this.x, y: this.y };
       },
+      move(dx, dy) {
+        this.x += dx;
+        this.y += dy;
+        this.transform.position.x = this.x;
+        this.transform.position.y = this.y;
+        updateFurniturePath(this);
+      },
       restoreToSavedPosition() {
         if (!this.savedPosition) return;
         this.x = this.savedPosition.x;
         this.y = this.savedPosition.y;
         this.transform.position.x = this.x;
         this.transform.position.y = this.y;
+        updateFurniturePath(this);
       }
     };
 
-    this.furnitures.push(furniture);
+  //   this.furnitures.push(furniture);
 
-    if (this.onFurnitureAdded) {
+  //   if (this.onFurnitureAdded) {
 
-      this.onFurnitureAdded(furniture);
-    }
+  //     this.onFurnitureAdded(furniture);
+  //   }
+  //   this._render();
+  // }
+
+  this.furnitures.push(furniture);
     this._render();
   }
 
@@ -549,7 +546,6 @@ isPointInsideShape(id, x, y) {
       'cable': 'crosshair',
       'pan': 'grab',
       'none': 'default',
-      'conduit': 'crosshair',
       'select': 'default'
     };
     this.pointerHandler.setCursor(cursorMap[this.mode] || 'default');
@@ -634,11 +630,6 @@ isPointInsideShape(id, x, y) {
       return;
     }
 
-    if (this.mode === 'conduit') {
-      const conduit = this._placeConduitAt(snapped.x, snapped.y);
-      this._render();
-      return;
-    }
 
     if (this.mode === 'select') {
       const zoom = this.pointerHandler.getZoom();
@@ -647,18 +638,6 @@ isPointInsideShape(id, x, y) {
       const selectionResult = this.identifyEntity(worldPos.x, worldPos.y, {multiSelect});
       // console.log('[DOWN] identifyEntity result:', en?.id, en?.type, en?.entityType, { multiSelect });
       console.log('[DOWN] identifyEntity result:', selectionResult?.id, selectionResult?.type, selectionResult?.entityType, { multiSelect });
-
-      const clickedConduit = this._findConduitAt(worldPos.x, worldPos.y);
-      if (clickedConduit) {
-        clickedConduit.saveCurrentPosition();
-        this.interaction = { mode: 'move_conduit', conduit: clickedConduit };
-        this.selectedEntity = clickedConduit;
-        this.selectedEntities = [clickedConduit];
-        appState.selection.selectConduit(clickedConduit.id);
-        this.pointerHandler.setPointerDown(true);
-        this._render();
-        return;
-      }
 
       if (selectionResult.selectionOnly) {
         return;
@@ -772,16 +751,6 @@ isPointInsideShape(id, x, y) {
           this.pointerHandler.setPointerDown(false);
           return;
         }
-      }
-
-      
-      const conduitToDelete = this._findConduitAt(p.x, p.y);
-      if (conduitToDelete) {
-        window.dispatchEvent(new CustomEvent('requestConduitDeletion', {
-          detail: { conduitId: conduitToDelete.id }
-        }));
-        this.pointerHandler.setPointerDown(false);
-        return;
       }
     }
       this.interaction = {
@@ -1029,21 +998,6 @@ if (this.mode === 'freeform') {
 
     if (this.pointerHandler.getIsPointerDown()) {
 
-      if (this.interaction.mode === 'move_conduit') {
-        const conduit = this.interaction.conduit;
-        const parentShape =
-          this.rectangles.find(r => r.id === conduit.parentShapeId) ||
-          this.polygons.find(pol => pol.id === conduit.parentShapeId);
-
-        if (parentShape) {
-          const projected = this._projectPointOntoShapeEdges(p.x, p.y, parentShape);
-          if (projected) conduit.moveTo(projected.x, projected.y);
-        }
-
-        this._render();
-        return;
-      }
-
       if (this.interaction.mode === 'update_cable') {
          this.currentPoint = p;
          this.hoveredDevice = this._findDeviceAt(snapped.x, snapped.y);
@@ -1191,13 +1145,6 @@ _onPointerUp(e) {
         return;
     }
 
-    if (this.interaction?.mode === 'move_conduit') {
-      this.interaction = { mode: null, handle: null, start: null };
-      this.pointerHandler.setPointerDown(false);
-      this._render();
-      return;
-    }
-
     console.log('[LogicalLayout] _onPointerUp', {
       mode: this.mode,
       pointerDown: this.pointerHandler.getIsPointerDown(),
@@ -1307,130 +1254,6 @@ _onPointerUp(e) {
 }
 
 
-  _findSpaceEdgeAt(x, y, tolerance = 8) {
-    const focusedId   = appState.selection.focusedId;
-    const focusedType = appState.selection.focusedType?.toLowerCase();
-
-    if (!focusedId || (focusedType !== 'space' && focusedType !== 'floor')) {
-      alert('Please select a Space or Floor first before placing a conduit.');
-      return null;
-    }
-
-    // Find the focused shape on the canvas
-    const shape =
-      this.rectangles.find(r => r.id === focusedId) ||
-      this.polygons.find(p => p.id === focusedId) ||
-      this.circles.find(c => c.id === focusedId);
-
-    if (!shape) {
-      alert('Could not find the selected Space or Floor on the canvas.');
-      return null;
-    }
-
-    const edges = this._getShapeEdges(shape);
-    for (const edge of edges) {
-      const dist = this._pointToLineDistance(x, y, edge.x1, edge.y1, edge.x2, edge.y2);
-      if (dist <= tolerance) {
-        return { shape, edge };
-      }
-    }
-
-    alert('Click closer to the edge of the selected Space or Floor.');
-    return null;
-  }
-
-  _getShapeEdges(shape) {
-    if (shape.type === 'rectangle') {
-      const { x, y } = shape;
-      const w = shape.w ?? shape.width;
-      const h = shape.h ?? shape.height;
-      return [
-        { x1: x,     y1: y,     x2: x + w, y2: y     }, // top
-        { x1: x + w, y1: y,     x2: x + w, y2: y + h }, // right
-        { x1: x,     y1: y + h, x2: x + w, y2: y + h }, // bottom
-        { x1: x,     y1: y,     x2: x,     y2: y + h }, // left
-      ];
-    }
-
-    if (shape.type === 'polygon' || shape.type === 'freeform') {
-      const pts = shape.points;
-      if (!pts || pts.length < 2) return [];
-      const edges = [];
-      for (let i = 0; i < pts.length; i++) {
-        const a = pts[i];
-        const b = pts[(i + 1) % pts.length];
-        edges.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y });
-      }
-      return edges;
-    }
-
-    return [];
-  }
-
-  _findConduitAt(x, y) {
-    for (const conduit of this.conduits) {
-      const dist = Math.hypot(x - conduit.x, y - conduit.y);
-      if (dist <= conduit.radius + 4) return conduit; // +4 for easier clicking
-    }
-    return null;
-  }
-
-  _projectPointOntoShapeEdges(x, y, shape) {
-    const edges = this._getShapeEdges(shape);
-    let bestPoint = null;
-    let bestDist = Infinity;
-
-    for (const edge of edges) {
-      const dx = edge.x2 - edge.x1;
-      const dy = edge.y2 - edge.y1;
-      const lenSq = dx * dx + dy * dy;
-      if (lenSq === 0) continue;
-
-      const t = Math.max(0, Math.min(1,
-        ((x - edge.x1) * dx + (y - edge.y1) * dy) / lenSq
-      ));
-
-      const projX = edge.x1 + t * dx;
-      const projY = edge.y1 + t * dy;
-      const dist = Math.hypot(x - projX, y - projY);
-
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestPoint = { x: projX, y: projY };
-      }
-    }
-
-    return bestPoint;
-  }
-
-  _placeConduitAt(clickX, clickY) {
-    const hit = this._findSpaceEdgeAt(clickX, clickY);
-    if (!hit) {
-      alert('Conduits must be placed on the edge of a Space or Floor.');
-      return null;
-    }
-
-    const { shape, edge } = hit;
-
-    // Snap to the closest point on the edge
-    const dx = edge.x2 - edge.x1, dy = edge.y2 - edge.y1;
-    const lenSq = dx * dx + dy * dy;
-    const t = lenSq > 0
-      ? Math.max(0, Math.min(1, ((clickX - edge.x1) * dx + (clickY - edge.y1) * dy) / lenSq))
-      : 0;
-    const snappedX = edge.x1 + t * dx;
-    const snappedY = edge.y1 + t * dy;
-
-    const conduit = this.shapeCreator.createConduit(snappedX, snappedY);
-    if (conduit) {
-      conduit.floorId = shape.floorId || null;
-      conduit.spaceId = shape.structureType === 'space' ? shape.id : null;
-      conduit.parentShapeId = shape.id;
-      this.conduits.push(conduit);
-    }
-    return conduit;
-  }
-
   _createShapeFromMode() {
     const activeFloor =
      appState.selection.focusedType === 'floor'
@@ -1529,8 +1352,6 @@ _onPointerUp(e) {
           }
         }
       }
-    } else if (this.mode === 'conduit') {
-      this._placeConduitAt(this.currentPoint.x, this.currentPoint.y);
     }
   }
 
@@ -1799,29 +1620,6 @@ _onPointerUp(e) {
       ctx.restore();
     }
 
-    ctx.save();
-    for (const conduit of filterForFloor(this.conduits)) {
-      const isSelected = this.selectedEntity?.id === conduit.id ||
-        this.selectedEntities?.some(e => e?.id === conduit.id);
-
-      if (isSelected) {
-        ctx.beginPath();
-        ctx.arc(conduit.x, conduit.y, conduit.radius + 5, 0, Math.PI * 2);
-        ctx.strokeStyle = '#00AEEF';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-
-      ctx.beginPath();
-      ctx.arc(conduit.x, conduit.y, conduit.radius, 0, Math.PI * 2);
-      ctx.fillStyle = isSelected ? '#e2e8f0' : '#000000';
-      ctx.strokeStyle = isSelected ? '#00AEEF' : '#000000';
-      ctx.lineWidth = isSelected ? 2 : 4;
-      ctx.fill();
-      ctx.stroke();
-    }
-    ctx.restore();
-
     for (const en of entitiesToOutline) {
       if (!en || en.sourceId) continue;
 
@@ -2064,8 +1862,7 @@ _onPointerUp(e) {
       this.windows,
       this.roofs,
       this.freeforms,
-      this.furnitures,
-      this.conduits
+      this.furnitures
     ];
   }
 
@@ -2101,7 +1898,7 @@ removeEntityById(id) {
     // 3. Find and splice the entity from its array
     let entityToRemove = null;
     const targetArrays = ['rectangles', 'circles', 'polygons', 'freeforms',
-                          'devices', 'furnitures', 'cables', 'walls', 'conduits'];
+                          'devices', 'furnitures', 'cables', 'walls'];
 
     for (const arrName of targetArrays) {
       if (!this[arrName]) continue;
@@ -2210,7 +2007,7 @@ removeEntityById(id) {
     if (!en) {
       const structuralEntities = [
         this.rectangles, this.polygons, this.circles,
-        this.walls, this.doors, this.windows, this.roofs, this.freeforms
+        this.walls, this.doors, this.windows, this.roofs, this.freeforms,
       ];
       en = this.selection.identifyEntity(x, y, structuralEntities, this.ctx);
     }
@@ -2308,15 +2105,33 @@ removeEntityById(id) {
     // Primary check: stable flag set in Device (UI) constructor.
     // Fallback duck-type handles canvas entities from older save files
     // that pre-date the entityType field.
-    return !!en && (
+    if (!en || this._isFurnitureEntity(en)) {
+      return false;
+    }
+
+    return (
       en.entityType === 'device' ||
       en.catalogId  !== undefined ||
       en.interfaces !== undefined
     );
   }
+  
+  // _isFurnitureEntity(en) {
+  //   return !!en && (en.type === 'furniture' || en.id?.startsWith('furniture'));
+  // }
 
+  // Updated furniture detection with more robust duck-typing to handle legacy entities without entityType
   _isFurnitureEntity(en) {
-    return !!en && (en.type === 'furniture' || en.id?.startsWith('furniture'));
+    if (!en || en.sourceId || en.targetId || en.interfaces !== undefined) return false;
+
+    return (
+      en.entityType === 'furniture' ||
+      en.type === 'furniture' ||
+      ['desk', 'chair', 'rack', 'cabinet', 'table'].includes(en.type) ||
+      ['desk', 'chair', 'rack', 'cabinet', 'table'].includes(en.catalogId) ||
+      ['desk', 'chair', 'rack', 'cabinet', 'table'].includes(en.modelId) ||
+      en.id?.startsWith('furniture')
+    );
   }
 
   _isResizableEntity(en) {
@@ -2433,11 +2248,9 @@ removeEntityById(id) {
   _getEntityInteractionBounds(en) {
     if (!en) return null;
 
-    if (en.type === 'conduit') return null;
-
     if (this._isDeviceEntity(en)) {
       return {
-        x: en.tileX,
+        x: en.tileX,       // ADDED: devices are drawn/hit-tested using tile bounds, not raw x/y/w/h
         y: en.tileY,
         w: en.tileWidth,
         h: en.tileHeight
@@ -2468,8 +2281,10 @@ removeEntityById(id) {
 
   _findDeviceAt(x, y) {
     for (const device of this.devices) {
-      const bounds = this._getEntityInteractionBounds(device);
+      const bounds = this._getEntityInteractionBounds(device); // ADDED: use the same tile bounds used for selection/highlighting
+      console.log('[FIND_DEVICE] checking', device.id, 'bounds:', bounds, 'click:', x, y);
       if (!bounds) continue;
+
 
       if (
         x >= bounds.x &&

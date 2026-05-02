@@ -1123,10 +1123,12 @@ const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !=
              };
           }
 
-          const edges = getEdges(target);
+const edges = getEdges(target);
           for (const edge of edges) {
-            // THE ULTIMATE CHECK: Dapat yung UMPISA at DULO ng bintana ay nakadikit sa IISANG EXACT line segment!
-            if (isNearEdge(p1x, p1y, edge) && isNearEdge(p2x, p2y, edge)) {
+            // 🛑 THE NEW FLEXIBLE CHECK: 
+            // Basta 'yung UMPISA (p1) O DULO (p2) ng drawing ay nakadikit sa pader, papasa na!
+            // Pwede mo na i-drawing paloob o palabas ng space!
+            if (isNearEdge(p1x, p1y, edge) || isNearEdge(p2x, p2y, edge)) {
               allowCreation = true;
               break;
             }
@@ -2403,11 +2405,12 @@ else if (this.startPoint && this.currentPoint) {
        ancestorsId = appState.structural.getAncestorsId();
     }
 
-    // Devices and furniture are intended to be placed within structural elements (Spaces/Floors).
-    // We skip the structural overlap check for these assets to avoid false positive alerts.
+// 🛑 THE FIX: Ignore overlap for Assets AND Fenestrations (Doors/Windows)
     const isAsset = currentEntity.interfaces !== undefined || currentEntity.catalogId !== undefined || currentEntity.type === 'furniture' || currentEntity.id?.startsWith('furniture');
-    if (isAsset) {
-      return false;
+    const isFenestration = currentEntity.type === 'door' || currentEntity.type === 'window';
+
+    if (isAsset || isFenestration) {
+      return false; // Skip the overlap alert for these!
     }
 
     // Only check for overlap on entities that support it (like structures),

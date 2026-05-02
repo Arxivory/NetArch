@@ -13,14 +13,14 @@ export default class DomainMesh {
 
         this.geometry = {
             rectangular: {
-                width: opts.geometry.width,
-                depth: opts.geometry.height
+                width: opts.geometry.w,
+                depth: opts.geometry.h
             },
             polygonal: {
                 points: opts.geometry.points
             },
             circular: {
-                radius: opts.geometry.radius
+                radius: opts.geometry.radius    
             }
         }
     }

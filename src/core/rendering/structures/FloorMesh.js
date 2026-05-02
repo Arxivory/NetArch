@@ -15,8 +15,8 @@ export default class FloorMesh {
 
         this.geometry = {
             rectangular: {
-                width: opts.geometry.width,
-                depth: opts.geometry.height
+                width: opts.geometry.w,
+                depth: opts.geometry.h
             },
             polygonal: {
                 points: opts.geometry.points

@@ -25,7 +25,7 @@ export default function App() {
   return (
     <HierarchyProvider> 
       <div className="app">
-        <Topbar />
+        <Topbar canvasController={canvasControllerRef.current || controller} />
         <Toolbar canvasController={controller}/>
 
         <Workspace canvasControllerRef={canvasControllerRef}/>

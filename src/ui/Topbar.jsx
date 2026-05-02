@@ -1,6 +1,14 @@
 import React, { useState, useRef, useEffect } from "react";
+import {
+  newProject,
+  saveProject,
+  openProject,
+  undo,
+  redo
+} from "../actions/projectActions";
+import { exportProject, importProject } from "../../core/LogicalCanvasController";
 
-export default function Topbar() {
+export default function Topbar({ canvasController }) {
 
   const [openMenu, setOpenMenu] = useState(null);
   const topbarRef = useRef(null);
@@ -11,6 +19,7 @@ export default function Topbar() {
     View: ["Zoom In", "Zoom Out", "Reset View", "Toggle Grid"],
     Tools: ["Measure", "Calculate", "Settings"]
   };
+  
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (topbarRef.current && !topbarRef.current.contains(event.target)) {
@@ -43,9 +52,50 @@ export default function Topbar() {
                   <button
                     key={item}
                     className="dropdown-item"
-                    onClick={() => {
-                      console.log(`${item} clicked`);
+                    onClick={async () => {
                       setOpenMenu(null);
+
+                      if (item === "New Project") {
+                        const confirmNew = window.confirm("Start a new project? Unsaved changes will be lost.");
+                        if (!confirmNew) return;
+
+                        importProject({ domains: [] }, canvasController);
+                        return;
+                      }
+
+                      switch (item) {
+                        case "New Project":
+                          newProject();
+                          break;
+
+                        case "Save":
+                          try {
+                            const result = await saveProject();
+                            console.log("Saved:", result);
+                          } catch (err) {
+                            console.error(err);
+                          }
+                          break;
+
+                        case "Open...":
+                          try {
+                            await openProject();
+                          } catch (err) {
+                            console.error(err);
+                          }
+                          break;
+
+                        case "Undo":
+                          undo(canvasController);
+                          break;
+
+                        case "Redo":
+                          redo(canvasController);
+                          break;
+
+                        default:
+                          console.log("Unhandled menu:", item);
+                      }
                     }}
                   >
                     {item}

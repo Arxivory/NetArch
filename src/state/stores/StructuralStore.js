@@ -7,7 +7,7 @@ import Door from "../../core/structural/Door";
 import Window from "../../core/structural/Window";
 import appState from "../AppState";
 
-export class StructuralStore {
+class StructuralStore {
     constructor() {
         this.domains = [];
         this.sites = [];
@@ -613,3 +613,6 @@ export class StructuralStore {
         })
     }
 }
+
+const structuralStore = new StructuralStore();
+export default structuralStore;

@@ -230,6 +230,7 @@ import {
   Square, Play, File, FilePlus, Save, MousePointer, Hand, ZoomIn, ZoomOut, Trash2 // <-- Added Trash2
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { exportProject, importProject } from "../../core/LogicalCanvasController";
 import appState from "../../state/AppState";
 import {
   StartDrawRectangleCommand, StartDrawCircleCommand, StartDrawPolygonCommand, StartDrawFreeformCommand, StartDrawWallCommand,
@@ -244,7 +245,31 @@ export default function Toolbar({ canvasController }) {
   // 1. Update the state hooks
 const [canUndo, setCanUndo] = useState(false);
 const [canRedo, setCanRedo] = useState(false);
+const handleSave = async () => {
+  try {
+    const data = exportProject();
+    await window.api.saveFile(data);
+  } catch (err) {
+    console.error("Save failed:", err);
+  }
+};
 
+const handleOpen = async () => {
+  try {
+    const data = await window.api.openFile();
+    if (!data) return;
+
+    importProject(data);
+  } catch (err) {
+    console.error("Open failed:", err);
+  }
+};
+
+const handleNew = () => {
+  if (window.confirm("Start a new project? Unsaved changes will be lost.")) {
+    importProject({ domains: [] });
+  }
+};
 useEffect(() => {
   // 2. Subscribe directly to the global appState
   // Your AppState calls notifyListeners() whenever this.commands updates
@@ -345,11 +370,16 @@ const handleDelete = () => {
     <div className="toolbar">
       <div className="toolbar-group">
         <div className="toolbar-row">
-          <button className="toolbar-btn"><FilePlus size={16} /> New</button>
-          <button className="toolbar-btn"><File size={16} /> Open</button>
-          <button className="toolbar-btn"><Save size={16} /> Save</button>
+          <button className="toolbar-btn" onClick={handleNew}>
+            <FilePlus size={16} /> New
+          </button>
+          <button className="toolbar-btn" onClick={handleOpen}>
+            <File size={16} /> Open
+          </button>
+          <button className="toolbar-btn" onClick={handleSave}>
+            <Save size={16} /> Save
+          </button>
 
-          {/* INSERT IT HERE */}
           <div className="toolbar-v-separator" /> 
           <button 
   className="toolbar-btn-icon" 

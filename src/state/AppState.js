@@ -4,7 +4,7 @@ import { NetworkStore } from './stores/NetworkStore.js';
 import { SelectionStore } from './stores/SelectionStore.js';
 import { UIStore } from './stores/UIStore.js';
 import { CommandStore } from './stores/CommandStore.js';
-import { StructuralStore } from './stores/StructuralStore.js';
+import StructuralStore from './stores/StructuralStore.js';
 import { FurnitureStore } from './stores/FurnitureStore.js';
 
 export class AppState {
@@ -15,7 +15,7 @@ export class AppState {
     this.selection = new SelectionStore();
     this.ui = new UIStore();
     this.commands = new CommandStore();
-    this.structural = new StructuralStore();
+    this.structural = StructuralStore;
     this.furniture = new FurnitureStore();
 
     this.listeners = [];

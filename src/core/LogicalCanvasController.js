@@ -1,5 +1,6 @@
 import appState from '../state/AppState.js';
 import LogicalLayout from '../core/layout/LogicalLayout.js';
+import StructuralStore from '../state/stores/StructuralStore';
 import DeviceFactory from '../data/DeviceFactory.js';
 import { createFurnitureInstance } from '../data/furnitureCatalog';
 import Link from './network/Link.js';
@@ -20,6 +21,44 @@ import {
   MoveCommand
 } from './editor/DrawingCommands.js';
 
+export function exportProject() {
+  return {
+    domains: appState.structural.getDomains
+      ? appState.structural.getDomains()
+      : appState.structural.domains
+  };
+}
+
+export function importProject(data, canvasController) {
+  console.log("Importing project:", data);
+
+  appState.reset();
+
+  if (appState.structural?.clear) {
+    appState.structural.clear();
+  }
+
+  if (appState.history?.clear) {
+    appState.history.clear();
+  }
+
+  if (canvasController?.layout?.clear) {
+    canvasController.layout.clear();
+  }
+
+  if (data?.domains) {
+    data.domains.forEach(domain => {
+      appState.structural.addDomain(domain);
+    });
+  }
+
+  if (canvasController?.syncWithState) {
+    canvasController.syncWithState();
+  }
+
+  console.log("Import complete");
+}
+
 export class LogicalCanvasController {
   constructor(container, opts = {}) {
     this.counters = {
@@ -29,14 +68,11 @@ export class LogicalCanvasController {
       space: 0
     };
 
-    // Map canvas entity IDs to structural entity IDs for tracking
-    this.entityIdMap = new Map(); // canvas_id -> structural_id
-    this.structuralToCanvasMap = new Map(); // structural_id -> canvas_id
+    this.entityIdMap = new Map();
+    this.structuralToCanvasMap = new Map();
     this._suppressDeviceAddedCommand = false;
 
-    // --- ADD THIS TO THE BOTTOM OF THE CONSTRUCTOR ---
     this.positionSnapshot = new Map();
-    // --- NEW: Global Listener for Entity Updates ---
     window.addEventListener('forceCanvasUpdate', (e) => {
       if (this.layout) {
         const { id, updates } = e.detail;
@@ -48,20 +84,16 @@ export class LogicalCanvasController {
             typeof canvasEntity.tileX === 'number';
 
           if (isLogicalDevice) {
-            // Logical canvas devices use a 2D transform shape (`scale.factor`).
-            // The physical store uses a 3D transform shape (`scale.x/y/z`).
-            // Never overwrite the logical transform with the physical one.
             const { transform, ...safeUpdates } = updates || {};
             Object.assign(canvasEntity, safeUpdates);
           } else {
             Object.assign(canvasEntity, updates);
           }
-          // Ensure text properties sync
           if (updates.label !== undefined) {
             canvasEntity.hostname = updates.label;
             canvasEntity.name = updates.label;
           }
-          this.layout._render(); // Force instant redraw
+          this.layout._render();
         }
       }
     });
@@ -69,19 +101,16 @@ export class LogicalCanvasController {
   window.addEventListener('requestLinkUpdate', (e) => {
   const { linkId, cableType, endpointType, newDevice, clientX, clientY } = e.detail;
 
-  // Pass cableType as the 5th parameter
   this._handlePortSelect(newDevice, clientX, clientY, (selectedPort) => {
     if (!selectedPort) {
       this.layout._render();
       return;
     }
 
-    // 1. Execute the data update in the Store
     if (appState.network && typeof appState.network.updateLinkEndpoint === 'function') {
       appState.network.updateLinkEndpoint(linkId, endpointType, newDevice.id, selectedPort);
     }
 
-    // 2. CRITICAL FIX: Sync the visual layout cable!
     if (this.layout && this.layout.cables) {
       const canvasCable = this.layout.cables.find(c => c.id === linkId);
       if (canvasCable) {
@@ -95,7 +124,6 @@ export class LogicalCanvasController {
       }
     }
 
-    // 3. Force UI refresh so the cable visually snaps to the new device
     this.layout._render();
 
   }, cableType);
@@ -108,10 +136,8 @@ window.addEventListener('requestLinkDeletion', (e) => {
     `Are you sure you want to delete the connection between ${sourceName} and ${targetName}?\n\nThe link will be removed and the device ports will become available again.`,
     "Confirm Deletion",
     () => {
-      // If the user clicks "Delete Link", execute the deletion
       this.executeDelete(linkId);
 
-      // Switch the tool back to select so they aren't stuck in delete mode
       if (appState.tools) {
         appState.tools.setActiveTool('select');
       }
@@ -128,15 +154,12 @@ window.addEventListener('pointerdown', () => {
   const st = appState.structural;
   if (!st) return;
 
-  // Take a snapshot of every structure's X/Y before the drag starts
   const elements = [...(st.domains || []), ...(st.sites || []), ...(st.floors || []), ...(st.spaces || [])];
   elements.forEach(el => {
     const x = Number(el.geometry ? el.geometry.x : (el.x || 0));
     const y = Number(el.geometry ? el.geometry.y : (el.y || 0));
     this.positionSnapshot.set(el.id, { x, y });
   });
-
-  // Also snapshot all devices for drag undo/redo support
   const allDevices = typeof appState.getAllDevices === 'function' ? appState.getAllDevices() : [];
   allDevices.forEach(device => {
     const x = Number(device.transform?.position?.x || 0);
@@ -149,12 +172,9 @@ window.addEventListener('pointerup', () => {
   this._commitPendingMoveCommands();
 }, { capture: true });
 
-// --- NEW: Global Keyboard Listener for Deletions ---
 window.addEventListener('keydown', (e) => {
-  // Listen for both Backspace and Delete keys
   if (e.key === 'Backspace' || e.key === 'Delete') {
 
-    // 1. GUARDRAIL: Do nothing if the user is typing in an input field
     const activeElement = document.activeElement;
     const isTyping = activeElement.tagName === 'INPUT' ||
       activeElement.tagName === 'TEXTAREA' ||
@@ -163,18 +183,15 @@ window.addEventListener('keydown', (e) => {
 
     if (!appState || !appState.selection) return;
 
-    // 2. Figure out what is currently selected (Mirroring your Toolbar logic)
     let ids = appState.selection.getSelectedDeviceIds();
     if (!ids || ids.length === 0) {
       const focused = appState.selection.getFocusedId();
       if (focused) ids = [focused];
     }
 
-    // 3. Execute the deletion
     if (ids && ids.length > 0) {
       const idToDelete = ids[0];
 
-      // If it's a cable, route it to the Confirmation Modal we built
       if (appState.selection.focusedType === 'cable' && this.layout) {
         const cable = this.layout.cables.find(c => c.id === idToDelete) ||
           appState.network?.getLink?.(idToDelete);
@@ -192,17 +209,12 @@ window.addEventListener('keydown', (e) => {
           }));
         }
       } else {
-        // If it's a structure/device, route it to our Gatekeeper
         this.executeDelete(idToDelete);
       }
     }
   }
 });
-// ---------------------------------------------------
-
-// Add this to the bottom of your constructor
 this.lastKnownPositions = new Map();
-// -------------------------------------------------
 
 this.layout = new LogicalLayout({
   container,
@@ -226,7 +238,6 @@ this.layout = new LogicalLayout({
   onEntityChanged: (en, dx, dy) => this._handleEntityChanged(en, dx, dy)
 });
 
-// Initialize CommandHistory for undo/redo
 this.commandHistory = new CommandHistory(appState.commands);
   }
 
@@ -237,33 +248,18 @@ destroy() {
   }
 }
 
-// =========================================================
-// PUBLIC API
-// =========================================================
-// =========================================================
-// PUBLIC API
-// =========================================================
-
-/**
- * Undo the last command
- */
 undo() {
   if (this.commandHistory) {
     this.commandHistory.undo();
-    // Ensure canvas is refreshed after undo
     if (this.layout && typeof this.layout._render === 'function') {
       this.layout._render();
     }
   }
 }
 
-/**
- * Redo the last undone command
- */
 redo() {
   if (this.commandHistory) {
     this.commandHistory.redo();
-    // Ensure canvas is refreshed after redo
     if (this.layout && typeof this.layout._render === 'function') {
       this.layout._render();
     }
@@ -294,7 +290,6 @@ getCommandStore() {
 removeEntity(id) {
   if (!this.layout) return;
 
-  // 1. Try removing it as a structural shape (Domain, Site, Floor, Space)
   if (typeof this.layout.removeShapeById === 'function') {
     this.layout.removeShapeById(id);
   }
@@ -304,11 +299,10 @@ removeEntity(id) {
     this.layout.cables = this.layout.cables.filter(c => c.id !== id);
     if (this.layout.cables.length < before) {
       this.layout._render?.();
-      return; // was a cable, done
+      return;
     }
   }
 
-  // 2. Try removing it as a Device or Furniture
   if (typeof this.layout.removeDevice === 'function') {
     this.layout.removeDevice(id);
   }
@@ -316,12 +310,10 @@ removeEntity(id) {
     this.layout.removeFurniture(id);
   }
 
-  // 3. Generic fallback just in case your layout engine uses a unified method
   if (typeof this.layout.removeEntity === 'function') {
     this.layout.removeEntity(id);
   }
 
-  // 4. Force the canvas to re-draw so the shape instantly disappears
   if (typeof this.layout.render === 'function') {
     this.layout.render();
   } else if (typeof this.layout._render === 'function') {
@@ -330,10 +322,8 @@ removeEntity(id) {
 }
 
 executeDelete(idToDelete) {
-  // 1. Calculate how many items will be destroyed alongside this one
   const blastInfo = this._calculateBlastRadius(idToDelete);
 
-  // 2. If children exist, throw the confirmation modal
   if (blastInfo.count > 0) {
     showConfirmationModal(
       `Are you sure you want to delete "${blastInfo.name}"?\n\nThis will permanently delete ${blastInfo.count} dependent item(s) located inside it.`,
@@ -343,12 +333,10 @@ executeDelete(idToDelete) {
       }
     );
   } else {
-    // 3. If it's empty (or just a standalone device), delete instantly
     this._commitDelete(idToDelete);
   }
 }
 
-// Rename your old executeDelete to this:
 _commitDelete(idToDelete) {
   let deletedIds = [];
 
@@ -421,7 +409,6 @@ restoreCanvasShape(structure, canvasId) {
     return null;
   }
 
-  // If we no longer have the previous canvas mapping, fall back to the structural id.
   if (!canvasId) {
     canvasId = structure.id;
   }
@@ -830,7 +817,7 @@ _commitPendingMoveCommands() {
 }
 
 setActiveFloor(floorId) {
-  appState.ui.setActiveFloor(floorId); // ADDED: keep the global active floor in sync for shape creation and overlap checks
+  appState.ui.setActiveFloor(floorId);
   this.layout?.setActiveFloor(floorId);
 }
 
@@ -929,13 +916,9 @@ addDevice(deviceData, x, y) {
   const focusedId = appState.selection.focusedId;
 
   if (focusedType !== 'floor' && focusedType !== 'space') {
-    // ... (existing error handling)
     return;
   }
 
-  // =========================================================
-  // 1. Physical Bounds Validation (The code we just wrote!)
-  // =========================================================
   if (this.layout && typeof this.layout.isPointInsideShape === 'function') {
     const dropIsInsideParent = this.layout.isPointInsideShape(focusedId, x, y);
     if (!dropIsInsideParent) {
@@ -948,10 +931,6 @@ addDevice(deviceData, x, y) {
     }
   }
 
-  // =========================================================
-  // --- NEW: 2. Smart Space Interception ---
-  // Prevent dropping ON a Space when only the Floor is selected
-  // =========================================================
   if (focusedType === 'floor' && appState.structural && appState.structural.spaces) {
     const spacesOnFloor = appState.structural.spaces.filter(s => s.floorId === focusedId);
     const droppedInsideSpace = spacesOnFloor.find(space =>
@@ -1002,15 +981,13 @@ addDevice(deviceData, x, y) {
       newDevice.floorId = focusedId;
     }
 
-    // this.layout.devices.push(newDevice);
     let layoutDevice = this.layout.shapeCreator.createDevice(
-      newDevice, // still pass your instance
+      newDevice,
       x,
       y,
       this.layout.shapeRenderer.gridSize * 1.5
     );
 
-    // preserve IDs + metadata
     layoutDevice.id = newDevice.id;
     layoutDevice.label = newDevice.label;
     layoutDevice.name = newDevice.name;
@@ -1018,15 +995,13 @@ addDevice(deviceData, x, y) {
     layoutDevice.floorId = newDevice.floorId;
     layoutDevice.spaceId = newDevice.spaceId;
 
-    // this.layout.devices.push(newDevice);
      layoutDevice = this.layout.shapeCreator.createDevice(
-      newDevice, // still pass your instance
+      newDevice,
       x,
       y,
       this.layout.shapeRenderer.gridSize * 1.5
     );
 
-    // preserve IDs + metadata
     layoutDevice.id = newDevice.id;
     layoutDevice.label = newDevice.label;
     layoutDevice.name = newDevice.name;
@@ -1145,10 +1120,6 @@ updateEntityTransform(id, updates) {
   this.layout?.updateEntityTransform(id, updates);
 }
 
-// =========================================================
-// STATE MANAGEMENT HANDLERS
-// =========================================================
-
 _handlePortSelect(device, x, y, callback, overrideCableType = null) {
   const existingMenu = document.getElementById('canvas-port-menu');
   if (existingMenu) existingMenu.remove();
@@ -1245,10 +1216,8 @@ _handleShapeCreated(shapeData) {
   const { structureType, id } = shapeData;
   console.log(`📥 _handleShapeCreated: received shapeData with id=${id}, structureType=${structureType}`);
   this.checkTopLevelHiearchy(structureType, id);
-  // Prepare child coordinates for boundary checks and saving
   const cBounds = this.getShapeBounds(shapeData);
 
-  // --- 4. SHAPE ROUTING ---
 
   switch (structureType) {
     case 'Domain':
@@ -1269,8 +1238,6 @@ _handleShapeCreated(shapeData) {
 }
 
 checkTopLevelHiearchy(structureType, id) {
-  // --- 1. TOP-LEVEL HIERARCHY PRE-CHECK ---
-  // Stop invalid Domain creation BEFORE overlap or bounds logic runs
   if (structureType === 'Domain') {
     const selectedType = appState.selection?.focusedType;
 
@@ -1280,7 +1247,6 @@ checkTopLevelHiearchy(structureType, id) {
         "Invalid Hierarchy"
       );
 
-      // Remove the invalid shape immediately
       setTimeout(() => {
         if (this.layout && typeof this.layout.removeShapeById === 'function') {
           this.layout.removeShapeById(id);
@@ -1288,17 +1254,13 @@ checkTopLevelHiearchy(structureType, id) {
       }, 10);
       if (appState.tools) appState.tools.setActiveTool('pointer');
 
-      return; // Halt the function completely so overlap checks don't run
+      return;
     }
   }
 }
 
 getShapeBounds(shapeData) {
-  // --- 2. BULLETPROOF BOUNDS EXTRACTOR ---
-  // Safely extracts coordinates, forces them to be numbers, and handles missing widths
-  // Also handles circular shapes by converting radius to bounding box
   if (!shapeData) return null;
-  // Handle both raw shape data and state-wrapped shapes (like geometry)
   const src = shapeData.geometry || shapeData;
   const srcShape = this.checkShape(src);
   if (srcShape === 'circle') {
@@ -1354,7 +1316,6 @@ removeInvalidShape(id) {
 };
 
 checkIfChildIsFullyInside(parentShape, parentId, cBounds) {
-  // --- 3. BOUNDARY CHECKING LOGIC ---
   let parent = null;
   const st = appState.structural;
 
@@ -1367,9 +1328,6 @@ checkIfChildIsFullyInside(parentShape, parentId, cBounds) {
   else if (parentShape === 'floor') {
     parent = (st.floors || []).find(f => f.id === parentId);
 
-    // --- AUTO-GENERATED FLOOR FALLBACK ---
-    // If the floor exists but has no intrinsic width/height because it was auto-generated,
-    // we borrow the exact dimensions from the Site it belongs to.
     if (parent) {
       const tempBounds = this.getShapeBounds(parent);
       if (tempBounds.w === 0 || tempBounds.h === 0) {
@@ -1486,7 +1444,6 @@ pointInPolygon(point, vertices) {
     const xi = vertices[i].x, yi = vertices[i].y;
     const xj = vertices[j].x, yj = vertices[j].y;
 
-    // Does the horizontal ray from (x,y) cross this edge?
     const crosses = (yi > y) !== (yj > y) &&
       x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
 
@@ -1513,7 +1470,6 @@ isPointNearSegment(p, a, b, tol) {
   const dy = b.y - a.y;
   const lenSq = dx * dx + dy * dy;
   if (lenSq === 0) return false;
-  // Project p onto the segment, clamped to [0,1]
   const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq));
   const nearestX = a.x + t * dx;
   const nearestY = a.y + t * dy;
@@ -1658,16 +1614,13 @@ addSpace(shapeData, id, cBounds) {
     let targetType = null;
     let targetObj = null;
 
-    // 1. Identify what type of structure is being deleted
     if (st.domains?.some(d => d.id === idToDelete)) { targetType = 'domain'; targetObj = st.domains.find(d => d.id === idToDelete); }
     else if (st.sites?.some(s => s.id === idToDelete)) { targetType = 'site'; targetObj = st.sites.find(s => s.id === idToDelete); }
     else if (st.floors?.some(f => f.id === idToDelete)) { targetType = 'floor'; targetObj = st.floors.find(f => f.id === idToDelete); }
     else if (st.spaces?.some(s => s.id === idToDelete)) { targetType = 'space'; targetObj = st.spaces.find(s => s.id === idToDelete); }
 
-    // If it's a device or standalone object, the cascading blast radius is 0
     if (!targetType) return { count: 0 };
 
-    // 2. Map the structural descendants
     let childSites = [], childFloors = [], childSpaces = [];
 
     if (targetType === 'domain') {
@@ -1683,7 +1636,6 @@ addSpace(shapeData, id, cBounds) {
 
     const structuralChildrenCount = childSites.length + childFloors.length + childSpaces.length;
 
-    // 3. Map the dependent physical assets (Devices & Furniture)
     const affectedFloorIds = childFloors.map(f => f.id);
     if (targetType === 'floor') affectedFloorIds.push(idToDelete);
 
@@ -1694,7 +1646,6 @@ addSpace(shapeData, id, cBounds) {
         return affectedFloorIds.includes(item.floorId) || affectedSpaceIds.includes(item.spaceId);
     };
 
-    // We check the layout arrays to guarantee we count exactly what the user sees on canvas
     const dependentDevices = (this.layout?.devices || []).filter(isAssetAffected).length;
     const dependentFurniture = (this.layout?.furnitures || []).filter(isAssetAffected).length;
 
@@ -1828,16 +1779,13 @@ _handleEntitySelected(entity) {
     return;
   }
 
-  // --- Intercept clicks for Delete Mode safely ---
   if (appState.tools && appState.tools.activeTool === 'delete') {
     window.addEventListener('pointerup', () => {
       setTimeout(() => {
-        // NEW: Check if the clicked entity is a Cable (cables have source/target IDs)
         if (entity.sourceId && entity.targetId) {
           const src = this.layout.findEntityById(entity.sourceId);
           const dst = this.layout.findEntityById(entity.targetId);
 
-          // Trigger the confirmation modal!
           window.dispatchEvent(new CustomEvent('requestLinkDeletion', {
             detail: {
               linkId: entity.id,
@@ -1846,11 +1794,9 @@ _handleEntitySelected(entity) {
             }
           }));
         } else {
-          // Standard instant-delete for Devices, Furniture, and Spaces
           if (this.executeDelete) {
             this.executeDelete(entity.id);
           }
-          // Reset tool back to select
           if (appState.tools) appState.tools.setActiveTool('select');
         }
       }, 0);
@@ -1906,8 +1852,6 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
       }
 
       if (isDevice) {
-        // Logical layout transforms are independent from the physical 3D device transform.
-        // A click or drag in the logical canvas must not rewrite the physical mesh position/scale.
         appState.selection.notify?.();
         return;
       }
@@ -1938,21 +1882,17 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
       return;
     }
 
-
-    // Debug: Log movement
     if ((dx !== 0 || dy !== 0) && en.structureType) {
       console.log(`🚀 Moving ${en.structureType} canvas entity (${en.id}) by dx=${dx}, dy=${dy}`);
       console.log(`   Canvas entity object:`, en);
       console.log(`   Current position: x=${en.x}, y=${en.y}`);
     }
 
-    // Only process children if the parent actually moved
     if (dx !== 0 || dy !== 0) {
       const st = appState.structural;
       let shapeType = null;
       let shapeObj = null;
 
-      // CRITICAL: Convert canvas entity ID to structural entity ID using mapping
       const structuralId = this.entityIdMap.get(en.id);
       console.log(`🔄 Converting canvas id(${en.id}) -> structural id(${structuralId})`);
 

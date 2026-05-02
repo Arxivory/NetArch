@@ -144,36 +144,48 @@ export class LogicalCanvasController {
         });
     }, { capture: true });
 
-    window.addEventListener('pointerup', () => {
-      this._commitPendingMoveCommands();
-    }, { capture: true });
-
-    // --- NEW: Global Keyboard Listener for Deletions ---
+    // --- NEW: Global Keyboard Listener for Shortcuts & Deletions ---
     window.addEventListener('keydown', (e) => {
-        // Listen for both Backspace and Delete keys
-        if (e.key === 'Backspace' || e.key === 'Delete') {
-            
-            // 1. GUARDRAIL: Do nothing if the user is typing in an input field
-            const activeElement = document.activeElement;
-            const isTyping = activeElement.tagName === 'INPUT' || 
-                             activeElement.tagName === 'TEXTAREA' || 
-                             activeElement.isContentEditable;
-            if (isTyping) return;
+        // 1. GUARDRAIL: Let the browser handle shortcuts if the user is typing in a text box
+        const activeElement = document.activeElement;
+        const isTyping = activeElement.tagName === 'INPUT' || 
+                         activeElement.tagName === 'TEXTAREA' || 
+                         activeElement.isContentEditable;
+        if (isTyping) return;
 
+        // 2. TIME MACHINE SHORTCUTS (Undo / Redo)
+        const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+        const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+        if (cmdOrCtrl) {
+            // Undo: Ctrl + Z
+            if (e.key.toLowerCase() === 'z' && !e.shiftKey) {
+                e.preventDefault(); // Stop browser's default undo
+                this.undo();
+                return; // Stop processing other keys
+            }
+            
+            // Redo: Ctrl + Y (Windows) OR Ctrl + Shift + Z (Mac)
+            if (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey)) {
+                e.preventDefault(); 
+                this.redo();
+                return; 
+            }
+        }
+
+        // 3. DELETION SHORTCUTS (Backspace / Delete)
+        if (e.key === 'Backspace' || e.key === 'Delete') {
             if (!appState || !appState.selection) return;
 
-            // 2. Figure out what is currently selected (Mirroring your Toolbar logic)
             let ids = appState.selection.getSelectedDeviceIds();
             if (!ids || ids.length === 0) {
                 const focused = appState.selection.getFocusedId();
                 if (focused) ids = [focused];
             }
 
-            // 3. Execute the deletion
             if (ids && ids.length > 0) {
                 const idToDelete = ids[0]; 
 
-                // If it's a cable, route it to the Confirmation Modal we built
                 if (appState.selection.focusedType === 'cable' && this.layout) {
                     const cable = this.layout.cables.find(c => c.id === idToDelete) || 
                                   appState.network?.getLink?.(idToDelete);
@@ -191,7 +203,6 @@ export class LogicalCanvasController {
                         }));
                     }
                 } else {
-                    // If it's a structure/device, route it to our Gatekeeper
                     this.executeDelete(idToDelete);
                 }
             }

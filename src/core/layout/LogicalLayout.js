@@ -42,6 +42,7 @@ export class LogicalLayout {
       onWindowCreated: opts.onWindowCreated || null,
       onCableCreated: opts.onCableCreated || null,
       onConduitCreated: opts.onConduitCreated ||null,
+      onRiserCreated: opts.onRiserCreated || null,
       system: this.system
     });
 
@@ -96,7 +97,7 @@ export class LogicalLayout {
     this.cables = [];
     this.furnitures = [];
     this.conduits = [];
-
+    this.risers = [];
     this.store = appState.selection;
 
     this.store.subscribe(() => this.syncWithState());
@@ -400,6 +401,11 @@ isPointInsideShape(id, x, y) {
     this._updateCursor();
   }
 
+  startDrawRiser() {
+    this.mode = 'riser';
+    this._updateCursor();
+  }
+
   // Map legacy UI aliases to catalog keys so cables[type] lookups never miss.
   static _normalizeCableType(type) {
     const aliases = {
@@ -550,6 +556,7 @@ isPointInsideShape(id, x, y) {
       'pan': 'grab',
       'none': 'default',
       'conduit': 'crosshair',
+      'riser': 'crosshair',
       'select': 'default'
     };
     this.pointerHandler.setCursor(cursorMap[this.mode] || 'default');
@@ -640,6 +647,12 @@ isPointInsideShape(id, x, y) {
       return;
     }
 
+    if (this.mode === 'riser') {
+      const riser = this._placeRiserAt(snapped.x, snapped.y);
+      this._render();
+      return;
+    }
+
     if (this.mode === 'select') {
       const zoom = this.pointerHandler.getZoom();
       const worldPos = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
@@ -655,6 +668,18 @@ isPointInsideShape(id, x, y) {
         this.selectedEntity = clickedConduit;
         this.selectedEntities = [clickedConduit];
         appState.selection.selectConduit(clickedConduit.id);
+        this.pointerHandler.setPointerDown(true);
+        this._render();
+        return;
+      }
+
+      const clickedRiser = this._findRiserAt(worldPos.x, worldPos.y);
+      if (clickedRiser) {
+        clickedRiser.saveCurrentPosition();
+        this.interaction = { mode: 'move_riser', riser: clickedRiser };
+        this.selectedEntity = clickedRiser;
+        this.selectedEntities = [clickedRiser];
+        appState.selection.selectRiser(clickedRiser.id);
         this.pointerHandler.setPointerDown(true);
         this._render();
         return;
@@ -1044,6 +1069,29 @@ if (this.mode === 'freeform') {
         return;
       }
 
+      if (this.interaction.mode === 'move_riser') {
+        const riser = this.interaction.riser;
+        const parentShape =
+          this.rectangles.find(r => r.id === riser.parentShapeId) ||
+          this.polygons.find(pol => pol.id === riser.parentShapeId);
+
+        if (parentShape) {
+          const edges = this._getShapeEdges(parentShape);
+          const bounds = {
+            minX: Math.min(...edges.map(e => Math.min(e.x1, e.x2))),
+            minY: Math.min(...edges.map(e => Math.min(e.y1, e.y2))),
+            maxX: Math.max(...edges.map(e => Math.max(e.x1, e.x2))),
+            maxY: Math.max(...edges.map(e => Math.max(e.y1, e.y2))),
+          };
+          const clampedX = Math.max(bounds.minX, Math.min(p.x, bounds.maxX - riser.width));
+          const clampedY = Math.max(bounds.minY, Math.min(p.y, bounds.maxY - riser.height));
+          riser.moveTo(clampedX, clampedY);
+        }
+
+        this._render();
+        return;
+      }
+
       if (this.interaction.mode === 'update_cable') {
          this.currentPoint = p;
          this.hoveredDevice = this._findDeviceAt(snapped.x, snapped.y);
@@ -1192,6 +1240,13 @@ _onPointerUp(e) {
     }
 
     if (this.interaction?.mode === 'move_conduit') {
+      this.interaction = { mode: null, handle: null, start: null };
+      this.pointerHandler.setPointerDown(false);
+      this._render();
+      return;
+    }
+
+    if (this.interaction?.mode === 'move_riser') {
       this.interaction = { mode: null, handle: null, start: null };
       this.pointerHandler.setPointerDown(false);
       this._render();
@@ -1375,6 +1430,16 @@ _onPointerUp(e) {
     return null;
   }
 
+  _findRiserAt(x, y) {
+    for (const riser of this.risers) {
+      if (x >= riser.x && x <= riser.x + riser.width &&
+          y >= riser.y && y <= riser.y + riser.height) {
+        return riser;
+      }
+    }
+    return null;
+  }
+
   _projectPointOntoShapeEdges(x, y, shape) {
     const edges = this._getShapeEdges(shape);
     let bestPoint = null;
@@ -1429,6 +1494,48 @@ _onPointerUp(e) {
       this.conduits.push(conduit);
     }
     return conduit;
+  }
+
+  _placeRiserAt(clickX, clickY) {
+    const focusedId   = appState.selection.focusedId;
+    const focusedType = appState.selection.focusedType?.toLowerCase();
+
+    if (!focusedId || (focusedType !== 'space' && focusedType !== 'floor')) {
+      alert('Please select a Space or Floor first before placing a Riser.');
+      return null;
+    }
+
+    const parentShape =
+      this.rectangles.find(r => r.id === focusedId) ||
+      this.polygons.find(p => p.id === focusedId);
+
+    if (!parentShape) {
+      alert('Could not find the selected Space or Floor on the canvas.');
+      return null;
+    }
+
+    const edges = this._getShapeEdges(parentShape);
+    const bounds = {
+      minX: Math.min(...edges.map(e => Math.min(e.x1, e.x2))),
+      minY: Math.min(...edges.map(e => Math.min(e.y1, e.y2))),
+      maxX: Math.max(...edges.map(e => Math.max(e.x1, e.x2))),
+      maxY: Math.max(...edges.map(e => Math.max(e.y1, e.y2))),
+    };
+
+    if (clickX < bounds.minX || clickX > bounds.maxX ||
+        clickY < bounds.minY || clickY > bounds.maxY) {
+      alert('Risers must be placed inside a Space or Floor.');
+      return null;
+    }
+
+    const riser = this.shapeCreator.createRiser(clickX, clickY, 5, 5);
+    if (riser) {
+      riser.floorId       = parentShape.floorId || null;
+      riser.spaceId       = parentShape.structureType === 'space' ? parentShape.id : null;
+      riser.parentShapeId = parentShape.id;  // ← this is what was missing
+      this.risers.push(riser);
+    }
+    return riser;
   }
 
   _createShapeFromMode() {
@@ -1531,6 +1638,8 @@ _onPointerUp(e) {
       }
     } else if (this.mode === 'conduit') {
       this._placeConduitAt(this.currentPoint.x, this.currentPoint.y);
+    } else if (this.mode === 'riser') {
+      this._placeRiserAt(this.currentPoint.x, this.currentPoint.y);
     }
   }
 
@@ -1822,6 +1931,25 @@ _onPointerUp(e) {
     }
     ctx.restore();
 
+    ctx.save();
+    for (const riser of filterForFloor(this.risers)) {
+      const isSelected = this.selectedEntity?.id === riser.id ||
+        this.selectedEntities?.some(e => e?.id === riser.id);
+
+      if (isSelected) {
+        ctx.beginPath();
+        ctx.rect(riser.x - 3, riser.y - 3, riser.width + 6, riser.height + 6);
+        ctx.strokeStyle = '#00AEEF';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = isSelected ? '#00AEEF' : '#000000';
+      ctx.lineWidth = isSelected ? 2 : 1.5;
+      ctx.stroke(riser.path);
+    }
+    ctx.restore();
+
     for (const en of entitiesToOutline) {
       if (!en || en.sourceId) continue;
 
@@ -2065,7 +2193,8 @@ _onPointerUp(e) {
       this.roofs,
       this.freeforms,
       this.furnitures,
-      this.conduits
+      this.conduits,
+      this.risers
     ];
   }
 
@@ -2101,7 +2230,7 @@ removeEntityById(id) {
     // 3. Find and splice the entity from its array
     let entityToRemove = null;
     const targetArrays = ['rectangles', 'circles', 'polygons', 'freeforms',
-                          'devices', 'furnitures', 'cables', 'walls', 'conduits'];
+                          'devices', 'furnitures', 'cables', 'walls', 'conduits', 'risers'];
 
     for (const arrName of targetArrays) {
       if (!this[arrName]) continue;
@@ -2434,6 +2563,8 @@ removeEntityById(id) {
     if (!en) return null;
 
     if (en.type === 'conduit') return null;
+
+    if (en.type === 'riser') return null;
 
     if (this._isDeviceEntity(en)) {
       return {

@@ -6,6 +6,7 @@ import Wall from "../../core/structural/Wall";
 import Door from "../../core/structural/Door";
 import Window from "../../core/structural/Window";
 import Conduit from "../../core/structural/Conduit";
+import Riser from "../../core/structural/Riser";
 import appState from "../AppState";
 
 export class StructuralStore {
@@ -19,6 +20,7 @@ export class StructuralStore {
         this.walls = [];
         this.windows = [];
         this.conduits = [];
+        this.risers = [];
     }
 
     // ============= Domain Methods =============
@@ -319,6 +321,25 @@ export class StructuralStore {
         const index = this.conduits.findIndex(c => c.id === conduitId);
         if (index === -1) return false;
         this.conduits.splice(index, 1);
+        this.notify();
+        return true;
+    }
+
+    addRiser(riser) {
+        if (!riser.id) throw new Error('Riser must have an id');
+        if (this.risers.find(r => r.id === riser.id)) return null;
+
+        const newRiser = new Riser(riser);
+
+        this.risers.push(newRiser);
+        this.notify();
+        return newRiser;
+    }
+
+    removeRiser(riserId) {
+        const index = this.risers.findIndex(r => r.id === riserId);
+        if (index === -1) return false;
+        this.risers.splice(index, 1);
         this.notify();
         return true;
     }
@@ -625,7 +646,17 @@ export class StructuralStore {
                 children: []
             }));
 
-        return [...devicesInSpace, ...furnituresInSpace, ...wallsInSpace, ...doorsInSpace, ...windowsInSpace, ...conduits];
+        const risersInSpace = this.risers
+        .filter(r => r.spaceId === spaceId)
+        .map(r => ({
+            id: r.id,
+            label: r.label || `Riser ${r.id}`,
+            type: 'riser',
+            spaceId: r.spaceId,
+            children: []
+        }));
+
+        return [...devicesInSpace, ...furnituresInSpace, ...wallsInSpace, ...doorsInSpace, ...windowsInSpace, ...conduits, ...risersInSpace];
     }
 
     subscribe(callback) {

@@ -223,6 +223,7 @@ export class LogicalCanvasController {
       onFreeformCreated: (freeform) => this._handleShapeCreated(freeform, 'freeform'),
       onWallCreated: (wall) => this._handleWallCreated(wall),
       onConduitCreated: (conduit) => this._handleConduitCreated(conduit),
+      onRiserCreated: (riser) => this._handleRiserCreated(riser),
       onCableCreated: (cable) => this._handleCableCreated(cable),
       onDeviceAdded: (device) => this._handleDeviceAdded(device),
       onDoorCreated: (door) => this._handleDoorCreated(door),
@@ -388,6 +389,15 @@ executeDelete(idToDelete) {
       }
     }
 
+    if (deletedIds.length === 0 && appState.structural) {
+      const isRiser = appState.structural.risers?.some(r => r.id === idToDelete);
+      if (isRiser) {
+        appState.structural.removeRiser(idToDelete);
+        this.layout.removeEntityById(idToDelete);
+        appState.selection.clearSelection();
+        return;
+      }
+    }
 
     if (deletedIds.length === 0 && typeof appState.removeDevice === 'function') {
         const removed = appState.removeDevice(idToDelete);
@@ -541,6 +551,10 @@ executeDelete(idToDelete) {
 
   startDrawConduit() {
     this.layout?.startDrawConduit();
+  }
+
+  startDrawRiser() {
+    this.layout?.startDrawRiser();
   }
 
   startDrawDoor() {
@@ -1761,6 +1775,15 @@ _handleShapeCreated(shapeData, shapeType) {
     if (activeSpaceId && appState.structural.addConduit) {
       console.log('New Conduit Data: ', conduitData);
       appState.structural.addConduit({ ...conduitData, spaceId: activeSpaceId, label: conduitData.label || `Conduit ${this.counters.conduit++}` });
+    }
+  }
+
+  _handleRiserCreated(riserData) {
+    const activeSpaceId = appState.selection.focusedType === 'space' ? appState.selection.focusedId : null;
+    const activeFloorId = appState.selection.focusedType === 'floor' ? appState.selection.focusedId : appState.ui.activeFloorId;
+    if (activeFloorId || activeSpaceId || appState.structural.addRiser) {
+      console.log('New Riser Data: ', riserData);
+      appState.structural.addRiser({ ...riserData, floorId: activeFloorId, spaceId: activeSpaceId, label: riserData.label || `Riser ${this.counters.riser++}` });
     }
   }
 

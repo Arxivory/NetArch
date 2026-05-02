@@ -96,6 +96,17 @@ export class SelectionStore {
     this.notify();
   }
 
+  selectRiser(riserId, multiSelect = false) {
+    if (!multiSelect) this._clearObjectSelections();
+    this._setFocus(riserId, 'riser');
+    this.notify();
+  }
+
+  deselectRiser(riserId) {
+    if (this.focusedId === riserId) this._setFocus(null, null);
+    this.notify();
+  }
+
   toggleDeviceSelection(deviceId) {
     if (this.isDeviceSelected(deviceId)) {
       this.deselectDevice(deviceId);

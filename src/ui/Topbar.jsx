@@ -6,7 +6,9 @@ import {
   undo,
   redo
 } from "../actions/projectActions";
-import { exportProject, importProject } from "../../core/LogicalCanvasController";
+// import { importProject } from "../../core/LogicalCanvasController";
+// import { exportProject, importProject } from "../../core/LogicalCanvasController";
+import { exportProject, importProject } from "../core/LogicalCanvasController";
 
 export default function Topbar({ canvasController }) {
 

@@ -12,14 +12,15 @@ import {
   CreateFloorCommand,
   CreateSpaceCommand,
   AddDeviceCommand,
+  AddFurnitureCommand,
   RemoveDeviceCommand,
   RemoveDomainCommand,
   RemoveSiteCommand,
   RemoveFloorCommand,
   RemoveSpaceCommand,
-  MoveCommand
+  MoveCommand,
+  DeleteEntityCommand
 } from './editor/DrawingCommands.js';
-import { DeleteEntityCommand } from './editor/DrawingCommands.js'; // Adjust path if needed
 
 export class LogicalCanvasController {
   constructor(container, opts = {}) {
@@ -518,6 +519,74 @@ executeDelete(idToDelete) {
     return shape;
   }
 
+restoreCanvasDevice(deviceData, canvasId, x, y) {
+      if (!this.layout?.shapeCreator) return null;
+      
+      const safeX = x ?? deviceData.x ?? deviceData.position?.x ?? deviceData.transform?.position?.x ?? 0;
+      const safeY = y ?? deviceData.y ?? deviceData.position?.y ?? deviceData.transform?.position?.y ?? 0;
+
+      // FIX: Ensure hostname is checked! That's where Factory stores the real name.
+      deviceData.label = deviceData.label || deviceData.name || deviceData.hostname || "Device";
+      deviceData.name = deviceData.label;
+
+      const layoutDevice = this.layout.shapeCreator.createDevice(
+          deviceData, safeX, safeY, this.layout.shapeRenderer?.gridSize * 1.5 || 48
+      );
+
+      layoutDevice.id = canvasId || deviceData.id;
+      layoutDevice.label = deviceData.label;
+      layoutDevice.name = deviceData.name;
+      layoutDevice.catalogId = deviceData.catalogId || deviceData.modelId;
+      layoutDevice.floorId = deviceData.floorId;
+      layoutDevice.spaceId = deviceData.spaceId;
+      layoutDevice.iconHint = deviceData.iconHint;
+      layoutDevice.isRehydration = true; 
+      
+      this.entityIdMap.set(layoutDevice.id, deviceData.id);
+      this.structuralToCanvasMap.set(deviceData.id, layoutDevice.id);
+
+      this.layout.devices.push(layoutDevice);
+      this.layout._render();
+      
+      return layoutDevice;
+  }
+
+  restoreCanvasFurniture(furnitureData, canvasId, x, y) {
+      if (!this.layout) return null;
+
+      const fData = { ...furnitureData, id: canvasId || furnitureData.id };
+      fData.x = x ?? fData.x ?? fData.transform?.position?.x ?? 0;
+      fData.y = y ?? fData.y ?? fData.transform?.position?.y ?? 0;
+      fData.isRehydration = true; 
+
+      fData.label = fData.label || fData.name || "Furniture";
+      fData.name = fData.label;
+
+      // 🛑 ENGAGE TIME MACHINE LOCK: Stop the "Select Floor" modal loop!
+      this._isRehydrating = true;
+
+      // 🎨 PADDING FIX: Use the layout engine's native method! 
+      // This automatically generates the white background box.
+      if (typeof this.layout.addFurniture === 'function') {
+          this.layout.addFurniture(fData, fData.x, fData.y);
+      } else {
+          if(!this.layout.furnitures) this.layout.furnitures = [];
+          this.layout.furnitures.push(fData);
+      }
+
+      // 🟢 DISENGAGE TIME MACHINE LOCK
+      this._isRehydrating = false;
+
+      if (this.physicalController && this.physicalController.createFurnitureGLTFMesh) {
+          this.physicalController.createFurnitureGLTFMesh(fData);
+      }
+
+      this.entityIdMap.set(fData.id, furnitureData.id);
+      this.structuralToCanvasMap.set(fData.id, fData.id);
+
+      this.layout._render();
+      return fData;
+  }
   enableSnap(enabled) {
     this.layout?.enableSnap(enabled);
   }
@@ -944,212 +1013,153 @@ executeDelete(idToDelete) {
     );
   }
 
-addDevice(deviceData, x, y) {
+   addDevice(deviceData, x, y) {
     if (!this.layout) return;
-
-    if (deviceData.entityType === 'furniture') {
-        return this.addFurniture(deviceData, x, y);
-    }
+    if (deviceData.entityType === 'furniture') return this.addFurniture(deviceData, x, y);
 
     const focusedType = appState.selection.focusedType;
     const focusedId = appState.selection.focusedId;
 
     if (focusedType !== 'floor' && focusedType !== 'space') {
-        // ... (existing error handling)
+        showErrorModal("Please select a floor or space in the hierarchy before adding a device.", "Invalid Selection");
         return;
     }
 
-    // =========================================================
-    // 1. Physical Bounds Validation (The code we just wrote!)
-    // =========================================================
     if (this.layout && typeof this.layout.isPointInsideShape === 'function') {
-        const dropIsInsideParent = this.layout.isPointInsideShape(focusedId, x, y);
+        const canvasParentId = this.structuralToCanvasMap.get(focusedId) || focusedId;
+        const dropIsInsideParent = this.layout.isPointInsideShape(canvasParentId, x, y);
         if (!dropIsInsideParent) {
             const prettyTypeName = focusedType.charAt(0).toUpperCase() + focusedType.slice(1);
-            showErrorModal(
-                `Placement Failed.\nYou dropped the item outside the physical area of the selected ${prettyTypeName}.`, 
-                "Out of Bounds Error"
-            );
+            showErrorModal(`Placement Failed.\nYou dropped the item outside the physical area of the selected ${prettyTypeName}.`, "Out of Bounds Error");
             return; 
         }
     }
 
-    // =========================================================
-    // --- NEW: 2. Smart Space Interception ---
-    // Prevent dropping ON a Space when only the Floor is selected
-    // =========================================================
     if (focusedType === 'floor' && appState.structural && appState.structural.spaces) {
         const spacesOnFloor = appState.structural.spaces.filter(s => s.floorId === focusedId);
-        const droppedInsideSpace = spacesOnFloor.find(space => 
-            this.layout.isPointInsideShape(space.id, x, y)
-        );
+        const droppedInsideSpace = spacesOnFloor.find(space => {
+            const canvasSpaceId = this.structuralToCanvasMap.get(space.id) || space.id;
+            return this.layout.isPointInsideShape(canvasSpaceId, x, y);
+        });
         if (droppedInsideSpace) {
-            showErrorModal(
-                `You dropped the device inside "${droppedInsideSpace.label}".\n\nTo place a device inside a Space, you must explicitly select that Space in the Hierarchy Panel first.`, 
-                "Specific Placement Required"
-            );
+            showErrorModal(`You dropped the device inside "${droppedInsideSpace.label}".\n\nTo place a device inside a Space, you must explicitly select that Space in the Hierarchy Panel first.`, "Specific Placement Required");
             return; 
         }
     }
-    const catalogId = deviceData.modelId;
-    if (!catalogId) {
-        console.error("Missing modelId in deviceData", deviceData);
-        return;
-    }
+
+    const catalogId = deviceData.modelId || deviceData.catalogId;
+    if (!catalogId) return;
 
     try {
-        const newDevice = DeviceFactory.create(catalogId, { x, y, z: 0 }, {
-          hostname: deviceData.label,
-          id: deviceData.id
-        });
-
-        const baseName = newDevice.hostname;
-
-        const existing = this.layout.devices.filter(
-          d => d.name === baseName || d.label?.startsWith(baseName)
-        );
-
-        let newLabel = baseName;
-
-        if (existing.length > 0) {
-          newLabel = baseName + " (" + (existing.length + 1) + ")";
+        // BUG 1 FIX: Don't forcefully overwrite the name! Let the Factory fetch the real catalog name.
+        const providedLabel = deviceData.label || deviceData.displayName || deviceData.name;
+        const opts = { id: deviceData.id, iconHint: deviceData.iconHint };
+        
+        // Only override if the user explicitly typed a custom name. Otherwise, let the Factory handle it.
+        if (providedLabel && providedLabel.toLowerCase() !== 'device') {
+            opts.hostname = providedLabel;
         }
+
+        const newDevice = DeviceFactory.create(catalogId, { x, y, z: 0 }, opts);
+        
+        // Now extract the 100% accurate, Factory-approved base name!
+        const baseName = newDevice.hostname;
+        
+        const existing = this.layout.devices.filter(d => d.name === baseName || d.label?.startsWith(baseName));
+        let newLabel = baseName;
+        if (existing.length > 0) newLabel = baseName + " (" + (existing.length + 1) + ")";
+
+        newDevice.x = x;
+        newDevice.y = y;
+        newDevice.transform = newDevice.transform || { position: { x, y, z: 0 } };
+        newDevice.transform.position.x = x;
+        newDevice.transform.position.y = y;
 
         newDevice.label = newLabel;
         newDevice.name = newLabel;
+        newDevice.iconHint = deviceData.iconHint; 
 
         if (focusedType === 'space') {
             newDevice.spaceId = focusedId;
             const space = appState.structural.spaces.find(s => s.id === focusedId);
-            if (space) {
-                newDevice.floorId = space.floorId;
-            }
+            if (space) newDevice.floorId = space.floorId;
         } else if (focusedType === 'floor') {
             newDevice.floorId = focusedId;
         }
 
-        // this.layout.devices.push(newDevice);
-        const layoutDevice = this.layout.shapeCreator.createDevice(
-          newDevice, // still pass your instance
-          x,
-          y,
-          this.layout.shapeRenderer.gridSize * 1.5
-        );
-
-        // preserve IDs + metadata
-        layoutDevice.id = newDevice.id;
-        layoutDevice.label = newDevice.label;
-        layoutDevice.name = newDevice.name;
-        layoutDevice.catalogId = newDevice.catalogId;
-        layoutDevice.floorId = newDevice.floorId;
-        layoutDevice.spaceId = newDevice.spaceId;
-
-        this.layout.devices.push(layoutDevice);
-        this.layout._render();
-
-
-        console.log("ADDING DEVICE TO LAYOUT:", newDevice, "on: x: ", x, ", y: ", y);
-
-        if (appState.network?.addDevice) {
-            appState.network.addDevice(newDevice);
-        }
-
-        console.log('Device added:', newDevice.id, 'with Catalog ID:', newDevice.catalogId, 'to floor/space:', focusedId);
+        const command = new AddDeviceCommand(appState, this, newDevice, x, y);
+        appState.pushCommand(command);
+        command.execute();
     } catch (error) {
-        console.error("Failed to add device:", error.message);
-      showErrorModal(
-        "The selected object is not supported for placement yet. Please import a supported device model and try again.",
-        "Unsupported Object"
-      );
+        showErrorModal("The selected object is not supported for placement yet.", "Unsupported Object");
     }
-}
+  }
 
-addFurniture(furnitureData, x, y) {
-  console.log('Adding furniture with data:', furnitureData, 'at position:', { x, y });
+  addFurniture(furnitureData, x, y) {
     if (!this.layout) return;
 
     const focusedType = appState.selection.focusedType;
     const focusedId = appState.selection.focusedId;
 
     if (focusedType !== 'floor' && focusedType !== 'space') {
-        console.error("Cannot add furniture: A floor or space must be selected in the hierarchy");
-        alert('Please select a floor or space in the hierarchy before adding furniture.');
-        return;
-    }
-
-    if (!focusedId) {
-        console.error("Cannot add furniture: No floor or space is focused");
-        alert('Please select a floor or space in the hierarchy before adding furniture.');
+        showErrorModal('Please select a floor or space in the hierarchy before adding furniture.', "Invalid Selection");
         return;
     }
 
     if (this.layout && typeof this.layout.isPointInsideShape === 'function') {
-        const dropIsInsideParent = this.layout.isPointInsideShape(focusedId, x, y);
+        const canvasParentId = this.structuralToCanvasMap.get(focusedId) || focusedId;
+        const dropIsInsideParent = this.layout.isPointInsideShape(canvasParentId, x, y);
         if (!dropIsInsideParent) {
             const prettyTypeName = focusedType.charAt(0).toUpperCase() + focusedType.slice(1);
-            showErrorModal(
-                `Placement Failed.\nYou dropped the furniture outside the physical area of the selected ${prettyTypeName}.`,
-                "Out of Bounds Error"
-            );
+            showErrorModal(`Placement Failed.\nYou dropped the furniture outside the physical area of the selected ${prettyTypeName}.`, "Out of Bounds Error");
             return;
         }
     }
 
     if (focusedType === 'floor' && appState.structural && appState.structural.spaces) {
         const spacesOnFloor = appState.structural.spaces.filter(s => s.floorId === focusedId);
-        const droppedInsideSpace = spacesOnFloor.find(space => 
-            this.layout.isPointInsideShape(space.id, x, y)
-        );
+        const droppedInsideSpace = spacesOnFloor.find(space => {
+            const canvasSpaceId = this.structuralToCanvasMap.get(space.id) || space.id;
+            return this.layout.isPointInsideShape(canvasSpaceId, x, y);
+        });
         if (droppedInsideSpace) {
-            showErrorModal(
-                `You dropped the furniture inside "${droppedInsideSpace.label}".\n\nTo place furniture inside a Space, you must explicitly select that Space in the Hierarchy Panel first.`,
-                "Specific Placement Required"
-            );
+            showErrorModal(`You dropped the furniture inside "${droppedInsideSpace.label}".\n\nTo place furniture inside a Space, you must explicitly select that Space in the Hierarchy Panel first.`, "Specific Placement Required");
             return;
         }
     }
 
-    const catalogId = furnitureData.modelId;
-    if (!catalogId) {
-        console.error("Missing modelId in furnitureData", furnitureData);
-        return;
-    }
+    const catalogId = furnitureData.modelId || furnitureData.catalogId;
+    if (!catalogId) return;
 
     try {
+        const providedName = furnitureData.displayName || furnitureData.label || furnitureData.name || furnitureData.type || "Furniture";
         const newFurniture = createFurnitureInstance(catalogId, { x, y, z: 0 });
         
+        newFurniture.x = x;
+        newFurniture.y = y;
+        newFurniture.transform = newFurniture.transform || { position: { x, y, z: 0 } };
+        newFurniture.transform.position.x = x;
+        newFurniture.transform.position.y = y;
+
         newFurniture.catalogId = catalogId; 
-        newFurniture.label = furnitureData.label || newFurniture.name;
+        newFurniture.label = providedName;
+        newFurniture.iconHint = furnitureData.iconHint || "furniture";
 
         if (focusedType === 'space') {
             newFurniture.spaceId = focusedId;
             const space = appState.structural.spaces.find(s => s.id === focusedId);
-            if (space) {
-                newFurniture.floorId = space.floorId;
-            }
+            if (space) newFurniture.floorId = space.floorId;
         } else if (focusedType === 'floor') {
             newFurniture.floorId = focusedId;
         }
 
-        console.log('Creating furniture instance with catalogId:', catalogId, 'and:', newFurniture);
-
-        this.layout.addFurniture({ ...newFurniture }, x, y);
-
-        if (appState.furniture?.addFurniture) {
-            appState.furniture.addFurniture(newFurniture);
-        }
-
-        if (this.physicalController) {
-            this.physicalController.createFurnitureGLTFMesh(newFurniture);
-        } else {
-            console.warn("Physical controller not ready yet (normal if in 2D mode).");
-        }
-
-        console.log('Furniture added:', newFurniture.id, 'with Catalog ID:', newFurniture.catalogId);
+        const command = new AddFurnitureCommand(appState, this, newFurniture, x, y);
+        appState.pushCommand(command);
+        command.execute();
     } catch (error) {
         console.error("Failed to add furniture:", error.message);
     }
-}
+  }
 
   updateEntityTransform(id, updates) {
     this.layout?.updateEntityTransform(id, updates);
@@ -1628,10 +1638,12 @@ _handleShapeCreated(shapeData, shapeType) {
   }
 
   _handleDeviceAdded(device) {
+    if (device.isRehydration || this._isRehydrating) return;
     this.addDevice(device, device.x, device.y);
   }
 
   _handleFurnitureAdded(furniture) {
+    if (furniture.isRehydration || this._isRehydrating) return;
     this.addFurniture(furniture, furniture.x, furniture.y);
   }
   

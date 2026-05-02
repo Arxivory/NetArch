@@ -140,73 +140,88 @@ export class CancelDrawingCommand extends DrawingCommand {
 }
 
 export class AddDeviceCommand extends Command {
-  constructor(appState, controller, deviceData, x, y, canvasId = null) {
+  constructor(appState, controller, deviceData, x, y) {
     super();
     this.appState = appState;
     this.controller = controller;
-    this.deviceData = { ...deviceData };
+    this.deviceData = deviceData;
     this.x = x;
     this.y = y;
-    this.canvasId = canvasId || this.deviceData.id;
-    this.description = `Added Device "${this.deviceData.label || this.deviceData.name || this.deviceData.type}"`;
-    this.isRegistered = false;
+    this.description = `Added Device "${deviceData.label || deviceData.name}"`;
   }
 
   execute() {
-    const deviceId = this.deviceData.id || this.canvasId;
-    const registerData = {
-      ...this.deviceData,
-      id: deviceId,
-      position: {
-        x: Number(this.deviceData.position?.x ?? this.x ?? 0),
-        y: Number(this.deviceData.position?.y ?? this.y ?? 0),
-        z: Number(this.deviceData.position?.z ?? 0)
-      }
-    };
+    const cleanData = JSON.parse(JSON.stringify(this.deviceData));
+    const id = cleanData.id;
 
-    if (!this.isRegistered) {
-      if (!this.appState.getDevice(deviceId)) {
-        this.appState.network.addDevice(registerData);
-      }
-
-      this.controller?.entityIdMap?.set(this.canvasId, deviceId);
-      this.controller?.structuralToCanvasMap?.set(deviceId, this.canvasId);
-
-      if (this.controller?.physicalController) {
-        this.controller.physicalController.createDeviceGLTFMesh(registerData);
-      }
-
-      this.isRegistered = true;
-      return;
+    // 1. Add to Data Store
+    if (!this.appState.network.getDevice(id)) {
+      this.appState.network.addDevice(cleanData);
     }
 
-    if (!this.appState.getDevice(deviceId)) {
-      this.appState.network.addDevice(registerData);
-    }
-
-    if (this.controller && typeof this.controller.restoreCanvasDevice === 'function') {
-      const existingCanvas = this.controller.layout?.findEntityById(this.canvasId);
-      if (!existingCanvas) {
-        this.controller.restoreCanvasDevice(registerData, this.canvasId, this.x, this.y);
+    // 2. Add to Canvas
+    if (this.controller?.restoreCanvasDevice) {
+      const existing = this.controller.layout?.findEntityById(id);
+      if (!existing) {
+        this.controller.restoreCanvasDevice(cleanData, id, this.x, this.y);
       }
     }
-
-    this.controller?.entityIdMap?.set(this.canvasId, deviceId);
-    this.controller?.structuralToCanvasMap?.set(deviceId, this.canvasId);
   }
 
   undo() {
-    if (!this.deviceData || !this.canvasId) return;
-
-    this.appState.removeDevice(this.canvasId);
-    this.controller?.removeEntity(this.canvasId);
-    this.controller?.entityIdMap?.delete(this.canvasId);
-    this.controller?.structuralToCanvasMap?.delete(this.canvasId);
+    const id = this.deviceData.id;
+    this.appState.network.removeDevice(id);
+    if (this.controller?.removeEntity) {
+      this.controller.removeEntity(id);
+    }
   }
 
-  redo() {
-    this.execute();
+  redo() { this.execute(); }
+}
+
+export class AddFurnitureCommand extends Command {
+  constructor(appState, controller, furnitureData, x, y) {
+    super();
+    this.appState = appState;
+    this.controller = controller;
+    this.furnitureData = furnitureData;
+    this.x = x;
+    this.y = y;
+    this.description = `Added Furniture "${furnitureData.label || furnitureData.name}"`;
   }
+
+  execute() {
+    const cleanData = JSON.parse(JSON.stringify(this.furnitureData));
+    const id = cleanData.id;
+
+    // 1. Add to Data Store
+    if (!this.appState.furniture.getFurniture(id)) {
+      this.appState.furniture.addFurniture(cleanData);
+      
+      // Force 3D Mesh generation if available
+      if (this.controller?.physicalController?.createFurnitureGLTFMesh) {
+          this.controller.physicalController.createFurnitureGLTFMesh(cleanData);
+      }
+    }
+
+    // 2. Add to Canvas
+    if (this.controller?.restoreCanvasFurniture) {
+      const existing = this.controller.layout?.findEntityById(id);
+      if (!existing) {
+        this.controller.restoreCanvasFurniture(cleanData, id, this.x, this.y);
+      }
+    }
+  }
+
+  undo() {
+    const id = this.furnitureData.id;
+    this.appState.furniture.removeFurniture(id);
+    if (this.controller?.removeEntity) {
+      this.controller.removeEntity(id);
+    }
+  }
+
+  redo() { this.execute(); }
 }
 
 export class UpdateEntityTransformCommand extends DrawingCommand {
@@ -730,6 +745,10 @@ export class RemoveSiteCommand extends Command {
  * RemoveFloorCommand - Removes a Floor and its children
  * Undo: restores the floor and its children
  */
+/**
+ * RemoveFloorCommand - Removes a Floor and its children
+ * Upgraded: Deep Snapshots Devices, Furniture, and Links
+ */
 export class RemoveFloorCommand extends Command {
   constructor(appState, controller, floorId) {
     super();
@@ -744,13 +763,33 @@ export class RemoveFloorCommand extends Command {
     const floor = this.appState.structural.floors.find(f => f.id === this.floorId);
     if (!floor) return;
 
-    // Backup all related data
-    this.backup = {
-      floor: JSON.parse(JSON.stringify(floor)),
-      spaces: this.appState.structural.spaces.filter(sp => sp.floorId === this.floorId).map(sp => JSON.parse(JSON.stringify(sp)))
-    };
+    if (!this.backup) {
+        const spaces = this.appState.structural.spaces.filter(sp => sp.floorId === this.floorId);
+        const spaceIds = spaces.map(s => s.id);
+        const net = this.appState.network;
+        const furn = this.appState.furniture;
 
-    // Remove from state and canvas
+        // 1. Back up all the hardware and furniture inside this floor AND its spaces
+        const devices = net ? net.getAllDevices().filter(d => d.floorId === this.floorId || spaceIds.includes(d.spaceId)) : [];
+        const furnitures = furn ? (furn.furnitures || []).filter(f => f.floorId === this.floorId || spaceIds.includes(f.spaceId)) : [];
+        const deviceIds = devices.map(d => d.id);
+        const links = net ? net.getAllLinks().filter(l => deviceIds.includes(l.sourceId) || deviceIds.includes(l.targetId)) : [];
+
+        this.backup = {
+          floor: JSON.parse(JSON.stringify(floor)),
+          spaces: spaces.map(sp => JSON.parse(JSON.stringify(sp))),
+          devices: devices.map(d => JSON.parse(JSON.stringify(d))),
+          furnitures: furnitures.map(f => JSON.parse(JSON.stringify(f))),
+          links: links.map(l => JSON.parse(JSON.stringify(l)))
+        };
+    }
+
+    // 2. Cascade delete objects so they wipe perfectly from the visual canvas
+    this.backup.links.forEach(l => this.appState.network?.removeLink(l.id));
+    this.backup.devices.forEach(d => this.appState.network?.removeDevice(d.id));
+    this.backup.furnitures.forEach(f => this.appState.furniture?.removeFurniture(f.id));
+
+    // 3. Remove structural state and visual footprint
     const deletedIds = this.appState.structural.removeFloor(this.floorId);
     if (deletedIds && Array.isArray(deletedIds)) {
       deletedIds.forEach(id => {
@@ -762,19 +801,45 @@ export class RemoveFloorCommand extends Command {
   undo() {
     if (!this.backup) return;
 
-    // Restore in order: floor, spaces
+    // 1. Restore structural hierarchy
     this.appState.structural.addFloor(this.backup.floor);
     this.backup.spaces.forEach(space => this.appState.structural.addSpace(space));
 
-    // Restore to canvas
+    // 2. Restore structural visual shapes
     if (this.controller?.restoreCanvasShape) {
-      this.controller.restoreCanvasShape(this.backup.floor, this.controller.structuralToCanvasMap.get(this.floorId));
+      this.controller.restoreCanvasShape(this.backup.floor, this.controller.structuralToCanvasMap.get(this.floorId) || this.floorId);
     }
     this.backup.spaces.forEach(space => {
       if (this.controller?.restoreCanvasShape) {
-        this.controller.restoreCanvasShape(space, this.controller.structuralToCanvasMap.get(space.id));
+        this.controller.restoreCanvasShape(space, this.controller.structuralToCanvasMap.get(space.id) || space.id);
       }
     });
+
+    // 3. Restore hardware and objects back into the data stores
+    const net = this.appState.network;
+    const furn = this.appState.furniture;
+
+    this.backup.devices.forEach(d => net?.addDevice(d));
+    this.backup.furnitures.forEach(f => furn?.addFurniture(f));
+    this.backup.links.forEach(l => net?.addLink(l));
+
+    // 4. Force visual restoration of the hardware onto the canvas
+    if (this.controller?.restoreCanvasDevice) {
+        this.backup.devices.forEach(d => {
+            let tx = d.x ?? d.position?.x ?? d.transform?.position?.x ?? 0;
+            let ty = d.y ?? d.position?.y ?? d.transform?.position?.y ?? 0;
+            this.controller.restoreCanvasDevice(d, d.id, tx, ty);
+        });
+    }
+    if (this.controller?.restoreCanvasFurniture) {
+        this.backup.furnitures.forEach(f => {
+            let tx = f.x ?? f.position?.x ?? f.transform?.position?.x ?? 0;
+            let ty = f.y ?? f.position?.y ?? f.transform?.position?.y ?? 0;
+            this.controller.restoreCanvasFurniture(f, f.id, tx, ty);
+        });
+    }
+
+    if (this.controller?.layout?._render) this.controller.layout._render();
   }
 
   redo() {
@@ -788,7 +853,7 @@ export class RemoveFloorCommand extends Command {
 
 /**
  * RemoveSpaceCommand - Removes a Space
- * Undo: restores the space
+ * Upgraded: Deep Snapshots Devices, Furniture, and Links
  */
 export class RemoveSpaceCommand extends Command {
   constructor(appState, controller, spaceId) {
@@ -804,10 +869,30 @@ export class RemoveSpaceCommand extends Command {
     const space = this.appState.structural.spaces.find(s => s.id === this.spaceId);
     if (!space) return;
 
-    // Backup data
-    this.backup = JSON.parse(JSON.stringify(space));
+    if (!this.backup) {
+        const net = this.appState.network;
+        const furn = this.appState.furniture;
 
-    // Remove from state and canvas
+        // 1. Back up objects specific to this Space
+        const devices = net ? net.getAllDevices().filter(d => d.spaceId === this.spaceId) : [];
+        const furnitures = furn ? (furn.furnitures || []).filter(f => f.spaceId === this.spaceId) : [];
+        const deviceIds = devices.map(d => d.id);
+        const links = net ? net.getAllLinks().filter(l => deviceIds.includes(l.sourceId) || deviceIds.includes(l.targetId)) : [];
+
+        this.backup = {
+          space: JSON.parse(JSON.stringify(space)),
+          devices: devices.map(d => JSON.parse(JSON.stringify(d))),
+          furnitures: furnitures.map(f => JSON.parse(JSON.stringify(f))),
+          links: links.map(l => JSON.parse(JSON.stringify(l)))
+        };
+    }
+
+    // 2. Cascade delete objects so they wipe perfectly from the visual canvas
+    this.backup.links.forEach(l => this.appState.network?.removeLink(l.id));
+    this.backup.devices.forEach(d => this.appState.network?.removeDevice(d.id));
+    this.backup.furnitures.forEach(f => this.appState.furniture?.removeFurniture(f.id));
+
+    // 3. Remove structural state and visual footprint
     const deletedIds = this.appState.structural.removeSpace(this.spaceId);
     if (deletedIds && Array.isArray(deletedIds)) {
       deletedIds.forEach(id => {
@@ -819,13 +904,38 @@ export class RemoveSpaceCommand extends Command {
   undo() {
     if (!this.backup) return;
 
-    // Restore
-    this.appState.structural.addSpace(this.backup);
+    // 1. Restore structural state and visuals
+    this.appState.structural.addSpace(this.backup.space);
 
-    // Restore to canvas
     if (this.controller?.restoreCanvasShape) {
-      this.controller.restoreCanvasShape(this.backup, this.controller.structuralToCanvasMap.get(this.spaceId));
+      this.controller.restoreCanvasShape(this.backup.space, this.controller.structuralToCanvasMap.get(this.spaceId) || this.spaceId);
     }
+
+    // 2. Restore objects to data store
+    const net = this.appState.network;
+    const furn = this.appState.furniture;
+
+    this.backup.devices.forEach(d => net?.addDevice(d));
+    this.backup.furnitures.forEach(f => furn?.addFurniture(f));
+    this.backup.links.forEach(l => net?.addLink(l));
+
+    // 3. Force visual restoration to the canvas
+    if (this.controller?.restoreCanvasDevice) {
+        this.backup.devices.forEach(d => {
+            let tx = d.x ?? d.position?.x ?? d.transform?.position?.x ?? 0;
+            let ty = d.y ?? d.position?.y ?? d.transform?.position?.y ?? 0;
+            this.controller.restoreCanvasDevice(d, d.id, tx, ty);
+        });
+    }
+    if (this.controller?.restoreCanvasFurniture) {
+        this.backup.furnitures.forEach(f => {
+            let tx = f.x ?? f.position?.x ?? f.transform?.position?.x ?? 0;
+            let ty = f.y ?? f.position?.y ?? f.transform?.position?.y ?? 0;
+            this.controller.restoreCanvasFurniture(f, f.id, tx, ty);
+        });
+    }
+
+    if (this.controller?.layout?._render) this.controller.layout._render();
   }
 
   redo() {
@@ -998,37 +1108,33 @@ export class ChangePropertyCommand extends Command {
   }
 
   _applyChange(value) {
+    // Synchronize name and label
+    const updates = { [this.propertyName]: value };
+    if (this.propertyName === 'name') updates.label = value;
+    if (this.propertyName === 'label') updates.name = value;
+
     // 1. Route to Network Store
     if (this.entityType === 'device') {
-      this.appState.network.updateDevice(this.entityId, { [this.propertyName]: value });
+      this.appState.network.updateDevice(this.entityId, updates);
     } 
     // 2. Route to Furniture Store
     else if (this.entityType === 'furniture') {
-      this.appState.furniture.updateFurniture(this.entityId, { [this.propertyName]: value });
+      this.appState.furniture.updateFurniture(this.entityId, updates);
       
-      // NEW: Canvas logic moved here so Undo/Redo visually updates!
-      if (window.__layoutRef) {
-         const canvasEntity = window.__layoutRef.findEntityById(this.entityId);
-         if (canvasEntity) {
-             canvasEntity[this.propertyName] = value;
-             if (this.propertyName === 'label') canvasEntity.name = value;
-             window.__layoutRef._render();
-         }
-      }
+      // 🚀 THE FIX: Use the global event bus instead of the unreliable window.__layoutRef
+      window.dispatchEvent(new CustomEvent('forceCanvasUpdate', { 
+          detail: { id: this.entityId, updates } 
+      }));
     } 
     // 3. Route to Structural Store
     else {
       if (this.propertyName === 'label' || this.propertyName === 'name') {
         this.appState.structural.renameStructure(this.entityId, value, this.entityType);
         
-        if (window.__layoutRef) {
-           const canvasEntity = window.__layoutRef.findEntityById(this.entityId);
-           if (canvasEntity) {
-               canvasEntity.label = value;
-               if (canvasEntity.name !== undefined) canvasEntity.name = value;
-               window.__layoutRef._render();
-           }
-        }
+        // Update structural canvas visuals via event bus too!
+        window.dispatchEvent(new CustomEvent('forceCanvasUpdate', { 
+            detail: { id: this.entityId, updates } 
+        }));
       }
     }
   }
@@ -1067,28 +1173,17 @@ export class DeleteEntityCommand extends Command {
     const furn = this.appState.furniture;
     const id = this.idToDelete;
 
-    let snap = {
-      domain: null, sites: [], floors: [], spaces: [], walls: [],
-      devices: [], furnitures: [], links: []
-    };
+    let snap = { domain: null, sites: [], floors: [], spaces: [], walls: [], devices: [], furnitures: [], links: [] };
 
-    // 1. Map Hierarchy Lineage
-    let childSiteIds = [];
-    let childFloorIds = [];
-    let childSpaceIds = [];
+    let childSiteIds = [], childFloorIds = [], childSpaceIds = [];
 
     if (st.domains?.some(d => d.id === id)) {
         snap.domain = JSON.parse(JSON.stringify(st.domains.find(d => d.id === id)));
         childSiteIds = st.sites.filter(s => s.domainId === id).map(s => s.id);
-    } else if (st.sites?.some(s => s.id === id)) {
-        childSiteIds = [id];
-    } else if (st.floors?.some(f => f.id === id)) {
-        childFloorIds = [id];
-    } else if (st.spaces?.some(sp => sp.id === id)) {
-        childSpaceIds = [id];
-    }
+    } else if (st.sites?.some(s => s.id === id)) { childSiteIds = [id]; } 
+    else if (st.floors?.some(f => f.id === id)) { childFloorIds = [id]; } 
+    else if (st.spaces?.some(sp => sp.id === id)) { childSpaceIds = [id]; }
 
-    // 2. Cascade Structural Backup
     snap.sites = st.sites.filter(s => childSiteIds.includes(s.id)).map(s => JSON.parse(JSON.stringify(s)));
     
     const nextFloors = st.floors.filter(f => childSiteIds.includes(f.siteId));
@@ -1099,41 +1194,27 @@ export class DeleteEntityCommand extends Command {
     childSpaceIds.push(...nextSpaces.map(sp => sp.id));
     snap.spaces = st.spaces.filter(sp => childSpaceIds.includes(sp.id)).map(sp => JSON.parse(JSON.stringify(sp)));
 
-    // 3. Backup Devices Inside
     let deviceIds = [];
     if (net) {
         let affectedDevices = net.getAllDevices().filter(d => 
-            d.id === id || 
-            childSiteIds.includes(d.siteId) || 
-            childFloorIds.includes(d.floorId) || 
-            childSpaceIds.includes(d.spaceId)
+            d.id === id || childSiteIds.includes(d.siteId) || childFloorIds.includes(d.floorId) || childSpaceIds.includes(d.spaceId)
         );
         snap.devices = affectedDevices.map(d => JSON.parse(JSON.stringify(d)));
         deviceIds = affectedDevices.map(d => d.id);
     }
 
-    // 4. Backup Furniture Inside
     if (furn) {
         let affectedFurn = (furn.furnitures || []).filter(f => 
-            f.id === id || 
-            childSiteIds.includes(f.siteId) || 
-            childFloorIds.includes(f.floorId) || 
-            childSpaceIds.includes(f.spaceId)
+            f.id === id || childSiteIds.includes(f.siteId) || childFloorIds.includes(f.floorId) || childSpaceIds.includes(f.spaceId)
         );
         snap.furnitures = affectedFurn.map(f => JSON.parse(JSON.stringify(f)));
     }
 
-    // 5. Backup Connected Links
     if (net) {
-        let affectedLinks = net.getAllLinks().filter(l => 
-            l.id === id || 
-            deviceIds.includes(l.sourceId) || 
-            deviceIds.includes(l.targetId)
-        );
+        let affectedLinks = net.getAllLinks().filter(l => l.id === id || deviceIds.includes(l.sourceId) || deviceIds.includes(l.targetId));
         snap.links = affectedLinks.map(l => JSON.parse(JSON.stringify(l)));
     }
 
-    // Fallback for standalone entities
     if (net && net.getLink(id)) snap.links = [JSON.parse(JSON.stringify(net.getLink(id)))];
     if (furn && furn.furnitures?.some(f => f.id === id)) snap.furnitures = [JSON.parse(JSON.stringify(furn.furnitures.find(f => f.id === id)))];
     if (st.walls?.some(w => w.id === id)) snap.walls = [JSON.parse(JSON.stringify(st.walls.find(w => w.id === id)))];
@@ -1144,12 +1225,10 @@ export class DeleteEntityCommand extends Command {
   execute() {
     if (!this.backup) {
       this.backup = this._takeDeepSnapshot();
-      // Dynamically extract the name of whatever was deleted for the history log
       const targetObj = this.backup.domain || this.backup.sites[0] || this.backup.floors[0] || this.backup.spaces[0] || this.backup.devices[0] || this.backup.furnitures[0] || this.backup.links[0] || { label: 'Entity' };
       this.description = `Deleted ${targetObj.label || targetObj.name || targetObj.hostname || 'Entity'}`;
     }
 
-    // Rely on the existing Store Cascades to perform the actual destruction
     let deletedIds = [];
     const st = this.appState.structural;
     const id = this.idToDelete;
@@ -1161,11 +1240,9 @@ export class DeleteEntityCommand extends Command {
     else if (st.walls?.some(w => w.id === id)) deletedIds = st.removeWall?.(id) || [id];
 
     if (deletedIds.length === 0 && this.appState.devices && this.appState.devices.removeDevice) {
-        this.appState.devices.removeDevice(id); 
-        deletedIds = [id];
+        this.appState.devices.removeDevice(id); deletedIds = [id];
     } else if (deletedIds.length === 0 && this.appState.network?.getDevice?.(id)) {
-        this.appState.network.removeDevice(id);
-        deletedIds = [id];
+        this.appState.network.removeDevice(id); deletedIds = [id];
     }
 
     if (deletedIds.length === 0 && this.appState.network?.getLink?.(id)) {
@@ -1176,19 +1253,28 @@ export class DeleteEntityCommand extends Command {
     }
 
     if (deletedIds.length === 0 && this.appState.furniture?.furnitures?.some(f => f.id === id)) {
-        this.appState.furniture.removeFurniture(id);
-        deletedIds = [id];
+        this.appState.furniture.removeFurniture(id); deletedIds = [id];
     }
 
-    if (deletedIds.length === 0) deletedIds = [id];
+    // FIX: Force absolute visual erasure of all children so there are no ghost entities left behind
+    const allIdsToWipeVisually = new Set([
+        ...deletedIds, id,
+        ...this.backup.sites.map(s => s.id), ...this.backup.floors.map(f => f.id),
+        ...this.backup.spaces.map(sp => sp.id), ...this.backup.devices.map(d => d.id),
+        ...this.backup.furnitures.map(f => f.id), ...this.backup.links.map(l => l.id)
+    ]);
 
-    // Visually remove them from the canvas
-    deletedIds.forEach(deletedId => {
+    allIdsToWipeVisually.forEach(wipeId => {
         if (typeof this.controller?.removeEntity === 'function') {
-            this.controller.removeEntity(deletedId);
+            this.controller.removeEntity(wipeId);
+            if (this.controller.layout) {
+               if (this.controller.layout.devices) this.controller.layout.devices = this.controller.layout.devices.filter(d => d.id !== wipeId);
+               if (this.controller.layout.furnitures) this.controller.layout.furnitures = this.controller.layout.furnitures.filter(f => f.id !== wipeId);
+            }
         }
     });
     
+    if (this.controller?.layout?._render) this.controller.layout._render();
     if (this.appState.selection && this.appState.selection.clearSelection) {
         this.appState.selection.clearSelection();
         if (typeof this.appState.selection.notify === 'function') this.appState.selection.notify();
@@ -1202,10 +1288,6 @@ export class DeleteEntityCommand extends Command {
     const net = this.appState.network;
     const furn = this.appState.furniture;
 
-    // --- CRITICAL FIX: The Rehydration Engine ---
-    // Class constructors (like new Domain) expect data at the root (w, h).
-    // The Canvas and 3D Engine expect data in the geometry object.
-    // This helper formats the backup so EVERY system reads it perfectly.
     const rehydrate = (item) => {
         const w = item.geometry?.width ?? item.geometry?.w ?? item.width ?? item.w ?? 0;
         const h = item.geometry?.height ?? item.geometry?.h ?? item.height ?? item.h ?? 0;
@@ -1216,17 +1298,14 @@ export class DeleteEntityCommand extends Command {
         
         return {
             ...item,
-            // Feed the class constructors
             x, y, w, h, width: w, height: h, r, points,
-            // Feed the 3D Engine and Logical Canvas
             geometry: { ...(item.geometry || {}), x, y, width: w, height: h, radius: r, points },
-            // Untangle the swapped type labels from the backup
             structureType: item.type || item.structureType, 
             type: item.shapeType || item.type || 'rectangle'
         };
     };
 
-    // 1. Rebuild the physical structures Top-Down & Restore to Canvas
+    // 1. Rebuild the physical structures Top-Down
     if (this.backup.domain) {
         const rd = rehydrate(this.backup.domain);
         st.addDomain(rd);
@@ -1255,37 +1334,41 @@ export class DeleteEntityCommand extends Command {
         this.backup.walls.forEach(w => st.addWall(w));
     }
 
-    // 2. Re-populate the devices, furniture, and network cables
-    this.backup.devices.forEach(d => net?.addDevice(d));
-    this.backup.furnitures.forEach(f => furn?.addFurniture(f));
-    this.backup.links.forEach(l => net?.addLink(l));
-
-    // 3. Push devices and furniture back into the Canvas visually
-    if (this.controller?.restoreCanvasDevice) {
-        this.backup.devices.forEach(d => {
-            let tx = d.x ?? d.transform?.position?.x ?? 0;
-            let ty = d.y ?? d.transform?.position?.y ?? 0;
-            this.controller.restoreCanvasDevice(d, d.id, tx, ty);
-        });
-    }
-    
-    if (this.controller?.restoreCanvasFurniture) {
-        this.backup.furnitures.forEach(f => {
-            let tx = f.x ?? f.transform?.position?.x ?? 0;
-            let ty = f.y ?? f.transform?.position?.y ?? 0;
-            this.controller.restoreCanvasFurniture(f, f.id, tx, ty);
-        });
-    }
-
-    // 4. Force canvas to redraw cables and updates
+    // Force Canvas Engine to paint the structures NOW
     if (this.controller?.layout && typeof this.controller.layout._render === 'function') {
         this.controller.layout._render();
     }
+
+    // 2. TIMING FIX: Give the DOM 50 milliseconds to finish painting the Spaces.
+    // If we render devices before the Space exists, the layout engine hides them!
+    setTimeout(() => {
+        this.backup.devices.forEach(d => net?.addDevice(d));
+        this.backup.furnitures.forEach(f => furn?.addFurniture(f));
+        this.backup.links.forEach(l => net?.addLink(l));
+
+        if (this.controller?.restoreCanvasDevice) {
+            this.backup.devices.forEach(d => {
+                let tx = d.x ?? d.position?.x ?? d.transform?.position?.x ?? 0;
+                let ty = d.y ?? d.position?.y ?? d.transform?.position?.y ?? 0;
+                this.controller.restoreCanvasDevice(d, d.id, tx, ty);
+            });
+        }
+        
+        if (this.controller?.restoreCanvasFurniture) {
+            this.backup.furnitures.forEach(f => {
+                let tx = f.x ?? f.position?.x ?? f.transform?.position?.x ?? 0;
+                let ty = f.y ?? f.position?.y ?? f.transform?.position?.y ?? 0;
+                this.controller.restoreCanvasFurniture(f, f.id, tx, ty);
+            });
+        }
+
+        if (this.controller?.layout && typeof this.controller.layout._render === 'function') {
+            this.controller.layout._render();
+        }
+    }, 50);
   }
 
-  redo() {
-      this.execute();
-  }
+  redo() { this.execute(); }
 }
 
 export default DrawingCommand;

@@ -7,7 +7,7 @@ export class FurnitureStore {
         this.listeners = [];
     };
 
-    addFurniture(furniture) {
+        addFurniture(furniture) {
         if (!furniture.id) {
             throw new Error("Furniture must have an ID");
         }
@@ -18,18 +18,11 @@ export class FurnitureStore {
 
         const floor = appState.structural.getFloor(furniture.floorId);
     
-        // const newFurnitureData = {
-        //     id: furniture.id,
-        //     type: furniture.catalogId,
-        //     label: furniture.label || furniture.name || null,
-        //     floorId: furniture.floorId || null,
-        //     spaceId: furniture.spaceId || null,
-        //     transform: {
-        //         position: { x: furniture.position.x * 0.7, y: floor.altitude + 1, z: furniture.position.y * 0.7 },
-        //         rotation: { x: 0, y: 0, z: 0 },
-        //         scale: { x: 5, y: 5, z: 5 }
-        //     }
-        // }
+        // 🛡️ CRASH-PROOF EXTRACTION: Safely dig for coordinates without throwing TypeErrors
+        const px = furniture.transform?.position?.x ?? furniture.position?.x ?? furniture.x ?? 0;
+        const py = furniture.transform?.position?.y ?? furniture.position?.y ?? furniture.y ?? (floor ? floor.altitude + 1 : 1);
+        const pz = furniture.transform?.position?.z ?? furniture.position?.z ?? furniture.z ?? 0;
+
         const newFurnitureData = {
             id: furniture.id,
             type: "furniture",
@@ -38,13 +31,12 @@ export class FurnitureStore {
             label: furniture.label || furniture.name || null,
             floorId: furniture.floorId || null,
             spaceId: furniture.spaceId || null,
-            transform: {
-                position: { x: furniture.position.x * 0.7, y: floor.altitude + 1, z: furniture.position.y * 0.7 },
+            transform: furniture.transform || {
+                position: { x: px, y: py, z: pz },
                 rotation: { x: 0, y: 0, z: 0 },
                 scale: { x: 4, y: 4, z: 4 }
             }
         };
-
 
         const newFurniture = new Furniture(newFurnitureData);
         newFurniture.type = furniture.catalogId;
@@ -54,7 +46,7 @@ export class FurnitureStore {
         this.furnitures.push(newFurniture);
         this.notify();
         return newFurniture;
-    };
+    }
 
     removeFurniture(furnitureId) {
         const index = this.furnitures.findIndex(f => f.id === furnitureId);

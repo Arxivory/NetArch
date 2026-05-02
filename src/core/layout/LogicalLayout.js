@@ -461,7 +461,7 @@ isPointInsideShape(id, x, y) {
     } else if (rawType.includes('chair') || rawType.includes('seat')) {
       iconKey = 'chair';
     } else if (rawType.includes('cabinet') || rawType.includes('rack')) {
-      iconKey = 'cabinet';
+      iconKey = 'rack';
     }
 
     // Assuming you might add a furnitureIcons dictionary in the future.

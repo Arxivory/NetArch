@@ -1292,32 +1292,58 @@ const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !=
         if (wall.body) wall.body.floorId = activeFloor || null;
         this.walls.push(wall);
       }
-    } else if (this.mode === 'door') {
+} else if (this.mode === 'door') {
+      // 🛑 GHOSTBUSTER HACK: Pigilan si ShapeCreator na mag-snitch agad sa React Hierarchy!
+      const uiCallback = this.shapeCreator.onDoorCreated;
+      this.shapeCreator.onDoorCreated = null; 
+
       const door = this.shapeCreator.createDoor(this.startPoint, this.currentPoint);
+      
+      this.shapeCreator.onDoorCreated = uiCallback; // Ibalik ang callback
+
       if (door) {
         door.floorId = activeFloor || null;
         door.spaceId = activeSpace || null;
         if (door.body) door.body.floorId = activeFloor || null;
+
         if (door.spaceId !== null && !this._checkForOverlap(door, "creation")) {
           this.doors.push(door);
-        } else if (door.body) {
-          this.system.remove(door.body);
-          alert('Doors must be placed in a Space.');
+          // ✅ PUMASA SA CANVAS! Ngayon lang natin sasabihan ang UI na i-add ito.
+          if (this.shapeCreator.onDoorCreated) this.shapeCreator.onDoorCreated(door);
+        } else {
+          // ❌ FAILED OVERLAP: Burahin ang body, at walang makakarating na ghost sa UI.
+          if (door.body) this.system.remove(door.body);
+          if (door.spaceId === null) alert('Doors must be placed in a Space.');
         }
       }
+      
+      // ✅ TANGGAL NA YUNG RESET DITO. STAY SA 'door' MODE FOR UNLI-DRAW!
+
     } else if (this.mode === 'window') {
+      // 🛑 GHOSTBUSTER HACK: Same strategy for windows!
+      const uiCallback = this.shapeCreator.onWindowCreated;
+      this.shapeCreator.onWindowCreated = null;
+
       const window = this.shapeCreator.createWindow(this.startPoint, this.currentPoint);
+      
+      this.shapeCreator.onWindowCreated = uiCallback; // Ibalik ang callback
+
       if (window) {
         window.floorId = activeFloor || null;
         window.spaceId = activeSpace || null;
         if (window.body) window.body.floorId = activeFloor || null;
+
         if ((window.spaceId !== null || window.floorId !== null) && !this._checkForOverlap(window, "creation")) {
           this.windows.push(window);
-        } else if (window.body) {
-          this.system.remove(window.body);
-          alert('Windows must be placed in a Space or Floor.');
+          // ✅ PUMASA SA CANVAS!
+          if (this.shapeCreator.onWindowCreated) this.shapeCreator.onWindowCreated(window);
+        } else {
+          // ❌ FAILED OVERLAP!
+          if (window.body) this.system.remove(window.body);
+          if (window.spaceId === null && window.floorId === null) alert('Windows must be placed in a Space or Floor.');
         }
       }
+      // ✅ TANGGAL NA YUNG RESET DITO. STAY SA 'window' MODE FOR UNLI-DRAW!
     } else if (this.mode === 'polygon') {
       const polygon = this.shapeCreator.createPolygon(this.currentPolygon, this.structureType, focusedId);
       if (polygon) {

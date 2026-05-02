@@ -43,6 +43,7 @@ export class PhysicalController {
 
         this.unsubscribe = this.store.subscribe(() => this.syncWithState());
         this.unsubscribeNetwork = this.networkStore.subscribe(() => this.syncWithState());
+        this.unsubscribeFurniture = this.furnitureStore.subscribe(() => this.syncWithState());
         
         this.gizmoManager = new GizmoManager(getCamera(), getRenderer().domElement, getScene());
 
@@ -458,8 +459,16 @@ export class PhysicalController {
     }
 
     async createFurnitureGLTFMesh(furniture) {
+        if (this.furnitureMeshes.has(furniture.id)) {
+            return this.furnitureMeshes.get(furniture.id);
+        }
+
         const newFurniture = new FurnitureMesh(furniture, this.defaultScaler);
         const furnitureMesh = await newFurniture.getMesh(this.gltfLoader, this.furnitureCatalog);
+
+        if (this.furnitureMeshes.has(furniture.id)) {
+            return this.furnitureMeshes.get(furniture.id);
+        }
 
         const floor = this.store.floors.find(f => f.id === furniture.floorId);
         const altitude = floor ? floor.altitude || 0 : 0;

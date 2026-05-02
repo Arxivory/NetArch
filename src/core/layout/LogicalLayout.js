@@ -1067,70 +1067,32 @@ if (this.mode === 'door' || this.mode === 'window') {
         const p2x = this.currentPoint.x;
         const p2y = this.currentPoint.y;
         
-        // Tighter threshold (15px) so you HAVE to click exactly on the line
-        const threshold = 15; 
+        const threshold = 15; // Mahigpit na snap para sure na nasa linya
 
-        // MATALINONG HELPER: Hahatiin niya KAHIT ANONG shape into "Straight Lines"
-        const getEdges = (entity) => {
+        const getSpaceEdges = (space) => {
           const edges = [];
-          if (entity.points && entity.points.length > 1) { // Polygons/Freeforms
-            for (let i = 0; i < entity.points.length; i++) {
-              let pA = entity.points[i];
-              let pB = entity.points[(i + 1) % entity.points.length];
-              edges.push({ x1: pA.x, y1: pA.y, x2: pB.x, y2: pB.y });
-            }
-          } else if (entity.startPoint && entity.endPoint) { // Standard Lines
-            edges.push({ x1: entity.startPoint.x, y1: entity.startPoint.y, x2: entity.endPoint.x, y2: entity.endPoint.y });
-          } else if (entity.startX !== undefined && entity.endX !== undefined) { // Alternate Lines
-            edges.push({ x1: entity.startX, y1: entity.startY, x2: entity.endX, y2: entity.endY });
-          } else if (entity.x1 !== undefined && entity.x2 !== undefined) { // Alternate Lines 2
-            edges.push({ x1: entity.x1, y1: entity.y1, x2: entity.x2, y2: entity.y2 });
-          } else { // Rectangles / Spaces / Thick Walls (Boxes)
-            const b = this._getEntityBounds(entity);
-            if (b) {
-              const minX = Math.min(b.minX, b.maxX);
-              const maxX = Math.max(b.minX, b.maxX);
-              const minY = Math.min(b.minY, b.maxY);
-              const maxY = Math.max(b.minY, b.maxY);
-              edges.push({ x1: minX, y1: minY, x2: maxX, y2: minY }); // Top edge
-              edges.push({ x1: minX, y1: maxY, x2: maxX, y2: maxY }); // Bottom edge
-              edges.push({ x1: minX, y1: minY, x2: minX, y2: maxY }); // Left edge
-              edges.push({ x1: maxX, y1: minY, x2: maxX, y2: maxY }); // Right edge
-            }
-          }
+          const b = space.geometry || space; 
+          const x = b.x || b.left || 0;
+          const y = b.y || b.top || 0;
+          const w = b.w || b.width || 0;
+          const h = b.h || b.height || 0;
+          
+          edges.push({ x1: x, y1: y, x2: x + w, y2: y });     
+          edges.push({ x1: x, y1: y + h, x2: x + w, y2: y + h }); 
+          edges.push({ x1: x, y1: y, x2: x, y2: y + h });     
+          edges.push({ x1: x + w, y1: y, x2: x + w, y2: y + h }); 
           return edges;
         };
 
-        const isNearEdge = (px, py, edge) => {
-          return this._pointToLineDistance(px, py, edge.x1, edge.y1, edge.x2, edge.y2) <= threshold;
-        };
-
-        // Pagsamahin lahat ng pwedeng kabitan ng pinto/bintana
-        const possibleHosts = [];
-        if (this.walls) possibleHosts.push(...this.walls);
-        if (this.rectangles) possibleHosts.push(...this.rectangles);
-        if (this.polygons) possibleHosts.push(...this.polygons);
-        if (this.freeforms) possibleHosts.push(...this.freeforms);
-        if (appState?.structural?.spaces) possibleHosts.push(...appState.structural.spaces);
-
-        for (const host of possibleHosts) {
-          let target = host;
-          // Ayusin ang format kung galing sa appState
-          if (host.geometry) {
-             target = { 
-               x: host.geometry.x || host.geometry.left, 
-               y: host.geometry.y || host.geometry.top, 
-               w: host.geometry.w || host.geometry.width, 
-               h: host.geometry.h || host.geometry.height 
-             };
-          }
-
-          const edges = getEdges(target);
+        // 1. Connectivity Check: DAPAT parehong p1 at p2 ay nakadikit sa Space Line
+        const possibleSpaces = appState?.structural?.spaces || [];
+        for (const space of possibleSpaces) {
+          const edges = getSpaceEdges(space);
           for (const edge of edges) {
-            // 🛑 RULE 1: Check ONLY if the FIRST click (p1x, p1y) is on the line.
-            // This forces the hinge to be locked to the black boundary line, 
-            // but the swing can go anywhere.
-            if (isNearEdge(p1x, p1y, edge)) {
+            // 🛑 THE FIX: Ibinabalik natin ang mahigpit na "&&" 
+            // Para hindi tumayo yung pinto. Dapat naka-higa siya along the edge!
+            if (this._pointToLineDistance(p1x, p1y, edge.x1, edge.y1, edge.x2, edge.y2) <= threshold &&
+                this._pointToLineDistance(p2x, p2y, edge.x1, edge.y1, edge.x2, edge.y2) <= threshold) {
               allowCreation = true;
               break;
             }
@@ -1140,10 +1102,10 @@ if (this.mode === 'door' || this.mode === 'window') {
 
         if (!allowCreation) {
           const itemName = this.mode === 'door' ? "door" : "window";
-          failedReason = `Please start drawing the ${itemName} exactly ON a space boundary (black line).`;
+          failedReason = `Please draw the ${itemName} flat ALONG the space boundary (black line).`;
         }
 
-        // 🛑 RULE 2: Check if the door swing (p2x, p2y) exceeds the SITE boundaries.
+        // 2. Site Boundary Check: Pigilan ang door swing kung lalagpas sa Site (Outer Box)
         if (allowCreation) {
           const activeFloorId = this.activeFloorId || appState?.ui?.activeFloorId;
           const currentFloor = appState?.structural?.floors?.find(f => f.id === activeFloorId);
@@ -1156,13 +1118,17 @@ if (this.mode === 'door' || this.mode === 'window') {
             const sw = b.w || b.width || 0;
             const sh = b.h || b.height || 0;
             
-            const margin = 5; // A 5px allowance for snapping perfectly flush to the line
-            const isInsideSite = p2x >= sx - margin && p2x <= (sx + sw) + margin &&
-                                 p2y >= sy - margin && p2y <= (sy + sh) + margin;
+            // Kukunin natin ang radius ng bukas ng pinto (doorLength)
+            const doorLength = Math.hypot(p2x - p1x, p2y - p1y);
+            const margin = 5; 
+            
+            // Titingnan kung ang arc/swing ay lalaktaw palabas ng Site boundaries
+            const isInsideSite = p1x - doorLength >= sx - margin && p1x + doorLength <= (sx + sw) + margin &&
+                                 p1y - doorLength >= sy - margin && p1y + doorLength <= (sy + sh) + margin;
             
             if (!isInsideSite) {
               allowCreation = false;
-              failedReason = "The door swing cannot exceed the overall Site boundaries!";
+              failedReason = "The door swing exceeds the overall Site boundaries!";
             }
           }
         }
@@ -1171,7 +1137,6 @@ if (this.mode === 'door' || this.mode === 'window') {
           alert(`Invalid Placement: ${failedReason}`);
         }
       }
-      // --- END VALIDATION ---
 
       // Only save the shape if it passed validation!
       if (allowCreation) {

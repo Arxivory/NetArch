@@ -1156,6 +1156,42 @@ if (this.mode === 'door' || this.mode === 'window') {
           }
         }
 
+// 3. Fenestration Overlap Check: Bawal magpatong ang pinto sa pinto (o bintana)
+        if (allowCreation) {
+          const margin = 2; // Tight margin to prevent touching frames
+          // Kukunin natin yung bounding box nung mismong line na dino-draw mo
+          const newMinX = Math.min(p1x, p2x) - margin;
+          const newMaxX = Math.max(p1x, p2x) + margin;
+          const newMinY = Math.min(p1y, p2y) - margin;
+          const newMaxY = Math.max(p1y, p2y) + margin;
+
+          // Pagsasamahin natin doors and windows para parehong bawal patungan
+          const existingFenestrations = [...this.doors, ...this.windows];
+
+          for (const item of existingFenestrations) {
+            const b = this._getEntityInteractionBounds(item) || this._getEntityBounds(item);
+            if (!b) continue;
+
+            const exMinX = b.x ?? b.minX;
+            const exMinY = b.y ?? b.minY;
+            const exMaxX = exMinX + (b.w ?? b.width ?? 0);
+            const exMaxY = exMinY + (b.h ?? b.height ?? 0);
+
+            // Basic AABB Collision Detection (kung nag-intersect yung mga boxes nila)
+            if (
+              newMinX <= exMaxX &&
+              newMaxX >= exMinX &&
+              newMinY <= exMaxY &&
+              newMaxY >= exMinY
+            ) {
+              allowCreation = false;
+              const itemName = this.mode === 'door' ? "door" : "window";
+              failedReason = `Overlapping detected! You cannot place a ${itemName} on top of another door or window.`;
+              break;
+            }
+          }
+        }
+
         if (!allowCreation && failedReason) {
           alert(`Invalid Placement: ${failedReason}`);
         }

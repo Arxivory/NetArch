@@ -19,4 +19,8 @@ export default class Space {
             points: data.points ? [...data.points] : []
         };
     }
+
+    getParentId() {
+        return this.floorId;
+    }
 }

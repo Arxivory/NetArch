@@ -1,5 +1,5 @@
 import appState from '../../state/AppState';
-import Fenestration from './Fenestration'; 
+import Fenestration from './Fenestration';
 import Space from './Space';
 
 export default class Floor {
@@ -11,7 +11,7 @@ export default class Floor {
         this.structureType = data.structureType || 'Floor';
         this.shapeType = data.type;
         this.type = 'floor';
-        this.altitude = data.altitude || 0; 
+        this.altitude = data.altitude || 0;
 
         this.geometry = {
             x: data.x || 0,
@@ -23,14 +23,14 @@ export default class Floor {
             radius: data.r || 0,
             points: data.points ? [...data.points] : []
         };
-        
+
         this.spaces = data.spaces ? data.spaces.map(s => new Space(s)) : [];
 
-        this.fenestrations = data.fenestrations 
-            ? data.fenestrations.map(f => new Fenestration(f)) 
+        this.fenestrations = data.fenestrations
+            ? data.fenestrations.map(f => new Fenestration(f))
             : [];
     }
-    
+
     addFenestration(fenestration) {
         fenestration.parentId = this.id;
         this.fenestrations.push(fenestration);
@@ -38,5 +38,9 @@ export default class Floor {
     }
     getWalls() {
         return this.fenestrations.filter(f => f.type === 'wall');
+    }
+
+    getParentId() {
+        return this.siteId;
     }
 }

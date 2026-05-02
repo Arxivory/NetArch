@@ -1247,7 +1247,6 @@ _handleShapeCreated(shapeData) {
   this.checkTopLevelHiearchy(structureType, id);
   // Prepare child coordinates for boundary checks and saving
   const cBounds = this.getShapeBounds(shapeData);
-
   // --- 4. SHAPE ROUTING ---
 
   switch (structureType) {
@@ -1615,7 +1614,7 @@ addSite(shapeData, id, cBounds) {
   this.commandHistory.executeCommand(command);
 }
 
-addFloor(shapeData, id, cBounds) {
+addFloor(shapeData, id, cBounds) { //unused, see HiearchyContext addNode()
   const parentId = appState.selection.focusedType === 'site' ? appState.selection.focusedId : null;
   if (!parentId) {
     showErrorModal("A Site must be selected from the Hierarchy panel before creating a Floor.", "Invalid Hierarchy");

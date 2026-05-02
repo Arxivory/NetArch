@@ -38,6 +38,9 @@ export class LogicalCanvasController {
 
     // --- ADD THIS TO THE BOTTOM OF THE CONSTRUCTOR ---
     this.positionSnapshot = new Map();
+    this.invalidMoveAlerted = new Set();
+    this.pendingMoveEntities = new Map(); 
+    this.lastKnownPositions = new Map();
     // --- NEW: Global Listener for Entity Updates ---
     window.addEventListener('forceCanvasUpdate', (e) => {
         if (this.layout) {
@@ -215,6 +218,159 @@ export class LogicalCanvasController {
     // Add this to the bottom of your constructor
     this.lastKnownPositions = new Map();
     // -------------------------------------------------
+    this._boundListeners = {
+        forceCanvasUpdate: (e) => {
+            if (this.layout) {
+                const { id, updates } = e.detail;
+                const canvasEntity = this.layout.findEntityById(id);
+                if (canvasEntity) {
+                    const isLogicalDevice =
+                      canvasEntity.interfaces !== undefined ||
+                      canvasEntity.catalogId !== undefined ||
+                      typeof canvasEntity.tileX === 'number';
+
+                    if (isLogicalDevice) {
+                        const { transform, ...safeUpdates } = updates || {};
+                        Object.assign(canvasEntity, safeUpdates);
+                    } else {
+                        Object.assign(canvasEntity, updates);
+                    }
+                    if (updates.label !== undefined) {
+                        canvasEntity.hostname = updates.label;
+                        canvasEntity.name = updates.label;
+                    }
+                    this.layout._render();
+                }
+            }
+        },
+        requestLinkUpdate: (e) => {
+            const { linkId, cableType, endpointType, newDevice, clientX, clientY } = e.detail; 
+            
+            this._handlePortSelect(newDevice, clientX, clientY, (selectedPort) => {
+                if (!selectedPort) {
+                    this.layout._render();
+                    return; 
+                }
+                
+                if (appState.network && typeof appState.network.updateLinkEndpoint === 'function') {
+                    appState.network.updateLinkEndpoint(linkId, endpointType, newDevice.id, selectedPort);
+                }
+
+                if (this.layout && this.layout.cables) {
+                    const canvasCable = this.layout.cables.find(c => c.id === linkId);
+                    if (canvasCable) {
+                        if (endpointType === 'source') {
+                            canvasCable.sourceId = newDevice.id;
+                            canvasCable.sourcePort = selectedPort;
+                        } else {
+                            canvasCable.targetId = newDevice.id;
+                            canvasCable.targetPort = selectedPort;
+                        }
+                    }
+                }
+                this.layout._render();
+            }, cableType); 
+        },
+        requestLinkDeletion: (e) => {
+            const { linkId, sourceName, targetName } = e.detail;
+            
+            showConfirmationModal(
+                `Are you sure you want to delete the connection between ${sourceName} and ${targetName}?\n\nThe link will be removed and the device ports will become available again.`,
+                "Confirm Deletion",
+                () => {
+                    this.executeDelete(linkId);
+                    if (appState.tools) {
+                        appState.tools.setActiveTool('select');
+                    }
+                }
+            );
+        },
+        pointerdown: () => {
+            this.positionSnapshot.clear();
+            this.pendingMoveEntities.clear();
+            this.invalidMoveAlerted.clear();
+            const st = appState.structural;
+            if (!st) return;
+            
+            const elements = [...(st.domains||[]), ...(st.sites||[]), ...(st.floors||[]), ...(st.spaces||[])];
+            elements.forEach(el => {
+                const x = Number(el.geometry ? el.geometry.x : (el.x || 0));
+                const y = Number(el.geometry ? el.geometry.y : (el.y || 0));
+                this.positionSnapshot.set(el.id, { x, y });
+            });
+
+            const allDevices = typeof appState.getAllDevices === 'function' ? appState.getAllDevices() : [];
+            allDevices.forEach(device => {
+                const x = Number(device.transform?.position?.x || 0);
+                const y = Number(device.transform?.position?.y || 0);
+                this.positionSnapshot.set(device.id, { x, y });
+            });
+        },
+        keydown: (e) => {
+            const activeElement = document.activeElement;
+            const isTyping = activeElement.tagName === 'INPUT' || 
+                             activeElement.tagName === 'TEXTAREA' || 
+                             activeElement.isContentEditable;
+            if (isTyping) return;
+
+            const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+            const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+            if (cmdOrCtrl) {
+                if (e.key.toLowerCase() === 'z' && !e.shiftKey) {
+                    e.preventDefault(); 
+                    this.undo();
+                    return; 
+                }
+                if (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey)) {
+                    e.preventDefault(); 
+                    this.redo();
+                    return; 
+                }
+            }
+
+            if (e.key === 'Backspace' || e.key === 'Delete') {
+                if (!appState || !appState.selection) return;
+
+                let ids = appState.selection.getSelectedDeviceIds();
+                if (!ids || ids.length === 0) {
+                    const focused = appState.selection.getFocusedId();
+                    if (focused) ids = [focused];
+                }
+
+                if (ids && ids.length > 0) {
+                    const idToDelete = ids[0]; 
+
+                    if (appState.selection.focusedType === 'cable' && this.layout) {
+                        const cable = this.layout.cables.find(c => c.id === idToDelete) || 
+                                      appState.network?.getLink?.(idToDelete);
+                                      
+                        if (cable) {
+                            const src = this.layout.findEntityById(cable.sourceId);
+                            const dst = this.layout.findEntityById(cable.targetId);
+                            
+                            window.dispatchEvent(new CustomEvent('requestLinkDeletion', {
+                                detail: {
+                                    linkId: cable.id,
+                                    sourceName: src?.label || src?.name || "Device",
+                                    targetName: dst?.label || dst?.name || "Device"
+                                }
+                            }));
+                        }
+                    } else {
+                        this.executeDelete(idToDelete);
+                    }
+                }
+            }
+        }
+    };
+
+    // --- 2. ATTACH BOUND EVENTS ---
+    window.addEventListener('forceCanvasUpdate', this._boundListeners.forceCanvasUpdate);
+    window.addEventListener('requestLinkUpdate', this._boundListeners.requestLinkUpdate);
+    window.addEventListener('requestLinkDeletion', this._boundListeners.requestLinkDeletion);
+    window.addEventListener('pointerdown', this._boundListeners.pointerdown, { capture: true });
+    window.addEventListener('keydown', this._boundListeners.keydown);
 
     this.layout = new LogicalLayout({
       container,
@@ -243,6 +399,13 @@ export class LogicalCanvasController {
   }
 
   destroy() {
+
+    window.removeEventListener('forceCanvasUpdate', this._boundListeners.forceCanvasUpdate);
+    window.removeEventListener('requestLinkUpdate', this._boundListeners.requestLinkUpdate);
+    window.removeEventListener('requestLinkDeletion', this._boundListeners.requestLinkDeletion);
+    window.removeEventListener('pointerdown', this._boundListeners.pointerdown, { capture: true });
+    window.removeEventListener('keydown', this._boundListeners.keydown);
+
     if (this.layout) {
       this.layout.destroy();
       this.layout = null;
@@ -1261,66 +1424,34 @@ _handlePortSelect(device, x, y, callback, overrideCableType = null) {
     }, 10);
   }
 
-_handleShapeCreated(shapeData) {
-  const { structureType, id } = shapeData;
-  console.log(`📥 _handleShapeCreated: received shapeData with id=${id}, structureType=${structureType}`);
-  this.checkTopLevelHiearchy(structureType, id);
-  // Prepare child coordinates for boundary checks and saving
-  const cBounds = this.getShapeBounds(shapeData);
-  // --- 4. SHAPE ROUTING ---
+// Consolidated split-brain shape handling logic
+  _handleShapeCreated(shapeData) {
+    const { structureType, id, shapeType } = shapeData;
+    console.log(`📥 _handleShapeCreated: received shapeData with id=${id}, structureType=${structureType}`);
 
-  switch (structureType) {
-    case 'Domain':
-      this.addDomain(shapeData, id);
-      break;
-    case 'Site':
-      this.addSite(shapeData, id, cBounds);
-      break;
-    case 'Floor':
-      this.addFloor(shapeData, id, cBounds);
-      break;
-    case 'Space':
-      this.addSpace(shapeData, id, cBounds);
-      break;
-    default:
-      throw new Error('Unidentified Structure');
-  }
-}
-
-checkTopLevelHiearchy(structureType, id) {
-  // --- 1. TOP-LEVEL HIERARCHY PRE-CHECK ---
-  // Stop invalid Domain creation BEFORE overlap or bounds logic runs
-  if (structureType === 'Domain') {
-    const selectedType = appState.selection?.focusedType;
-
-    if (selectedType === 'site' || selectedType === 'floor' || selectedType === 'space') {
-      showErrorModal(
-        `You cannot create a Domain while a ${selectedType} is selected. Domains are top-level structures. Please click the canvas background to deselect before drawing.`,
-        "Invalid Hierarchy"
-      );
-
-      // Remove the invalid shape immediately
-      setTimeout(() => {
-        if (this.layout && typeof this.layout.removeShapeById === 'function') {
-          this.layout.removeShapeById(id);
-        }
-      }, 10);
-      if (appState.tools) appState.tools.setActiveTool('pointer');
-
-      return; // Halt the function completely so overlap checks don't run
+    // --- 1. TOP-LEVEL HIERARCHY PRE-CHECK ---
+    if (structureType === 'Domain') {
+      const selectedType = appState.selection?.focusedType;
+      if (selectedType === 'site' || selectedType === 'floor' || selectedType === 'space') {
+        showErrorModal(
+          `You cannot create a Domain while a ${selectedType} is selected. Domains are top-level structures. Please click the canvas background to deselect before drawing.`,
+          "Invalid Hierarchy"
+        );
+        setTimeout(() => {
+          if (this.layout && typeof this.layout.removeShapeById === 'function') {
+            this.layout.removeShapeById(id);
+          }
+        }, 10);
+        if (appState.tools) appState.tools.setActiveTool('pointer');
+        return; 
+      }
     }
-  }
-}
 
-    // --- 2. BULLETPROOF BOUNDS EXTRACTOR ---
-    // Safely extracts coordinates, forces them to be numbers, and handles missing widths
-    // Also handles circular shapes by converting radius to bounding box
+    // --- 2. BOUNDS EXTRACTOR ---
     const getBounds = (shape) => {
       if (!shape) return null;
-      // Handle both raw shape data and state-wrapped shapes (like geometry)
       const src = shape.geometry || shape;
       
-      // If it's a circle, calculate bounding box from center and radius
       if (src.r !== undefined && src.r !== null) {
         const cx = Number(src.x ?? 0);
         const cy = Number(src.y ?? 0);
@@ -1337,7 +1468,6 @@ checkTopLevelHiearchy(structureType, id) {
       let w = Number(src.w ?? src.width ?? 0);
       let h = Number(src.h ?? src.height ?? 0);
       
-      // If width/height are missing, calculate them from maxX/maxY
       if (!w && src.maxX !== undefined) w = Number(src.maxX) - x;
       if (!h && src.maxY !== undefined) h = Number(src.maxY) - y;
 
@@ -1348,10 +1478,11 @@ checkTopLevelHiearchy(structureType, id) {
       };
     };
 
-    // Prepare child coordinates for boundary checks and saving
+    // CRITICAL FIX: Extract missing variables (r, points) needed for the commands
     const cBounds = getBounds(shapeData);
     const x = cBounds.x, y = cBounds.y, w = cBounds.w, h = cBounds.h;
-    const maxX = cBounds.maxX, maxY = cBounds.maxY;
+    const maxX = cBounds.maxX, maxY = cBounds.maxY, r = cBounds.r;
+    const points = shapeData.geometry?.points || shapeData.points || [];
 
     const removeInvalidShape = () => {
       setTimeout(() => {
@@ -1369,72 +1500,46 @@ checkTopLevelHiearchy(structureType, id) {
       
       if (parentType === 'domain') {
         parent = (st.domains || []).find(d => d.id === parentId);
-      } 
-      else if (parentType === 'site') {
+      } else if (parentType === 'site') {
         parent = (st.sites || []).find(s => s.id === parentId);
-      } 
-      else if (parentType === 'floor') {
+      } else if (parentType === 'floor') {
         parent = (st.floors || []).find(f => f.id === parentId);
-        
-        // --- AUTO-GENERATED FLOOR FALLBACK ---
-        // If the floor exists but has no intrinsic width/height because it was auto-generated,
-        // we borrow the exact dimensions from the Site it belongs to.
         if (parent) {
           const tempBounds = getBounds(parent);
           if (tempBounds.w === 0 || tempBounds.h === 0) {
             const parentSite = (st.sites || []).find(s => s.id === parent.siteId);
             if (parentSite) {
-              console.log(`Borrowing bounds from Site (ID: ${parentSite.id}) for auto-generated Floor.`);
               parent = parentSite; 
-            } else {
-              console.warn("Could not find the parent Site to borrow bounds from!");
             }
           }
         }
       }
 
-      if (!parent) {
-        console.error(`Bounds Check: Parent ${parentType} (ID: ${parentId}) not found in state.`);
-        return false; 
-      }
-
+      if (!parent) return false; 
+      
       const pBounds = getBounds(parent);
-
-      // We only flag stale state if BOTH the floor AND its fallback site have 0 dimensions
-      if (pBounds.w === 0 || pBounds.h === 0) {
-         console.warn(`Bounds Check: The selected ${parentType} has 0 width/height in state. It was likely drawn before the code fix. Please delete it and redraw it.`);
-         return false; 
-      }
+      if (pBounds.w === 0 || pBounds.h === 0) return false; 
 
       const tol = 5; 
-
       if (
         cBounds.minX < pBounds.minX - tol || 
         cBounds.minY < pBounds.minY - tol || 
         cBounds.maxX > pBounds.maxX + tol || 
         cBounds.maxY > pBounds.maxY + tol
       ) {
-        console.error("Out of Bounds Mathematical Failure:");
-        console.table({
-           "Parent Limits (Borrowed from Site)": { MinX: pBounds.minX, MinY: pBounds.minY, MaxX: pBounds.maxX, MaxY: pBounds.maxY },
-           "Child Limits (Space)": { MinX: cBounds.minX, MinY: cBounds.minY, MaxX: cBounds.maxX, MaxY: cBounds.maxY }
-        });
         return false; 
       }
       return true; 
     };
 
-    // --- 4. SHAPE ROUTING - Execute commands for undo/redo tracking ---
-// --- 4. SHAPE ROUTING - Execute commands for undo/redo tracking ---
+    // --- 4. SHAPE ROUTING ---
     if (structureType === 'Domain') {
       const domainData = {
         id, shapeType, structureType: 'Domain',
         x, y, w, h, maxX, maxY, r, points,
-        // CRITICAL FIX: Match the exact property names expected by the Class constructors
         geometry: { x, y, width: w, height: h, radius: r, points }, 
         label: `Domain ${this.counters.domain++}`
       };
-      console.log(`🏢 Creating Domain with id=${domainData.id}`);
       const command = new CreateDomainCommand(appState, this, domainData, id);
       this.commandHistory.executeCommand(command);
     }
@@ -1454,11 +1559,10 @@ checkTopLevelHiearchy(structureType, id) {
         geometry: { x, y, width: w, height: h, radius: r, points }, 
         label: `Site ${this.counters.site++}`
       };
-      console.log(`🏪 Creating Site with id=${siteData.id}, domainId=${parentId}`);
       const command = new CreateSiteCommand(appState, this, siteData, parentId, id);
       this.commandHistory.executeCommand(command);
     } 
-    else if (structureType === 'Floor') { //unused, see HiearchyContext addNode()
+    else if (structureType === 'Floor') {
       const parentId = appState.selection.focusedType === 'site' ? appState.selection.focusedId : null;
       if (!parentId) {
         showErrorModal("A Site must be selected from the Hierarchy panel before creating a Floor.", "Invalid Hierarchy");
@@ -1474,7 +1578,6 @@ checkTopLevelHiearchy(structureType, id) {
         geometry: { x, y, width: w, height: h, radius: r, points }, 
         label: `Floor ${this.counters.floor++}`
       };
-      console.log(`🏗️ Creating Floor with id=${floorData.id}, siteId=${parentId}`);
       const command = new CreateFloorCommand(appState, this, floorData, parentId, id);
       this.commandHistory.executeCommand(command);
     }
@@ -1494,7 +1597,6 @@ checkTopLevelHiearchy(structureType, id) {
         geometry: { x, y, width: w, height: h, radius: r, points },
         label: `Space ${this.counters.space++}`
       };
-      console.log(`🎨 Creating Space with id=${spaceData.id}, floorId=${parentId}`);
       const command = new CreateSpaceCommand(appState, this, spaceData, parentId, id);
       this.commandHistory.executeCommand(command);
     }

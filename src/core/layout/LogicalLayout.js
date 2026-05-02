@@ -2124,6 +2124,7 @@ else if (this.startPoint && this.currentPoint) {
       ctx.stroke();
       ctx.restore();
     }
+    }
   }
 
   getAllSelectableEntities() {

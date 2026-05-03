@@ -1298,7 +1298,14 @@ addDevice(deviceData, x, y) {
 
         if (existing.length > 0) {
           newLabel = baseName + " (" + (existing.length + 1) + ")";
-        }
+        } 
+
+
+        // newDevice.x = x;
+        // newDevice.y = y;
+        // newDevice.transform = newDevice.transform || { position: { x, y, z: 0 } };
+        // newDevice.transform.position.x = x * 0.7;
+        // newDevice.transform.position.z = y * 0.7;
 
         newDevice.label = newLabel;
         newDevice.name = newLabel;

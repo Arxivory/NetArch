@@ -57,6 +57,27 @@ export class StartDrawDoorCommand extends DrawingCommand {
   }
 }
 
+export class StartDrawConduitCommand extends DrawingCommand {
+  execute() {
+    this.controller?.startDrawConduit();
+    this.appState.tools.setActiveTool('conduit');
+  }
+}
+
+export class StartDrawRiserCommand extends DrawingCommand {
+  execute() {
+    this.controller?.startDrawRiser();
+    this.appState.tools.setActiveTool('riser');
+  }
+}
+
+export class StartDrawUndergroundConduitCommand extends DrawingCommand {
+  execute() {
+    this.controller?.startDrawUndergroundConduit();
+    this.appState.tools.setActiveTool('underground-conduit');
+  }
+}
+
 export class StartDrawWindowCommand extends DrawingCommand {
   execute() {
     this.controller?.startDrawWindow();

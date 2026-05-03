@@ -37,6 +37,7 @@ export class PhysicalController {
         this.deviceMeshes =  new Map();
         this.cableMeshes = new Map();
         this.furnitureMeshes = new Map();
+        this.selectionHelpers = new Map();
 
         this.furnitureCatalog = furnitureCatalog.furnitures;
 
@@ -48,22 +49,13 @@ export class PhysicalController {
         window.addEventListener('gizmoObjectMoved', (e) => {
             this._refreshCablesForDevice(e.detail.id);
         });
+
+        this.gizmoManager.onTransformsApplied = () => {
+            this.syncSelectionState(appState.selection);
+        };
         
         appState.selection.subscribe((selectionStore) => {
-            const focusedId = selectionStore.getFocusedId();
-            console.log("Focused ID changed:", focusedId);
-    
-            if (focusedId) {
-                const selectedMesh = this.getMeshById(focusedId);
-                console.log("Selected mesh:", selectedMesh);
-                if (selectedMesh && (selectedMesh.userData.type === 'device' || selectedMesh.userData.type === 'furniture')) {
-                    this.gizmoManager.attach(selectedMesh);
-                } else {
-                    this.gizmoManager.detach();
-                }
-            } else {
-                this.gizmoManager.detach();
-            }
+            this.syncSelectionState(selectionStore);
         });
 
         this.syncWithState();
@@ -159,7 +151,7 @@ export class PhysicalController {
                 const deviceMesh = this.deviceMeshes.get(device.id);
                 console.log('Device Mesh: ', device, ' is updating');
                 if (device.transform) {
-                    deviceMesh.position.set(device.transform.position.x, device.transform.position.y + altitude + 1.5, device.transform.position.z);
+                    deviceMesh.position.set(device.transform.position.x, device.transform.position.y + altitude + 2, device.transform.position.z);
                     deviceMesh.rotation.set(device.transform.rotation.x, device.transform.rotation.y, device.transform.rotation.z);
                     deviceMesh.scale.set(device.transform.scale.x, device.transform.scale.y, device.transform.scale.z);
                 }
@@ -178,7 +170,7 @@ export class PhysicalController {
             if (this.furnitureMeshes.has(furniture.id)) {
                 const furnitureMesh = this.furnitureMeshes.get(furniture.id);
                 if (furniture.transform) {
-                    furnitureMesh.position.set(furniture.transform.position.x, furniture.transform.position.y + altitude, furniture.transform.position.z);
+                    furnitureMesh.position.set(furniture.transform.position.x, furniture.transform.position.y + altitude + 2, furniture.transform.position.z);
                     furnitureMesh.rotation.set(furniture.transform.rotation.x, furniture.transform.rotation.y, furniture.transform.rotation.z);
                     furnitureMesh.scale.set(furniture.transform.scale.x, furniture.transform.scale.y, furniture.transform.scale.z);
                 }
@@ -254,6 +246,70 @@ export class PhysicalController {
                 this.cableMeshes.delete(id);
             }
         }
+
+        this.syncSelectionState(appState.selection);
+    }
+
+    syncSelectionState(selectionStore) {
+        if (!selectionStore) return;
+
+        const selectedIds = new Set([
+            ...(selectionStore.getSelectedDeviceIds?.() || []),
+            ...(selectionStore.getSelectedFurnitureIds?.() || [])
+        ]);
+
+        const focusedId = selectionStore.getFocusedId?.();
+        const focusedType = selectionStore.focusedType;
+        const focusedIsPhysicalAsset = focusedId && (focusedType === 'device' || focusedType === 'furniture');
+        if (focusedIsPhysicalAsset) {
+            selectedIds.add(focusedId);
+        }
+
+        for (const [id] of this.selectionHelpers) {
+            if (!selectedIds.has(id)) {
+                this.removeSelectionHelper(id);
+            }
+        }
+
+        for (const id of selectedIds) {
+            const mesh = this.getMeshById(id);
+            if (!mesh || (mesh.userData.type !== 'device' && mesh.userData.type !== 'furniture')) {
+                this.removeSelectionHelper(id);
+                continue;
+            }
+
+            let helper = this.selectionHelpers.get(id);
+            if (!helper) {
+                helper = new THREE.BoxHelper(mesh, 0x00AEEF);
+                helper.material.depthTest = false;
+                helper.renderOrder = 999;
+                this.scene.add(helper);
+                this.selectionHelpers.set(id, helper);
+            }
+
+            helper.update();
+            helper.visible = true;
+        }
+
+        if (focusedIsPhysicalAsset) {
+            const selectedMesh = this.getMeshById(focusedId);
+            if (selectedMesh && (selectedMesh.userData.type === 'device' || selectedMesh.userData.type === 'furniture')) {
+                this.gizmoManager.attach(selectedMesh);
+                return;
+            }
+        }
+
+        this.gizmoManager.detach();
+    }
+
+    removeSelectionHelper(id) {
+        const helper = this.selectionHelpers.get(id);
+        if (!helper) return;
+
+        this.scene.remove(helper);
+        helper.geometry?.dispose?.();
+        helper.material?.dispose?.();
+        this.selectionHelpers.delete(id);
     }
 
     _refreshCablesForDevice(deviceId) {
@@ -386,7 +442,6 @@ export class PhysicalController {
 
         const floor = this.store.floors.find(f => f.id === device.floorId);
         const altitude = floor ? floor.altitude || 0 : 0;
-        deviceMesh.position.y = altitude + 1.5;
 
         deviceMesh.userData = { id: device.id, type: 'device' };
 
@@ -408,7 +463,6 @@ export class PhysicalController {
 
         const floor = this.store.floors.find(f => f.id === furniture.floorId);
         const altitude = floor ? floor.altitude || 0 : 0;
-        furnitureMesh.position.y = altitude + 1.5;
 
         furnitureMesh.userData = { id: furniture.id, type: 'furniture' };
 

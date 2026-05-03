@@ -28,7 +28,10 @@ export class LogicalCanvasController {
       domain: 0,
       site: 0,
       floor: 0,
-      space: 0
+      space: 0,
+      conduit: 0,
+      riser: 0,
+      undergroundConduit: 0
     };
 
     // Map canvas entity IDs to structural entity IDs for tracking
@@ -118,6 +121,12 @@ export class LogicalCanvasController {
                 }
             }
         );
+    });
+
+    window.addEventListener('requestConduitDeletion', (e) => {
+      const { conduitId } = e.detail;
+      appState.structural.removeConduit(conduitId);
+      this.layout.removeEntityById(conduitId);
     });
 
     this.invalidMoveAlerted = new Set();
@@ -228,6 +237,9 @@ export class LogicalCanvasController {
       onPolygonCreated: (poly) => this._handleShapeCreated(poly, 'polygon'),
       onFreeformCreated: (freeform) => this._handleShapeCreated(freeform, 'freeform'),
       onWallCreated: (wall) => this._handleWallCreated(wall),
+      onConduitCreated: (conduit) => this._handleConduitCreated(conduit),
+      onRiserCreated: (riser) => this._handleRiserCreated(riser),
+      onUndergroundConduitCreated: (ugConduit) => this._handleUndergroundConduitCreated(ugConduit),
       onCableCreated: (cable) => this._handleCableCreated(cable),
       onDeviceAdded: (device) => this._handleDeviceAdded(device),
       onDoorCreated: (door) => this._handleDoorCreated(door),
@@ -609,6 +621,18 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
 
   startDrawWall() {
     this.layout?.startDrawWall();
+  }
+
+  startDrawConduit() {
+    this.layout?.startDrawConduit();
+  }
+
+  startDrawRiser() {
+    this.layout?.startDrawRiser();
+  }
+
+  startDrawUndergroundConduit() {
+    this.layout?.startDrawUndergroundConduit();
   }
 
   startDrawDoor() {
@@ -1000,17 +1024,249 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
     return null;
   }
 
+  // _isEntityWithinAssignedParentBounds(entity) {
+  //   const entityBounds = this._getEntityBounds(entity);
+  //   const parentBounds = this._getParentBounds(entity);
+  //   if (!entityBounds || !parentBounds) return true;
+
   _isEntityWithinAssignedParentBounds(entity) {
     const entityBounds = this._getEntityBounds(entity);
     const parentBounds = this._getParentBounds(entity);
     if (!entityBounds || !parentBounds) return true;
     const tol = 2;
+//     return !(
+//       entityBounds.minX < parentBounds.minX - tol ||
+//       entityBounds.minY < parentBounds.minY - tol ||
+//       entityBounds.maxX > parentBounds.maxX + tol ||
+//       entityBounds.maxY > parentBounds.maxY + tol
+//     );
+//   }
+
+// addDevice(deviceData, x, y) {
+//     if (!this.layout) return;
     return !(
       entityBounds.minX < parentBounds.minX - tol ||
       entityBounds.minY < parentBounds.minY - tol ||
       entityBounds.maxX > parentBounds.maxX + tol ||
       entityBounds.maxY > parentBounds.maxY + tol
     );
+  } 
+
+   _getDuplicateSelection() {
+    const deviceIds = appState.selection?.getSelectedDeviceIds?.() || [];
+    const furnitureIds = appState.selection?.getSelectedFurnitureIds?.() || [];
+    const focusedId = appState.selection?.getFocusedId?.();
+    const focusedType = appState.selection?.focusedType;
+
+    if (deviceIds.length || furnitureIds.length) {
+      return { deviceIds, furnitureIds };
+    }
+
+    if (focusedId && focusedType === 'device') {
+      return { deviceIds: [focusedId], furnitureIds: [] };
+    }
+
+    if (focusedId && focusedType === 'furniture') {
+      return { deviceIds: [], furnitureIds: [focusedId] };
+    }
+
+    return { deviceIds: [], furnitureIds: [] };
+  }
+
+  _getEntityCanvasPosition(entity) {
+    const layoutEntity = this.layout?.findEntityById?.(entity.id);
+    if (layoutEntity && typeof layoutEntity.x === 'number' && typeof layoutEntity.y === 'number') {
+      return { x: layoutEntity.x, y: layoutEntity.y };
+    }
+
+    if (entity.position && typeof entity.position.x === 'number' && typeof entity.position.y === 'number') {
+      return { x: entity.position.x, y: entity.position.y };
+    }
+
+    const physicalPosition = entity.transform?.position;
+    if (physicalPosition && typeof physicalPosition.x === 'number' && typeof physicalPosition.z === 'number') {
+      return {
+        x: physicalPosition.x / 0.7,
+        y: physicalPosition.z / 0.7
+      };
+    }
+
+    return { x: 0, y: 0 };
+  }
+
+  _getDuplicatePosition(entity, index) {
+    const basePosition = this._getEntityCanvasPosition(entity);
+    const offset = 48;
+    const stagger = index * 12;
+
+    return {
+      x: basePosition.x + offset + stagger,
+      y: basePosition.y + offset + stagger
+    };
+  }
+
+  _buildDuplicateLabel(baseLabel, existingLabels = []) {
+    const trimmedBase = (baseLabel || 'Item').trim();
+    const existing = new Set(existingLabels.filter(Boolean));
+    let nextLabel = `${trimmedBase} Copy`;
+    let counter = 2;
+
+    while (existing.has(nextLabel)) {
+      nextLabel = `${trimmedBase} Copy ${counter++}`;
+    }
+
+    return nextLabel;
+  }
+
+  _copyPrimaryInterfaceIPv4(sourceDevice, targetDevice) {
+    if (!Array.isArray(sourceDevice.interfaces) || !Array.isArray(targetDevice.interfaces)) {
+      return;
+    }
+
+    sourceDevice.interfaces.forEach((sourceInterface, index) => {
+      const targetInterface = targetDevice.interfaces[index];
+      if (!targetInterface || !sourceInterface?.ipv4) return;
+
+      const address = sourceInterface.ipv4.address || '';
+      const subnetMask = sourceInterface.ipv4.subnetMask || '';
+
+      if (typeof targetInterface.configureIPv4 === 'function') {
+        targetInterface.configureIPv4(address, subnetMask);
+      } else {
+        targetInterface.ipv4 = {
+          ...(targetInterface.ipv4 || {}),
+          address,
+          subnetMask
+        };
+      }
+    });
+  }
+
+  _selectDuplicatedEntities(duplicatedIds = []) {
+    if (!duplicatedIds.length || !appState.selection) return;
+
+    appState.selection.clearSelection?.();
+
+    duplicatedIds.forEach(({ id, type }, index) => {
+      const multiSelect = index > 0;
+      if (type === 'device') {
+        appState.selection.selectDevice?.(id, multiSelect);
+      } else if (type === 'furniture') {
+        appState.selection.selectFurniture?.(id, multiSelect);
+      }
+    });
+  }
+
+  duplicateSelection() {
+    if (!this.layout) return false;
+
+    const { deviceIds, furnitureIds } = this._getDuplicateSelection();
+    if (!deviceIds.length && !furnitureIds.length) {
+      return false;
+    }
+
+    const existingDeviceLabels = [
+      ...(this.layout.devices || []).map(device => device?.label || device?.name),
+      ...(appState.network?.devices || []).map(device => device?.label || device?.name || device?.hostname)
+    ];
+    const existingFurnitureLabels = [
+      ...(this.layout.furnitures || []).map(furniture => furniture?.label || furniture?.name),
+      ...(appState.furniture?.furnitures || []).map(furniture => furniture?.label || furniture?.name)
+    ];
+
+    const duplicatedSelections = [];
+
+    deviceIds.forEach((deviceId, index) => {
+      const sourceDevice = appState.network?.getDevice?.(deviceId);
+      if (!sourceDevice) return;
+
+      const duplicatePosition = this._getDuplicatePosition(sourceDevice, index);
+      const duplicateLabel = this._buildDuplicateLabel(
+        sourceDevice.label || sourceDevice.name || sourceDevice.hostname,
+        existingDeviceLabels
+      );
+      const catalogId = sourceDevice.catalogId || sourceDevice.modelId;
+      if (!catalogId) return;
+
+      const duplicatedDevice = DeviceFactory.create(catalogId, { ...duplicatePosition, z: 0 }, {
+        hostname: duplicateLabel
+      });
+
+      duplicatedDevice.label = duplicateLabel;
+      duplicatedDevice.name = duplicateLabel;
+      duplicatedDevice.hostname = duplicateLabel;
+      duplicatedDevice.floorId = sourceDevice.floorId || null;
+      duplicatedDevice.spaceId = sourceDevice.spaceId || null;
+      duplicatedDevice.defaultGateway = sourceDevice.defaultGateway || '';
+      duplicatedDevice.modeCreatedIn = sourceDevice.modeCreatedIn || 'logical';
+
+      this._copyPrimaryInterfaceIPv4(sourceDevice, duplicatedDevice);
+
+      const layoutDevice = this.layout.shapeCreator.createDevice(
+        duplicatedDevice,
+        duplicatePosition.x,
+        duplicatePosition.y,
+        this.layout.shapeRenderer.gridSize * 1.5
+      );
+
+      layoutDevice.id = duplicatedDevice.id;
+      layoutDevice.label = duplicatedDevice.label;
+      layoutDevice.name = duplicatedDevice.name;
+      layoutDevice.hostname = duplicatedDevice.hostname;
+      layoutDevice.catalogId = duplicatedDevice.catalogId;
+      layoutDevice.floorId = duplicatedDevice.floorId;
+      layoutDevice.spaceId = duplicatedDevice.spaceId;
+
+      this.layout.devices.push(layoutDevice);
+      appState.network?.addDevice?.(duplicatedDevice);
+
+      existingDeviceLabels.push(duplicateLabel);
+      duplicatedSelections.push({ id: duplicatedDevice.id, type: 'device' });
+    });
+
+    furnitureIds.forEach((furnitureId, index) => {
+      const sourceFurniture = appState.furniture?.getFurniture?.(furnitureId);
+      if (!sourceFurniture) return;
+
+      const duplicatePosition = this._getDuplicatePosition(sourceFurniture, index);
+      const duplicateLabel = this._buildDuplicateLabel(
+        sourceFurniture.label || sourceFurniture.name,
+        existingFurnitureLabels
+      );
+      const catalogId = sourceFurniture.catalogId || sourceFurniture.modelId || sourceFurniture.type;
+      if (!catalogId) return;
+
+      const duplicatedFurniture = createFurnitureInstance(catalogId, { ...duplicatePosition, z: 0 }, {
+        name: duplicateLabel
+      });
+
+      duplicatedFurniture.catalogId = catalogId;
+      duplicatedFurniture.modelId = catalogId;
+      duplicatedFurniture.label = duplicateLabel;
+      duplicatedFurniture.name = duplicateLabel;
+      duplicatedFurniture.floorId = sourceFurniture.floorId || null;
+      duplicatedFurniture.spaceId = sourceFurniture.spaceId || null;
+      duplicatedFurniture.rotation = sourceFurniture.rotation || 0;
+      duplicatedFurniture.properties = {
+        ...(sourceFurniture.properties || {})
+      };
+      duplicatedFurniture.modeCreatedIn = sourceFurniture.modeCreatedIn || 'logical';
+
+      this.layout.addFurniture({ ...duplicatedFurniture }, duplicatePosition.x, duplicatePosition.y);
+      appState.furniture?.addFurniture?.(duplicatedFurniture);
+      this.physicalController?.createFurnitureGLTFMesh?.(duplicatedFurniture);
+
+      existingFurnitureLabels.push(duplicateLabel);
+      duplicatedSelections.push({ id: duplicatedFurniture.id, type: 'furniture' });
+    });
+
+    if (!duplicatedSelections.length) {
+      return false;
+    }
+
+    this.layout._render();
+    this._selectDuplicatedEntities(duplicatedSelections);
+    return true;
   }
 
    addDevice(deviceData, x, y) {
@@ -1539,6 +1795,31 @@ _handleShapeCreated(shapeData, shapeType) {
     }
   }
 
+  _handleConduitCreated(conduitData) {
+    const activeSpaceId = appState.selection.focusedId;
+    if (activeSpaceId && appState.structural.addConduit) {
+      console.log('New Conduit Data: ', conduitData);
+      appState.structural.addConduit({ ...conduitData, spaceId: activeSpaceId, label: conduitData.label || `Conduit ${this.counters.conduit++}` });
+    }
+  }
+
+  _handleRiserCreated(riserData) {
+    const activeSpaceId = appState.selection.focusedType === 'space' ? appState.selection.focusedId : null;
+    const activeFloorId = appState.selection.focusedType === 'floor' ? appState.selection.focusedId : appState.ui.activeFloorId;
+    if (activeFloorId || activeSpaceId || appState.structural.addRiser) {
+      console.log('New Riser Data: ', riserData);
+      appState.structural.addRiser({ ...riserData, floorId: activeFloorId, spaceId: activeSpaceId, label: riserData.label || `Riser ${this.counters.riser++}` });
+    }
+  }
+
+  _handleUndergroundConduitCreated(ugConduitData) {
+    const activeSiteId = appState.selection.focusedType === 'site' ? appState.selection.focusedId : null;
+    if (activeSiteId || appState.structural.addUndergroundConduit) {
+      console.log('New Underground Conduit Data: ', ugConduitData);
+      appState.structural.addUndergroundConduit({ ...ugConduitData, siteId: activeSiteId, label: ugConduitData.label || `Underground Conduit ${this.counters.undergroundConduit++}` });
+    }
+  }
+
   _handleDoorCreated(doorData) {
     const activeSpaceId = appState.selection.focusedId;
     const activeFloorId = appState.structural.spaces.find(s => s.id === activeSpaceId)?.floorId;
@@ -1759,8 +2040,14 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
     }
 
     if (isDevice) {
-        // Logical layout transforms are independent from the physical 3D device transform.
-        // A click or drag in the logical canvas must not rewrite the physical mesh position/scale.
+        if (dx !== 0 || dy !== 0) {
+            const deviceId = this.entityIdMap.get(en.id) || en.id;
+            const success = this.applyDeviceMove(deviceId, dx, dy, { skipCanvasMove: true });
+            if (success) {
+                this._recordPendingMove(deviceId, { kind: 'device' });
+            }
+        }
+
         appState.selection.notify?.();
         return;
     }

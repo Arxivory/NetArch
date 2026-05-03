@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Square, Triangle, LineSquiggle, Circle, BrickWallFire, ChevronsUp, SquareChevronDown, SeparatorVertical, SeparatorHorizontal, ArrowDownFromLine } from "lucide-react";
 
-export default function PathwayOption({ label, icon: Icon, onSelectShape, isActive }) {
+export default function PathwayOption({ label, icon: Icon, onSelectComponent, isActive }) {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -39,7 +39,7 @@ export default function PathwayOption({ label, icon: Icon, onSelectShape, isActi
               key={name}
               className="dropdown-item"
               onClick={() => {
-                onSelectShape(name);
+                onSelectComponent(name);
                 setOpen(false);
               }}
             >

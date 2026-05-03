@@ -224,6 +224,7 @@ export class LogicalCanvasController {
       onWallCreated: (wall) => this._handleWallCreated(wall),
       onConduitCreated: (conduit) => this._handleConduitCreated(conduit),
       onRiserCreated: (riser) => this._handleRiserCreated(riser),
+      onUndergroundConduitCreated: (ugConduit) => this._handleUndergroundConduitCreated(ugConduit),
       onCableCreated: (cable) => this._handleCableCreated(cable),
       onDeviceAdded: (device) => this._handleDeviceAdded(device),
       onDoorCreated: (door) => this._handleDoorCreated(door),
@@ -399,6 +400,16 @@ executeDelete(idToDelete) {
       }
     }
 
+    if (deletedIds.length === 0 && appState.structural) {
+      const isUndergroundConduit = appState.structural.undergroundConduits?.some(c => c.id === idToDelete);
+      if (isUndergroundConduit) {
+        appState.structural.removeUndergroundConduit(idToDelete);
+        this.layout.removeEntityById(idToDelete);
+        appState.selection.clearSelection();
+        return;
+      }
+    }
+
     if (deletedIds.length === 0 && typeof appState.removeDevice === 'function') {
         const removed = appState.removeDevice(idToDelete);
         if (removed) {
@@ -555,6 +566,10 @@ executeDelete(idToDelete) {
 
   startDrawRiser() {
     this.layout?.startDrawRiser();
+  }
+
+  startDrawUndergroundConduit() {
+    this.layout?.startDrawUndergroundConduit();
   }
 
   startDrawDoor() {
@@ -1784,6 +1799,14 @@ _handleShapeCreated(shapeData, shapeType) {
     if (activeFloorId || activeSpaceId || appState.structural.addRiser) {
       console.log('New Riser Data: ', riserData);
       appState.structural.addRiser({ ...riserData, floorId: activeFloorId, spaceId: activeSpaceId, label: riserData.label || `Riser ${this.counters.riser++}` });
+    }
+  }
+
+  _handleUndergroundConduitCreated(ugConduitData) {
+    const activeSiteId = appState.selection.focusedType === 'site' ? appState.selection.focusedId : null;
+    if (activeSiteId || appState.structural.addUndergroundConduit) {
+      console.log('New Underground Conduit Data: ', ugConduitData);
+      appState.structural.addUndergroundConduit({ ...ugConduitData, siteId: activeSiteId, label: ugConduitData.label || `Underground Conduit ${this.counters.undergroundConduit++}` });
     }
   }
 

@@ -7,6 +7,7 @@ import Door from "../../core/structural/Door";
 import Window from "../../core/structural/Window";
 import Conduit from "../../core/structural/Conduit";
 import Riser from "../../core/structural/Riser";
+import UndergroundConduit from "../../core/structural/UndergroundConduit";
 import appState from "../AppState";
 
 export class StructuralStore {
@@ -21,6 +22,7 @@ export class StructuralStore {
         this.windows = [];
         this.conduits = [];
         this.risers = [];
+        this.undergroundConduits = [];
     }
 
     // ============= Domain Methods =============
@@ -344,6 +346,25 @@ export class StructuralStore {
         return true;
     }
 
+    addUndergroundConduit(ugConduit) {
+        if (!ugConduit.id) throw new Error('Underground Conduit must have an id');
+        if (this.undergroundConduits.find(ug => ug.id === ugConduit.id)) return null;
+
+        const newUGConduit = new UndergroundConduit(ugConduit);
+
+        this.undergroundConduits.push(newUGConduit);
+        this.notify();
+        return newUGConduit;
+    }
+
+    removeUndergroundConduit(ugConduitId) {
+        const index = this.undergroundConduits.findIndex(ug => ug.id === ugConduitId);
+        if (index === -1) return false;
+        this.undergroundConduits.splice(index, 1);
+        this.notify();
+        return true;
+    }
+
     getSpacesByFloor(floorId) {
         return this.spaces.filter(s => s.floorId === floorId);
     }
@@ -478,13 +499,28 @@ export class StructuralStore {
 
     _buildSiteChildren(domainId, networkStore = null, furnitureStore = null) {
         const sites = this.sites.filter(s => String(s.domainId) === String(domainId));
-        return sites.map(site => ({
-            id: site.id,
-            label: site.label || `Site ${site.id}`,
-            type: 'site',
-            domainId: site.domainId,
-            children: this._buildFloorChildren(site.id, networkStore, furnitureStore)
-        }));
+        
+        return sites.map(site => {
+            const floorChildren = this._buildFloorChildren(site.id, networkStore, furnitureStore);
+
+            const siteUndergroundConduits = this.undergroundConduits
+                .filter(ug => String(ug.siteId) === String(site.id))
+                .map(ug => ({
+                    id: ug.id,
+                    label: ug.label || `Underground Conduit ${ug.id}`,
+                    type: 'undergroundConduit',
+                    siteId: ug.siteId,
+                    children: []
+                }));
+
+            return {
+                id: site.id,
+                label: site.label || `Site ${site.id}`,
+                type: 'site',
+                domainId: site.domainId,
+                children: [...floorChildren, ...siteUndergroundConduits]
+            };
+        });
     }
 
     _buildFloorChildren(siteId, networkStore = null, furnitureStore = null) {

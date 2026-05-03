@@ -8,6 +8,7 @@ import { Door }       from './entities/Door.js';
 import { Window }     from './entities/Window.js';
 import { Conduit }    from './entities/Conduit.js';
 import { Riser }      from './entities/Riser.js';
+import { UndergroundConduit } from './entities/UndergroundConduit.js';
 
 import { validateConnection }    from '../utils/ValidateConnection.js';
 import Link                      from '../network/Link.js';
@@ -44,6 +45,7 @@ export class ShapeCreator {
     this.onWindowCreated    = opts.onWindowCreated    || null;
     this.onConduitCreated   = opts.onConduitCreated   || null;
     this.onRiserCreated     = opts.onRiserCreated     || null;
+    this.onUndergroundConduitCreated = opts.onUndergroundConduitCreated || null;
     // Network entity callbacks
     this.onCableCreated     = opts.onCableCreated     || null;
     this.onDeviceCreated    = opts.onDeviceCreated    || null; // ← NEW
@@ -120,6 +122,13 @@ export class ShapeCreator {
     riser.id = this._genId('Riser ');
     if (this.onRiserCreated) this.onRiserCreated(riser);
     return riser;
+  }
+
+  createUndergroundConduit(x, y) {
+    const ugConduit = new UndergroundConduit(x, y, this.system);
+    ugConduit.id = this._genId('Underground Conduit ');
+    if (this.onUndergroundConduitCreated) this.onUndergroundConduitCreated(ugConduit);
+    return ugConduit;
   }
 
   createDoor(startPoint, currentPoint) {

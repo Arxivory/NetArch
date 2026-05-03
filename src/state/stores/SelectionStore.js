@@ -107,6 +107,17 @@ export class SelectionStore {
     this.notify();
   }
 
+  selectUndergroundConduit(ugConduitId, multiSelect = false) {
+    if (!multiSelect) this._clearObjectSelections();
+    this._setFocus(ugConduitId, 'underground-conduit');
+    this.notify();
+  }
+
+  deselectUndergroundConduit(ugConduitId) {
+    if (this.focusedId === ugConduitId) this._setFocus(null, null);
+    this.notify();
+  }
+
   toggleDeviceSelection(deviceId) {
     if (this.isDeviceSelected(deviceId)) {
       this.deselectDevice(deviceId);

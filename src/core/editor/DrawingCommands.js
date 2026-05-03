@@ -71,6 +71,13 @@ export class StartDrawRiserCommand extends DrawingCommand {
   }
 }
 
+export class StartDrawUndergroundConduitCommand extends DrawingCommand {
+  execute() {
+    this.controller?.startDrawUndergroundConduit();
+    this.appState.tools.setActiveTool('underground-conduit');
+  }
+}
+
 export class StartDrawWindowCommand extends DrawingCommand {
   execute() {
     this.controller?.startDrawWindow();

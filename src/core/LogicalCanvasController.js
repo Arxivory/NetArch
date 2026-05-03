@@ -27,7 +27,9 @@ export class LogicalCanvasController {
       site: 0,
       floor: 0,
       space: 0,
-      conduit: 0
+      conduit: 0,
+      riser: 0,
+      undergroundConduit: 0
     };
 
     // Map canvas entity IDs to structural entity IDs for tracking

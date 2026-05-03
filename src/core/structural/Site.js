@@ -23,6 +23,10 @@ export default class Site {
         
     }
 
+    getParentId(){
+        return this.domainId;
+    }
+
     // updateHeight() {
     //     this.geometry.height = this.floors.reduce((sum, f) => sum + (f.height || 3.0), 0);
     // }

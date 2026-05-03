@@ -176,12 +176,7 @@ export class Polygon {
         //this.system.updateBody(this.body);
     }
 
-    checkIfOverlapping(floorId) {
-        const structMap = new Map();
-        structMap.set("Site", "Domain"); // KEEP: a Site must live inside a Domain
-        structMap.set("Floor", "Site");  // KEEP: a Floor must live inside a Site
-        structMap.set("Space", "Floor"); // FIXED: use structMap, not struct
-        const requiredParent =  structMap.get(this.structureType);
+    checkIfOverlapping(ancestorsId, floorId) {
         let overlapping = false;
         this.system.checkOne(this.body, (other) => {
             if (other !== this.body) {
@@ -190,8 +185,12 @@ export class Polygon {
                 if (!other.b.structType) {
                     overlapping = other.b && otherFloorId === currentFloorId;
                 }
-                else if (other.b && otherFloorId === currentFloorId && requiredParent !== other.b.structType) {
+                if (other.a.structType === other.b.structType){
                     overlapping = true;
+                }
+                if (ancestorsId.includes(other.b.id)){
+                    console.log("Culprit");
+                    overlapping = false;
                 }
             }
         });

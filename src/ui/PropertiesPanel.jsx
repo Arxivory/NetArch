@@ -618,8 +618,7 @@ useEffect(() => {
 
       <div className="modal-footer">
         <button className="cancel-btn" onClick={() => setIsOSPFModalOpen(false)}>Cancel</button>
-        // Locate the Save button in your OSPF modal code
-<button className="save-btn" onClick={() => {
+        <button className="save-btn" onClick={() => {
   // 1. Create the log message based on the configuration
   const logMessage = `OSPF configured: Process ID 1, Router ID 1.1.1.1, ${ospfNetworks.length} network(s) defined.`;
 

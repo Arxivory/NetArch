@@ -886,7 +886,7 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
 
     device.transform = device.transform || { position: { x: 0, y: 0, z: 0 } };
     device.transform.position.x = Number(device.transform.position.x || 0) + dx;
-    device.transform.position.y = Number(device.transform.position.y || 0) + dy;
+    device.transform.position.z = Number(device.transform.position.z || 0) + dy;
 
     if (!options.skipCanvasMove) {
       this._applyCanvasEntityMoveById(deviceId, dx, dy);
@@ -1328,8 +1328,8 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
         newDevice.x = x;
         newDevice.y = y;
         newDevice.transform = newDevice.transform || { position: { x, y, z: 0 } };
-        newDevice.transform.position.x = x;
-        newDevice.transform.position.y = y;
+        newDevice.transform.position.x = x * 0.7;
+        newDevice.transform.position.z = y * 0.7;
 
         newDevice.label = newLabel;
         newDevice.name = newLabel;
@@ -1394,8 +1394,8 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
         newFurniture.x = x;
         newFurniture.y = y;
         newFurniture.transform = newFurniture.transform || { position: { x, y, z: 0 } };
-        newFurniture.transform.position.x = x;
-        newFurniture.transform.position.y = y;
+        newFurniture.transform.position.x = x * 0.7;
+        newFurniture.transform.position.z = y * 0.7;
 
         newFurniture.catalogId = catalogId; 
         newFurniture.label = providedName;

@@ -43,6 +43,7 @@ export class PhysicalController {
 
         this.unsubscribe = this.store.subscribe(() => this.syncWithState());
         this.unsubscribeNetwork = this.networkStore.subscribe(() => this.syncWithState());
+        this.unsubscribeFurniture = this.furnitureStore.subscribe(() => this.syncWithState());
         
         this.gizmoManager = new GizmoManager(getCamera(), getRenderer().domElement, getScene());
 
@@ -151,7 +152,7 @@ export class PhysicalController {
                 const deviceMesh = this.deviceMeshes.get(device.id);
                 console.log('Device Mesh: ', device, ' is updating');
                 if (device.transform) {
-                    deviceMesh.position.set(device.transform.position.x, device.transform.position.y + altitude + 2, device.transform.position.z);
+                    deviceMesh.position.set(device.transform.position.x, device.transform.position.y, device.transform.position.z);
                     deviceMesh.rotation.set(device.transform.rotation.x, device.transform.rotation.y, device.transform.rotation.z);
                     deviceMesh.scale.set(device.transform.scale.x, device.transform.scale.y, device.transform.scale.z);
                 }
@@ -170,7 +171,7 @@ export class PhysicalController {
             if (this.furnitureMeshes.has(furniture.id)) {
                 const furnitureMesh = this.furnitureMeshes.get(furniture.id);
                 if (furniture.transform) {
-                    furnitureMesh.position.set(furniture.transform.position.x, furniture.transform.position.y + altitude + 2, furniture.transform.position.z);
+                    furnitureMesh.position.set(furniture.transform.position.x, furniture.transform.position.y, furniture.transform.position.z);
                     furnitureMesh.rotation.set(furniture.transform.rotation.x, furniture.transform.rotation.y, furniture.transform.rotation.z);
                     furnitureMesh.scale.set(furniture.transform.scale.x, furniture.transform.scale.y, furniture.transform.scale.z);
                 }
@@ -443,6 +444,15 @@ export class PhysicalController {
         const floor = this.store.floors.find(f => f.id === device.floorId);
         const altitude = floor ? floor.altitude || 0 : 0;
 
+        const worldY = (device.transform?.position?.y ?? 0) + altitude + 2;
+        deviceMesh.position.set(
+            device.transform?.position?.x ?? 0,
+            worldY,
+            device.transform?.position?.z ?? 0
+        );
+
+        device.transform.position.y = worldY;
+
         deviceMesh.userData = { id: device.id, type: 'device' };
 
         this.scene.add(deviceMesh);
@@ -463,6 +473,13 @@ export class PhysicalController {
 
         const floor = this.store.floors.find(f => f.id === furniture.floorId);
         const altitude = floor ? floor.altitude || 0 : 0;
+
+        const worldY = (furniture.transform?.position?.y ?? 0) + altitude + 2;
+        furnitureMesh.position.set(
+            furniture.transform?.position?.x ?? 0,
+            worldY,
+            furniture.transform?.position?.z ?? 0
+        );
 
         furnitureMesh.userData = { id: furniture.id, type: 'furniture' };
 

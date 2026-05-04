@@ -1182,6 +1182,11 @@ export class ChangePropertyCommand extends Command {
  * Takes a deep snapshot of structures, devices, furniture, and connected cables
  * before executing a cascade deletion. Guarantees perfect restoration on Undo.
  */
+/**
+ * Universal Delete Command
+ * Takes a deep snapshot of structures, devices, furniture, and connected cables
+ * before executing a cascade deletion. Guarantees perfect restoration on Undo.
+ */
 export class DeleteEntityCommand extends Command {
   constructor(appState, controller, idToDelete) {
     super();
@@ -1224,8 +1229,7 @@ export class DeleteEntityCommand extends Command {
         let affectedDevices = net.getAllDevices().filter(d => 
             d.id === id || childSiteIds.includes(d.siteId) || childFloorIds.includes(d.floorId) || childSpaceIds.includes(d.spaceId)
         );
-        // Use shallow clone to preserve class methods like getPortByName!
-        snap.devices = affectedDevices.map(d => ({...d}));
+        snap.devices = affectedDevices.map(d => ({...d})); // Shallow clone preserves methods
         deviceIds = affectedDevices.map(d => d.id);
     }
 
@@ -1233,13 +1237,11 @@ export class DeleteEntityCommand extends Command {
         let affectedFurn = (furn.furnitures || []).filter(f => 
             f.id === id || childSiteIds.includes(f.siteId) || childFloorIds.includes(f.floorId) || childSpaceIds.includes(f.spaceId)
         );
-        // Shallow clone
         snap.furnitures = affectedFurn.map(f => ({...f}));
     }
 
     if (net) {
         let affectedLinks = net.getAllLinks().filter(l => l.id === id || deviceIds.includes(l.sourceId) || deviceIds.includes(l.targetId));
-        // Shallow clone
         snap.links = affectedLinks.map(l => ({...l}));
     }
 
@@ -1257,47 +1259,42 @@ export class DeleteEntityCommand extends Command {
       this.description = `Deleted ${targetObj.label || targetObj.name || targetObj.hostname || 'Entity'}`;
     }
 
+    // 🧹 CRITICAL FIX: Explicitly destroy all child hardware from the Stores AND the 3D Canvas!
+    // Without this, the 3D meshes become "ghosts" and stack when undone.
+    this.backup.links.forEach(l => {
+        this.appState.network?.removeLink(l.id);
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: l.id } }));
+    });
+    this.backup.devices.forEach(d => {
+        this.appState.network?.removeDevice(d.id);
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: d.id } }));
+    });
+    this.backup.furnitures.forEach(f => {
+        this.appState.furniture?.removeFurniture(f.id);
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: f.id } }));
+    });
+
     let deletedIds = [];
     const st = this.appState.structural;
     const id = this.idToDelete;
     
+    // Destroy Structural state
     if (st.domains?.some(d => d.id === id)) deletedIds = st.removeDomain(id) || [id];
     else if (st.sites?.some(s => s.id === id)) deletedIds = st.removeSite(id) || [id];
     else if (st.floors?.some(f => f.id === id)) deletedIds = st.removeFloor(id) || [id];
     else if (st.spaces?.some(s => s.id === id)) deletedIds = st.removeSpace(id) || [id];
     else if (st.walls?.some(w => w.id === id)) deletedIds = st.removeWall?.(id) || [id];
 
-    if (deletedIds.length === 0 && this.appState.devices && this.appState.devices.removeDevice) {
-        this.appState.devices.removeDevice(id); deletedIds = [id];
-    } else if (deletedIds.length === 0 && this.appState.network?.getDevice?.(id)) {
-        this.appState.network.removeDevice(id); deletedIds = [id];
-    }
-
-    if (deletedIds.length === 0 && this.appState.network?.getLink?.(id)) {
-        const link = this.appState.network.getLink(id);
-        link?.bringDown?.();
-        this.appState.network.removeLink(id);
-        deletedIds = [id];
-    }
-
-    if (deletedIds.length === 0 && this.appState.furniture?.furnitures?.some(f => f.id === id)) {
-        this.appState.furniture.removeFurniture(id); deletedIds = [id];
-    }
-
+    // Wipe visually from 2D Layout
     const allIdsToWipeVisually = new Set([
         ...deletedIds, id,
         ...this.backup.sites.map(s => s.id), ...this.backup.floors.map(f => f.id),
-        ...this.backup.spaces.map(sp => sp.id), ...this.backup.devices.map(d => d.id),
-        ...this.backup.furnitures.map(f => f.id), ...this.backup.links.map(l => l.id)
+        ...this.backup.spaces.map(sp => sp.id)
     ]);
 
     allIdsToWipeVisually.forEach(wipeId => {
         if (typeof this.controller?.removeEntity === 'function') {
             this.controller.removeEntity(wipeId);
-            if (this.controller.layout) {
-               if (this.controller.layout.devices) this.controller.layout.devices = this.controller.layout.devices.filter(d => d.id !== wipeId);
-               if (this.controller.layout.furnitures) this.controller.layout.furnitures = this.controller.layout.furnitures.filter(f => f.id !== wipeId);
-            }
         }
     });
     
@@ -1361,26 +1358,28 @@ export class DeleteEntityCommand extends Command {
         this.backup.walls.forEach(w => st.addWall(w));
     }
 
-    // 2. Synchronous Restoration of Assets (No setTimeout!)
-    this.backup.devices.forEach(d => net?.addDevice(d));
-    this.backup.furnitures.forEach(f => furn?.addFurniture(f));
-    this.backup.links.forEach(l => net?.addLink(l));
+    // 2. Synchronous Restoration of Assets (Spawning precisely one mesh!)
+    this.backup.devices.forEach(d => {
+        net?.addDevice(d);
+        if (this.controller?.physicalController?.createDeviceGLTFMesh) {
+            this.controller.physicalController.createDeviceGLTFMesh(d);
+        }
+        if (this.controller?.restoreCanvasDevice) {
+            this.controller.restoreCanvasDevice(d, d.id, d.x || d.position?.x || 0, d.y || d.position?.y || 0);
+        }
+    });
 
-    if (this.controller?.restoreCanvasDevice) {
-        this.backup.devices.forEach(d => {
-            let tx = d.x ?? d.position?.x ?? d.transform?.position?.x ?? 0;
-            let ty = d.y ?? d.position?.y ?? d.transform?.position?.y ?? 0;
-            this.controller.restoreCanvasDevice(d, d.id, tx, ty);
-        });
-    }
-    
-    if (this.controller?.restoreCanvasFurniture) {
-        this.backup.furnitures.forEach(f => {
-            let tx = f.x ?? f.position?.x ?? f.transform?.position?.x ?? 0;
-            let ty = f.y ?? f.position?.y ?? f.transform?.position?.y ?? 0;
-            this.controller.restoreCanvasFurniture(f, f.id, tx, ty);
-        });
-    }
+    this.backup.furnitures.forEach(f => {
+        furn?.addFurniture(f);
+        if (this.controller?.physicalController?.createFurnitureGLTFMesh) {
+            this.controller.physicalController.createFurnitureGLTFMesh(f);
+        }
+        if (this.controller?.restoreCanvasFurniture) {
+            this.controller.restoreCanvasFurniture(f, f.id, f.x || f.position?.x || 0, f.y || f.position?.y || 0);
+        }
+    });
+
+    this.backup.links.forEach(l => net?.addLink(l));
 
     // 3. Force Canvas Engine to paint everything at once
     if (this.controller?.layout && typeof this.controller.layout._render === 'function') {

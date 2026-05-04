@@ -172,10 +172,9 @@ export class AddDeviceCommand extends Command {
   }
 
   execute() {
-    const cleanData = JSON.parse(JSON.stringify(this.deviceData));
+    const cleanData = this.deviceData;
     const id = cleanData.id;
 
-    // 1. Add to Data Store
     if (!this.appState.network.getDevice(id)) {
       this.appState.network.addDevice(cleanData);
     }

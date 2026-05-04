@@ -1,6 +1,7 @@
 export class ShapeRenderer {
   constructor(opts = {}) {
     this.gridSize = opts.gridSize || 32;
+    this.scaler = 0.7;
   }
 
   renderRectangles(ctx, rectangles) {
@@ -86,8 +87,8 @@ export class ShapeRenderer {
     for (const dev of devices) {
       const cx = dev.x + dev.renderWidth / 2;
       const cy = dev.y + dev.renderHeight / 2;
-      const w = dev.renderWidth;
-      const h = dev.renderHeight;
+      const w = dev.renderWidth * this.scaler;
+      const h = dev.renderHeight * this.scaler;
       const x = dev.x;
       const y = dev.y;
 
@@ -134,7 +135,7 @@ renderFurnitures(ctx, furnitures) {
     for (const dev of furnitures) {
       const s = dev.transform?.scale?.factor || dev.transform?.scale?.x || 1;
       const baseSize = this.gridSize * 1.5;
-      const size = baseSize * s;
+      const size = baseSize * s * this.scaler;
       const halfSize = size / 2;
 
       const x = dev.x - halfSize;
@@ -161,7 +162,7 @@ renderFurnitures(ctx, furnitures) {
       const labelText = dev.label || dev.name || 'Furniture';
       const maxWidth = size * 1.5; // Max text width is 150% of the furniture icon width
 
-      let fontSize = 12;
+      let fontSize = 12 * this.scaler;
       ctx.font = `${fontSize}px sans-serif`;
       
       // Shrink font size dynamically until the text fits

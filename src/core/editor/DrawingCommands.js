@@ -1177,6 +1177,11 @@ export class ChangePropertyCommand extends Command {
  * Takes a deep snapshot of structures, devices, furniture, and connected cables
  * before executing a cascade deletion. Guarantees perfect restoration on Undo.
  */
+/**
+ * Universal Delete Command
+ * Takes a deep snapshot of structures, devices, furniture, and connected cables
+ * before executing a cascade deletion. Guarantees perfect restoration on Undo.
+ */
 export class DeleteEntityCommand extends Command {
   constructor(appState, controller, idToDelete) {
     super();
@@ -1219,7 +1224,8 @@ export class DeleteEntityCommand extends Command {
         let affectedDevices = net.getAllDevices().filter(d => 
             d.id === id || childSiteIds.includes(d.siteId) || childFloorIds.includes(d.floorId) || childSpaceIds.includes(d.spaceId)
         );
-        snap.devices = affectedDevices.map(d => JSON.parse(JSON.stringify(d)));
+        // Use shallow clone to preserve class methods like getPortByName!
+        snap.devices = affectedDevices.map(d => ({...d}));
         deviceIds = affectedDevices.map(d => d.id);
     }
 
@@ -1227,16 +1233,18 @@ export class DeleteEntityCommand extends Command {
         let affectedFurn = (furn.furnitures || []).filter(f => 
             f.id === id || childSiteIds.includes(f.siteId) || childFloorIds.includes(f.floorId) || childSpaceIds.includes(f.spaceId)
         );
-        snap.furnitures = affectedFurn.map(f => JSON.parse(JSON.stringify(f)));
+        // Shallow clone
+        snap.furnitures = affectedFurn.map(f => ({...f}));
     }
 
     if (net) {
         let affectedLinks = net.getAllLinks().filter(l => l.id === id || deviceIds.includes(l.sourceId) || deviceIds.includes(l.targetId));
-        snap.links = affectedLinks.map(l => JSON.parse(JSON.stringify(l)));
+        // Shallow clone
+        snap.links = affectedLinks.map(l => ({...l}));
     }
 
-    if (net && net.getLink(id)) snap.links = [JSON.parse(JSON.stringify(net.getLink(id)))];
-    if (furn && furn.furnitures?.some(f => f.id === id)) snap.furnitures = [JSON.parse(JSON.stringify(furn.furnitures.find(f => f.id === id)))];
+    if (net && net.getLink(id)) snap.links = [{...net.getLink(id)}];
+    if (furn && furn.furnitures?.some(f => f.id === id)) snap.furnitures = [{...furn.furnitures.find(f => f.id === id)}];
     if (st.walls?.some(w => w.id === id)) snap.walls = [JSON.parse(JSON.stringify(st.walls.find(w => w.id === id)))];
 
     return snap;
@@ -1276,7 +1284,6 @@ export class DeleteEntityCommand extends Command {
         this.appState.furniture.removeFurniture(id); deletedIds = [id];
     }
 
-    // FIX: Force absolute visual erasure of all children so there are no ghost entities left behind
     const allIdsToWipeVisually = new Set([
         ...deletedIds, id,
         ...this.backup.sites.map(s => s.id), ...this.backup.floors.map(f => f.id),
@@ -1354,38 +1361,31 @@ export class DeleteEntityCommand extends Command {
         this.backup.walls.forEach(w => st.addWall(w));
     }
 
-    // Force Canvas Engine to paint the structures NOW
+    // 2. Synchronous Restoration of Assets (No setTimeout!)
+    this.backup.devices.forEach(d => net?.addDevice(d));
+    this.backup.furnitures.forEach(f => furn?.addFurniture(f));
+    this.backup.links.forEach(l => net?.addLink(l));
+
+    if (this.controller?.restoreCanvasDevice) {
+        this.backup.devices.forEach(d => {
+            let tx = d.x ?? d.position?.x ?? d.transform?.position?.x ?? 0;
+            let ty = d.y ?? d.position?.y ?? d.transform?.position?.y ?? 0;
+            this.controller.restoreCanvasDevice(d, d.id, tx, ty);
+        });
+    }
+    
+    if (this.controller?.restoreCanvasFurniture) {
+        this.backup.furnitures.forEach(f => {
+            let tx = f.x ?? f.position?.x ?? f.transform?.position?.x ?? 0;
+            let ty = f.y ?? f.position?.y ?? f.transform?.position?.y ?? 0;
+            this.controller.restoreCanvasFurniture(f, f.id, tx, ty);
+        });
+    }
+
+    // 3. Force Canvas Engine to paint everything at once
     if (this.controller?.layout && typeof this.controller.layout._render === 'function') {
         this.controller.layout._render();
     }
-
-    // 2. TIMING FIX: Give the DOM 50 milliseconds to finish painting the Spaces.
-    // If we render devices before the Space exists, the layout engine hides them!
-    setTimeout(() => {
-        this.backup.devices.forEach(d => net?.addDevice(d));
-        this.backup.furnitures.forEach(f => furn?.addFurniture(f));
-        this.backup.links.forEach(l => net?.addLink(l));
-
-        if (this.controller?.restoreCanvasDevice) {
-            this.backup.devices.forEach(d => {
-                let tx = d.x ?? d.position?.x ?? d.transform?.position?.x ?? 0;
-                let ty = d.y ?? d.position?.y ?? d.transform?.position?.y ?? 0;
-                this.controller.restoreCanvasDevice(d, d.id, tx, ty);
-            });
-        }
-        
-        if (this.controller?.restoreCanvasFurniture) {
-            this.backup.furnitures.forEach(f => {
-                let tx = f.x ?? f.position?.x ?? f.transform?.position?.x ?? 0;
-                let ty = f.y ?? f.position?.y ?? f.transform?.position?.y ?? 0;
-                this.controller.restoreCanvasFurniture(f, f.id, tx, ty);
-            });
-        }
-
-        if (this.controller?.layout && typeof this.controller.layout._render === 'function') {
-            this.controller.layout._render();
-        }
-    }, 50);
   }
 
   redo() { this.execute(); }

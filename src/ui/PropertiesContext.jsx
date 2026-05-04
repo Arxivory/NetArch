@@ -1,13 +1,6 @@
-import { createContext, useContext, useState } from "react";
-import { createPortal } from "react-dom";
-import {
-  Network, ArrowLeftRight, Server, Lock, Activity, Clock,
-  Terminal, ArrowDown, Map, Layers, Cable, GitBranch,
-  ShieldCheck, ServerIcon
-} from "lucide-react";
+import { createContext, useContext, useState, useRef, useCallback } from "react";
 
 // ─── Context ──────────────────────────────────────────────────────────────────
-
 const PropertiesContext = createContext(null);
 
 export function useProperties() {
@@ -16,60 +9,234 @@ export function useProperties() {
   return ctx;
 }
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
+// ─── Default modal states ──────────────────────────────────────────────────────
+const makeDefaultRouting = () => ({
+  activeRoutingTab: "ospf",
+  routerId: "", defaultRoute: "",
+  ospfProcessId: "", ospfAreaType: "", ospfNetworks: "", ospfHello: "", ospfDead: "", ospfAuthEnable: false,
+  bgpLocalAS: "", bgpKeepalive: "", bgpNeighborIP: "", bgpRemoteAS: "", bgpNetworks: "", bgpReflector: false,
+  staticDest: "", staticNextHop: "", staticMetric: "", staticIface: "G0/0", staticFloating: false,
+  ctrlRedist: "None", ctrlFilter: "", ctrlMaxRoutes: "", ctrlLogging: false,
+});
 
+const makeDefaultNAT = () => ({
+  activeNatType: "pat",
+  insideIface: "G0/0 (LAN)", outsideIface: "G0/1 (WAN)",
+  aclId: "", srcNetwork: "", wildcardMask: "",
+  patMode: "Use Interface IP", patOverload: true,
+  staticPrivateIP: "", staticPublicIP: "", staticPrivatePort: "", staticPublicPort: "",
+  poolName: "", poolStartIP: "", poolEndIP: "", poolNetmask: "", poolBindACL: "",
+});
+
+const makeDefaultACL = () => ({
+  activeACLSection: "rules",
+  aclType: "Standard", aclName: "", implicitDeny: true,
+  interface: "G0/0 (LAN)", direction: "Inbound", applyTo: "All Traffic",
+  defaultAction: "Deny", loggingLevel: "None", statefulInspection: false, rateLimiting: false,
+  rules: Array.from({ length: 4 }, () => ({ action: "permit", protocol: "ip", source: "", destination: "", port: "", log: false })),
+});
+
+const makeDefaultDHCP = () => ({
+  dhcpScope: "basic",
+  gateway: "", subnetMask: "", dnsServer: "", dhcpEnabled: true,
+  startIP: "", endIP: "", leaseTime: "Select", conflictHandling: "Select",
+  reservations: [
+    { device: "", mac: "", ip: "", status: "Active" },
+    { device: "", mac: "", ip: "", status: "Active" },
+    { device: "", mac: "", ip: "", status: "Active" },
+  ],
+  domainName: "", ntpServer: "", dhcpRelay: "", dnsUpdateMode: "Select",
+  authoritative: true, conflictDetection: false, systemLogging: false, auditTrail: false,
+});
+
+const makeDefaultVPN = () => ({
+  activeVPNTab: "tunnel",
+  localGateway: "", remoteGateway: "", localSubnet: "", remoteSubnet: "", autoNegotiate: true,
+  ikeVersion: "IKEv2 (Recommended)", encryption: "AES-256", integrity: "SHA-256",
+  preSharedKey: "", pfs: true,
+  srcNetwork: "", dstNetwork: "", encryptMatched: true, bypassLocal: false,
+});
+
+const makeDefaultSNMP = () => ({
+  activeSNMPTab: "agent",
+  systemName: "", location: "", snmpVersion: "v3 (Recommended)", contact: "", agentEnabled: true,
+  readCommunity: "", writeCommunity: "", managerACL: "",
+  securityLevel: "authPriv (Recommended)", accessLogging: true, restrictTrusted: false,
+  trapReceiver: "", trapPort: "", trapLinkUpDown: true, trapCpuMemory: false, trapAnomaly: false,
+});
+
+const makeDefaultNTP = () => ({
+  activeNTPTab: "server",
+  servers: [
+    { host: "", type: "Public", enabled: true },
+    { host: "", type: "Pool", enabled: true },
+    { host: "", type: "Fallback", enabled: false },
+  ],
+  syncInterval: "60 sec", syncMode: "Client", autoDrift: true, forceOnBoot: false, fallback: false,
+  keyId: "", algorithm: "MD5", sharedKey: "", requireAuth: false,
+});
+
+const makeDefaultSSH = () => ({
+  activeSSHTab: "general",
+  sshEnabled: "Enabled", port: "", protocolVersion: "SSH-2 (Recommended)", allowRootLogin: true,
+  passwordLogin: "Enabled", keyBasedAuth: "Required", disableEmpty: true, twoFA: false,
+  keys: [
+    { user: "", keyType: "RSA", fingerprint: "", active: true },
+    { user: "", keyType: "ECDSA", fingerprint: "", active: true },
+    { user: "", keyType: "ED25519", fingerprint: "", active: false },
+  ],
+  allowedIP: "", blockedIP: "", ipFiltering: true, rateLimiting: false,
+});
+
+// ─── Dispatch helper ───────────────────────────────────────────────────────────
+function dispatchLog(device, deviceName, message, location) {
+  window.dispatchEvent(
+    new CustomEvent("add-system-log", {
+      detail: { device, deviceName, message, location },
+    })
+  );
+}
+
+// ─── Provider ─────────────────────────────────────────────────────────────────
 export function PropertiesProvider({ children }) {
 
-  // ── Per-feature modal open state ─────────────────────────────────────────
+  // ── Modal open state ────────────────────────────────────────────────────────
   const [isRoutingModalOpen,      setIsRoutingModalOpen]      = useState(false);
-  const [activeRoutingTab,        setActiveRoutingTab]        = useState("ospf");
-
   const [isNATModalOpen,          setIsNATModalOpen]          = useState(false);
-  const [activeNatType,           setActiveNatType]           = useState("pat");
-
   const [isACLModalOpen,          setIsACLModalOpen]          = useState(false);
-  const [activeACLSection,        setActiveACLSection]        = useState("config");
-
   const [isDHCPModalOpen,         setIsDHCPModalOpen]         = useState(false);
-  const [dhcpScope,               setDhcpScope]               = useState("basic");
-
   const [isVPNModalOpen,          setIsVPNModalOpen]          = useState(false);
-  const [activeVPNTab,            setActiveVPNTab]            = useState("tunnel");
-
   const [isSNMPModalOpen,         setIsSNMPModalOpen]         = useState(false);
-  const [activeSNMPTab,           setActiveSNMPTab]           = useState("agent");
-
   const [isNTPModalOpen,          setIsNTPModalOpen]          = useState(false);
-  const [activeNTPTab,            setActiveNTPTab]            = useState("server");
-
   const [isSSHModalOpen,          setIsSSHModalOpen]          = useState(false);
-  const [activeSSHTab,            setActiveSSHTab]            = useState("general");
-
   const [isVLANModalOpen,         setIsVLANModalOpen]         = useState(false);
-  const [activeVLANTab,           setActiveVLANTab]           = useState("vlans");
-
   const [isSTPModalOpen,          setIsSTPModalOpen]          = useState(false);
-  const [activeSTPTab,            setActiveSTPTab]            = useState("global");
-
   const [isPortSecurityModalOpen, setIsPortSecurityModalOpen] = useState(false);
-  const [activePortSecurityTab,   setActivePortSecurityTab]   = useState("mac");
-
   const [isTrunkingModalOpen,     setIsTrunkingModalOpen]     = useState(false);
-  const [activeTrunkTab,          setActiveTrunkTab]          = useState("config");
-
   const [isQoSModalOpen,          setIsQoSModalOpen]          = useState(false);
-  const [activeQoSTab,            setActiveQoSTab]            = useState("classification");
-
   const [isAuthModalOpen,         setIsAuthModalOpen]         = useState(false);
-  const [activeAuthTab,           setActiveAuthTab]           = useState("radius");
-
   const [isIGMPModalOpen,         setIsIGMPModalOpen]         = useState(false);
-  const [activeIGMPTab,           setActiveIGMPTab]           = useState("snooping");
-
   const [isSyslogModalOpen,       setIsSyslogModalOpen]       = useState(false);
-  const [activeSyslogTab,         setActiveSyslogTab]         = useState("servers");
 
-  // ── Dispatch: config card click → correct modal ──────────────────────────
+  // ── Per-device modal config state (keyed by deviceId) ───────────────────────
+  // Structure: { [deviceId]: { routing: {...}, nat: {...}, acl: {...}, ... } }
+  const [deviceConfigs, setDeviceConfigs] = useState({});
+
+  // ── Helper: get config for a device+feature, with defaults ─────────────────
+  const getConfig = useCallback((deviceId, feature) => {
+    const defaults = {
+      routing: makeDefaultRouting,
+      nat:     makeDefaultNAT,
+      acl:     makeDefaultACL,
+      dhcp:    makeDefaultDHCP,
+      vpn:     makeDefaultVPN,
+      snmp:    makeDefaultSNMP,
+      ntp:     makeDefaultNTP,
+      ssh:     makeDefaultSSH,
+    };
+    return deviceConfigs[deviceId]?.[feature] ?? defaults[feature]?.() ?? {};
+  }, [deviceConfigs]);
+
+  // ── Helper: save config for a device+feature ────────────────────────────────
+  const saveConfig = useCallback((deviceId, feature, newState) => {
+    setDeviceConfigs(prev => ({
+      ...prev,
+      [deviceId]: {
+        ...(prev[deviceId] || {}),
+        [feature]: newState,
+      },
+    }));
+  }, []);
+
+  // ── Device property debounce logging (Feature #6) ───────────────────────────
+  // Tracks { [deviceId]: { field: value } } for pending changes
+  const pendingChanges = useRef({});
+  const debounceTimers = useRef({});
+
+  const logDevicePropertyChange = useCallback((deviceId, deviceName, field, oldValue, newValue, location = "Unknown") => {
+    if (oldValue === newValue) return;
+
+    const ts = new Date().toISOString().replace("T", " ").slice(0, 19);
+    const fieldLabels = {
+      label:          "Device Name",
+      ipAddress:      "IP Address",
+      subnetMask:     "Subnet Mask",
+      defaultGateway: "Default Gateway",
+    };
+    const displayField = fieldLabels[field] || field;
+
+    const isIP = field === "ipAddress" || field === "defaultGateway";
+    const isSubnet = field === "subnetMask";
+
+    let level = "INFO";
+    let tag   = "SYS-6-CONFIG";
+    let detail = "";
+
+    if (field === "label") {
+      tag    = "SYS-5-HOSTNAME_CHANGE";
+      level  = "NOTICE";
+      detail =
+        `%${tag}: [${ts}] Device identity updated — ` +
+        `${displayField} changed from "${oldValue || "—"}" to "${newValue}". ` +
+        `DNS cache and SNMP sysName may require manual refresh.`;
+    } else if (isIP) {
+      tag    = "SYS-5-IP_CHANGE";
+      level  = "NOTICE";
+      detail =
+        `%${tag}: [${ts}] ${deviceName} @ ${location} — ` +
+        `${displayField} updated: ${oldValue || "unset"} → ${newValue}. ` +
+        `Routing adjacency will re-evaluate; ARP cache cleared for this interface.`;
+    } else if (isSubnet) {
+      tag    = "SYS-6-SUBNET_CHANGE";
+      level  = "INFO";
+      detail =
+        `%${tag}: [${ts}] ${deviceName} @ ${location} — ` +
+        `${displayField} updated: ${oldValue || "unset"} → ${newValue}. ` +
+        `Network boundary recalculated; check for broadcast conflicts.`;
+    } else {
+      detail =
+        `%${tag}: [${ts}] ${deviceName} @ ${location} — ` +
+        `${displayField} changed: ${oldValue || "—"} → ${newValue}.`;
+    }
+
+    dispatchLog("System", deviceName, detail, location);
+  }, []);
+
+  /**
+   * Call this from PropertiesPanel on every input change.
+   * Changes are batched per field and only logged after 1 s of inactivity.
+   */
+  const scheduleDevicePropertyLog = useCallback((
+    deviceId, deviceName, field, newValue, getOldValue, location
+  ) => {
+    // Store pending value
+    if (!pendingChanges.current[deviceId]) pendingChanges.current[deviceId] = {};
+    if (!pendingChanges.current[deviceId][field]) {
+      // First change — record the original value so we can compare
+      pendingChanges.current[deviceId][field] = {
+        originalValue: getOldValue(),
+        latestValue: newValue,
+      };
+    } else {
+      pendingChanges.current[deviceId][field].latestValue = newValue;
+    }
+
+    // Debounce per (deviceId, field)
+    const key = `${deviceId}__${field}`;
+    clearTimeout(debounceTimers.current[key]);
+    debounceTimers.current[key] = setTimeout(() => {
+      const entry = pendingChanges.current[deviceId]?.[field];
+      if (!entry) return;
+      const { originalValue, latestValue } = entry;
+      if (originalValue !== latestValue) {
+        logDevicePropertyChange(deviceId, deviceName, field, originalValue, latestValue, location);
+        // Update original so next batch starts fresh
+        pendingChanges.current[deviceId][field].originalValue = latestValue;
+      }
+    }, 1000);
+  }, [logDevicePropertyChange]);
+
+  // ── Config card click dispatcher ────────────────────────────────────────────
   const handleConfigItemClick = (label) => {
     const map = {
       "Routing Protocol":    () => setIsRoutingModalOpen(true),
@@ -93,54 +260,28 @@ export function PropertiesProvider({ children }) {
   };
 
   const value = {
-    // Routing
+    // Modal open states
     isRoutingModalOpen,      setIsRoutingModalOpen,
-    activeRoutingTab,        setActiveRoutingTab,
-    // NAT
     isNATModalOpen,          setIsNATModalOpen,
-    activeNatType,           setActiveNatType,
-    // ACL
     isACLModalOpen,          setIsACLModalOpen,
-    activeACLSection,        setActiveACLSection,
-    // DHCP
     isDHCPModalOpen,         setIsDHCPModalOpen,
-    dhcpScope,               setDhcpScope,
-    // VPN
     isVPNModalOpen,          setIsVPNModalOpen,
-    activeVPNTab,            setActiveVPNTab,
-    // SNMP
     isSNMPModalOpen,         setIsSNMPModalOpen,
-    activeSNMPTab,           setActiveSNMPTab,
-    // NTP
     isNTPModalOpen,          setIsNTPModalOpen,
-    activeNTPTab,            setActiveNTPTab,
-    // SSH
     isSSHModalOpen,          setIsSSHModalOpen,
-    activeSSHTab,            setActiveSSHTab,
-    // VLAN
     isVLANModalOpen,         setIsVLANModalOpen,
-    activeVLANTab,           setActiveVLANTab,
-    // STP
     isSTPModalOpen,          setIsSTPModalOpen,
-    activeSTPTab,            setActiveSTPTab,
-    // Port Security
     isPortSecurityModalOpen, setIsPortSecurityModalOpen,
-    activePortSecurityTab,   setActivePortSecurityTab,
-    // Trunking
     isTrunkingModalOpen,     setIsTrunkingModalOpen,
-    activeTrunkTab,          setActiveTrunkTab,
-    // QoS
     isQoSModalOpen,          setIsQoSModalOpen,
-    activeQoSTab,            setActiveQoSTab,
-    // Auth
     isAuthModalOpen,         setIsAuthModalOpen,
-    activeAuthTab,           setActiveAuthTab,
-    // IGMP
     isIGMPModalOpen,         setIsIGMPModalOpen,
-    activeIGMPTab,           setActiveIGMPTab,
-    // Syslog
     isSyslogModalOpen,       setIsSyslogModalOpen,
-    activeSyslogTab,         setActiveSyslogTab,
+    // Per-device config state API
+    getConfig,
+    saveConfig,
+    // Device property logging
+    scheduleDevicePropertyLog,
     // Dispatcher
     handleConfigItemClick,
   };
@@ -151,5 +292,3 @@ export function PropertiesProvider({ children }) {
     </PropertiesContext.Provider>
   );
 }
-
-

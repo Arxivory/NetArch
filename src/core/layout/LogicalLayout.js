@@ -1352,11 +1352,23 @@ if (this.mode === 'door' || this.mode === 'window') {
       const uiCallback = this.shapeCreator.onDoorCreated;
       this.shapeCreator.onDoorCreated = null; 
 
-      const door = this.shapeCreator.createDoor(this.startPoint, this.currentPoint);
-      
-      this.shapeCreator.onDoorCreated = uiCallback; // Ibalik ang callback
+const door = this.shapeCreator.createDoor(this.startPoint, this.currentPoint);
+      
+      this.shapeCreator.onDoorCreated = uiCallback; // Ibalik ang callback
 
-      if (door) {
+      if (door) {
+        // --- FORCE EXACT PARITY WITH GHOST PREVIEW ---
+        const dx = this.currentPoint.x - this.startPoint.x;
+        const dy = this.currentPoint.y - this.startPoint.y;
+        const doorLength = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx);
+        const doorPath = new Path2D();
+        doorPath.moveTo(this.startPoint.x, this.startPoint.y);
+        doorPath.lineTo(this.currentPoint.x, this.currentPoint.y);
+        doorPath.arc(this.startPoint.x, this.startPoint.y, doorLength, angle, angle + Math.PI / 2, false);
+        door.path = doorPath;
+        // ---------------------------------------------
+
         door.floorId = activeFloor || null;
         door.spaceId = activeSpace || null;
         if (door.body) door.body.floorId = activeFloor || null;
@@ -1379,11 +1391,18 @@ if (this.mode === 'door' || this.mode === 'window') {
       const uiCallback = this.shapeCreator.onWindowCreated;
       this.shapeCreator.onWindowCreated = null;
 
-      const window = this.shapeCreator.createWindow(this.startPoint, this.currentPoint);
-      
-      this.shapeCreator.onWindowCreated = uiCallback; // Ibalik ang callback
+const window = this.shapeCreator.createWindow(this.startPoint, this.currentPoint);
+      
+      this.shapeCreator.onWindowCreated = uiCallback; // Ibalik ang callback
 
-      if (window) {
+      if (window) {
+        // --- FORCE EXACT PARITY WITH GHOST PREVIEW ---
+        const windowPath = new Path2D();
+        windowPath.moveTo(this.startPoint.x, this.startPoint.y);
+        windowPath.lineTo(this.currentPoint.x, this.currentPoint.y);
+        window.path = windowPath;
+        // ---------------------------------------------
+
         window.floorId = activeFloor || null;
         window.spaceId = activeSpace || null;
         if (window.body) window.body.floorId = activeFloor || null;
@@ -1547,35 +1566,31 @@ if (this.mode === 'door' || this.mode === 'window') {
     this.shapeRenderer.renderCircles(ctx, filterForFloor(this.circles));
     this.shapeRenderer.renderWalls(ctx, filterForFloor(this.walls));
 
-    const visibleDoors = filterForFloor(this.doors);
-    ctx.save();
-    ctx.strokeStyle = '#334155';
-    ctx.fillStyle = 'rgba(148, 163, 184, 0.2)';
-    ctx.lineWidth = 2;
-    for (const door of visibleDoors) {
-      if (door.path) {
-        ctx.fill(door.path);
-        ctx.stroke(door.path);
-      }
-    }
-    ctx.restore();
+const visibleDoors = filterForFloor(this.doors);
+    ctx.save();
+    ctx.strokeStyle = '#334155';
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.2)'; // Binalik natin yung shade!
+    ctx.lineWidth = 2;
+    for (const door of visibleDoors) {
+      if (door.path) {
+        ctx.fill(door.path); // Ibinalik din ang fill
+        ctx.stroke(door.path);
+      }
+    }
+    ctx.restore();
 
-    this.shapeRenderer.renderDoors?.(ctx, visibleDoors);
+    this.shapeRenderer.renderDoors?.(ctx, visibleDoors);
 
-    const visibleWindows = filterForFloor(this.windows);
-    ctx.save();
-    ctx.strokeStyle = '#c6e0ff';
-    ctx.fillStyle = 'rgb(200, 223, 255)';
-    ctx.lineWidth = 2;
-    for (const window of visibleWindows) {
-      if (window.path) {
-        ctx.fill(window.path);
-        ctx.stroke(window.path);
-      }
-    }
-    ctx.restore();
-
-    this.shapeRenderer.renderDoors?.(ctx, visibleWindows);
+    const visibleWindows = filterForFloor(this.windows);
+    ctx.save();
+    ctx.strokeStyle = '#000000'; // Pure black line
+    ctx.lineWidth = 4; // Matches ghost preview thickness
+    for (const window of visibleWindows) {
+      if (window.path) {
+        ctx.stroke(window.path); // Removed fill to match ghost strictly
+      }
+    }
+    ctx.restore();
 
     this._renderDeviceCables(ctx, activeFloor);
 

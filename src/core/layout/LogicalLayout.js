@@ -49,9 +49,9 @@ export class LogicalLayout {
 
     // --- NEW: Global Listener for Entity Deletions ---
     window.addEventListener('forceCanvasDelete', (e) => {
-        if (e.detail && e.detail.id) {
-            this.removeEntityById(e.detail.id);
-        }
+      if (e.detail && e.detail.id) {
+        this.removeEntityById(e.detail.id);
+      }
     });
 
     this.shapeRenderer = new ShapeRenderer({
@@ -104,10 +104,10 @@ export class LogicalLayout {
 
     this.store.subscribe(() => this.syncWithState());
 
-    this.pendingCableSource     = null;   // { device } | null — port stored separately
+    this.pendingCableSource = null;   // { device } | null — port stored separately
     this.pendingCableSourcePort = null;   // PhysicalPort | null
-    this.activeCableType        = 'copper-straight'; // catalog key, not UI alias
-    this.hoveredDevice          = null;
+    this.activeCableType = 'copper-straight'; // catalog key, not UI alias
+    this.hoveredDevice = null;
 
     this.structureType = '';
     this.bgColor = opts.bgColor || '#ffffffff';
@@ -284,22 +284,22 @@ export class LogicalLayout {
     const entity = this.findEntityById(id);
     if (entity) {
       if (entity.body) {
-         this.system.remove(entity.body);
+        this.system.remove(entity.body);
       } else if (entity.bodies) {
-         for (const body of entity.bodies) {
-            this.system.remove(body);
-         }
+        for (const body of entity.bodies) {
+          this.system.remove(body);
+        }
       }
     }
     this.rectangles = this.rectangles.filter(e => e.id !== id);
     this.polygons = this.polygons.filter(e => e.id !== id);
     this.circles = this.circles.filter(e => e.id !== id);
     this.freeforms = this.freeforms.filter(e => e.id !== id);
-    
+
     this._render();
   }
 
-isPointInsideShape(id, x, y) {
+  isPointInsideShape(id, x, y) {
     // 1. Try standard entity search
     let entity = null;
     if (typeof this.findEntityById === 'function') {
@@ -322,7 +322,7 @@ isPointInsideShape(id, x, y) {
     // do NOT block the drop. Log a warning for debugging and allow it.
     if (!entity) {
       console.warn(`Bounds Check: Could not find physical shape for ID ${id}. Allowing drop by default.`);
-      return true; 
+      return true;
     }
 
     // 4. Check using the standard hit-test bounds (Rectangle.js)
@@ -342,14 +342,14 @@ isPointInsideShape(id, x, y) {
   validateDropLocation(x, y) {
     const selection = appState.selection;
     const targetId = selection.focusedId;
-    
+
     // If nothing is selected, or layout is missing, fail the check
     if (!targetId || !this.layout) return false;
 
     if (typeof this.layout.isPointInsideShape === 'function') {
       return this.layout.isPointInsideShape(targetId, x, y);
     }
-    return true; 
+    return true;
   }
 
   setActiveFloor(floorId) {
@@ -416,10 +416,10 @@ isPointInsideShape(id, x, y) {
   // Map legacy UI aliases to catalog keys so cables[type] lookups never miss.
   static _normalizeCableType(type) {
     const aliases = {
-      straight:      'copper-straight',
-      crossover:     'copper-crossover',
-      'cross-over':  'copper-crossover',
-      serial:        'console',
+      straight: 'copper-straight',
+      crossover: 'copper-crossover',
+      'cross-over': 'copper-crossover',
+      serial: 'console',
     };
     return aliases[type] ?? type;
   }
@@ -462,7 +462,7 @@ isPointInsideShape(id, x, y) {
 
     if (!this._checkForOverlap(device, "creation")) {
       this.devices.push(device);
-      
+
       this._render();
     }
   }
@@ -597,7 +597,7 @@ isPointInsideShape(id, x, y) {
 
           // ── First click: record source device + port ──────────────────────
           if (!this.pendingCableSource) {
-            this.pendingCableSource     = device;
+            this.pendingCableSource = device;
             this.pendingCableSourcePort = selectedPort; // PhysicalPort instance
             this._render();
             return;
@@ -605,9 +605,9 @@ isPointInsideShape(id, x, y) {
 
           // ── Second click: validate → Link → CableEntity ───────────────────
           const srcDevice = this.pendingCableSource;
-          const srcPort   = this.pendingCableSourcePort; // PhysicalPort
+          const srcPort = this.pendingCableSourcePort; // PhysicalPort
           const dstDevice = device;
-          const dstPort   = selectedPort;               // PhysicalPort
+          const dstPort = selectedPort;               // PhysicalPort
 
           // Rough geometry for cable-length calculation inside Link
           const geometry = {
@@ -621,14 +621,14 @@ isPointInsideShape(id, x, y) {
           console.log('Dst Port: ', dstPort);
 
           const result = this.shapeCreator.createCable({
-            cableType:      this.activeCableType,
-            sourcePort:     srcPort,
-            targetPort:     dstPort,
+            cableType: this.activeCableType,
+            sourcePort: srcPort,
+            targetPort: dstPort,
             sourceDeviceId: srcDevice.id,
             targetDeviceId: dstDevice.id,
             geometry,
-            floorId:        srcDevice.floorId ?? null,
-            spaceId:        srcDevice.spaceId ?? null,
+            floorId: srcDevice.floorId ?? null,
+            spaceId: srcDevice.spaceId ?? null,
           });
 
           if (result.error) {
@@ -642,7 +642,7 @@ isPointInsideShape(id, x, y) {
             this.cables.push(result.cable);
           }
 
-          this.pendingCableSource     = null;
+          this.pendingCableSource = null;
           this.pendingCableSourcePort = null;
           this._render();
         });
@@ -724,15 +724,15 @@ isPointInsideShape(id, x, y) {
       // --- NEW: SMART CABLE DETACHMENT ---
       // If the selected entity is a cable (has sourceId and targetId)
       if (en.sourceId && en.targetId) {
-          const src = this.findEntityById(en.sourceId);
-          const dst = this.findEntityById(en.targetId);
-          
-          if (src && dst) {
-              const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
-              
-              // Calculate which end the user clicked closer to
-              const distToSrc = Math.hypot(p.x - src.x, p.y - src.y);
-              const distToDst = Math.hypot(p.x - dst.x, p.y - dst.y);
+        const src = this.findEntityById(en.sourceId);
+        const dst = this.findEntityById(en.targetId);
+
+        if (src && dst) {
+          const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
+
+          // Calculate which end the user clicked closer to
+          const distToSrc = Math.hypot(p.x - src.x, p.y - src.y);
+          const distToDst = Math.hypot(p.x - dst.x, p.y - dst.y);
 
               if (distToSrc < distToDst) {
                   // Detach the Source end
@@ -748,7 +748,7 @@ isPointInsideShape(id, x, y) {
           } 
       }
 
-      
+
 
       const moveEntities = this._prepareMoveSelection(en);
 
@@ -773,8 +773,8 @@ isPointInsideShape(id, x, y) {
         for (const key in handles) {
           const [hx, hy] = handles[key];
           if (Math.abs(p.x - hx) < size &&
-          Math.abs(p.y - hy) < size &&
-          this._isResizableEntity(en) ){
+            Math.abs(p.y - hy) < size &&
+            this._isResizableEntity(en)) {
             if (en.saveCurrentScale) {
               en.saveCurrentScale(); // ADDED: allow device scaling to be rolled back if needed
             }
@@ -792,26 +792,26 @@ isPointInsideShape(id, x, y) {
         }
       }
 
-    if (this.mode === 'delete') {
-      const zoomFactor = this.pointerHandler.getZoom();
-      const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoomFactor);
-      
-      const shouldFilterByFloor = appState.selection.focusedType === 'floor';
-      const activeFloorId = shouldFilterByFloor ? (this.activeFloorId || appState.ui.activeFloorId) : null;
-      const activeSpaceId = appState.selection.focusedType === 'space' ? appState.selection.focusedId : null;
+      if (this.mode === 'delete') {
+        const zoomFactor = this.pointerHandler.getZoom();
+        const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoomFactor);
 
-      for (const cable of this.cables) {
-        const src = this.findEntityById(cable.sourceId);
-        const dst = this.findEntityById(cable.targetId);
-        if (!src || !dst) continue;
+        const shouldFilterByFloor = appState.selection.focusedType === 'floor';
+        const activeFloorId = shouldFilterByFloor ? (this.activeFloorId || appState.ui.activeFloorId) : null;
+        const activeSpaceId = appState.selection.focusedType === 'space' ? appState.selection.focusedId : null;
 
-        if (activeSpaceId) {
-          if (src.spaceId !== activeSpaceId && dst.spaceId !== activeSpaceId) continue;
-        } else if (activeFloorId) {
-          const srcOnFloor = src.floorId == null || src.floorId === activeFloorId;
-          const dstOnFloor = dst.floorId == null || dst.floorId === activeFloorId;
-          if (!srcOnFloor || !dstOnFloor) continue;
-        }
+        for (const cable of this.cables) {
+          const src = this.findEntityById(cable.sourceId);
+          const dst = this.findEntityById(cable.targetId);
+          if (!src || !dst) continue;
+
+          if (activeSpaceId) {
+            if (src.spaceId !== activeSpaceId && dst.spaceId !== activeSpaceId) continue;
+          } else if (activeFloorId) {
+            const srcOnFloor = src.floorId == null || src.floorId === activeFloorId;
+            const dstOnFloor = dst.floorId == null || dst.floorId === activeFloorId;
+            if (!srcOnFloor || !dstOnFloor) continue;
+          }
 
         // Use the exact same highly-optimized bounding box we built for hovering
         if (this._hitTestCable(p.x, p.y, src, dst, 8)) {
@@ -902,62 +902,62 @@ isPointInsideShape(id, x, y) {
     }
 
 
-if (this.mode === 'freeform') {
-  if (this.currentFreeform.length === 0) {
-    this.currentFreeform.push(snapped);
-  } else {
-    const first = this.currentFreeform[0];
-    const canClose = this.shapeCreator.canClosePolygon(
-      first,
-      snapped,
-      this.grid.getSnapTolerance()
-    );
+    if (this.mode === 'freeform') {
+      if (this.currentFreeform.length === 0) {
+        this.currentFreeform.push(snapped);
+      } else {
+        const first = this.currentFreeform[0];
+        const canClose = this.shapeCreator.canClosePolygon(
+          first,
+          snapped,
+          this.grid.getSnapTolerance()
+        );
 
-    if (canClose && this.currentFreeform.length >= 3) {
-      const activeFloor = appState.ui.activeFloorId; // ADDED: capture the selected floor before overlap checking
+        if (canClose && this.currentFreeform.length >= 3) {
+          const activeFloor = appState.ui.activeFloorId; // ADDED: capture the selected floor before overlap checking
 
-      const freeform = this.shapeCreator.createFreeform(
-        [...this.currentFreeform],
-        this.structureType,
-        this.system
-      );
+          const freeform = this.shapeCreator.createFreeform(
+            [...this.currentFreeform],
+            this.structureType,
+            this.system
+          );
 
-      if (freeform) {
-        freeform.floorId = activeFloor || null; // ADDED: assign the freeform entity to the active floor
+          if (freeform) {
+            freeform.floorId = activeFloor || null; // ADDED: assign the freeform entity to the active floor
 
-        if (freeform.bodies) {
-          for (const body of freeform.bodies) {
-            body.floorId = activeFloor || null; // ADDED: assign every freeform collision body to the same floor
+            if (freeform.bodies) {
+              for (const body of freeform.bodies) {
+                body.floorId = activeFloor || null; // ADDED: assign every freeform collision body to the same floor
+              }
+            }
+
+            if (!this._checkForOverlap(freeform, "creation")) {
+              if (this.shapeCreator.onFreeformCreated) {
+                this.shapeCreator.onFreeformCreated(freeform);
+              }
+              this.freeforms.push(freeform);
+            } else if (freeform.bodies) {
+              for (const body of freeform.bodies) {
+                this.system.remove(body); // ADDED: clean up inserted bodies if overlap validation fails
+              }
+            }
           }
+
+          this.currentFreeform = [];
+          this.mode = 'none';
+          this.currentPoint = null;
+          this._updateCursor();
+          this._render();
+          return;
         }
 
-        if (!this._checkForOverlap(freeform, "creation")) {
-          if (this.shapeCreator.onFreeformCreated) {
-            this.shapeCreator.onFreeformCreated(freeform);
-          }
-          this.freeforms.push(freeform);
-        } else if (freeform.bodies) {
-          for (const body of freeform.bodies) {
-            this.system.remove(body); // ADDED: clean up inserted bodies if overlap validation fails
-          }
-        }
+        this.currentFreeform.push(snapped);
       }
 
-      this.currentFreeform = [];
-      this.mode = 'none';
-      this.currentPoint = null;
-      this._updateCursor();
+      this.currentPoint = snapped;
       this._render();
       return;
     }
-
-    this.currentFreeform.push(snapped);
-  }
-
-  this.currentPoint = snapped;
-  this._render();
-  return;
-}
 
 
     if (this.mode !== 'select' && this.mode !== 'pan' && this.mode !== 'none') {
@@ -982,7 +982,7 @@ if (this.mode === 'freeform') {
         const y = en.y;
         const w = en.w || en.width;
         const h = en.h || en.height;
-        
+
         const bounds = this._getEntityInteractionBounds(en); // ADDED: use correct visual bounds for devices too
         let cursor = 'move';
 
@@ -990,28 +990,70 @@ if (this.mode === 'freeform') {
           const { x, y, w, h } = bounds;
           const size = 8;
 
-        const handles = {
-          nw: [x, y],
-          ne: [x + w, y],
-          sw: [x, y + h],
-          se: [x + w, y + h]
-        };
+          const handles = {
+            nw: [x, y],
+            ne: [x + w, y],
+            sw: [x, y + h],
+            se: [x + w, y + h]
+          };
 
-        for (const key in handles) {
-          const [hx, hy] = handles[key];
-          if (
-           Math.abs(p.x - hx) < size &&
-           Math.abs(p.y - hy) < size &&
-           this._isResizableEntity(en)
+          for (const key in handles) {
+            const [hx, hy] = handles[key];
+            if (
+              Math.abs(p.x - hx) < size &&
+              Math.abs(p.y - hy) < size &&
+              this._isResizableEntity(en)
 
-        )   {
-            cursor = (key === 'nw' || key === 'se')
-              ? 'nwse-resize'
-              : 'nesw-resize';
+            ) {
+              cursor = (key === 'nw' || key === 'se')
+                ? 'nwse-resize'
+                : 'nesw-resize';
+            }
           }
         }
-      }
         this.pointerHandler.setCursor(cursor);
+        // --- RESTORED CABLE HOVER DETECTION ---
+    if (this.mode === 'select' && !this.pointerHandler.getIsPointerDown()) {
+      let newlyHoveredCable = null;
+      
+      // 1. Determine the active structural hierarchy
+      const focusedType = appState.selection.focusedType;
+      const focusedId = appState.selection.focusedId;
+      
+      const activeSpaceId = (focusedType === 'space' || focusedType === 'Space') ? focusedId : null;
+      const activeFloorId = focusedType === 'floor' ? focusedId : appState.ui.activeFloorId;
+
+      for (const cable of this.cables) {
+        const src = this.findEntityById(cable.sourceId);
+        const dst = this.findEntityById(cable.targetId);
+        if (!src || !dst) continue;
+
+        // 2. Guardrail: Hierarchy Filtering
+        if (activeSpaceId) {
+          // STRICT MODE: If viewing a specific Space, ignore cables that don't touch this room
+          if (src.spaceId !== activeSpaceId && dst.spaceId !== activeSpaceId) continue;
+        } 
+        else if (activeFloorId) {
+          // BROAD MODE: If viewing a Floor, ignore cables that belong to a completely different floor
+          const srcOnFloor = src.floorId == null || src.floorId === activeFloorId;
+          const dstOnFloor = dst.floorId == null || dst.floorId === activeFloorId;
+          if (!srcOnFloor || !dstOnFloor) continue;
+        }
+
+        // 3. Optimized Bounding Box Hit Test (Using the 'p' variable already defined in move)
+        if (this._hitTestCable(p.x, p.y, src, dst, 8)) {
+          newlyHoveredCable = cable;
+          break; 
+        }
+      }
+
+      // Only trigger a re-render if the hover state actually changed
+      if (this.hoveredCable !== newlyHoveredCable) {
+        this.hoveredCable = newlyHoveredCable;
+        this._render();
+      }
+    }
+    // -------------------------------------
       }
       else {
         this.pointerHandler.setCursor('default');
@@ -1026,51 +1068,6 @@ if (this.mode === 'freeform') {
 
     const snapped = this.grid.snapToGrid(p);
     this.currentPoint = snapped;
-
-// --- UPDATED CABLE HOVER DETECTION ---
-    if (this.mode === 'select' && !this.pointerHandler.getIsPointerDown()) {
-      let newlyHoveredCable = null;
-      
-      // 1. Determine the active structural hierarchy
-      const focusedType = appState.selection.focusedType;
-      const focusedId = appState.selection.focusedId;
-      
-      const activeSpaceId = focusedType === 'space' ? focusedId : null;
-      // Fallback to the UI's active floor if no specific space is focused
-      const activeFloorId = focusedType === 'floor' ? focusedId : appState.ui.activeFloorId;
-
-      for (const cable of this.cables) {
-        const src = this.findEntityById(cable.sourceId);
-        const dst = this.findEntityById(cable.targetId);
-        if (!src || !dst) continue;
-
-        // 2. Guardrail: Hierarchy Filtering
-        if (activeSpaceId) {
-          // STRICT MODE: If viewing a specific Space, ignore cables that don't touch this room
-          // (We use && so if a cable goes from inside the space to outside, you can still hover it)
-          if (src.spaceId !== activeSpaceId && dst.spaceId !== activeSpaceId) continue;
-        } 
-        else if (activeFloorId) {
-          // BROAD MODE: If viewing a Floor, ignore cables that belong to a completely different floor
-          const srcOnFloor = src.floorId == null || src.floorId === activeFloorId;
-          const dstOnFloor = dst.floorId == null || dst.floorId === activeFloorId;
-          if (!srcOnFloor || !dstOnFloor) continue;
-        }
-
-        // 3. Optimized Bounding Box Hit Test
-        if (this._hitTestCable(p.x, p.y, src, dst, 8)) {
-          newlyHoveredCable = cable;
-          break; 
-        }
-      }
-
-      // Only trigger a re-render if the hover state actually changed
-      if (this.hoveredCable !== newlyHoveredCable) {
-        this.hoveredCable = newlyHoveredCable;
-        this._render();
-      }
-    }
-    // -------------------------------------
 
     if (this.mode === 'cable') {
       this.hoveredDevice = this._findDeviceAt(snapped.x, snapped.y);
@@ -1143,10 +1140,10 @@ if (this.mode === 'freeform') {
       }
 
       if (this.interaction.mode === 'update_cable') {
-         this.currentPoint = p;
-         this.hoveredDevice = this._findDeviceAt(snapped.x, snapped.y);
-         this._render();
-         return;
+        this.currentPoint = p;
+        this.hoveredDevice = this._findDeviceAt(snapped.x, snapped.y);
+        this._render();
+        return;
       }
 
       if (this.mode === 'pan') {
@@ -1221,19 +1218,19 @@ if (this.mode === 'freeform') {
           const widthRatio = (Math.abs(p.x - center.x) * 2) / baseBounds.w;
           const heightRatio = (Math.abs(p.y - center.y) * 2) / baseBounds.h;
           const factor = Math.max(
-          0.25,
-          this.interaction.baseScale * Math.max(widthRatio, heightRatio)
-        ); // ADDED: uniformly scale the device based on dragged handle distance
+            0.25,
+            this.interaction.baseScale * Math.max(widthRatio, heightRatio)
+          ); // ADDED: uniformly scale the device based on dragged handle distance
 
-      en.setScale({ factor });
+          en.setScale({ factor });
 
-      const resizedBounds = this._getEntityInteractionBounds(en);
-    if (resizedBounds) {
-      const dxCenter = center.x - (resizedBounds.x + resizedBounds.w / 2);
-      const dyCenter = center.y - (resizedBounds.y + resizedBounds.h / 2);
-      en.move(dxCenter, dyCenter); // ADDED: keep device scaling centered instead of drifting down-right
-    }
-  }
+          const resizedBounds = this._getEntityInteractionBounds(en);
+          if (resizedBounds) {
+            const dxCenter = center.x - (resizedBounds.x + resizedBounds.w / 2);
+            const dyCenter = center.y - (resizedBounds.y + resizedBounds.h / 2);
+            en.move(dxCenter, dyCenter); // ADDED: keep device scaling centered instead of drifting down-right
+          }
+        }
 
         this.interaction.start = { x: p.x, y: p.y };
         const shouldSyncDuringDrag = !!en.structureType; // ADDED: only structural parents need live sync while dragging so children follow immediately
@@ -1245,7 +1242,7 @@ if (this.mode === 'freeform') {
         this._render();
         return;
       }
-      
+
       if (
         this.mode === 'rectangle' ||
         this.mode === 'circle' ||
@@ -1262,7 +1259,7 @@ if (this.mode === 'freeform') {
 
   }
 
-_onPointerUp(e) {
+  _onPointerUp(e) {
 
   if (this.interaction && this.interaction.mode === 'update_cable') {
         const dropDevice = this._findDeviceAt(this.currentPoint.x, this.currentPoint.y);
@@ -1317,12 +1314,133 @@ _onPointerUp(e) {
       currentPoint: this.currentPoint
     });
 
-    const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !== 'none';
+const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !== 'none';
     const hasValidDrawPoints = this.startPoint && this.currentPoint;
 
     if (isDrawMode && hasValidDrawPoints) {
-      console.log('[LogicalLayout] finalizing draw mode on pointer up');
-      this._createShapeFromMode();
+      // --- THE PAPERFECT DOOR/WINDOW VALIDATION V5 ---
+      let allowCreation = true;
+
+if (this.mode === 'door' || this.mode === 'window') {
+        allowCreation = false;
+        let failedReason = null;
+        
+        const p1x = this.startPoint.x;
+        const p1y = this.startPoint.y;
+        const p2x = this.currentPoint.x;
+        const p2y = this.currentPoint.y;
+        
+        // Tighter threshold (15px) so you HAVE to click exactly on the line
+        const threshold = 15; 
+
+        // MATALINONG HELPER: Hahatiin niya KAHIT ANONG shape into "Straight Lines"
+        const getEdges = (entity) => {
+          const edges = [];
+          if (entity.points && entity.points.length > 1) { // Polygons/Freeforms
+            for (let i = 0; i < entity.points.length; i++) {
+              let pA = entity.points[i];
+              let pB = entity.points[(i + 1) % entity.points.length];
+              edges.push({ x1: pA.x, y1: pA.y, x2: pB.x, y2: pB.y });
+            }
+          } else if (entity.startPoint && entity.endPoint) { // Standard Lines
+            edges.push({ x1: entity.startPoint.x, y1: entity.startPoint.y, x2: entity.endPoint.x, y2: entity.endPoint.y });
+          } else if (entity.startX !== undefined && entity.endX !== undefined) { // Alternate Lines
+            edges.push({ x1: entity.startX, y1: entity.startY, x2: entity.endX, y2: entity.endY });
+          } else if (entity.x1 !== undefined && entity.x2 !== undefined) { // Alternate Lines 2
+            edges.push({ x1: entity.x1, y1: entity.y1, x2: entity.x2, y2: entity.y2 });
+          } else { // Rectangles / Spaces / Thick Walls (Boxes)
+            const b = this._getEntityBounds(entity);
+            if (b) {
+              const minX = Math.min(b.minX, b.maxX);
+              const maxX = Math.max(b.minX, b.maxX);
+              const minY = Math.min(b.minY, b.maxY);
+              const maxY = Math.max(b.minY, b.maxY);
+              edges.push({ x1: minX, y1: minY, x2: maxX, y2: minY }); // Top edge
+              edges.push({ x1: minX, y1: maxY, x2: maxX, y2: maxY }); // Bottom edge
+              edges.push({ x1: minX, y1: minY, x2: minX, y2: maxY }); // Left edge
+              edges.push({ x1: maxX, y1: minY, x2: maxX, y2: maxY }); // Right edge
+            }
+          }
+          return edges;
+        };
+
+        const isNearEdge = (px, py, edge) => {
+          return this._pointToLineDistance(px, py, edge.x1, edge.y1, edge.x2, edge.y2) <= threshold;
+        };
+
+        // Pagsamahin lahat ng pwedeng kabitan ng pinto/bintana
+        const possibleHosts = [];
+        if (this.walls) possibleHosts.push(...this.walls);
+        if (this.rectangles) possibleHosts.push(...this.rectangles);
+        if (this.polygons) possibleHosts.push(...this.polygons);
+        if (this.freeforms) possibleHosts.push(...this.freeforms);
+        if (appState?.structural?.spaces) possibleHosts.push(...appState.structural.spaces);
+
+        for (const host of possibleHosts) {
+          let target = host;
+          // Ayusin ang format kung galing sa appState
+          if (host.geometry) {
+             target = { 
+               x: host.geometry.x || host.geometry.left, 
+               y: host.geometry.y || host.geometry.top, 
+               w: host.geometry.w || host.geometry.width, 
+               h: host.geometry.h || host.geometry.height 
+             };
+          }
+
+          const edges = getEdges(target);
+          for (const edge of edges) {
+            // 🛑 RULE 1: Check ONLY if the FIRST click (p1x, p1y) is on the line.
+            // This forces the hinge to be locked to the black boundary line, 
+            // but the swing can go anywhere.
+            if (isNearEdge(p1x, p1y, edge)) {
+              allowCreation = true;
+              break;
+            }
+          }
+          if (allowCreation) break;
+        }
+
+        if (!allowCreation) {
+          const itemName = this.mode === 'door' ? "door" : "window";
+          failedReason = `Please start drawing the ${itemName} exactly ON a space boundary (black line).`;
+        }
+
+        // 🛑 RULE 2: Check if the door swing (p2x, p2y) exceeds the SITE boundaries.
+        if (allowCreation) {
+          const activeFloorId = this.activeFloorId || appState?.ui?.activeFloorId;
+          const currentFloor = appState?.structural?.floors?.find(f => f.id === activeFloorId);
+          const site = appState?.structural?.sites?.find(s => s.id === currentFloor?.siteId);
+          
+          if (site && site.geometry) {
+            const b = site.geometry;
+            const sx = b.x || b.left || 0;
+            const sy = b.y || b.top || 0;
+            const sw = b.w || b.width || 0;
+            const sh = b.h || b.height || 0;
+            
+            const margin = 5; // A 5px allowance for snapping perfectly flush to the line
+            const isInsideSite = p2x >= sx - margin && p2x <= (sx + sw) + margin &&
+                                 p2y >= sy - margin && p2y <= (sy + sh) + margin;
+            
+            if (!isInsideSite) {
+              allowCreation = false;
+              failedReason = "The door swing cannot exceed the overall Site boundaries!";
+            }
+          }
+        }
+
+        if (!allowCreation && failedReason) {
+          alert(`Invalid Placement: ${failedReason}`);
+        }
+      }
+      // --- END VALIDATION ---
+
+      // Only save the shape if it passed validation!
+      if (allowCreation) {
+        console.log('[LogicalLayout] finalizing draw mode on pointer up');
+        this._createShapeFromMode();
+      }
     }
 
     if (this.selectedEntity && (this.interaction.mode === 'move' || this.interaction.mode === 'resize')) {
@@ -1380,43 +1498,43 @@ _onPointerUp(e) {
   }
 
   _onRightClick() {
-  if (this.currentFreeform.length > 1) {
-    const activeFloor = appState.ui.activeFloorId; // ADDED: capture the active floor before overlap checking
+    if (this.currentFreeform.length > 1) {
+      const activeFloor = appState.ui.activeFloorId; // ADDED: capture the active floor before overlap checking
 
-    const freeform = this.shapeCreator.createFreeform(
-      [...this.currentFreeform],
-      this.structureType,
-      this.system
-    );
+      const freeform = this.shapeCreator.createFreeform(
+        [...this.currentFreeform],
+        this.structureType,
+        this.system
+      );
 
-    if (freeform) {
-      freeform.floorId = activeFloor || null; // ADDED: assign the freeform entity to the active floor
+      if (freeform) {
+        freeform.floorId = activeFloor || null; // ADDED: assign the freeform entity to the active floor
 
-      if (freeform.bodies) {
-        for (const body of freeform.bodies) {
-          body.floorId = activeFloor || null; // ADDED: assign every freeform collision segment to the active floor
+        if (freeform.bodies) {
+          for (const body of freeform.bodies) {
+            body.floorId = activeFloor || null; // ADDED: assign every freeform collision segment to the active floor
+          }
+        }
+
+        if (!this._checkForOverlap(freeform, "creation")) {
+          if (this.shapeCreator.onFreeformCreated) {
+            this.shapeCreator.onFreeformCreated(freeform);
+          }
+          this.freeforms.push(freeform);
+        } else if (freeform.bodies) {
+          for (const body of freeform.bodies) {
+            this.system.remove(body); // ADDED: clean up inserted collision bodies if creation fails
+          }
         }
       }
 
-      if (!this._checkForOverlap(freeform, "creation")) {
-        if (this.shapeCreator.onFreeformCreated) {
-          this.shapeCreator.onFreeformCreated(freeform);
-        }
-        this.freeforms.push(freeform);
-      } else if (freeform.bodies) {
-        for (const body of freeform.bodies) {
-          this.system.remove(body); // ADDED: clean up inserted collision bodies if creation fails
-        }
-      }
+      this.currentFreeform = [];
+      this.mode = 'none';
+      this.currentPoint = null;
+      this._updateCursor();
+      this._render();
     }
-
-    this.currentFreeform = [];
-    this.mode = 'none';
-    this.currentPoint = null;
-    this._updateCursor();
-    this._render();
   }
-}
 
 
   _findSpaceEdgeAt(x, y, tolerance = 8) {
@@ -1648,23 +1766,25 @@ _onPointerUp(e) {
 
   _createShapeFromMode() {
     const activeFloor =
-     appState.selection.focusedType === 'floor'
-          ? appState.selection.focusedId
-          : appState.ui.activeFloorId;
+      appState.selection.focusedType === 'floor'
+        ? appState.selection.focusedId
+        : appState.ui.activeFloorId;
 
-    const activeSpace = 
+    const activeSpace =
       (appState.selection.focusedType === 'space' ||
         appState.selection.focusedType === 'Space')
-          ? appState.selection.focusedId
-          : null;
+        ? appState.selection.focusedId
+        : null;
 
     console.log('The Active Space is: ', activeSpace);
+    const focusedId = appState.selection.focusedId;
 
     if (this.mode === 'rectangle') {
       const rect = this.shapeCreator.createRectangle(
         this.startPoint,
         this.currentPoint,
         this.structureType,
+        focusedId
       );
       if (rect) {
         rect.floorId = activeFloor || null;
@@ -1681,7 +1801,8 @@ _onPointerUp(e) {
       const circle = this.shapeCreator.createCircle(
         this.startPoint,
         this.currentPoint,
-        this.structureType
+        this.structureType,
+        focusedId
       );
       if (circle) {
         circle.floorId = activeFloor || null;
@@ -1700,34 +1821,60 @@ _onPointerUp(e) {
         if (wall.body) wall.body.floorId = activeFloor || null;
         this.walls.push(wall);
       }
-    } else if (this.mode === 'door') {
+} else if (this.mode === 'door') {
+      // 🛑 GHOSTBUSTER HACK: Pigilan si ShapeCreator na mag-snitch agad sa React Hierarchy!
+      const uiCallback = this.shapeCreator.onDoorCreated;
+      this.shapeCreator.onDoorCreated = null; 
+
       const door = this.shapeCreator.createDoor(this.startPoint, this.currentPoint);
+      
+      this.shapeCreator.onDoorCreated = uiCallback; // Ibalik ang callback
+
       if (door) {
         door.floorId = activeFloor || null;
         door.spaceId = activeSpace || null;
         if (door.body) door.body.floorId = activeFloor || null;
+
         if (door.spaceId !== null && !this._checkForOverlap(door, "creation")) {
           this.doors.push(door);
-        } else if (door.body) {
-          this.system.remove(door.body);
-          alert('Doors must be placed in a Space.');
+          // ✅ PUMASA SA CANVAS! Ngayon lang natin sasabihan ang UI na i-add ito.
+          if (this.shapeCreator.onDoorCreated) this.shapeCreator.onDoorCreated(door);
+        } else {
+          // ❌ FAILED OVERLAP: Burahin ang body, at walang makakarating na ghost sa UI.
+          if (door.body) this.system.remove(door.body);
+          if (door.spaceId === null) alert('Doors must be placed in a Space.');
         }
       }
+      
+      // ✅ TANGGAL NA YUNG RESET DITO. STAY SA 'door' MODE FOR UNLI-DRAW!
+
     } else if (this.mode === 'window') {
+      // 🛑 GHOSTBUSTER HACK: Same strategy for windows!
+      const uiCallback = this.shapeCreator.onWindowCreated;
+      this.shapeCreator.onWindowCreated = null;
+
       const window = this.shapeCreator.createWindow(this.startPoint, this.currentPoint);
+      
+      this.shapeCreator.onWindowCreated = uiCallback; // Ibalik ang callback
+
       if (window) {
         window.floorId = activeFloor || null;
         window.spaceId = activeSpace || null;
         if (window.body) window.body.floorId = activeFloor || null;
+
         if ((window.spaceId !== null || window.floorId !== null) && !this._checkForOverlap(window, "creation")) {
           this.windows.push(window);
-        } else if (window.body) {
-          this.system.remove(window.body);
-          alert('Windows must be placed in a Space or Floor.');
+          // ✅ PUMASA SA CANVAS!
+          if (this.shapeCreator.onWindowCreated) this.shapeCreator.onWindowCreated(window);
+        } else {
+          // ❌ FAILED OVERLAP!
+          if (window.body) this.system.remove(window.body);
+          if (window.spaceId === null && window.floorId === null) alert('Windows must be placed in a Space or Floor.');
         }
       }
+      // ✅ TANGGAL NA YUNG RESET DITO. STAY SA 'window' MODE FOR UNLI-DRAW!
     } else if (this.mode === 'polygon') {
-      const polygon = this.shapeCreator.createPolygon(this.currentPolygon, this.structureType);
+      const polygon = this.shapeCreator.createPolygon(this.currentPolygon, this.structureType, focusedId);
       if (polygon) {
         polygon.floorId = activeFloor || null;
         if (polygon.body) polygon.body.floorId = activeFloor || null;
@@ -1763,10 +1910,10 @@ _onPointerUp(e) {
   _renderDeviceCables(ctx, activeFloor) {
     ctx.save();
     ctx.lineWidth = 2;
-  
+
     for (const cable of this.cables) {
       if (this.interaction && this.interaction.mode === 'update_cable' && this.interaction.cable.id === cable.id) {
-          continue; 
+        continue;
       }
 
       const src = this.findEntityById(cable.sourceId);
@@ -1830,7 +1977,7 @@ _onPointerUp(e) {
     const maxY = Math.max(src.y, dst.y) + tolerance;
 
     if (px < minX || px > maxX || py < minY || py > maxY) {
-      return false; 
+      return false;
     }
 
     // 2. Narrowphase (Actual geometric distance)
@@ -1909,7 +2056,7 @@ _onPointerUp(e) {
     ctx.restore();
 
     this.shapeRenderer.renderDoors?.(ctx, visibleWindows);
-    
+
     this._renderDeviceCables(ctx, activeFloor);
 
     ctx.save();
@@ -1995,22 +2142,57 @@ _onPointerUp(e) {
       );
       ctx.restore();
     }
-    else if (this.startPoint && this.currentPoint) {
+else if (this.startPoint && this.currentPoint) {
       ctx.save();
-      ctx.strokeStyle = '#00ff00';
+      
+      // --- IBALIK ANG GREEN SA LAHAT NG SPACES/DOMAINS/SITES ---
+      ctx.strokeStyle = '#00ff00'; 
       ctx.fillStyle = 'rgba(0,255,0,0.08)';
       ctx.lineWidth = 1.5;
 
-      if (this.mode === 'rectangle') {
+      if (this.mode === 'door') {
+        // --- GHOST DOOR OUTLINE ---
+        ctx.globalAlpha = 0.5;
+        ctx.lineWidth = 2; // Pakapalin ng konti ang door
+
+        // Door leaf (line)
+        ctx.beginPath();
+        ctx.moveTo(this.startPoint.x, this.startPoint.y);
+        ctx.lineTo(this.currentPoint.x, this.currentPoint.y);
+        ctx.stroke();
+
+        // Door swing (arc)
+        const dx = this.currentPoint.x - this.startPoint.x;
+        const dy = this.currentPoint.y - this.startPoint.y;
+        const doorLength = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx);
+        const arcRadius = doorLength;
+        const arcStart = angle;
+        const arcEnd = angle + Math.PI / 2; // 90 degree swing
+
+        ctx.beginPath();
+        ctx.arc(this.startPoint.x, this.startPoint.y, arcRadius, arcStart, arcEnd, false);
+        ctx.stroke();
+
+        ctx.globalAlpha = 1.0;
+      } else if (this.mode === 'rectangle') {
         this.shapeRenderer.outlineRectangle(ctx, this.startPoint, this.currentPoint);
       } else if (this.mode === 'circle') {
         this.shapeRenderer.outlineCircle(ctx, this.startPoint, this.currentPoint);
       } else if (this.mode === 'wall') {
         this.shapeRenderer.outlineWall(ctx, this.startPoint, this.currentPoint);
-      } else if (this.mode === 'door') {
-        this.shapeRenderer.outlineRectangle(ctx, this.startPoint, this.currentPoint);
-      } else if (this.mode === 'window') {
-        this.shapeRenderer.outlineRectangle(ctx, this.startPoint, this.currentPoint);
+} else if (this.mode === 'window') {
+        // --- GHOST WINDOW PREVIEW (GREEN ERA!) ---
+        ctx.globalAlpha = 0.7;
+        ctx.strokeStyle = '#00ff00'; // GREEN na siya habang dino-drawing!
+        ctx.lineWidth = 4; // Medyo makapal para kitang-kita
+        
+        ctx.beginPath();
+        ctx.moveTo(this.startPoint.x, this.startPoint.y);
+        ctx.lineTo(this.currentPoint.x, this.currentPoint.y);
+        ctx.stroke();
+
+        ctx.globalAlpha = 1.0;
       } else if (this.mode === 'cable') {
         this.shapeRenderer.outlineCable(ctx, this.startPoint, this.currentPoint);
       }
@@ -2183,9 +2365,9 @@ _onPointerUp(e) {
           }
         }
 
-        ctx.restore();
-      }
-    }
+            ctx.restore();
+          }
+        }
 
     if (this.hoveredCable && this.mode === 'select') {
       const cable = this.hoveredCable;
@@ -2240,18 +2422,18 @@ _onPointerUp(e) {
     }
 
     if (this.interaction && this.interaction.mode === 'update_cable' && this.currentPoint) {
-        const fixed = this.interaction.fixedDevice;
-        ctx.save();
-        ctx.strokeStyle = "#ff9900"; // Orange dragging line
-        ctx.lineWidth = 3;
-        ctx.setLineDash([6, 4]);
-        ctx.beginPath();
-        ctx.moveTo(fixed.x, fixed.y);
-        ctx.lineTo(this.currentPoint.x, this.currentPoint.y);
-        ctx.stroke();
-        ctx.restore();
+      const fixed = this.interaction.fixedDevice;
+      ctx.save();
+      ctx.strokeStyle = "#ff9900"; // Orange dragging line
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(fixed.x, fixed.y);
+      ctx.lineTo(this.currentPoint.x, this.currentPoint.y);
+      ctx.stroke();
+      ctx.restore();
     }
-      
+
     if (this.pendingCableSource && this.interaction?.mode !== 'update_cable') {
       const en = this.pendingCableSource;
       const w = en.renderWidth + 4;
@@ -2270,37 +2452,37 @@ _onPointerUp(e) {
     }
 
     if (this.interaction?.mode === 'update_cable' && this.hoveredDevice) {
-        const en = this.hoveredDevice;
-        const w = en.renderWidth + 4;
-        const h = en.renderHeight + 4;
-        const x = en.x - 2;
-        const y = en.y - 2;
+      const en = this.hoveredDevice;
+      const w = en.renderWidth + 4;
+      const h = en.renderHeight + 4;
+      const x = en.x - 2;
+      const y = en.y - 2;
 
-        ctx.save();
-        ctx.strokeStyle = "#ff9900";  // same orange as "on hold"
-        ctx.lineWidth = 3;
-        ctx.setLineDash([6, 4]);
-        ctx.beginPath();
-        ctx.roundRect(x, y, w, h, 8);
-        ctx.stroke();
-        ctx.restore();
+      ctx.save();
+      ctx.strokeStyle = "#ff9900";  // same orange as "on hold"
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, 8);
+      ctx.stroke();
+      ctx.restore();
     }
 
     if (this.hoveredDevice && this.mode === 'cable' && this.interaction?.mode !== 'update_cable') {
-        const en = this.hoveredDevice;
-        const w = en.renderWidth + 4;
-        const h = en.renderHeight + 4;
-        const x = en.x - 2;
-        const y = en.y - 2;
+      const en = this.hoveredDevice;
+      const w = en.renderWidth + 4;
+      const h = en.renderHeight + 4;
+      const x = en.x - 2;
+      const y = en.y - 2;
 
-        ctx.save();
-        ctx.strokeStyle = "#00ff00";
-        ctx.lineWidth = 3;
-        ctx.setLineDash([3, 3]);
-        ctx.beginPath();
-        ctx.roundRect(x, y, w, h, 8);
-        ctx.stroke();
-        ctx.restore();
+      ctx.save();
+      ctx.strokeStyle = "#00ff00";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, 8);
+      ctx.stroke();
+      ctx.restore();
     }
   }
 
@@ -2327,24 +2509,24 @@ _onPointerUp(e) {
   findEntityById(id) {
     const lists = this.getAllSelectableEntities();
     for (const arr of lists) {
-      if (!arr) continue; 
+      if (!arr) continue;
       for (const en of arr) {
         if (en && (en.id === id || String(en.id) === id)) {
           return en;
         }
       }
     }
-    
+
     return null;
   }
 
-removeEntityById(id) {
+  removeEntityById(id) {
     if (!id) return false;
 
     // 1. Deselect if currently selected
     if (this.selectedEntity && this.selectedEntity.id === id) {
       this.selectedEntity = null;
-      this.interaction    = { mode: null, handle: null, start: null };
+      this.interaction = { mode: null, handle: null, start: null };
       this.pointerHandler.setCursor('default');
     }
 
@@ -2399,7 +2581,7 @@ removeEntityById(id) {
 
       // Clear any canvas references to this cable
       if (this.selectedEntity?.id === cable.id) this.selectedEntity = null;
-      if (this.hoveredCable?.id  === cable.id) this.hoveredCable  = null;
+      if (this.hoveredCable?.id === cable.id) this.hoveredCable = null;
     }
 
     // Remove from canvas cable array
@@ -2442,7 +2624,7 @@ removeEntityById(id) {
     for (const device of this.devices) {
       const bounds = this._getEntityInteractionBounds(device);
       if (bounds && x >= bounds.x && x <= bounds.x + bounds.w
-                  && y >= bounds.y && y <= bounds.y + bounds.h) {
+        && y >= bounds.y && y <= bounds.y + bounds.h) {
         en = device;
         break;
       }
@@ -2452,7 +2634,7 @@ removeEntityById(id) {
       for (const furniture of this.furnitures) {
         const bounds = this._getEntityInteractionBounds(furniture);
         if (bounds && x >= bounds.x && x <= bounds.x + bounds.w
-                    && y >= bounds.y && y <= bounds.y + bounds.h) {
+          && y >= bounds.y && y <= bounds.y + bounds.h) {
           en = furniture;
           break;
         }
@@ -2565,7 +2747,7 @@ removeEntityById(id) {
     // that pre-date the entityType field.
     return !!en && (
       en.entityType === 'device' ||
-      en.catalogId  !== undefined ||
+      en.catalogId !== undefined ||
       en.interfaces !== undefined
     );
   }
@@ -2703,25 +2885,25 @@ removeEntityById(id) {
       };
     }
 
-  if (this._isFurnitureEntity(en)) {
-    const w = (en.width ?? 0) + 32;
-    const h = (en.height ?? 0) + 45;
+    if (this._isFurnitureEntity(en)) {
+      const w = (en.width ?? 0) + 32;
+      const h = (en.height ?? 0) + 45;
+
+      return {
+        x: en.x - w / 2,
+        y: en.y - h / 2.5,
+        w,
+        h
+      };
+    }
 
     return {
-      x: en.x - w / 2,
-      y: en.y - h / 2.5,
-      w,
-      h
+      x: en.x,
+      y: en.y,
+      w: en.w ?? en.width,
+      h: en.h ?? en.height
     };
   }
-
-  return {
-    x: en.x,
-    y: en.y,
-    w: en.w ?? en.width,
-    h: en.h ?? en.height
-  };
-}
 
 
 
@@ -2777,13 +2959,17 @@ removeEntityById(id) {
     if (currentEntity === null) {
       return true;
     }
-    
+    let ancestorsId = [];
+    if (currentEntity.structureType !== undefined && appState.selection.focusedType !== null) {
+       ancestorsId = appState.structural.getAncestorsId();
+    }
 
-    // Devices and furniture are intended to be placed within structural elements (Spaces/Floors).
-    // We skip the structural overlap check for these assets to avoid false positive alerts.
+// 🛑 THE FIX: Ignore overlap for Assets AND Fenestrations (Doors/Windows)
     const isAsset = currentEntity.interfaces !== undefined || currentEntity.catalogId !== undefined || currentEntity.type === 'furniture' || currentEntity.id?.startsWith('furniture');
-    if (isAsset) {
-      return false;
+    const isFenestration = currentEntity.type === 'door' || currentEntity.type === 'window';
+
+    if (isAsset || isFenestration) {
+      return false; // Skip the overlap alert for these!
     }
 
     // Only check for overlap on entities that support it (like structures),
@@ -2792,7 +2978,7 @@ removeEntityById(id) {
       return false;
     }
 
-    if (currentEntity.checkIfOverlapping(currentEntity.floorId)) {
+    if (currentEntity.checkIfOverlapping(ancestorsId, currentEntity.floorId)) {
       alert("Overlapping detected");
       if (action === 'creation') {
         if (currentEntity.type === 'freeform') {
@@ -2808,6 +2994,7 @@ removeEntityById(id) {
     }
     return false;
   }
+
 
 
 }

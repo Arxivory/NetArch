@@ -364,6 +364,9 @@ export class StructuralStore {
     }
 
     getAncestorsId() {
+        if (appState.selection.focusedType === 'domain'){
+            return [];
+        }
         const parentID = appState.selection.getFocusedId();
         const ancestorsId = [parentID];
         let ancestor = this.getById(parentID);

@@ -20,14 +20,4 @@ export default class Site {
         this.floors = data.floors ? data.floors.map(f => new Floor(f)) : [];
         
     }
-
-    // updateHeight() {
-    //     this.geometry.height = this.floors.reduce((sum, f) => sum + (f.height || 3.0), 0);
-    // }
-
-    // addFloor(floor) {
-    //     floor.altitude = this.geometry.height;
-    //     this.floors.push(floor);
-    //     this.updateHeight();
-    // }
 }

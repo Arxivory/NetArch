@@ -17,7 +17,7 @@ export class FurnitureStore {
         }
 
         const floor = appState.structural.getFloor(furniture.floorId);
-    
+
         const newFurnitureData = {
             id: furniture.id,
             type: furniture.catalogId,
@@ -25,7 +25,7 @@ export class FurnitureStore {
             floorId: furniture.floorId || null,
             spaceId: furniture.spaceId || null,
             transform: {
-                position: { x: furniture.position.x * 0.7, y: floor.altitude + 1, z: furniture.position.y * 0.7 },
+                position: { x: furniture.position.x * 0.7, y: floor.altitude + 2, z: furniture.position.y * 0.7 },
                 rotation: { x: 0, y: 0, z: 0 },
                 scale: { x: 4, y: 4, z: 4 }
             }

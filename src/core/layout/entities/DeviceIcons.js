@@ -69,36 +69,33 @@ export const DEVICE_ICON_SVGS = {
   </svg>`,
 
   // Furniture icons
-  desk: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
-    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/>
-    <path d="M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0z"/>
-    <path d="M5 18v2"/><path d="M19 18v2"/>
-  </svg>`,
+  desk: `<svg fill="#000000" height="800px" width="800px" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" 
+	 viewBox="0 0 299.7 299.7" xml:space="preserve">
+<g>
+	<g>
+		<g>
+			<path d="M292.95,47.768H6.75c-3.728,0-6.75,3.022-6.75,6.75c0,12.721,0,185.951,0,190.663c0,3.728,3.022,6.75,6.75,6.75h47.564
+				c3.728,0,6.75-3.022,6.75-6.75v-136.35h119.224c0,1.836,0,134.58,0,136.35c0,3.728,3.022,6.75,6.75,6.75H292.95
+				c3.728,0,6.75-3.022,6.75-6.75c0-2.076,0-188.939,0-190.664C299.7,50.791,296.678,47.768,292.95,47.768z M47.564,238.432H13.5
+				v-129.6h34.064V238.432z M286.2,238.432h-92.412v-58.05H286.2V238.432z M286.2,166.882h-92.412v-58.05H286.2V166.882z
+				 M286.2,95.332c-4.09,0-264.432,0-272.7,0V61.268h272.7V95.332z"/>
+			<path d="M223.667,144.607h32.653c3.728,0,6.75-3.022,6.75-6.75s-3.022-6.75-6.75-6.75h-32.653c-3.728,0-6.75,3.022-6.75,6.75
+				S219.939,144.607,223.667,144.607z"/>
+			<path d="M223.667,216.157h32.653c3.728,0,6.75-3.022,6.75-6.75c0-3.728-3.022-6.75-6.75-6.75h-32.653
+				c-3.728,0-6.75,3.022-6.75,6.75C216.917,213.134,219.939,216.157,223.667,216.157z"/>
+		</g>
+	</g>
+</g>
+</svg>`,
 
-  //  chair: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
-  //   fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  //   <path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/>
-  //   <path d="M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0z"/>
-  //   <path d="M5 18v2"/><path d="M19 18v2"/>
-  // </svg>`,
-  // };
-  
-  // For lack of a better single-icon representation of a chair/seat, we'll reuse the desk icon but recolor it in CSS.
   chair: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/>
     <path d="M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0z"/>
     <path d="M5 18v2"/><path d="M19 18v2"/>
-  </svg>`, 
-
-  // Keep rack in the same visual family as desk/chair for logical-canvas consistency.
-  rack: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
-    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/>
-    <path d="M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0z"/>
-    <path d="M5 18v2"/><path d="M19 18v2"/>
   </svg>`,
+
+  rack: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shelving-unit-icon lucide-shelving-unit"><path d="M12 12V9a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3"/><path d="M16 20v-3a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v3"/><path d="M20 22V2"/><path d="M4 12h16"/><path d="M4 20h16"/><path d="M4 2v20"/><path d="M4 4h16"/></svg>`
 };
 
 // ---------------------------------------------------------------------------
@@ -164,7 +161,7 @@ export function resolveDeviceIconKey(deviceData) {
   if (raw.includes('chair') || raw.includes('seat')) {
     return 'chair';
   }
-  if (raw.includes('rack') || raw.includes('cabinet')) {
+  if (raw.includes('rack') || raw.includes('shelf') || raw.includes('cabinet')) {
     return 'rack';
   }
 

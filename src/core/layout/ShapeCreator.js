@@ -7,6 +7,8 @@ import { Wall }       from './entities/Wall.js';
 import { Door }       from './entities/Door.js';
 import { Window }     from './entities/Window.js';
 import { Conduit }    from './entities/Conduit.js';
+import { Riser }      from './entities/Riser.js';
+import { UndergroundConduit } from './entities/UndergroundConduit.js';
 
 import { validateConnection }    from '../utils/ValidateConnection.js';
 import Link                      from '../network/Link.js';
@@ -42,7 +44,8 @@ export class ShapeCreator {
     this.onDoorCreated      = opts.onDoorCreated      || null;
     this.onWindowCreated    = opts.onWindowCreated    || null;
     this.onConduitCreated   = opts.onConduitCreated   || null;
-
+    this.onRiserCreated     = opts.onRiserCreated     || null;
+    this.onUndergroundConduitCreated = opts.onUndergroundConduitCreated || null;
     // Network entity callbacks
     this.onCableCreated     = opts.onCableCreated     || null;
     this.onDeviceCreated    = opts.onDeviceCreated    || null; // ← NEW
@@ -112,6 +115,20 @@ export class ShapeCreator {
     conduit.id = this._genId('Conduit ');
     if (this.onConduitCreated) this.onConduitCreated(conduit);
     return conduit;
+  }
+
+  createRiser(x, y, width, height) {
+    const riser = new Riser(x, y, width, height, this.system);
+    riser.id = this._genId('Riser ');
+    if (this.onRiserCreated) this.onRiserCreated(riser);
+    return riser;
+  }
+
+  createUndergroundConduit(x, y) {
+    const ugConduit = new UndergroundConduit(x, y, this.system);
+    ugConduit.id = this._genId('Underground Conduit ');
+    if (this.onUndergroundConduitCreated) this.onUndergroundConduitCreated(ugConduit);
+    return ugConduit;
   }
 
   createDoor(startPoint, currentPoint) {

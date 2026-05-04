@@ -10,7 +10,7 @@ import {
   StartDrawRectangleCommand, StartDrawCircleCommand, StartDrawPolygonCommand, StartDrawFreeformCommand, StartDrawWallCommand,
   StartSelectCommand, StartPanCommand, StartZoomInCommand, StartZoomOutCommand, CancelDrawingCommand,
   StartDrawDoorCommand, StartDrawWindowCommand,
-  StartDrawConduitCommand
+  StartDrawConduitCommand, StartDrawRiserCommand, StartDrawUndergroundConduitCommand
 } from "../../core/editor/DrawingCommands";
 import StructuralOption from "./StructuralOption";
 import PathwayOption from "./PathwayOption";
@@ -154,8 +154,14 @@ const handleDelete = () => {
 
     let Command;
     switch (component) {
-      case "conduit":
+      case "Conduit":
         Command = StartDrawConduitCommand;
+        break;
+      case "Riser":
+        Command = StartDrawRiserCommand;
+        break;
+      case "Underground Conduit":
+        Command = StartDrawUndergroundConduitCommand;
         break;
       default:
         //Conduit for now

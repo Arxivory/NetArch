@@ -12,12 +12,14 @@ import {
   CreateFloorCommand,
   CreateSpaceCommand,
   AddDeviceCommand,
+  AddFurnitureCommand,
   RemoveDeviceCommand,
   RemoveDomainCommand,
   RemoveSiteCommand,
   RemoveFloorCommand,
   RemoveSpaceCommand,
-  MoveCommand
+  MoveCommand,
+  DeleteEntityCommand
 } from './editor/DrawingCommands.js';
 
 export class LogicalCanvasController {
@@ -27,7 +29,9 @@ export class LogicalCanvasController {
       site: 0,
       floor: 0,
       space: 0,
-      conduit: 0
+      conduit: 0,
+      riser: 0,
+      undergroundConduit: 0
     };
 
     // Map canvas entity IDs to structural entity IDs for tracking
@@ -151,36 +155,48 @@ export class LogicalCanvasController {
         });
     }, { capture: true });
 
-    window.addEventListener('pointerup', () => {
-      this._commitPendingMoveCommands();
-    }, { capture: true });
-
-    // --- NEW: Global Keyboard Listener for Deletions ---
+    // --- NEW: Global Keyboard Listener for Shortcuts & Deletions ---
     window.addEventListener('keydown', (e) => {
-        // Listen for both Backspace and Delete keys
-        if (e.key === 'Backspace' || e.key === 'Delete') {
-            
-            // 1. GUARDRAIL: Do nothing if the user is typing in an input field
-            const activeElement = document.activeElement;
-            const isTyping = activeElement.tagName === 'INPUT' || 
-                             activeElement.tagName === 'TEXTAREA' || 
-                             activeElement.isContentEditable;
-            if (isTyping) return;
+        // 1. GUARDRAIL: Let the browser handle shortcuts if the user is typing in a text box
+        const activeElement = document.activeElement;
+        const isTyping = activeElement.tagName === 'INPUT' || 
+                         activeElement.tagName === 'TEXTAREA' || 
+                         activeElement.isContentEditable;
+        if (isTyping) return;
 
+        // 2. TIME MACHINE SHORTCUTS (Undo / Redo)
+        const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+        const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+        if (cmdOrCtrl) {
+            // Undo: Ctrl + Z
+            if (e.key.toLowerCase() === 'z' && !e.shiftKey) {
+                e.preventDefault(); // Stop browser's default undo
+                this.undo();
+                return; // Stop processing other keys
+            }
+            
+            // Redo: Ctrl + Y (Windows) OR Ctrl + Shift + Z (Mac)
+            if (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey)) {
+                e.preventDefault(); 
+                this.redo();
+                return; 
+            }
+        }
+
+        // 3. DELETION SHORTCUTS (Backspace / Delete)
+        if (e.key === 'Backspace' || e.key === 'Delete') {
             if (!appState || !appState.selection) return;
 
-            // 2. Figure out what is currently selected (Mirroring your Toolbar logic)
             let ids = appState.selection.getSelectedDeviceIds();
             if (!ids || ids.length === 0) {
                 const focused = appState.selection.getFocusedId();
                 if (focused) ids = [focused];
             }
 
-            // 3. Execute the deletion
             if (ids && ids.length > 0) {
                 const idToDelete = ids[0]; 
 
-                // If it's a cable, route it to the Confirmation Modal we built
                 if (appState.selection.focusedType === 'cable' && this.layout) {
                     const cable = this.layout.cables.find(c => c.id === idToDelete) || 
                                   appState.network?.getLink?.(idToDelete);
@@ -198,7 +214,6 @@ export class LogicalCanvasController {
                         }));
                     }
                 } else {
-                    // If it's a structure/device, route it to our Gatekeeper
                     this.executeDelete(idToDelete);
                 }
             }
@@ -223,6 +238,8 @@ export class LogicalCanvasController {
       onFreeformCreated: (freeform) => this._handleShapeCreated(freeform, 'freeform'),
       onWallCreated: (wall) => this._handleWallCreated(wall),
       onConduitCreated: (conduit) => this._handleConduitCreated(conduit),
+      onRiserCreated: (riser) => this._handleRiserCreated(riser),
+      onUndergroundConduitCreated: (ugConduit) => this._handleUndergroundConduitCreated(ugConduit),
       onCableCreated: (cable) => this._handleCableCreated(cable),
       onDeviceAdded: (device) => this._handleDeviceAdded(device),
       onDoorCreated: (door) => this._handleDoorCreated(door),
@@ -371,79 +388,70 @@ executeDelete(idToDelete) {
   }
 
   // Rename your old executeDelete to this:
-  _commitDelete(idToDelete) {
-    let deletedIds = [];
+  // _commitDelete(idToDelete) {
+  //   let deletedIds = [];
 
-    if (appState.structural) {
-        const st = appState.structural;
+  //   if (appState.structural) {
+  //       const st = appState.structural;
         
-        if (st.domains && st.domains.some(d => d.id === idToDelete)) {
-            deletedIds = st.removeDomain(idToDelete) || [idToDelete];
-        } else if (st.sites && st.sites.some(s => s.id === idToDelete)) {
-            deletedIds = st.removeSite(idToDelete) || [idToDelete];
-        } else if (st.floors && st.floors.some(f => f.id === idToDelete)) {
-            deletedIds = st.removeFloor(idToDelete) || [idToDelete];
-        } else if (st.spaces && st.spaces.some(s => s.id === idToDelete)) {
-            deletedIds = st.removeSpace(idToDelete) || [idToDelete];
-        } else if (st.walls && st.walls.some(w => w.id === idToDelete)) {
-            deletedIds = st.removeWall?.(idToDelete) || [idToDelete];
-        }
-    } 
+  //       if (st.domains && st.domains.some(d => d.id === idToDelete)) {
+  //           deletedIds = st.removeDomain(idToDelete) || [idToDelete];
+  //       } else if (st.sites && st.sites.some(s => s.id === idToDelete)) {
+  //           deletedIds = st.removeSite(idToDelete) || [idToDelete];
+  //       } else if (st.floors && st.floors.some(f => f.id === idToDelete)) {
+  //           deletedIds = st.removeFloor(idToDelete) || [idToDelete];
+  //       } else if (st.spaces && st.spaces.some(s => s.id === idToDelete)) {
+  //           deletedIds = st.removeSpace(idToDelete) || [idToDelete];
+  //       } else if (st.walls && st.walls.some(w => w.id === idToDelete)) {
+  //           deletedIds = st.removeWall?.(idToDelete) || [idToDelete];
+  //       }
+  //   }
 
-    // if (deletedIds.length === 0 && appState.devices && appState.devices.removeDevice) {
-    //     appState.devices.removeDevice(idToDelete); 
+  //   if (deletedIds.length === 0 && appState.devices && appState.devices.removeDevice) {
+  //       appState.devices.removeDevice(idToDelete); 
+  //       deletedIds = [idToDelete];
+  //   }
 
-    if (deletedIds.length === 0 && appState.structural) {
-      const isConduit = appState.structural.conduits?.some(c => c.id === idToDelete);
-      if (isConduit) {
-          appState.structural.removeConduit(idToDelete);
-          this.layout.removeEntityById(idToDelete);
-          appState.selection.clearSelection();
-          return;
-      }
-    }
+  //   if (deletedIds.length === 0 && appState.network) {
+  //       const isLink = appState.network.getLink(idToDelete);
+  //       if (isLink) {
+  //           isLink.bringDown?.();
+  //           appState.network.removeLink(idToDelete);
+  //           return;
+  //       }
+  //   }
 
+  //   if (deletedIds.length === 0 && appState.furniture && appState.furniture.removeFurniture) {
+  //       const isFurniture = appState.furniture.furnitures && appState.furniture.furnitures.some(f => f.id === idToDelete);
+  //       if (isFurniture) {
+  //           appState.furniture.removeFurniture(idToDelete);
+  //           deletedIds = [idToDelete];
+  //       }
+  //   }
 
-    if (deletedIds.length === 0 && typeof appState.removeDevice === 'function') {
-        const removed = appState.removeDevice(idToDelete);
-        if (removed) {
-            deletedIds = [idToDelete];
-        }
-    }
+  //   if (deletedIds.length === 0) {
+  //       deletedIds = [idToDelete];
+  //   }
 
-    if (deletedIds.length === 0 && appState.network) {
-        const isLink = appState.network.getLink(idToDelete);
-        if (isLink) {
-            isLink.bringDown?.();
-            appState.network.removeLink(idToDelete);
-            return;
-        }
-    }
-
-    if (deletedIds.length === 0 && appState.furniture && appState.furniture.removeFurniture) {
-        const isFurniture = appState.furniture.furnitures && appState.furniture.furnitures.some(f => f.id === idToDelete);
-        if (isFurniture) {
-            appState.furniture.removeFurniture(idToDelete);
-            deletedIds = [idToDelete];
-        }
-    }
-
-    if (deletedIds.length === 0) {
-        deletedIds = [idToDelete];
-    }
-
-    if (deletedIds.length > 0) {
-      deletedIds.forEach(deletedId => {
-          if (typeof this.removeEntity === 'function') {
-              this.removeEntity(deletedId);
-          }
-      });
+  //   if (deletedIds.length > 0) {
+  //     deletedIds.forEach(deletedId => {
+  //         if (typeof this.removeEntity === 'function') {
+  //             this.removeEntity(deletedId);
+  //         }
+  //     });
       
-      if (appState.selection && appState.selection.clearSelection) {
-          appState.selection.clearSelection();
-          if (typeof appState.selection.notify === 'function') appState.selection.notify();
-      }
-    }
+  //     if (appState.selection && appState.selection.clearSelection) {
+  //         appState.selection.clearSelection();
+  //         if (typeof appState.selection.notify === 'function') appState.selection.notify();
+  //     }
+  //   }
+  // }
+  _commitDelete(idToDelete) {
+    // Stop bypassing the stack! Use the Time Machine.
+    const command = new DeleteEntityCommand(appState, this, idToDelete);
+    
+    appState.pushCommand(command);
+    command.execute();
   }
 
   setSize(w, h) {
@@ -464,8 +472,16 @@ executeDelete(idToDelete) {
       canvasId = structure.id;
     }
 
-    const structureType = structure.type || structure.structureType || '';
-    const primitiveType = structure.shapeType || structure.type || 'rectangle';
+    // 1. Extract the structural metadata safely
+    const structureType = structure.structureType || structure.type || '';
+    
+    // 2. CRITICAL FIX: The "Phantom Shape" Parser Shield
+    // If the parser accidentally reads "Domain" or "Site" instead of a 2D shape type, force it back to a rectangle.
+    let primitiveType = structure.shapeType || structure.type;
+    if (!['rectangle', 'circle', 'polygon', 'freeform'].includes(primitiveType)) {
+        primitiveType = 'rectangle'; 
+    }
+
     const geom = structure.geometry || {};
     const x = Number(geom.x || 0);
     const y = Number(geom.y || 0);
@@ -530,6 +546,74 @@ executeDelete(idToDelete) {
     return shape;
   }
 
+restoreCanvasDevice(deviceData, canvasId, x, y) {
+      if (!this.layout?.shapeCreator) return null;
+      
+      const safeX = x ?? deviceData.x ?? deviceData.position?.x ?? deviceData.transform?.position?.x ?? 0;
+      const safeY = y ?? deviceData.y ?? deviceData.position?.y ?? deviceData.transform?.position?.y ?? 0;
+
+      // FIX: Ensure hostname is checked! That's where Factory stores the real name.
+      deviceData.label = deviceData.label || deviceData.name || deviceData.hostname || "Device";
+      deviceData.name = deviceData.label;
+
+      const layoutDevice = this.layout.shapeCreator.createDevice(
+          deviceData, safeX, safeY, this.layout.shapeRenderer?.gridSize * 1.5 || 48
+      );
+
+      layoutDevice.id = canvasId || deviceData.id;
+      layoutDevice.label = deviceData.label;
+      layoutDevice.name = deviceData.name;
+      layoutDevice.catalogId = deviceData.catalogId || deviceData.modelId;
+      layoutDevice.floorId = deviceData.floorId;
+      layoutDevice.spaceId = deviceData.spaceId;
+      layoutDevice.iconHint = deviceData.iconHint;
+      layoutDevice.isRehydration = true; 
+      
+      this.entityIdMap.set(layoutDevice.id, deviceData.id);
+      this.structuralToCanvasMap.set(deviceData.id, layoutDevice.id);
+
+      this.layout.devices.push(layoutDevice);
+      this.layout._render();
+      
+      return layoutDevice;
+  }
+
+  restoreCanvasFurniture(furnitureData, canvasId, x, y) {
+      if (!this.layout) return null;
+
+      const fData = { ...furnitureData, id: canvasId || furnitureData.id };
+      fData.x = x ?? fData.x ?? fData.transform?.position?.x ?? 0;
+      fData.y = y ?? fData.y ?? fData.transform?.position?.y ?? 0;
+      fData.isRehydration = true; 
+
+      fData.label = fData.label || fData.name || "Furniture";
+      fData.name = fData.label;
+
+      // 🛑 ENGAGE TIME MACHINE LOCK: Stop the "Select Floor" modal loop!
+      this._isRehydrating = true;
+
+      // 🎨 PADDING FIX: Use the layout engine's native method! 
+      // This automatically generates the white background box.
+      if (typeof this.layout.addFurniture === 'function') {
+          this.layout.addFurniture(fData, fData.x, fData.y);
+      } else {
+          if(!this.layout.furnitures) this.layout.furnitures = [];
+          this.layout.furnitures.push(fData);
+      }
+
+      // 🟢 DISENGAGE TIME MACHINE LOCK
+      this._isRehydrating = false;
+
+      if (this.physicalController && this.physicalController.createFurnitureGLTFMesh) {
+          this.physicalController.createFurnitureGLTFMesh(fData);
+      }
+
+      this.entityIdMap.set(fData.id, furnitureData.id);
+      this.structuralToCanvasMap.set(fData.id, fData.id);
+
+      this.layout._render();
+      return fData;
+  }
   enableSnap(enabled) {
     this.layout?.enableSnap(enabled);
   }
@@ -556,6 +640,14 @@ executeDelete(idToDelete) {
 
   startDrawConduit() {
     this.layout?.startDrawConduit();
+  }
+
+  startDrawRiser() {
+    this.layout?.startDrawRiser();
+  }
+
+  startDrawUndergroundConduit() {
+    this.layout?.startDrawUndergroundConduit();
   }
 
   startDrawDoor() {
@@ -814,7 +906,7 @@ executeDelete(idToDelete) {
 
     device.transform = device.transform || { position: { x: 0, y: 0, z: 0 } };
     device.transform.position.x = Number(device.transform.position.x || 0) + dx;
-    device.transform.position.y = Number(device.transform.position.y || 0) + dy;
+    device.transform.position.z = Number(device.transform.position.z || 0) + dy;
 
     if (!options.skipCanvasMove) {
       this._applyCanvasEntityMoveById(deviceId, dx, dy);
@@ -1229,76 +1321,67 @@ executeDelete(idToDelete) {
     return true;
   }
 
-addDevice(deviceData, x, y) {
-    if (!this.layout) return; 
-
-    if (deviceData.entityType === 'furniture') {
-        return this.addFurniture(deviceData, x, y);
-    }
+   addDevice(deviceData, x, y) {
+    if (!this.layout) return;
+    if (deviceData.entityType === 'furniture') return this.addFurniture(deviceData, x, y);
 
     const focusedType = appState.selection.focusedType;
     const focusedId = appState.selection.focusedId;
 
     if (focusedType !== 'floor' && focusedType !== 'space') {
-        // ... (existing error handling)
+        showErrorModal("Please select a floor or space in the hierarchy before adding a device.", "Invalid Selection");
         return;
     }
 
-    // =========================================================
-    // 1. Physical Bounds Validation (The code we just wrote!)
-    // =========================================================
     if (this.layout && typeof this.layout.isPointInsideShape === 'function') {
-        const dropIsInsideParent = this.layout.isPointInsideShape(focusedId, x, y);
+        const canvasParentId = this.structuralToCanvasMap.get(focusedId) || focusedId;
+        const dropIsInsideParent = this.layout.isPointInsideShape(canvasParentId, x, y);
         if (!dropIsInsideParent) {
             const prettyTypeName = focusedType.charAt(0).toUpperCase() + focusedType.slice(1);
-            showErrorModal(
-                `Placement Failed.\nYou dropped the item outside the physical area of the selected ${prettyTypeName}.`, 
-                "Out of Bounds Error"
-            );
+            showErrorModal(`Placement Failed.\nYou dropped the item outside the physical area of the selected ${prettyTypeName}.`, "Out of Bounds Error");
             return; 
         }
     }
 
-    // =========================================================
-    // --- NEW: 2. Smart Space Interception ---
-    // Prevent dropping ON a Space when only the Floor is selected
-    // =========================================================
     if (focusedType === 'floor' && appState.structural && appState.structural.spaces) {
         const spacesOnFloor = appState.structural.spaces.filter(s => s.floorId === focusedId);
-        const droppedInsideSpace = spacesOnFloor.find(space => 
-            this.layout.isPointInsideShape(space.id, x, y)
-        );
+        const droppedInsideSpace = spacesOnFloor.find(space => {
+            const canvasSpaceId = this.structuralToCanvasMap.get(space.id) || space.id;
+            return this.layout.isPointInsideShape(canvasSpaceId, x, y);
+        });
         if (droppedInsideSpace) {
-            showErrorModal(
-                `You dropped the device inside "${droppedInsideSpace.label}".\n\nTo place a device inside a Space, you must explicitly select that Space in the Hierarchy Panel first.`, 
-                "Specific Placement Required"
-            );
+            showErrorModal(`You dropped the device inside "${droppedInsideSpace.label}".\n\nTo place a device inside a Space, you must explicitly select that Space in the Hierarchy Panel first.`, "Specific Placement Required");
             return; 
         }
     }
-    const catalogId = deviceData.modelId;
-    if (!catalogId) {
-        console.error("Missing modelId in deviceData", deviceData);
-        return;
-    }
+
+    const catalogId = deviceData.modelId || deviceData.catalogId;
+    if (!catalogId) return;
 
     try {
-        const newDevice = DeviceFactory.create(catalogId, { x, y, z: 0 }, {
-          hostname: deviceData.label,
-          id: deviceData.id
-        });
+        // BUG 1 FIX: Don't forcefully overwrite the name! Let the Factory fetch the real catalog name.
+        const providedLabel = deviceData.label || deviceData.displayName || deviceData.name;
+        const opts = { id: deviceData.id, iconHint: deviceData.iconHint };
+        
+        // Only override if the user explicitly typed a custom name. Otherwise, let the Factory handle it.
+        if (providedLabel && providedLabel.toLowerCase() !== 'device') {
+            opts.hostname = providedLabel;
+        }
 
+        const newDevice = DeviceFactory.create(catalogId, { x, y, z: 0 }, opts);
+        
+        // Now extract the 100% accurate, Factory-approved base name!
         const baseName = newDevice.hostname;
-
-        const existing = this.layout.devices.filter(
-          d => d.name === baseName || d.label?.startsWith(baseName)
-        );
-
+        
+        const existing = this.layout.devices.filter(d => d.name === baseName || d.label?.startsWith(baseName));
         let newLabel = baseName;
+        if (existing.length > 0) newLabel = baseName + " (" + (existing.length + 1) + ")";
 
-        if (existing.length > 0) {
-          newLabel = baseName + " (" + (existing.length + 1) + ")";
-        } 
+        newDevice.x = x;
+        newDevice.y = y;
+        newDevice.transform = newDevice.transform || { position: { x, y, z: 0 } };
+        newDevice.transform.position.x = x * 0.7;
+        newDevice.transform.position.z = y * 0.7;
 
 
         // newDevice.x = x;
@@ -1309,139 +1392,89 @@ addDevice(deviceData, x, y) {
 
         newDevice.label = newLabel;
         newDevice.name = newLabel;
+        newDevice.iconHint = deviceData.iconHint; 
 
         if (focusedType === 'space') {
             newDevice.spaceId = focusedId;
             const space = appState.structural.spaces.find(s => s.id === focusedId);
-            if (space) {
-                newDevice.floorId = space.floorId;
-            }
+            if (space) newDevice.floorId = space.floorId;
         } else if (focusedType === 'floor') {
             newDevice.floorId = focusedId;
         }
 
-        // this.layout.devices.push(newDevice);
-        const layoutDevice = this.layout.shapeCreator.createDevice(
-          newDevice, // still pass your instance
-          x,
-          y,
-          this.layout.shapeRenderer.gridSize * 1.5
-        ); 
-
-        // preserve IDs + metadata
-        layoutDevice.id = newDevice.id;
-        layoutDevice.label = newDevice.label;
-        layoutDevice.name = newDevice.name;
-        layoutDevice.catalogId = newDevice.catalogId;
-        layoutDevice.floorId = newDevice.floorId;
-        layoutDevice.spaceId = newDevice.spaceId;
-
-        this.layout.devices.push(layoutDevice);
-        this.layout._render();
-
-
-        console.log("ADDING DEVICE TO LAYOUT:", newDevice, "on: x: ", x, ", y: ", y);
-
-        if (appState.network?.addDevice) {
-            appState.network.addDevice(newDevice);
-        }
-
-        console.log('Device added:', newDevice.id, 'with Catalog ID:', newDevice.catalogId, 'to floor/space:', focusedId);
+        const command = new AddDeviceCommand(appState, this, newDevice, x, y);
+        appState.pushCommand(command);
+        command.execute();
     } catch (error) {
-        console.error("Failed to add device:", error.message);
-      showErrorModal(
-        "The selected object is not supported for placement yet. Please import a supported device model and try again.",
-        "Unsupported Object"
-      );
+        showErrorModal("The selected object is not supported for placement yet.", "Unsupported Object");
     }
-}
+  }
 
-addFurniture(furnitureData, x, y) {
-  console.log('Adding furniture with data:', furnitureData, 'at position:', { x, y });
+  addFurniture(furnitureData, x, y) {
     if (!this.layout) return;
 
     const focusedType = appState.selection.focusedType;
     const focusedId = appState.selection.focusedId;
 
     if (focusedType !== 'floor' && focusedType !== 'space') {
-        console.error("Cannot add furniture: A floor or space must be selected in the hierarchy");
-        alert('Please select a floor or space in the hierarchy before adding furniture.');
-        return;
-    }
-
-    if (!focusedId) {
-        console.error("Cannot add furniture: No floor or space is focused");
-        alert('Please select a floor or space in the hierarchy before adding furniture.');
+        showErrorModal('Please select a floor or space in the hierarchy before adding furniture.', "Invalid Selection");
         return;
     }
 
     if (this.layout && typeof this.layout.isPointInsideShape === 'function') {
-        const dropIsInsideParent = this.layout.isPointInsideShape(focusedId, x, y);
+        const canvasParentId = this.structuralToCanvasMap.get(focusedId) || focusedId;
+        const dropIsInsideParent = this.layout.isPointInsideShape(canvasParentId, x, y);
         if (!dropIsInsideParent) {
             const prettyTypeName = focusedType.charAt(0).toUpperCase() + focusedType.slice(1);
-            showErrorModal(
-                `Placement Failed.\nYou dropped the furniture outside the physical area of the selected ${prettyTypeName}.`,
-                "Out of Bounds Error"
-            );
+            showErrorModal(`Placement Failed.\nYou dropped the furniture outside the physical area of the selected ${prettyTypeName}.`, "Out of Bounds Error");
             return;
         }
     }
 
     if (focusedType === 'floor' && appState.structural && appState.structural.spaces) {
         const spacesOnFloor = appState.structural.spaces.filter(s => s.floorId === focusedId);
-        const droppedInsideSpace = spacesOnFloor.find(space => 
-            this.layout.isPointInsideShape(space.id, x, y)
-        );
+        const droppedInsideSpace = spacesOnFloor.find(space => {
+            const canvasSpaceId = this.structuralToCanvasMap.get(space.id) || space.id;
+            return this.layout.isPointInsideShape(canvasSpaceId, x, y);
+        });
         if (droppedInsideSpace) {
-            showErrorModal(
-                `You dropped the furniture inside "${droppedInsideSpace.label}".\n\nTo place furniture inside a Space, you must explicitly select that Space in the Hierarchy Panel first.`,
-                "Specific Placement Required"
-            );
+            showErrorModal(`You dropped the furniture inside "${droppedInsideSpace.label}".\n\nTo place furniture inside a Space, you must explicitly select that Space in the Hierarchy Panel first.`, "Specific Placement Required");
             return;
         }
     }
 
-    const catalogId = furnitureData.modelId;
-    if (!catalogId) {
-        console.error("Missing modelId in furnitureData", furnitureData);
-        return;
-    }
+    const catalogId = furnitureData.modelId || furnitureData.catalogId;
+    if (!catalogId) return;
 
     try {
+        const providedName = furnitureData.displayName || furnitureData.label || furnitureData.name || furnitureData.type || "Furniture";
         const newFurniture = createFurnitureInstance(catalogId, { x, y, z: 0 });
         
+        newFurniture.x = x;
+        newFurniture.y = y;
+        newFurniture.transform = newFurniture.transform || { position: { x, y, z: 0 } };
+        newFurniture.transform.position.x = x * 0.7;
+        newFurniture.transform.position.z = y * 0.7;
+
         newFurniture.catalogId = catalogId; 
-        newFurniture.label = furnitureData.label || newFurniture.name;
+        newFurniture.label = providedName;
+        newFurniture.iconHint = furnitureData.iconHint || "furniture";
 
         if (focusedType === 'space') {
             newFurniture.spaceId = focusedId;
             const space = appState.structural.spaces.find(s => s.id === focusedId);
-            if (space) {
-                newFurniture.floorId = space.floorId;
-            }
+            if (space) newFurniture.floorId = space.floorId;
         } else if (focusedType === 'floor') {
             newFurniture.floorId = focusedId;
         }
 
-        console.log('Creating furniture instance with catalogId:', catalogId, 'and:', newFurniture);
-
-        this.layout.addFurniture({ ...newFurniture }, x, y);
-
-        if (appState.furniture?.addFurniture) {
-            appState.furniture.addFurniture(newFurniture);
-        }
-
-        if (this.physicalController) {
-            this.physicalController.createFurnitureGLTFMesh(newFurniture);
-        } else {
-            console.warn("Physical controller not ready yet (normal if in 2D mode).");
-        }
-
-        console.log('Furniture added:', newFurniture.id, 'with Catalog ID:', newFurniture.catalogId);
+        const command = new AddFurnitureCommand(appState, this, newFurniture, x, y);
+        appState.pushCommand(command);
+        command.execute();
     } catch (error) {
         console.error("Failed to add furniture:", error.message);
     }
-}
+  }
 
   updateEntityTransform(id, updates) {
     this.layout?.updateEntityTransform(id, updates);
@@ -1683,13 +1716,16 @@ _handleShapeCreated(shapeData, shapeType) {
     };
 
     // --- 4. SHAPE ROUTING - Execute commands for undo/redo tracking ---
+// --- 4. SHAPE ROUTING - Execute commands for undo/redo tracking ---
     if (structureType === 'Domain') {
       const domainData = {
-        ...shapeData, label: `Domain ${this.counters.domain++}`,
-        x, y, w, h, maxX, maxY, shapeType: 'rectangle'
+        id, shapeType, structureType: 'Domain',
+        x, y, w, h, maxX, maxY, r, points,
+        // CRITICAL FIX: Match the exact property names expected by the Class constructors
+        geometry: { x, y, width: w, height: h, radius: r, points }, 
+        label: `Domain ${this.counters.domain++}`
       };
       console.log(`🏢 Creating Domain with id=${domainData.id}`);
-      
       const command = new CreateDomainCommand(appState, this, domainData, id);
       this.commandHistory.executeCommand(command);
     }
@@ -1704,11 +1740,12 @@ _handleShapeCreated(shapeData, shapeType) {
         return removeInvalidShape();
       }
       const siteData = {
-        id, shapeType, x, y, w, h, maxX, maxY, r, points,
+        id, shapeType, structureType: 'Site',
+        x, y, w, h, maxX, maxY, r, points,
+        geometry: { x, y, width: w, height: h, radius: r, points }, 
         label: `Site ${this.counters.site++}`
       };
       console.log(`🏪 Creating Site with id=${siteData.id}, domainId=${parentId}`);
-      
       const command = new CreateSiteCommand(appState, this, siteData, parentId, id);
       this.commandHistory.executeCommand(command);
     } 
@@ -1723,11 +1760,12 @@ _handleShapeCreated(shapeData, shapeType) {
         return removeInvalidShape();
       }
       const floorData = {
-        id, shapeType, x, y, w, h, maxX, maxY, r, points,
+        id, shapeType, structureType: 'Floor',
+        x, y, w, h, maxX, maxY, r, points,
+        geometry: { x, y, width: w, height: h, radius: r, points }, 
         label: `Floor ${this.counters.floor++}`
       };
       console.log(`🏗️ Creating Floor with id=${floorData.id}, siteId=${parentId}`);
-      
       const command = new CreateFloorCommand(appState, this, floorData, parentId, id);
       this.commandHistory.executeCommand(command);
     }
@@ -1742,11 +1780,12 @@ _handleShapeCreated(shapeData, shapeType) {
         return removeInvalidShape();
       }
       const spaceData = {
-        id, shapeType, x, y, w, h, maxX, maxY, r, points,
+        id, shapeType, structureType: 'Space',
+        x, y, w, h, maxX, maxY, r, points,
+        geometry: { x, y, width: w, height: h, radius: r, points },
         label: `Space ${this.counters.space++}`
       };
       console.log(`🎨 Creating Space with id=${spaceData.id}, floorId=${parentId}`);
-      
       const command = new CreateSpaceCommand(appState, this, spaceData, parentId, id);
       this.commandHistory.executeCommand(command);
     }
@@ -1820,6 +1859,23 @@ _handleShapeCreated(shapeData, shapeType) {
     if (activeSpaceId && appState.structural.addConduit) {
       console.log('New Conduit Data: ', conduitData);
       appState.structural.addConduit({ ...conduitData, spaceId: activeSpaceId, label: conduitData.label || `Conduit ${this.counters.conduit++}` });
+    }
+  }
+
+  _handleRiserCreated(riserData) {
+    const activeSpaceId = appState.selection.focusedType === 'space' ? appState.selection.focusedId : null;
+    const activeFloorId = appState.selection.focusedType === 'floor' ? appState.selection.focusedId : appState.ui.activeFloorId;
+    if (activeFloorId || activeSpaceId || appState.structural.addRiser) {
+      console.log('New Riser Data: ', riserData);
+      appState.structural.addRiser({ ...riserData, floorId: activeFloorId, spaceId: activeSpaceId, label: riserData.label || `Riser ${this.counters.riser++}` });
+    }
+  }
+
+  _handleUndergroundConduitCreated(ugConduitData) {
+    const activeSiteId = appState.selection.focusedType === 'site' ? appState.selection.focusedId : null;
+    if (activeSiteId || appState.structural.addUndergroundConduit) {
+      console.log('New Underground Conduit Data: ', ugConduitData);
+      appState.structural.addUndergroundConduit({ ...ugConduitData, siteId: activeSiteId, label: ugConduitData.label || `Underground Conduit ${this.counters.undergroundConduit++}` });
     }
   }
 
@@ -1922,10 +1978,12 @@ _handleShapeCreated(shapeData, shapeType) {
   }
 
   _handleDeviceAdded(device) {
+    if (device.isRehydration || this._isRehydrating) return;
     this.addDevice(device, device.x, device.y);
   }
 
   _handleFurnitureAdded(furniture) {
+    if (furniture.isRehydration || this._isRehydrating) return;
     this.addFurniture(furniture, furniture.x, furniture.y);
   }
   

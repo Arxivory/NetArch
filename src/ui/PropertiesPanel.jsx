@@ -430,7 +430,9 @@ export default function PropertiesPanel({ canvasController }) {
               onBlur={() => handleDeviceBlur('defaultGateway')}
             />
           </div>
-          {/* ... [Advanced Config Button remains same] ... */}
+          <button className="floor-specifier-btn" onClick={() => setIsModalOpen(true)}>
+            Advanced Configuration
+          </button>
         </div>
       )}
 

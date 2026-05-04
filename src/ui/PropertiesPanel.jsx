@@ -2,69 +2,101 @@ import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import appState from "../state/AppState";
 import { UpdateEntityTransformCommand, ChangePropertyCommand } from "../core/editor/DrawingCommands";
-import { Network, ArrowLeftRight, ShieldCheck, Server, Lock, Activity, Clock, Terminal, ArrowDown, Map} from "lucide-react";
 
+import RoutingModal        from "./ConfigModals/RoutingModal";
+import NATModal            from "./ConfigModals/NATModal";
+import ACLModal            from "./ConfigModals/ACLModal";
+import DHCPModal           from "./ConfigModals/DHCPModal";
+import VPNModal            from "./ConfigModals/VPNModal";
+import SNMPModal           from "./ConfigModals/SNMPModal";
+import NTPModal            from "./ConfigModals/NTPModal";
+import SSHModal            from "./ConfigModals/SSHModal";
+import VLANModal           from "./ConfigModals/VLANModal";
+import STPModal            from "./ConfigModals/STPModal";
+import PortSecurityModal   from "./ConfigModals/PortSecurityModal";
+import TrunkingModal       from "./ConfigModals/TrunkingModal";
+import QoSModal            from "./ConfigModals/QoSModal";
+import AuthenticationModal from "./ConfigModals/AuthenticationModal";
+import IGMPModals          from "./ConfigModals/IGMPModals";
+import SyslogModal         from "./ConfigModals/SyslogModal";
+
+// ─── Config card map ──────────────────────────────────────────────────────────
 const DEVICE_CONFIGS = {
   router: [
-    { label: "Routing Protocol", desc: "Configure OSPF, BGP, or Static routes", icon: Network },
-    { label: "NAT/PAT", desc: "Translate private IPs to public addresses", icon: ArrowLeftRight },
-    { label: "Access Control List", desc: "Create permit/deny traffic rules", icon: ShieldCheck },
-    { label: "DHCP Server", desc: "Manage IP address pools for the network", icon: Server },
-    { label: "VPN Config", desc: "Set up secure site-to-site tunnels", icon: Lock },
-    { label: "SNMP/MIB", desc: "Configure remote monitoring and alerts", icon: Activity },
-    { label: "NTP", desc: "Synchronize device clock with time servers", icon: Clock },
-    { label: "Terminal/SSH", desc: "Secure remote command line access", icon: Terminal }
+    { label: "Routing Protocol",    desc: "Configure OSPF, BGP, or Static routes" },
+    { label: "NAT/PAT",             desc: "Translate private IPs to public addresses" },
+    { label: "Access Control List", desc: "Create permit/deny traffic rules" },
+    { label: "DHCP Server",         desc: "Manage IP address pools for the network" },
+    { label: "VPN Config",          desc: "Set up secure site-to-site tunnels" },
+    { label: "SNMP/MIB",            desc: "Configure remote monitoring and alerts" },
+    { label: "NTP",                 desc: "Synchronize device clock with time servers" },
+    { label: "SSH",                 desc: "Secure remote command line access" },
   ],
   switch: [
-    { label: "VLAN Manager", desc: "Create and assign Virtual LANs" },
-    { label: "Spanning Tree", desc: "Configure STP to prevent network loops" },
-    { label: "Port Security", desc: "Bind specific MAC addresses to ports" },
-    { label: "VLAN Trunking", desc: "Configure 802.1Q tags for switch links" },
-    { label: "QoS Settings", desc: "Prioritize voice or video data packets" },
-    { label: "User Auth", desc: "Configure RADIUS/802.1X port access" },
-    { label: "IGMP Snooping", desc: "Optimize multicast traffic delivery" },
-    { label: "Logs/Syslog", desc: "Export event logs to a central server" }
+    { label: "VLAN Manager",   desc: "Create and assign Virtual LANs" },
+    { label: "Spanning Tree",  desc: "Configure STP to prevent network loops" },
+    { label: "Port Security",  desc: "Bind specific MAC addresses to ports" },
+    { label: "VLAN Trunking",  desc: "Configure 802.1Q tags for switch links" },
+    { label: "QoS Settings",   desc: "Prioritize voice or video data packets" },
+    { label: "User Auth",      desc: "Configure RADIUS/802.1X port access" },
+    { label: "IGMP Snooping",  desc: "Optimize multicast traffic delivery" },
+    { label: "Logs/Syslog",    desc: "Export event logs to a central server" },
   ],
   pc: [
-    { label: "Interface Metric", desc: "Set priority between Wi-Fi and Ethernet" },
-    { label: "802.1X Supplicant", desc: "Configure certificate-based port auth" },
-    { label: "DNS Suffix", desc: "Set domain name for internal host lookups" },
-    { label: "Static Route", desc: "Manually override default gateway paths" },
-    { label: "Wake-on-LAN", desc: "Enable remote power-on via network" },
-    { label: "Proxy Settings", desc: "Configure web traffic filtering" },
-    { label: "Local Firewall", desc: "Manage OS-level software rules" },
-    { label: "Remote Desktop", desc: "Enable/Disable RDP or VNC access" }
+    { label: "Interface Metric",   desc: "Set priority between Wi-Fi and Ethernet" },
+    { label: "802.1X Supplicant",  desc: "Configure certificate-based port auth" },
+    { label: "DNS Suffix",         desc: "Set domain name for internal host lookups" },
+    { label: "Static Route",       desc: "Manually override default gateway paths" },
+    { label: "Wake-on-LAN",        desc: "Enable remote power-on via network" },
+    { label: "Proxy Settings",     desc: "Configure web traffic filtering" },
+    { label: "Local Firewall",     desc: "Manage OS-level software rules" },
+    { label: "Remote Desktop",     desc: "Enable/Disable RDP or VNC access" },
   ],
   smartphone: [
-    { label: "APN Settings", desc: "Configure cellular data carrier gateway" },
-    { label: "MDM Profile", desc: "Enroll device in corporate management" },
-    { label: "VPN On-Demand", desc: "Trigger secure tunnel for work apps" },
-    { label: "SSID Priority", desc: "Manage preferred Wi-Fi network list" },
-    { label: "Hotspot Config", desc: "Manage tethering and sharing settings" },
+    { label: "APN Settings",        desc: "Configure cellular data carrier gateway" },
+    { label: "MDM Profile",         desc: "Enroll device in corporate management" },
+    { label: "VPN On-Demand",       desc: "Trigger secure tunnel for work apps" },
+    { label: "SSID Priority",       desc: "Manage preferred Wi-Fi network list" },
+    { label: "Hotspot Config",      desc: "Manage tethering and sharing settings" },
     { label: "Certificate Manager", desc: "Install digital IDs for secure Wi-Fi" },
-    { label: "Data Roaming", desc: "Configure behavior on foreign networks" },
-    { label: "Location Services", desc: "Permissions for network-based GPS" }
-  ]
+    { label: "Data Roaming",        desc: "Configure behavior on foreign networks" },
+    { label: "Location Services",   desc: "Permissions for network-based GPS" },
+  ],
 };
 
 export default function PropertiesPanel({ canvasController }) {
+  // ── Entity + transform state ───────────────────────────────────────────────
   const [selectedEntity, setSelectedEntity] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isRoutingModalOpen, setIsRoutingModalOpen] = useState(false);
-
-  const [isOSPFModalOpen, setIsOSPFModalOpen] = useState(false);
-
-  const [activeTab, setActiveTab] = useState("basic"); // For switching tabs
-  const [ospfNetworks, setOspfNetworks] = useState([{ id: Date.now(), network: "", areaId: "" }]); // For dynamic networks
-
   const [transform, setTransform] = useState({
     position: { x: 0, y: 0, z: 0 },
-    scale: { factor: 1 },
-    rotation: { x: 0, y: 0, z: 0 }
+    scale:    { factor: 1 },
+    rotation: { x: 0, y: 0, z: 0 },
   });
   const originalLabelRef = useRef("");
   const originalValueRef = useRef({});
 
+  // ── Advanced Config grid modal ─────────────────────────────────────────────
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // ── Per-feature modal open state ──────────────────────────────────────────
+  const [isRoutingModalOpen,      setIsRoutingModalOpen]      = useState(false);
+  const [isNATModalOpen,          setIsNATModalOpen]          = useState(false);
+  const [isACLModalOpen,          setIsACLModalOpen]          = useState(false);
+  const [isDHCPModalOpen,         setIsDHCPModalOpen]         = useState(false);
+  const [isVPNModalOpen,          setIsVPNModalOpen]          = useState(false);
+  const [isSNMPModalOpen,         setIsSNMPModalOpen]         = useState(false);
+  const [isNTPModalOpen,          setIsNTPModalOpen]          = useState(false);
+  const [isSSHModalOpen,          setIsSSHModalOpen]          = useState(false);
+  const [isVLANModalOpen,         setIsVLANModalOpen]         = useState(false);
+  const [isSTPModalOpen,          setIsSTPModalOpen]          = useState(false);
+  const [isPortSecurityModalOpen, setIsPortSecurityModalOpen] = useState(false);
+  const [isTrunkingModalOpen,     setIsTrunkingModalOpen]     = useState(false);
+  const [isQoSModalOpen,          setIsQoSModalOpen]          = useState(false);
+  const [isAuthModalOpen,         setIsAuthModalOpen]         = useState(false);
+  const [isIGMPModalOpen,         setIsIGMPModalOpen]         = useState(false);
+  const [isSyslogModalOpen,       setIsSyslogModalOpen]       = useState(false);
+
+  // ── Subscription: keep selectedEntity in sync with appState ───────────────
   useEffect(() => {
     const updatePanelContent = () => {
       let ids = appState.selection.getSelectedDeviceIds();
@@ -75,25 +107,23 @@ export default function PropertiesPanel({ canvasController }) {
 
       if (ids && ids.length > 0) {
         const entityId = ids[0];
-        let entity = findEntityById(entityId);
+        let entity    = findEntityById(entityId);
         let storeNode = null;
-        
+
         if (appState.structural) {
           const { domains, sites, floors, spaces } = appState.structural;
-          storeNode = 
-            (domains || []).find(d => d.id === entityId) || 
-            (sites || []).find(s => s.id === entityId) || 
-            (floors || []).find(f => f.id === entityId) || 
-            (spaces || []).find(sp => sp.id === entityId);
+          storeNode =
+            (domains || []).find(d  => d.id  === entityId) ||
+            (sites   || []).find(s  => s.id  === entityId) ||
+            (floors  || []).find(f  => f.id  === entityId) ||
+            (spaces  || []).find(sp => sp.id === entityId);
         }
-        
-        if (!storeNode && appState.network) {
-            storeNode = appState.network.getDevice(entityId);
-        }
-        
-        if (!storeNode && appState.furniture) {
-            storeNode = appState.furniture.getFurniture(entityId);
-        }
+
+        if (!storeNode && appState.network)
+          storeNode = appState.network.getDevice(entityId);
+
+        if (!storeNode && appState.furniture)
+          storeNode = appState.furniture.getFurniture(entityId);
 
         if (entity && storeNode) {
           entity = {
@@ -111,14 +141,14 @@ export default function PropertiesPanel({ canvasController }) {
             position: {
               x: entity.transform?.position?.x ?? entity.x ?? 0,
               y: entity.transform?.position?.y ?? entity.y ?? 0,
-              z: entity.transform?.position?.z ?? 0
+              z: entity.transform?.position?.z ?? 0,
             },
-            scale: entity.transform?.scale ?? 1,
+            scale:    entity.transform?.scale    ?? 1,
             rotation: {
               x: entity.transform?.rotation?.x ?? 0,
               y: entity.transform?.rotation?.y ?? 0,
-              z: entity.transform?.rotation?.z ?? 0
-            }
+              z: entity.transform?.rotation?.z ?? 0,
+            },
           });
           return;
         }
@@ -126,23 +156,24 @@ export default function PropertiesPanel({ canvasController }) {
       setSelectedEntity(null);
     };
 
-    const unsubscribeSelection = appState.selection.subscribe(updatePanelContent);
+    const unsubscribeSelection  = appState.selection.subscribe(updatePanelContent);
     const unsubscribeStructural = appState.structural.subscribe(updatePanelContent);
-    const unsubscribeNetwork = appState.network.subscribe(updatePanelContent);
-    const unsubscribeFurniture = appState.furniture.subscribe(updatePanelContent);
+    const unsubscribeNetwork    = appState.network.subscribe(updatePanelContent);
+    const unsubscribeFurniture  = appState.furniture.subscribe(updatePanelContent);
 
     updatePanelContent();
 
     return () => {
-      if (unsubscribeSelection) unsubscribeSelection();
+      if (unsubscribeSelection)  unsubscribeSelection();
       if (unsubscribeStructural) unsubscribeStructural();
-      if (unsubscribeNetwork) unsubscribeNetwork();
-      if (unsubscribeFurniture) unsubscribeFurniture();
+      if (unsubscribeNetwork)    unsubscribeNetwork();
+      if (unsubscribeFurniture)  unsubscribeFurniture();
     };
   }, [canvasController]);
 
+  // ── Helpers ────────────────────────────────────────────────────────────────
   const findEntityById = (id) => {
-    if (!canvasController || !canvasController.layout) return null;
+    if (!canvasController?.layout) return null;
     return canvasController.layout.findEntityById(id);
   };
 
@@ -154,58 +185,30 @@ export default function PropertiesPanel({ canvasController }) {
 
   const getDeviceType = () => {
     if (!selectedEntity) return null;
-    const typeStr = (selectedEntity.type || "").toLowerCase();
-    const labelStr = (selectedEntity.label || "").toLowerCase().replace(/\s/g, '');
-    if (typeStr.includes('router') || labelStr.includes('router')) return 'router';
-    if (typeStr.includes('switch') || labelStr.includes('switch')) return 'switch';
-    if (typeStr.includes('phone') || labelStr.includes('phone')) return 'smartphone';
+    const typeStr  = (selectedEntity.type  || "").toLowerCase();
+    const labelStr = (selectedEntity.label || "").toLowerCase().replace(/\s/g, "");
+    if (typeStr.includes("router") || labelStr.includes("router")) return "router";
+    if (typeStr.includes("switch") || labelStr.includes("switch")) return "switch";
+    if (typeStr.includes("phone")  || labelStr.includes("phone"))  return "smartphone";
     return "pc";
   };
 
-  const deviceType = getDeviceType();
-  const configGroups = [
-    {
-      category: "Advanced Configuration",
-      items: DEVICE_CONFIGS[deviceType] || []
-    }
-  ];
-
-  const isDevice = selectedEntity && selectedEntity.interfaces !== undefined;
-  const isCable = selectedEntity && selectedEntity.sourceId !== undefined && selectedEntity.targetId !== undefined;
-  const isWall = selectedEntity && selectedEntity.type === "wall";
-  const isStructure = selectedEntity && (
-      selectedEntity.structureType === "Domain" ||
-      selectedEntity.structureType === "Site" ||
-      selectedEntity.structureType === "Floor" ||
-      selectedEntity.structureType === "Space" ||
-      selectedEntity.type === "space" ||
-      selectedEntity.type === "site" ||
-      selectedEntity.type === "domain" ||
-      selectedEntity.type === "floor"
-    );
-  const isFurniture = selectedEntity && !isDevice && !isCable && !isWall && !isStructure;
-
+  // ── Handlers ───────────────────────────────────────────────────────────────
   const handleTransformChange = (type, axis, value) => {
     if (!selectedEntity || !canvasController) return;
     let numericValue = parseFloat(value);
     if (numericValue < 0 || numericValue === null) numericValue = 0;
 
-    const updates = {
-      [type]: {
-        ...selectedEntity.transform[type],
-        [axis]: numericValue
-      }
-    };
-
+    const updates = { [type]: { ...selectedEntity.transform[type], [axis]: numericValue } };
     const cmd = new UpdateEntityTransformCommand(canvasController, appState, selectedEntity.id, updates);
     cmd.execute();
-    
+
     const entity = findEntityById(selectedEntity.id);
     if (entity) {
       setTransform({
         position: { ...entity.transform.position },
-        scale: entity.transform.scale ?? 1,
-        rotation: { ...entity.transform.rotation }
+        scale:    entity.transform.scale ?? 1,
+        rotation: { ...entity.transform.rotation },
       });
     }
   };
@@ -314,28 +317,71 @@ export default function PropertiesPanel({ canvasController }) {
   };
 
   const handleConfigItemClick = (label) => {
-    if (label === "Routing Protocol") {
-      setIsModalOpen(true);
-      setIsRoutingModalOpen(true);
-    } else {
-      console.log(`Opening ${label}`);
-    }
+    const map = {
+      "Routing Protocol":    () => setIsRoutingModalOpen(true),
+      "NAT/PAT":             () => setIsNATModalOpen(true),
+      "Access Control List": () => setIsACLModalOpen(true),
+      "DHCP Server":         () => setIsDHCPModalOpen(true),
+      "VPN Config":          () => setIsVPNModalOpen(true),
+      "SNMP/MIB":            () => setIsSNMPModalOpen(true),
+      "NTP":                 () => setIsNTPModalOpen(true),
+      "SSH":                 () => setIsSSHModalOpen(true),
+      "VLAN Manager":        () => setIsVLANModalOpen(true),
+      "Spanning Tree":       () => setIsSTPModalOpen(true),
+      "Port Security":       () => setIsPortSecurityModalOpen(true),
+      "VLAN Trunking":       () => setIsTrunkingModalOpen(true),
+      "QoS Settings":        () => setIsQoSModalOpen(true),
+      "User Auth":           () => setIsAuthModalOpen(true),
+      "IGMP Snooping":       () => setIsIGMPModalOpen(true),
+      "Logs/Syslog":         () => setIsSyslogModalOpen(true),
+    };
+    map[label]?.() ?? console.log(`Opening ${label}`);
   };
 
+  // ── Derived flags ──────────────────────────────────────────────────────────
+  const deviceType   = getDeviceType();
+  const configGroups = [{ category: "Advanced Configuration", items: DEVICE_CONFIGS[deviceType] || [] }];
+
+  const isDevice = selectedEntity && selectedEntity.interfaces !== undefined;
+  const isCable  = selectedEntity && selectedEntity.sourceId !== undefined && selectedEntity.targetId !== undefined;
+  const isWall   = selectedEntity && selectedEntity.type === "wall";
+  const isStructure = selectedEntity && (
+    selectedEntity.structureType === "Domain" ||
+    selectedEntity.structureType === "Site"   ||
+    selectedEntity.structureType === "Floor"  ||
+    selectedEntity.structureType === "Space"  ||
+    ["space", "site", "domain", "floor"].includes(selectedEntity.type)
+  );
+  const isFurniture = selectedEntity && !isDevice && !isCable && !isWall && !isStructure;
+
+
+  const resolveDeviceLocation = () => {
+    if (!selectedEntity || !canvasController?.layout) return "Unknown Location";
+    const floors = appState.structural?.floors || [];
+    const spaces = appState.structural?.spaces || [];
+    const matchSpace = spaces.find((sp) => sp.deviceIds?.includes(selectedEntity.id));
+    if (matchSpace) return matchSpace.label || matchSpace.name || "Unknown Space";
+    const matchFloor = floors.find((f) => f.deviceIds?.includes(selectedEntity.id));
+    if (matchFloor) return matchFloor.label || matchFloor.name || "Unknown Floor";
+    return "Unknown Location";
+  };
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="properties-panel">
       <h3>Properties</h3>
 
+      {/* ── Cable ─────────────────────────────────────────────────────────── */}
       {isCable && (
         <div className="properties-group">
-          <div><label>Cable Type</label><input className="field-input" value={selectedEntity.type || ""} readOnly /></div>
-          <div><label>Source Device</label><input className="field-input" value={getDeviceLabel(selectedEntity.sourceId)} readOnly /></div>
-          <div><label>Source Port</label><input className="field-input" value={selectedEntity.sourcePort || ""} readOnly /></div>
-          <div><label>Target Device</label><input className="field-input" value={getDeviceLabel(selectedEntity.targetId)} readOnly /></div>
-          <div><label>Target Port</label><input className="field-input" value={selectedEntity.targetPort || ""} readOnly /></div>
+          <div><label>Cable Type</label>    <input className="field-input" value={selectedEntity.type       || ""} readOnly /></div>
+          <div><label>Source Device</label> <input className="field-input" value={getDeviceLabel(selectedEntity.sourceId)} readOnly /></div>
+          <div><label>Source Port</label>   <input className="field-input" value={selectedEntity.sourcePort || ""} readOnly /></div>
+          <div><label>Target Device</label> <input className="field-input" value={getDeviceLabel(selectedEntity.targetId)} readOnly /></div>
+          <div><label>Target Port</label>   <input className="field-input" value={selectedEntity.targetPort || ""} readOnly /></div>
         </div>
       )}
 
+      {/* ── Wall ──────────────────────────────────────────────────────────── */}
       {isWall && (
         <div className="properties-group">
           <div><label>Wall Name</label><input className="field-input" value={selectedEntity.label || "Wall"} readOnly /></div>
@@ -348,6 +394,7 @@ export default function PropertiesPanel({ canvasController }) {
         </div>
       )}
 
+      {/* ── Network Device ────────────────────────────────────────────────── */}
       {isDevice && (
         <div className="properties-group">
           <hr className="header-separator" />
@@ -387,6 +434,7 @@ export default function PropertiesPanel({ canvasController }) {
         </div>
       )}
 
+      {/* ── Furniture ─────────────────────────────────────────────────────── */}
       {isFurniture && (
         <div className="properties-group">
           <hr className="header-separator" />
@@ -401,11 +449,19 @@ export default function PropertiesPanel({ canvasController }) {
         </div>
       )}
 
+      {/* ── Structure ─────────────────────────────────────────────────────── */}
       {isStructure && (
         <div className="properties-group">
           <hr className="header-separator" />
-          <div><label>Name</label>
-            <input className="field-input" value={selectedEntity.label ?? selectedEntity.name ?? ""} onFocus={handleStructureRenameFocus} onChange={handleStructureRenameChange} onBlur={handleStructureRenameBlur} />
+          <div>
+            <label>Name</label>
+            <input
+              className="field-input"
+              value={selectedEntity.label ?? selectedEntity.name ?? ""}
+              onFocus={handleStructureRenameFocus}
+              onChange={handleStructureRenameChange}
+              onBlur={handleStructureRenameBlur}
+            />
           </div>
           <div><label>Type</label><input className="field-input" value={selectedEntity.structureType || selectedEntity.type || ""} readOnly /></div>
           <div>
@@ -417,6 +473,7 @@ export default function PropertiesPanel({ canvasController }) {
         </div>
       )}
 
+      {/* ── Transform ─────────────────────────────────────────────────────── */}
       <hr className="header-separator" />
       <h3>Transformations</h3>
       {selectedEntity ? (
@@ -424,26 +481,28 @@ export default function PropertiesPanel({ canvasController }) {
           <div className="transform-header"><span></span><span>X</span><span>Y</span><span>Z</span></div>
           <div className="transform-grid">
             <label>Position</label>
-            <input type="number" className="field-input" value={transform.position.x} onChange={(e) => handleTransformChange('position', 'x', e.target.value)} />
-            <input type="number" className="field-input" value={transform.position.y} onChange={(e) => handleTransformChange('position', 'y', e.target.value)} />
-            <input type="number" className="field-input" value={transform.position.z} onChange={(e) => handleTransformChange('position', 'z', e.target.value)} />
+            <input type="number" className="field-input" value={transform.position.x} onChange={(e) => handleTransformChange("position", "x", e.target.value)} />
+            <input type="number" className="field-input" value={transform.position.y} onChange={(e) => handleTransformChange("position", "y", e.target.value)} />
+            <input type="number" className="field-input" value={transform.position.z} onChange={(e) => handleTransformChange("position", "z", e.target.value)} />
           </div>
           <div className="transform-grid">
             <label>Scale</label>
-            <input type="number" className="field-input" value={transform.scale.factor} onChange={(e) => handleTransformChange('scale', 'factor', e.target.value)} />
-            <input type="number" className="field-input" defaultValue={0} disabled /><input type="number" className="field-input" defaultValue={0} disabled />
+            <input type="number" className="field-input" value={transform.scale.factor} onChange={(e) => handleTransformChange("scale", "factor", e.target.value)} />
+            <input type="number" className="field-input" defaultValue={0} disabled />
+            <input type="number" className="field-input" defaultValue={0} disabled />
           </div>
           <div className="transform-grid">
             <label>Rotation</label>
-            <input type="number" className="field-input" value={transform.rotation.x} onChange={(e) => handleTransformChange('rotation', 'x', e.target.value)} />
-            <input type="number" className="field-input" value={transform.rotation.y} onChange={(e) => handleTransformChange('rotation', 'y', e.target.value)} />
-            <input type="number" className="field-input" value={transform.rotation.z} onChange={(e) => handleTransformChange('rotation', 'z', e.target.value)} />
+            <input type="number" className="field-input" value={transform.rotation.x} onChange={(e) => handleTransformChange("rotation", "x", e.target.value)} />
+            <input type="number" className="field-input" value={transform.rotation.y} onChange={(e) => handleTransformChange("rotation", "y", e.target.value)} />
+            <input type="number" className="field-input" value={transform.rotation.z} onChange={(e) => handleTransformChange("rotation", "z", e.target.value)} />
           </div>
         </>
       ) : (
         <p className="empty-selection-msg">Select an entity to see transform properties</p>
       )}
 
+      {/* ── Advanced Config grid ──────────────────────────────────────────── */}
       {isModalOpen && createPortal(
         <div className="config-modal-overlay">
           <div className="config-modal-content">
@@ -455,21 +514,18 @@ export default function PropertiesPanel({ canvasController }) {
               {configGroups.map((group) => (
                 <div key={group.category} className="config-section">
                   <div className="config-grid">
-                    {group.items.map((item) => {
-            const Icon = item.icon;
-
-         return (
-            <div key={item.label} className="config-item-card" onClick={() => handleConfigItemClick(item.label)}>
-              {Icon && <Icon size={24} className="config-icon" />}
-
-            <div className="config-text">
-            <div className="config-label">{item.label}</div>
-            <div className="config-desc">{item.desc}</div>
-                  </div>
-
-              </div>
-           );
-        })}
+                    {group.items.map((item) => (
+                      <div
+                        key={item.label}
+                        className="config-item-card"
+                        onClick={() => handleConfigItemClick(item.label)}
+                      >
+                        <div className="config-text">
+                          <div className="config-label">{item.label}</div>
+                          <div className="config-desc">{item.desc}</div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
@@ -479,207 +535,108 @@ export default function PropertiesPanel({ canvasController }) {
         document.body
       )}
 
-      {isRoutingModalOpen && createPortal(
-  <div className="config-modal-overlay routing-modal-layer">
-    <div className="config-modal-content routing-modal-size">
-      <div className="modal-header">
-        <div className="header-text-stack">
-           <h2>Routing Protocol Configuration</h2>
-           <span>Select the routing protocol you want to configure.</span>
-        </div>
-      </div>
-      <div className="modal-body">
-        <div className="routing-selection-grid">
-
-
-  <div className="routing-option-card" onClick={() => setIsOSPFModalOpen(true)}>
-    <div className="routing-icon ospf">
-      <Network size={20} />
-    </div>
-    <h3>OSPF</h3>
-    <p>Open Shortest Path First Link-state routing protocol</p>
-    
-  </div>
-
-  <div className="routing-option-card" onClick={() => console.log("BGP Clicked")}>
-    <div className="routing-icon bgp">
-      <ArrowLeftRight size={20} />
-    </div>
-    <h3>BGP</h3>
-    <p>Border Gateway Protocol for routing between AS</p>
-  </div>
-
-  <div className="routing-option-card" onClick={() => console.log("Static Clicked")}>
-    <div className="routing-icon static">
-      <Map size={20} />
-    </div>
-    <h3>Static Routes</h3>
-    <p>Manually configured static network paths</p>
-  </div>
-
-</div>
-      </div>
-      <div className="modal-footer">
-         <button className="cancel-btn" onClick={() => setIsRoutingModalOpen(false)}>Cancel</button>
-      </div>
-    </div>
-  </div>,
-  document.body
-)}
-
-        {isOSPFModalOpen && createPortal(
-  <div className="config-modal-overlay ospf-modal-layer">
-    <div className="config-modal-content ospf-modal-size">
-      <div className="modal-header">
-        <div className="header-with-icon">
-          <div className="settings-icon-bg">
-            <Activity size={18} className="teal-icon" />
-          </div>
-          <h2 style={{ fontSize: '16px', fontWeight: 'bold', color: '#334155' }}>OSPF CONFIGURATION</h2>
-        </div>
-        <button className="close-btn" onClick={() => setIsOSPFModalOpen(false)}>×</button>
-      </div>
-
-      <div className="modal-body">
-        {/* Tab Switching Logic */}
-        <div className="tabs">
-          <button 
-            className={`tab ${activeTab === "basic" ? "active" : ""}`} 
-            onClick={() => setActiveTab("basic")}
-          >
-            Basic
-          </button>
-          <button 
-            className={`tab ${activeTab === "advanced" ? "active" : ""}`} 
-            onClick={() => setActiveTab("advanced")}
-          >
-            Advanced
-          </button>
-        </div>
-
-        {activeTab === "basic" ? (
-          <>
-            <div className="input-grid">
-              <div className="input-field">
-                <label>Process ID</label>
-                <input type="text" defaultValue="1" />
-              </div>
-              <div className="input-field">
-                <label>Router ID</label>
-                <input type="text" placeholder="1.1.1.1" />
-              </div>
-            </div>
-
-            <div className="networks-section">
-              <label className="section-label">Networks</label>
-              {ospfNetworks.map((net, index) => (
-                <div key={net.id} className="network-entry">
-                  <div className="net-input">
-                    <span>Network</span>
-                    <input 
-                      type="text" 
-                      placeholder="192.168.1.0/24" 
-                      value={net.network}
-                      onChange={(e) => {
-                        const newNets = [...ospfNetworks];
-                        newNets[index].network = e.target.value;
-                        setOspfNetworks(newNets);
-                      }}
-                    />
-                  </div>
-                  <div className="net-input">
-                    <span>Area ID</span>
-                    <input 
-                      type="text" 
-                      placeholder="0" 
-                      value={net.areaId}
-                      onChange={(e) => {
-                        const newNets = [...ospfNetworks];
-                        newNets[index].areaId = e.target.value;
-                        setOspfNetworks(newNets);
-                      }}
-                    />
-                  </div>
-                  {ospfNetworks.length > 1 && (
-                    <button 
-                      className="delete-row-btn" 
-                      onClick={() => setOspfNetworks(ospfNetworks.filter(n => n.id !== net.id))}
-                    >
-                      <Activity size={14} />
-                    </button>
-                  )}
-                </div>
-              ))}
-              <button 
-                className="add-network-btn" 
-                onClick={() => setOspfNetworks([...ospfNetworks, { id: Date.now(), network: "", areaId: "" }])}
-              >
-                + Add Network
-              </button>
-            </div>
-          </>
-        ) : (
-          /* OSPF Advanced Configuration Content */
-          <div className="advanced-ospf-content">
-            <div className="input-grid">
-              <div className="input-field">
-                <label>Hello Interval (sec)</label>
-                <input type="number" defaultValue="10" />
-              </div>
-              <div className="input-field">
-                <label>Dead Interval (sec)</label>
-                <input type="number" defaultValue="40" />
-              </div>
-              <div className="input-field">
-                <label>Priority</label>
-                <input type="number" defaultValue="1" />
-              </div>
-              <div className="input-field">
-                <label>Cost</label>
-                <input type="number" placeholder="Auto" />
-              </div>
-            </div>
-            <div className="checkbox-field" style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '10px' }}>
-              <input type="checkbox" id="passive" />
-              <label htmlFor="passive" style={{ fontSize: '12px', color: '#374151', fontWeight: '600' }}>Passive Interface</label>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="modal-footer">
-        <button className="cancel-btn" onClick={() => setIsOSPFModalOpen(false)}>Cancel</button>
-        <button className="save-btn" onClick={() => {
-  // 1. Create the log message based on the configuration
-  const logMessage = `OSPF configured: Process ID 1, Router ID 1.1.1.1, ${ospfNetworks.length} network(s) defined.`;
-
-  // 2. Dispatch a custom event with the log data
-  const logEvent = new CustomEvent("add-system-log", {
-    detail: {
-      device: "Router",
-      deviceName: selectedEntity?.name || "R-1", // Uses the selected router's name
-      message: logMessage,
-      location: "Data Center", // Or your dynamic location variable
-    }
-  });
-  window.dispatchEvent(logEvent);
-
-  // 3. Close the modal
-  setIsOSPFModalOpen(false);
-}}>
-  Save
-</button>
-      </div>
-    </div>
-  </div>,
-  document.body
-)}
-
-      {(() => {
-        console.log("FIND → layout instance:", canvasController?.layout);
-        console.log("FIND layout === global?", canvasController?.layout === window.__layoutRef);
-        return null;
-      })()}
+      {/* ── Individual modal slots ─────────────────────────────────────────── */}
+      {isRoutingModalOpen && (
+        <RoutingModal
+          onClose={() => setIsRoutingModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+ 
+      {isNATModalOpen && (
+        <NATModal
+          onClose={() => setIsNATModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+ 
+      {isACLModalOpen && (
+        <ACLModal
+          onClose={() => setIsACLModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+ 
+      {isDHCPModalOpen && (
+        <DHCPModal
+          onClose={() => setIsDHCPModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+ 
+      {isVPNModalOpen && (
+        <VPNModal
+          onClose={() => setIsVPNModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+ 
+      {isSNMPModalOpen && (
+        <SNMPModal
+          onClose={() => setIsSNMPModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+ 
+      {isNTPModalOpen && (
+        <NTPModal
+          onClose={() => setIsNTPModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+ 
+      {isSSHModalOpen && (
+        <SSHModal
+          onClose={() => setIsSSHModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+      {isVLANModalOpen && (
+        <VLANModal
+          onClose={() => setIsVLANModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+      {isSTPModalOpen && (
+        <STPModal
+          onClose={() => setIsSTPModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+      {isPortSecurityModalOpen && (
+        <PortSecurityModal
+          onClose={() => setIsPortSecurityModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+      {isTrunkingModalOpen && (
+        <TrunkingModal
+          onClose={() => setIsTrunkingModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+      {isQoSModalOpen && (
+        <QoSModal
+          onClose={() => setIsQoSModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+      {isAuthModalOpen         && <AuthenticationModal onClose={() => setIsAuthModalOpen(false)}         />}
+      {isIGMPModalOpen         && <IGMPModals          onClose={() => setIsIGMPModalOpen(false)}         />}
+      {isSyslogModalOpen       && <SyslogModal         onClose={() => setIsSyslogModalOpen(false)}       />}
     </div>
   );
 }

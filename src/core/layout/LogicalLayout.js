@@ -2236,7 +2236,9 @@ else if (this.startPoint && this.currentPoint) {
     this.selectedEntity = en || null;
 
     if (en) {
-      if (en.structureType) {
+      if (en.type === 'door') {
+        appState.selection.selectDoor?.(en.id, false);
+      } else if (en.structureType) {
         appState.selection.focusedId = en.id;
         appState.selection.focusedType = en.structureType.toLowerCase();
         appState.selection.notify?.();

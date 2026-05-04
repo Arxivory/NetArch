@@ -4,6 +4,7 @@ export class SelectionStore {
     this.selectedDeviceIds = [];
     this.selectedFurnitureIds = [];
     this.selectedLinkIds = [];
+    this.selectedDoorIds = [];
     this.focusedId = null;
     this.focusedType = null;
     this.highlightedIds = [];
@@ -17,6 +18,7 @@ export class SelectionStore {
     this.selectedDeviceIds = [];
     this.selectedFurnitureIds = [];
     this.selectedLinkIds = [];
+    this.selectedDoorIds = [];
 
     console.log(`Focused on ${type} with ID: ${id}`);
 
@@ -85,6 +87,7 @@ export class SelectionStore {
     this.selectedDeviceIds = [];
     this.selectedFurnitureIds = [];
     this.selectedLinkIds = [];
+    this.selectedDoorIds = [];
     this.focusedId = null;
     this.focusedType = null;
     this.highlightedIds = [];
@@ -129,12 +132,41 @@ export class SelectionStore {
     return this.selectedFurnitureIds.includes(furnitureId);
   }
 
+  selectDoor(doorId, multiSelect = false) {
+    if (!multiSelect) {
+      this.selectedDeviceIds = [];
+      this.selectedFurnitureIds = [];
+      this.selectedLinkIds = [];
+    }
+
+    if (!this.selectedDoorIds.includes(doorId)) {
+      this.selectedDoorIds.push(doorId);
+    }
+
+    this.focusedId = doorId;
+    this.focusedType = 'door';
+    this.notify();
+  }
+
+  deselectDoor(doorId) {
+    this.selectedDoorIds = this.selectedDoorIds.filter(id => id !== doorId);
+    if (this.focusedId === doorId) {
+      this.focusedId = null;
+      this.focusedType = null;
+    }
+    this.notify();
+  }
+
+  isDoorSelected(doorId) {
+    return this.selectedDoorIds.includes(doorId);
+  }
+
   isHighlighted(id) {
     return this.highlightedIds.includes(id);
   }
 
   getSelectionCount() {
-    return this.selectedDeviceIds.length + this.selectedFurnitureIds.length + this.selectedLinkIds.length;
+    return this.selectedDeviceIds.length + this.selectedFurnitureIds.length + this.selectedLinkIds.length + this.selectedDoorIds.length;
   }
 
   subscribe(callback) {

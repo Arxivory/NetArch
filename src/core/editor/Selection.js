@@ -25,9 +25,11 @@ export class Selection {
     getFocusType(en) {
         const isDevice = en.interfaces !== undefined || en.catalogId !== undefined;
         const isFurniture = en.type === 'furniture' || en.id?.startsWith('furniture');
+        const isDoor = en.type === 'door';
 
         if (isDevice) return 'device'; // ADDED: normalize device focus type instead of using router/switch/etc.
         if (isFurniture) return 'furniture'; // ADDED: normalize furniture focus type
+        if (isDoor) return 'door'; // ADDED: recognize doors
 
         return en.structureType
             ? en.structureType.toLowerCase()

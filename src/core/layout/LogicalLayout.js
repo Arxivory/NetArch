@@ -1654,83 +1654,6 @@ const visibleDoors = filterForFloor(this.doors);
       }
     }
 
-    if ((this.currentPolygon.length > 0 || this.currentFreeform.length > 0) && this.currentPoint) {
-      ctx.save();
-      ctx.strokeStyle = '#00ff00';
-      ctx.fillStyle = 'rgba(0,255,0,0.08)';
-      ctx.lineWidth = 1.5;
-      let points;
-      if (this.mode === 'polygon') {
-        points = this.currentPolygon;
-      }
-      else if (this.mode === 'freeform') {
-        points = this.currentFreeform;
-      }
-      this.shapeRenderer.outlinePolygonOrFreeformInProgress(
-        ctx,
-        points,
-        this.currentPoint,
-        this.grid.getSnapTolerance()
-      );
-      ctx.restore();
-    }
-else if (this.startPoint && this.currentPoint) {
-      ctx.save();
-      
-      // --- IBALIK ANG GREEN SA LAHAT NG SPACES/DOMAINS/SITES ---
-      ctx.strokeStyle = '#00ff00'; 
-      ctx.fillStyle = 'rgba(0,255,0,0.08)';
-      ctx.lineWidth = 1.5;
-
-      if (this.mode === 'door') {
-        // --- GHOST DOOR OUTLINE ---
-        ctx.globalAlpha = 0.5;
-        ctx.lineWidth = 2; // Pakapalin ng konti ang door
-
-        // Door leaf (line)
-        ctx.beginPath();
-        ctx.moveTo(this.startPoint.x, this.startPoint.y);
-        ctx.lineTo(this.currentPoint.x, this.currentPoint.y);
-        ctx.stroke();
-
-        // Door swing (arc)
-        const dx = this.currentPoint.x - this.startPoint.x;
-        const dy = this.currentPoint.y - this.startPoint.y;
-        const doorLength = Math.sqrt(dx * dx + dy * dy);
-        const angle = Math.atan2(dy, dx);
-        const arcRadius = doorLength;
-        const arcStart = angle;
-        const arcEnd = angle + Math.PI / 2; // 90 degree swing
-
-        ctx.beginPath();
-        ctx.arc(this.startPoint.x, this.startPoint.y, arcRadius, arcStart, arcEnd, false);
-        ctx.stroke();
-
-        ctx.globalAlpha = 1.0;
-      } else if (this.mode === 'rectangle') {
-        this.shapeRenderer.outlineRectangle(ctx, this.startPoint, this.currentPoint);
-      } else if (this.mode === 'circle') {
-        this.shapeRenderer.outlineCircle(ctx, this.startPoint, this.currentPoint);
-      } else if (this.mode === 'wall') {
-        this.shapeRenderer.outlineWall(ctx, this.startPoint, this.currentPoint);
-} else if (this.mode === 'window') {
-        // --- GHOST WINDOW PREVIEW (GREEN ERA!) ---
-        ctx.globalAlpha = 0.7;
-        ctx.strokeStyle = '#00ff00'; // GREEN na siya habang dino-drawing!
-        ctx.lineWidth = 4; // Medyo makapal para kitang-kita
-        
-        ctx.beginPath();
-        ctx.moveTo(this.startPoint.x, this.startPoint.y);
-        ctx.lineTo(this.currentPoint.x, this.currentPoint.y);
-        ctx.stroke();
-
-        ctx.globalAlpha = 1.0;
-      } else if (this.mode === 'cable') {
-        this.shapeRenderer.outlineCable(ctx, this.startPoint, this.currentPoint);
-      }
-      ctx.restore();
-    }
-
     if (this.selectedEntity && !this.selectedEntity.sourceId) {
       const en = this.selectedEntity;
       const bounds = this._getEntityInteractionBounds(en); // CHANGED: use the same bounds logic for shapes, devices, and furniture
@@ -1997,6 +1920,85 @@ else if (this.startPoint && this.currentPoint) {
         ctx.restore();
       }
     }
+    
+    if ((this.currentPolygon.length > 0 || this.currentFreeform.length > 0) && this.currentPoint) {
+      ctx.save();
+      ctx.strokeStyle = '#00ff00';
+      ctx.fillStyle = 'rgba(0,255,0,0.08)';
+      ctx.lineWidth = 1.5;
+      let points;
+      if (this.mode === 'polygon') {
+        points = this.currentPolygon;
+      }
+      else if (this.mode === 'freeform') {
+        points = this.currentFreeform;
+      }
+      this.shapeRenderer.outlinePolygonOrFreeformInProgress(
+        ctx,
+        points,
+        this.currentPoint,
+        this.grid.getSnapTolerance()
+      );
+      ctx.restore();
+    }
+else if (this.startPoint && this.currentPoint) {
+      ctx.save();
+      
+      // --- IBALIK ANG GREEN SA LAHAT NG SPACES/DOMAINS/SITES ---
+      ctx.strokeStyle = '#00ff00'; 
+      ctx.fillStyle = 'rgba(0,255,0,0.08)';
+      ctx.lineWidth = 1.5;
+
+      if (this.mode === 'door') {
+        // --- GHOST DOOR OUTLINE ---
+        ctx.globalAlpha = 0.5;
+        ctx.lineWidth = 2; // Pakapalin ng konti ang door
+
+        // Door leaf (line)
+        ctx.beginPath();
+        ctx.moveTo(this.startPoint.x, this.startPoint.y);
+        ctx.lineTo(this.currentPoint.x, this.currentPoint.y);
+        ctx.stroke();
+
+        // Door swing (arc)
+        const dx = this.currentPoint.x - this.startPoint.x;
+        const dy = this.currentPoint.y - this.startPoint.y;
+        const doorLength = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx);
+        const arcRadius = doorLength;
+        const arcStart = angle;
+        const arcEnd = angle + Math.PI / 2; // 90 degree swing
+
+        ctx.beginPath();
+        ctx.arc(this.startPoint.x, this.startPoint.y, arcRadius, arcStart, arcEnd, false);
+        ctx.stroke();
+
+        ctx.globalAlpha = 1.0;
+      } else if (this.mode === 'rectangle') {
+        this.shapeRenderer.outlineRectangle(ctx, this.startPoint, this.currentPoint);
+      } else if (this.mode === 'circle') {
+        this.shapeRenderer.outlineCircle(ctx, this.startPoint, this.currentPoint);
+      } else if (this.mode === 'wall') {
+        this.shapeRenderer.outlineWall(ctx, this.startPoint, this.currentPoint);
+} else if (this.mode === 'window') {
+        // --- GHOST WINDOW PREVIEW (GREEN ERA!) ---
+        ctx.globalAlpha = 0.7;
+        ctx.strokeStyle = '#00ff00'; // GREEN na siya habang dino-drawing!
+        ctx.lineWidth = 4; // Medyo makapal para kitang-kita
+        
+        ctx.beginPath();
+        ctx.moveTo(this.startPoint.x, this.startPoint.y);
+        ctx.lineTo(this.currentPoint.x, this.currentPoint.y);
+        ctx.stroke();
+
+        ctx.globalAlpha = 1.0;
+      } else if (this.mode === 'cable') {
+        this.shapeRenderer.outlineCable(ctx, this.startPoint, this.currentPoint);
+      }
+      ctx.restore();
+    }
+
+
 
     if (this.interaction && this.interaction.mode === 'update_cable' && this.currentPoint) {
       const fixed = this.interaction.fixedDevice;

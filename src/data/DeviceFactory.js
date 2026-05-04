@@ -2,6 +2,7 @@ import { getCatalogEntry, PORT_TYPES } from './deviceCatalog.js';
 import Device from '../core/network/Device.js';
 import PhysicalPort from '../core/network/PhysicalPort.js';
 import Interface from '../core/network/Interface.js';
+import appState from '../state/AppState.js';
 
 /**
  * DeviceFactory

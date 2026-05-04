@@ -1,5 +1,6 @@
 export default class Riser {
     constructor(data={}) {
+        console.log('From Riser Class ', data);
         this.id = data.id || `riser-${Math.random().toString(36).substr(2, 9)}`;
         this.label = data.label || 'New Riser';
         this.type = 'riser';

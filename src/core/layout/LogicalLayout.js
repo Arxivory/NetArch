@@ -1583,7 +1583,7 @@ const visibleDoors = filterForFloor(this.doors);
 
     const visibleWindows = filterForFloor(this.windows);
     ctx.save();
-    ctx.strokeStyle = '#000000'; // Pure black line
+    ctx.strokeStyle = '#87cefa'; 
     ctx.lineWidth = 4; // Matches ghost preview thickness
     for (const window of visibleWindows) {
       if (window.path) {

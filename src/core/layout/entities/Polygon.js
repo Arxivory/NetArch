@@ -185,10 +185,13 @@ export class Polygon {
                 if (!other.b.structType) {
                     overlapping = other.b && otherFloorId === currentFloorId;
                 }
-                if (other.a.structType === other.b.structType){
+                if (other.a.structType === other.b.structType) {
                     overlapping = true;
                 }
-                if (ancestorsId.includes(other.b.id)){
+                if (currentFloorId !== otherFloorId) {
+                    overlapping = false;
+                }
+                if (ancestorsId.includes(other.b.id)) {
                     console.log("Culprit");
                     overlapping = false;
                 }

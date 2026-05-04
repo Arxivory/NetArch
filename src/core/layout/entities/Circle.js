@@ -103,6 +103,9 @@ export class Circle {
                 if (other.a.structType === other.b.structType){
                     overlapping = true;
                 }
+                if (currentFloorId !== otherFloorId){
+                    overlapping = false;
+                }
                 if (ancestorsId.includes(other.b.id)){
                     overlapping = false;
                 }

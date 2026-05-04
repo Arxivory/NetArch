@@ -14,12 +14,13 @@ import SSHModal            from "./ConfigModals/SSHModal";
 import VLANModal           from "./ConfigModals/VLANModal";
 import STPModal            from "./ConfigModals/STPModal";
 import PortSecurityModal   from "./ConfigModals/PortSecurityModal";
+import TrunkingModal       from "./ConfigModals/TrunkingModal";
 import QoSModal            from "./ConfigModals/QoSModal";
 import AuthenticationModal from "./ConfigModals/AuthenticationModal";
 import IGMPModals          from "./ConfigModals/IGMPModals";
 import SyslogModal         from "./ConfigModals/SyslogModal";
 
-// ─── Config card map (drives the Advanced Configuration grid) ─────────────────
+// ─── Config card map ──────────────────────────────────────────────────────────
 const DEVICE_CONFIGS = {
   router: [
     { label: "Routing Protocol",    desc: "Configure OSPF, BGP, or Static routes" },
@@ -27,7 +28,7 @@ const DEVICE_CONFIGS = {
     { label: "Access Control List", desc: "Create permit/deny traffic rules" },
     { label: "DHCP Server",         desc: "Manage IP address pools for the network" },
     { label: "VPN Config",          desc: "Set up secure site-to-site tunnels" },
-    { label: "SNMP/MIB",           desc: "Configure remote monitoring and alerts" },
+    { label: "SNMP/MIB",            desc: "Configure remote monitoring and alerts" },
     { label: "NTP",                 desc: "Synchronize device clock with time servers" },
     { label: "SSH",                 desc: "Secure remote command line access" },
   ],
@@ -88,6 +89,7 @@ export default function PropertiesPanel({ canvasController }) {
   const [isVLANModalOpen,         setIsVLANModalOpen]         = useState(false);
   const [isSTPModalOpen,          setIsSTPModalOpen]          = useState(false);
   const [isPortSecurityModalOpen, setIsPortSecurityModalOpen] = useState(false);
+  const [isTrunkingModalOpen,     setIsTrunkingModalOpen]     = useState(false);
   const [isQoSModalOpen,          setIsQoSModalOpen]          = useState(false);
   const [isAuthModalOpen,         setIsAuthModalOpen]         = useState(false);
   const [isIGMPModalOpen,         setIsIGMPModalOpen]         = useState(false);
@@ -253,7 +255,6 @@ export default function PropertiesPanel({ canvasController }) {
     }
   };
 
-  // Dispatches clicks from the Advanced Config grid to the correct modal
   const handleConfigItemClick = (label) => {
     const map = {
       "Routing Protocol":    () => setIsRoutingModalOpen(true),
@@ -261,12 +262,13 @@ export default function PropertiesPanel({ canvasController }) {
       "Access Control List": () => setIsACLModalOpen(true),
       "DHCP Server":         () => setIsDHCPModalOpen(true),
       "VPN Config":          () => setIsVPNModalOpen(true),
-      "SNMP/MIB":           () => setIsSNMPModalOpen(true),
+      "SNMP/MIB":            () => setIsSNMPModalOpen(true),
       "NTP":                 () => setIsNTPModalOpen(true),
       "SSH":                 () => setIsSSHModalOpen(true),
       "VLAN Manager":        () => setIsVLANModalOpen(true),
       "Spanning Tree":       () => setIsSTPModalOpen(true),
       "Port Security":       () => setIsPortSecurityModalOpen(true),
+      "VLAN Trunking":       () => setIsTrunkingModalOpen(true),
       "QoS Settings":        () => setIsQoSModalOpen(true),
       "User Auth":           () => setIsAuthModalOpen(true),
       "IGMP Snooping":       () => setIsIGMPModalOpen(true),
@@ -291,6 +293,17 @@ export default function PropertiesPanel({ canvasController }) {
   );
   const isFurniture = selectedEntity && !isDevice && !isCable && !isWall && !isStructure;
 
+
+  const resolveDeviceLocation = () => {
+    if (!selectedEntity || !canvasController?.layout) return "Unknown Location";
+    const floors = appState.structural?.floors || [];
+    const spaces = appState.structural?.spaces || [];
+    const matchSpace = spaces.find((sp) => sp.deviceIds?.includes(selectedEntity.id));
+    if (matchSpace) return matchSpace.label || matchSpace.name || "Unknown Space";
+    const matchFloor = floors.find((f) => f.deviceIds?.includes(selectedEntity.id));
+    if (matchFloor) return matchFloor.label || matchFloor.name || "Unknown Floor";
+    return "Unknown Location";
+  };
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="properties-panel">
@@ -362,7 +375,7 @@ export default function PropertiesPanel({ canvasController }) {
         </div>
       )}
 
-      {/* ── Structure (Domain / Site / Floor / Space) ─────────────────────── */}
+      {/* ── Structure ─────────────────────────────────────────────────────── */}
       {isStructure && (
         <div className="properties-group">
           <hr className="header-separator" />
@@ -415,7 +428,7 @@ export default function PropertiesPanel({ canvasController }) {
         <p className="empty-selection-msg">Select an entity to see transform properties</p>
       )}
 
-      {/* ── Advanced Config grid (entry point) ────────────────────────────── */}
+      {/* ── Advanced Config grid ──────────────────────────────────────────── */}
       {isModalOpen && createPortal(
         <div className="config-modal-overlay">
           <div className="config-modal-content">
@@ -450,35 +463,103 @@ export default function PropertiesPanel({ canvasController }) {
 
       {/* ── Individual modal slots ─────────────────────────────────────────── */}
       {isRoutingModalOpen && (
-  <RoutingModal
-    onClose={() => setIsRoutingModalOpen(false)}
-    deviceName={selectedEntity?.label || "Router"}
-    deviceLocation={
-      (() => {
-        if (!selectedEntity || !canvasController?.layout) return "Unknown";
-        // Walk up the hierarchy: find which floor/space the device is on
-        const floors = appState.structural?.floors || [];
-        const spaces = appState.structural?.spaces || [];
-        const matchSpace = spaces.find(sp => sp.deviceIds?.includes(selectedEntity.id));
-        if (matchSpace) return matchSpace.label || matchSpace.name || "Unknown Space";
-        const matchFloor = floors.find(f => f.deviceIds?.includes(selectedEntity.id));
-        if (matchFloor) return matchFloor.label || matchFloor.name || "Unknown Floor";
-        return "Unknown Location";
-      })()
-    }
-  />
-)}
-      {isNATModalOpen          && <NATModal            onClose={() => setIsNATModalOpen(false)}          />}
-      {isACLModalOpen          && <ACLModal            onClose={() => setIsACLModalOpen(false)}          />}
-      {isDHCPModalOpen         && <DHCPModal           onClose={() => setIsDHCPModalOpen(false)}         />}
-      {isVPNModalOpen          && <VPNModal            onClose={() => setIsVPNModalOpen(false)}          />}
-      {isSNMPModalOpen         && <SNMPModal           onClose={() => setIsSNMPModalOpen(false)}         />}
-      {isNTPModalOpen          && <NTPModal            onClose={() => setIsNTPModalOpen(false)}          />}
-      {isSSHModalOpen          && <SSHModal            onClose={() => setIsSSHModalOpen(false)}          />}
-      {isVLANModalOpen         && <VLANModal           onClose={() => setIsVLANModalOpen(false)}         />}
-      {isSTPModalOpen          && <STPModal            onClose={() => setIsSTPModalOpen(false)}          />}
-      {isPortSecurityModalOpen && <PortSecurityModal   onClose={() => setIsPortSecurityModalOpen(false)} />}
-      {isQoSModalOpen          && <QoSModal            onClose={() => setIsQoSModalOpen(false)}          />}
+        <RoutingModal
+          onClose={() => setIsRoutingModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+ 
+      {isNATModalOpen && (
+        <NATModal
+          onClose={() => setIsNATModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+ 
+      {isACLModalOpen && (
+        <ACLModal
+          onClose={() => setIsACLModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+ 
+      {isDHCPModalOpen && (
+        <DHCPModal
+          onClose={() => setIsDHCPModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+ 
+      {isVPNModalOpen && (
+        <VPNModal
+          onClose={() => setIsVPNModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+ 
+      {isSNMPModalOpen && (
+        <SNMPModal
+          onClose={() => setIsSNMPModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+ 
+      {isNTPModalOpen && (
+        <NTPModal
+          onClose={() => setIsNTPModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+ 
+      {isSSHModalOpen && (
+        <SSHModal
+          onClose={() => setIsSSHModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+      {isVLANModalOpen && (
+        <VLANModal
+          onClose={() => setIsVLANModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+      {isSTPModalOpen && (
+        <STPModal
+          onClose={() => setIsSTPModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+      {isPortSecurityModalOpen && (
+        <PortSecurityModal
+          onClose={() => setIsPortSecurityModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+      {isTrunkingModalOpen && (
+        <TrunkingModal
+          onClose={() => setIsTrunkingModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+      {isQoSModalOpen && (
+        <QoSModal
+          onClose={() => setIsQoSModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
       {isAuthModalOpen         && <AuthenticationModal onClose={() => setIsAuthModalOpen(false)}         />}
       {isIGMPModalOpen         && <IGMPModals          onClose={() => setIsIGMPModalOpen(false)}         />}
       {isSyslogModalOpen       && <SyslogModal         onClose={() => setIsSyslogModalOpen(false)}       />}

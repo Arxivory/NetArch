@@ -3698,8 +3698,8 @@ useEffect(() => {
 )}
 
       {(() => {
-        console.log("FIND → layout instance:", canvasController?.layout);
-        console.log("FIND layout === global?", canvasController?.layout === window.__layoutRef);
+        // console.log("FIND → layout instance:", canvasController?.layout);
+        // console.log("FIND layout === global?", canvasController?.layout === window.__layoutRef);
         return null;
       })()}
     </div>

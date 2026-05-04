@@ -849,47 +849,47 @@ export class LogicalLayout {
         }
         this.pointerHandler.setCursor(cursor);
         // --- RESTORED CABLE HOVER DETECTION ---
-    if (this.mode === 'select' && !this.pointerHandler.getIsPointerDown()) {
-      let newlyHoveredCable = null;
-      
-      // 1. Determine the active structural hierarchy
-      const focusedType = appState.selection.focusedType;
-      const focusedId = appState.selection.focusedId;
-      
-      const activeSpaceId = (focusedType === 'space' || focusedType === 'Space') ? focusedId : null;
-      const activeFloorId = focusedType === 'floor' ? focusedId : appState.ui.activeFloorId;
+        if (this.mode === 'select' && !this.pointerHandler.getIsPointerDown()) {
+          let newlyHoveredCable = null;
 
-      for (const cable of this.cables) {
-        const src = this.findEntityById(cable.sourceId);
-        const dst = this.findEntityById(cable.targetId);
-        if (!src || !dst) continue;
+          // 1. Determine the active structural hierarchy
+          const focusedType = appState.selection.focusedType;
+          const focusedId = appState.selection.focusedId;
 
-        // 2. Guardrail: Hierarchy Filtering
-        if (activeSpaceId) {
-          // STRICT MODE: If viewing a specific Space, ignore cables that don't touch this room
-          if (src.spaceId !== activeSpaceId && dst.spaceId !== activeSpaceId) continue;
-        } 
-        else if (activeFloorId) {
-          // BROAD MODE: If viewing a Floor, ignore cables that belong to a completely different floor
-          const srcOnFloor = src.floorId == null || src.floorId === activeFloorId;
-          const dstOnFloor = dst.floorId == null || dst.floorId === activeFloorId;
-          if (!srcOnFloor || !dstOnFloor) continue;
+          const activeSpaceId = (focusedType === 'space' || focusedType === 'Space') ? focusedId : null;
+          const activeFloorId = focusedType === 'floor' ? focusedId : appState.ui.activeFloorId;
+
+          for (const cable of this.cables) {
+            const src = this.findEntityById(cable.sourceId);
+            const dst = this.findEntityById(cable.targetId);
+            if (!src || !dst) continue;
+
+            // 2. Guardrail: Hierarchy Filtering
+            if (activeSpaceId) {
+              // STRICT MODE: If viewing a specific Space, ignore cables that don't touch this room
+              if (src.spaceId !== activeSpaceId && dst.spaceId !== activeSpaceId) continue;
+            }
+            else if (activeFloorId) {
+              // BROAD MODE: If viewing a Floor, ignore cables that belong to a completely different floor
+              const srcOnFloor = src.floorId == null || src.floorId === activeFloorId;
+              const dstOnFloor = dst.floorId == null || dst.floorId === activeFloorId;
+              if (!srcOnFloor || !dstOnFloor) continue;
+            }
+
+            // 3. Optimized Bounding Box Hit Test (Using the 'p' variable already defined in move)
+            if (this._hitTestCable(p.x, p.y, src, dst, 8)) {
+              newlyHoveredCable = cable;
+              break;
+            }
+          }
+
+          // Only trigger a re-render if the hover state actually changed
+          if (this.hoveredCable !== newlyHoveredCable) {
+            this.hoveredCable = newlyHoveredCable;
+            this._render();
+          }
         }
-
-        // 3. Optimized Bounding Box Hit Test (Using the 'p' variable already defined in move)
-        if (this._hitTestCable(p.x, p.y, src, dst, 8)) {
-          newlyHoveredCable = cable;
-          break; 
-        }
-      }
-
-      // Only trigger a re-render if the hover state actually changed
-      if (this.hoveredCable !== newlyHoveredCable) {
-        this.hoveredCable = newlyHoveredCable;
-        this._render();
-      }
-    }
-    // -------------------------------------
+        // -------------------------------------
       }
       else {
         this.pointerHandler.setCursor('default');
@@ -1044,14 +1044,14 @@ export class LogicalLayout {
       return;
     }
 
-    console.log('[LogicalLayout] _onPointerUp', {
-      mode: this.mode,
-      pointerDown: this.pointerHandler.getIsPointerDown(),
-      startPoint: this.startPoint,
-      currentPoint: this.currentPoint
-    });
+    // console.log('[LogicalLayout] _onPointerUp', {
+    //   mode: this.mode,
+    //   pointerDown: this.pointerHandler.getIsPointerDown(),
+    //   startPoint: this.startPoint,
+    //   currentPoint: this.currentPoint
+    // });
 
-const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !== 'none';
+    const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !== 'none';
     const hasValidDrawPoints = this.startPoint && this.currentPoint;
 
     if (isDrawMode && hasValidDrawPoints) {
@@ -1060,7 +1060,7 @@ const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !=
 
       if (this.mode === 'door' || this.mode === 'window') {
         allowCreation = false;
-        
+
         const p1x = this.startPoint.x;
         const p1y = this.startPoint.y;
         const p2x = this.currentPoint.x;
@@ -1115,12 +1115,12 @@ const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !=
           let target = host;
           // Ayusin ang format kung galing sa appState
           if (host.geometry) {
-             target = { 
-               x: host.geometry.x || host.geometry.left, 
-               y: host.geometry.y || host.geometry.top, 
-               w: host.geometry.w || host.geometry.width, 
-               h: host.geometry.h || host.geometry.height 
-             };
+            target = {
+              x: host.geometry.x || host.geometry.left,
+              y: host.geometry.y || host.geometry.top,
+              w: host.geometry.w || host.geometry.width,
+              h: host.geometry.h || host.geometry.height
+            };
           }
 
           const edges = getEdges(target);
@@ -1169,9 +1169,14 @@ const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !=
       const actualDy = hasSavedPosition
         ? this.selectedEntity.y - this.selectedEntity.savedPosition.y
         : restoreDy;
+      const entityChanged = actualDx > 0 || actualDy > 0 || this.selectedEntity.transform.scale.factor !== 1;
 
-      if (this.onEntityChanged) {
+      if (entityChanged) {
         this.onEntityChanged(this.selectedEntity, actualDx, actualDy); // CHANGED: commit device move/resize only once at drag end
+      }
+      if (this.mode === 'select') {
+        console.log(this.selectedEntity);
+        this.onEntitySelected(this.selectedEntity);
       }
     }
 
@@ -1452,8 +1457,8 @@ const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !=
     this.grid.renderMinorGrids(ctx, w, h);
     this.grid.renderMajorGrids(ctx, w, h);
 
-    // Only filter by floor if a floor is explicitly focused. Otherwise, render all floors stacked.
-    const shouldFilterByFloor = appState.selection.focusedType === 'floor';
+    const floorBoundTypes = ['floor', 'space', 'device', 'furniture'];
+    const shouldFilterByFloor = floorBoundTypes.includes(appState.selection.focusedType);
     const activeFloor = shouldFilterByFloor ? (this.activeFloorId || appState.ui.activeFloorId) : null;
     const filterForFloor = (arr) => {
       if (!activeFloor) return arr;
@@ -1578,11 +1583,11 @@ const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !=
       );
       ctx.restore();
     }
-else if (this.startPoint && this.currentPoint) {
+    else if (this.startPoint && this.currentPoint) {
       ctx.save();
-      
+
       // --- IBALIK ANG GREEN SA LAHAT NG SPACES/DOMAINS/SITES ---
-      ctx.strokeStyle = '#00ff00'; 
+      ctx.strokeStyle = '#00ff00';
       ctx.fillStyle = 'rgba(0,255,0,0.08)';
       ctx.lineWidth = 1.5;
 
@@ -1617,12 +1622,12 @@ else if (this.startPoint && this.currentPoint) {
         this.shapeRenderer.outlineCircle(ctx, this.startPoint, this.currentPoint);
       } else if (this.mode === 'wall') {
         this.shapeRenderer.outlineWall(ctx, this.startPoint, this.currentPoint);
-} else if (this.mode === 'window') {
+      } else if (this.mode === 'window') {
         // --- GHOST WINDOW PREVIEW (GREEN ERA!) ---
         ctx.globalAlpha = 0.7;
         ctx.strokeStyle = '#00ff00'; // GREEN na siya habang dino-drawing!
         ctx.lineWidth = 4; // Medyo makapal para kitang-kita
-        
+
         ctx.beginPath();
         ctx.moveTo(this.startPoint.x, this.startPoint.y);
         ctx.lineTo(this.currentPoint.x, this.currentPoint.y);
@@ -2374,7 +2379,7 @@ else if (this.startPoint && this.currentPoint) {
     }
     let ancestorsId = [];
     if (currentEntity.structureType !== undefined && appState.selection.focusedType !== null) {
-       ancestorsId = appState.structural.getAncestorsId();
+      ancestorsId = appState.structural.getAncestorsId();
     }
 
     // Devices and furniture are intended to be placed within structural elements (Spaces/Floors).

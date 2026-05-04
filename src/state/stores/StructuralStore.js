@@ -301,6 +301,7 @@ export class StructuralStore {
         return this.spaces.filter(s => s.floorId === floorId);
     }
 
+
     getFloor(floorId) {
         return this.floors.find(f => f.id === floorId);
     }

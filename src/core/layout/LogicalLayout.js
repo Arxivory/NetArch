@@ -483,7 +483,7 @@ isPointInsideShape(id, x, y) {
     } else if (rawType.includes('chair') || rawType.includes('seat')) {
       iconKey = 'chair';
     } else if (rawType.includes('cabinet') || rawType.includes('rack')) {
-      iconKey = 'cabinet';
+      iconKey = 'rack';
     }
 
     // Assuming you might add a furnitureIcons dictionary in the future.
@@ -1914,8 +1914,8 @@ _onPointerUp(e) {
 
     ctx.save();
     for (const device of filterForFloor(this.devices)) {
-      ctx.fillStyle = '#ffffff';
-      ctx.strokeStyle = '#cbd5e1';
+      ctx.fillStyle = '#ffffff00';
+      ctx.strokeStyle = '#cbd5e100';
       ctx.lineWidth = 1;
 
       ctx.beginPath();
@@ -1938,8 +1938,8 @@ _onPointerUp(e) {
       const tx = furniture.x - tileW / 2;
       const ty = furniture.y - tileH / 2.5;
 
-      ctx.fillStyle = '#ffffff';
-      ctx.strokeStyle = '#cbd5e1';
+      ctx.fillStyle = '#ffffff00';
+      ctx.strokeStyle = '#cbd5e100';
       ctx.lineWidth = 1;
 
       ctx.beginPath();

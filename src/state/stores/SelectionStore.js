@@ -81,6 +81,43 @@ export class SelectionStore {
     this.notify();
   }
 
+  selectConduit(conduitId, multiSelect = false) {
+    if (!multiSelect) {
+      this._clearObjectSelections();
+    }
+    this._setFocus(conduitId, 'conduit');
+    this.notify();
+  }
+
+  deselectConduit(conduitId) {
+    if (this.focusedId === conduitId) {
+      this._setFocus(null, null);
+    }
+    this.notify();
+  }
+
+  selectRiser(riserId, multiSelect = false) {
+    if (!multiSelect) this._clearObjectSelections();
+    this._setFocus(riserId, 'riser');
+    this.notify();
+  }
+
+  deselectRiser(riserId) {
+    if (this.focusedId === riserId) this._setFocus(null, null);
+    this.notify();
+  }
+
+  selectUndergroundConduit(ugConduitId, multiSelect = false) {
+    if (!multiSelect) this._clearObjectSelections();
+    this._setFocus(ugConduitId, 'underground-conduit');
+    this.notify();
+  }
+
+  deselectUndergroundConduit(ugConduitId) {
+    if (this.focusedId === ugConduitId) this._setFocus(null, null);
+    this.notify();
+  }
+
   toggleDeviceSelection(deviceId) {
     if (this.isDeviceSelected(deviceId)) {
       this.deselectDevice(deviceId);

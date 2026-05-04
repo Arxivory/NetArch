@@ -4,7 +4,7 @@ export default class Domain {
         this.label = data.label || 'New Domain';
         this.type = data.structureType;
 
-        this.shapeType = data.type;
+        this.shapeType = data.shapeType;
 
         this.geometry = {
             x: data.x || 0,

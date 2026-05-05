@@ -2990,17 +2990,20 @@ else if (this.startPoint && this.currentPoint) {
     }
 
     if (currentEntity.checkIfOverlapping(ancestorsId, currentEntity.floorId)) {
-      alert("Overlapping detected");
+      if (action === 'creation') {
+        alert("Overlapping detected");
+      }
+
       if (action === 'creation') {
         if (currentEntity.type === 'freeform') {
           for (const body of currentEntity.bodies) {
             this.system.remove(body);
           }
-        }
-        else {
+        } else {
           this.system.remove(currentEntity.body);
         }
       }
+
       return true;
     }
     return false;

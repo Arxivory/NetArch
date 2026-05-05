@@ -11,17 +11,19 @@ export default function AuthenticationModal({ onClose, deviceName = "Switch", de
   const [dot1xGlobal, setDot1xGlobal] = useState(true);
   const [dot1xForce, setDot1xForce] = useState(true);
 
+  const now = () => new Date().toISOString().replace("T", " ").slice(0, 19);
+
   const handleApply = () => {
-    const logs = [];
-    if (radiusServerIP) logs.push(`[Auth RADIUS] Server IP: ${radiusServerIP}`);
-    if (radiusPort)     logs.push(`[Auth RADIUS] Port: ${radiusPort}`);
-    if (radiusSecret)   logs.push(`[Auth RADIUS] Shared Secret: configured`);
-    if (dot1xGlobal)    logs.push(`[Auth 802.1X] Global: Enabled`);
-    if (dot1xForce)     logs.push(`[Auth 802.1X] Force auth on access ports: Enabled`);
-    if (logs.length === 0) logs.push(`[Authentication] Applied — no parameters configured`);
-    logs.forEach(message =>
-      window.dispatchEvent(new CustomEvent("add-system-log", { detail: { device: "Switch", deviceName, message, location: deviceLocation } }))
-    );
+    const ts = now();
+    const dispatch = (message) =>
+      window.dispatchEvent(new CustomEvent("add-system-log", { detail: { device: "Switch", deviceName, message, location: deviceLocation, italic: true } }));
+
+    if (radiusServerIP) dispatch(`%RADIUS-5-SERVER_SET: [${ts}] ${deviceName} @ ${deviceLocation} — RADIUS server configured: ${radiusServerIP}:${radiusPort}. Shared secret updated; test authentication recommended.`);
+    if (radiusSecret)   dispatch(`%RADIUS-6-SECRET_SET: [${ts}] ${deviceName} — RADIUS shared secret committed. New key will be used for all subsequent AAA requests to the configured server.`);
+    dispatch(`%DOT1X-5-GLOBAL_SET: [${ts}] ${deviceName} — 802.1X global state: ${dot1xGlobal ? "ENABLED" : "DISABLED"}. EAP processing on dot1x-enabled ports will ${dot1xGlobal ? "now proceed" : "be suspended"}.`);
+    if (dot1xForce) dispatch(`%DOT1X-6-FORCE_AUTH: [${ts}] ${deviceName} — Force-authorized mode applied to access ports. Ports will require EAP authentication before passing traffic.`);
+    dispatch(`%AAA-5-TACACS_CONFIG: [${ts}] ${deviceName} — TACACS+ server parameters and privilege-level command authorization settings committed.`);
+    dispatch(`%AAA-6-LOCAL_FALLBACK: [${ts}] ${deviceName} — Local user database fallback policy updated. Device will use local credentials when AAA servers are unreachable.`);
     onClose();
   };
 

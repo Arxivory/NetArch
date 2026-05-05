@@ -5,11 +5,19 @@ import { Activity, Layers, ArrowLeftRight, ShieldCheck, Sliders } from "lucide-r
 export default function QoSModal({ onClose, deviceName = "Switch", deviceLocation = "Network" }) {
   const [activeQoSTab, setActiveQoSTab] = useState("classification");
 
+  const now = () => new Date().toISOString().replace("T", " ").slice(0, 19);
+
   const handleApply = () => {
-    const logs = [`[QoS] Policy applied on ${deviceName}`];
-    logs.forEach(message =>
-      window.dispatchEvent(new CustomEvent("add-system-log", { detail: { device: "Switch", deviceName, message, location: deviceLocation } }))
-    );
+    const ts = now();
+    const dispatch = (message) =>
+      window.dispatchEvent(new CustomEvent("add-system-log", { detail: { device: "Switch", deviceName, message, location: deviceLocation, italic: true } }));
+
+    dispatch(`%QOS-5-GLOBAL_ENABLE: [${ts}] ${deviceName} @ ${deviceLocation} — QoS globally enabled (mls qos). MQC policy maps and class maps committed to hardware TCAM.`);
+    dispatch(`%QOS-6-CLASSIFICATION: [${ts}] ${deviceName} — Traffic classification policy updated. DSCP, CoS, and IP Precedence markings applied per class-map definitions.`);
+    dispatch(`%QOS-5-TRUST_STATE: [${ts}] ${deviceName} — Per-port trust state configured. CoS/DSCP trust boundaries applied; untrusted ports will remark ingress traffic to default values.`);
+    dispatch(`%QOS-6-QUEUE_CONFIG: [${ts}] ${deviceName} — Egress queue parameters committed. WRR weights, queue depths, and WRED thresholds updated on all configured interfaces.`);
+    dispatch(`%QOS-5-POLICING: [${ts}] ${deviceName} — Two-rate three-color policing policies applied. CIR/PIR token bucket parameters and conform/exceed/violate actions committed.`);
+    dispatch(`%QOS-6-AUTOQOS: [${ts}] ${deviceName} — Auto-QoS preset templates applied. Voice, video, and uplink port policies generated and bound to configured interfaces.`);
     onClose();
   };
 

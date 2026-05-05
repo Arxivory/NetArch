@@ -25,7 +25,7 @@ const defaultState = {
 function dispatchLog(deviceName, deviceLocation, message) {
   window.dispatchEvent(
     new CustomEvent("add-system-log", {
-      detail: { device: "Router", deviceName, message, location: deviceLocation },
+      detail: { device: "Router", deviceName, message, location: deviceLocation, italic: true },
     })
   );
 }

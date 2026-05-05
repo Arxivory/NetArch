@@ -1914,7 +1914,205 @@ html,
   background: transparent;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   InterfaceModal — append to your existing stylesheet
+   ───────────────────────────────────────────────────────────────────────────── */
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   InterfaceModal — append to your existing stylesheet
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Sidebar helper note */
+
+
+/* Section heading + hint */
+.iface-list-group {
+  margin-bottom: 0;
+}
+
+.iface-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #444;
+  letter-spacing: 0.3px;
+  margin: 0 0 4px 0;
+}
+
+.iface-hint {
+  font-size: 11px;
+  color: #aaa;
+  margin: 0 0 10px 0;
+}
+
+/* ── Interface list container ── */
+.iface-list {
+  border: 1px solid #eaeaea;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* ── Individual row ── */
+.iface-row {
+  border-bottom: 1px solid #eee;
+}
+
+.iface-row:last-child {
+  border-bottom: none;
+}
+
+.iface-row--open {
+  background: #fafafa;
+}
+
+/* Row toggle button */
+.iface-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+
+.iface-header:hover {
+  background: #f5f5f5;
+}
+
+.iface-chevron {
+  color: #bbb;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.iface-icon {
+  color: #666;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Monospace label — matches ACL/NAT code-style text */
+.iface-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #111;
+  font-family: 'SFMono-Regular', 'Consolas', 'Menlo', monospace;
+  flex-shrink: 0;
+  letter-spacing: 0.2px;
+}
+
+.iface-desc {
+  font-size: 11px;
+  color: #aaa;
+  flex: 1;
+  font-weight: 400;
+  font-family: inherit;
+}
+
+/* "configured" badge */
+.iface-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: #f0f7ff;
+  color: #3b82f6;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  padding: 2px 7px;
+  flex-shrink: 0;
+}
+
+/* ── Expanded config body ── */
+.iface-body {
+  padding: 12px 16px 14px 16px;
+  border-top: 1px solid #f0f0f0;
+  background: #fdfdfd;
+  animation: ifaceSlide 0.16s ease;
+}
+
+@keyframes ifaceSlide {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+/* Three fields stacked in a row — each takes equal width */
+.iface-fields {
+  display: flex;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
+/* Each field column */
+.iface-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0; /* prevent flex blowout */
+}
+
+/* Field label — matches .acl-input span / .input-wrap span */
+.iface-field-label {
+  font-size: 10px;
+  color: #888;
+  font-weight: 500;
+}
+
+/* Field input — matches .acl-input input */
+.iface-input {
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 13px;
+  color: #111;
+  background: #fff;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.iface-input:focus {
+  border-color: #111;
+  outline: none;
+}
+
+/* Apply row */
+.iface-apply-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+/* Apply button — matches .btn-primary style */
+.iface-apply-btn {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  background: #fff;
+  color: #222;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.iface-apply-btn:hover {
+  background: #f5f5f5;
+  border-color: #bbb;
+}
+
+/* Green confirmed state */
+.iface-apply-btn--ok {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #16a34a;
+}
 
 .floor-specifier-container {
   margin: 4px 0 4px 16px;

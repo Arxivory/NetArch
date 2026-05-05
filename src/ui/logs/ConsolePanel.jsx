@@ -53,7 +53,9 @@ export default function ConsolePanel() {
   const [tempFilters,    setTempFilters]    = useState(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
 
-  const scrollRef = useRef(null);
+  const scrollRef  = useRef(null);
+  const tbodyWrap  = useRef(null);
+  const [scrollH, setScrollH] = useState(40);
 
   // ── Listen for add-system-log events ──────────────────────────────────────
   useEffect(() => {
@@ -161,12 +163,26 @@ export default function ConsolePanel() {
   const showEmptyState = !hasLogs;
   const isSearching    = search.trim() !== "";
 
-  const ROW_H      = 30;
   const MIN_SCROLL = 40;
   const MAX_SCROLL = 175;
-  const scrollH    = hasLogs
-    ? Math.min(MAX_SCROLL, Math.max(MIN_SCROLL, filteredLogs.length * ROW_H))
-    : MIN_SCROLL;
+
+  // ── Dynamically size the scroll area to match actual rendered content ──────
+  useEffect(() => {
+    const el = tbodyWrap.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver(([entry]) => {
+      const contentH = entry.contentRect.height;
+      if (!hasLogs) {
+        setScrollH(MIN_SCROLL);
+      } else {
+        setScrollH(Math.min(MAX_SCROLL, Math.max(MIN_SCROLL, contentH)));
+      }
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasLogs]);
 
   return (
     <div className="console-panel">
@@ -231,6 +247,8 @@ export default function ConsolePanel() {
             background: "#fff",
           }}
         >
+          {/* Inner wrapper — ResizeObserver measures its natural height */}
+          <div ref={tbodyWrap}>
           {showEmptyState ? (
             <div className="empty-state-container" style={{ minHeight: `${MIN_SCROLL}px`, border: "none" }}>
               <p style={{ margin: 0, color: "#999", fontSize: 11 }}>
@@ -254,7 +272,7 @@ export default function ConsolePanel() {
                   <tr key={log.id}>
                     <td style={cellStyle}>{log.device}</td>
                     <td style={cellStyle}>{log.deviceName}</td>
-                    <td style={{ ...cellStyle, fontStyle: "italic" }}>
+                    <td style={{ ...cellStyle, fontStyle: "italic", whiteSpace: "normal", wordBreak: "break-word", overflowWrap: "break-word", overflow: "visible" }}>
                       {highlightText(log.message, search)}
                     </td>
                     <td style={cellStyle}>{log.time}</td>
@@ -272,6 +290,7 @@ export default function ConsolePanel() {
               </tbody>
             </table>
           )}
+          </div>{/* end tbodyWrap */}
         </div>
       </div>
 

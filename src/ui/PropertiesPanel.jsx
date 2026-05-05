@@ -3,27 +3,29 @@ import { createPortal } from "react-dom";
 import appState from "../state/AppState";
 import { UpdateEntityTransformCommand } from "../core/editor/DrawingCommands";
 
-import RoutingModal        from "./ConfigModals/RoutingModal";
-import NATModal            from "./ConfigModals/NATModal";
-import ACLModal            from "./ConfigModals/ACLModal";
-import DHCPModal           from "./ConfigModals/DHCPModal";
-import VPNModal            from "./ConfigModals/VPNModal";
-import SNMPModal           from "./ConfigModals/SNMPModal";
-import NTPModal            from "./ConfigModals/NTPModal";
-import SSHModal            from "./ConfigModals/SSHModal";
-import VLANModal           from "./ConfigModals/VLANModal";
-import STPModal            from "./ConfigModals/STPModal";
-import PortSecurityModal   from "./ConfigModals/PortSecurityModal";
-import TrunkingModal       from "./ConfigModals/TrunkingModal";
-import QoSModal            from "./ConfigModals/QoSModal";
-import AuthenticationModal from "./ConfigModals/AuthenticationModal";
-import IGMPModals          from "./ConfigModals/IGMPModals";
-import SyslogModal         from "./ConfigModals/SyslogModal";
+import RoutingModal        from "./RouterModals/RoutingModal";
+import InterfaceModal      from "./RouterModals/InterfaceModal";
+import NATModal            from "./RouterModals/NATModal";
+import ACLModal            from "./RouterModals/ACLModal";
+import DHCPModal           from "./RouterModals/DHCPModal";
+import VPNModal            from "./RouterModals/VPNModal";
+import SNMPModal           from "./RouterModals/SNMPModal";
+import NTPModal            from "./RouterModals/NTPModal";
+import SSHModal            from "./RouterModals/SSHModal";
+import VLANModal           from "./SwitchModals/VLANModal";
+import STPModal            from "./SwitchModals/STPModal";
+import PortSecurityModal   from "./SwitchModals/PortSecurityModal";
+import TrunkingModal       from "./SwitchModals/TrunkingModal";
+import QoSModal            from "./SwitchModals/QoSModal";
+import AuthenticationModal from "./SwitchModals/AuthenticationModal";
+import IGMPModals          from "./SwitchModals/IGMPModals";
+import SyslogModal         from "./SwitchModals/SyslogModal";
 
 // ─── Config card map ──────────────────────────────────────────────────────────
 const DEVICE_CONFIGS = {
   router: [
     { label: "Routing Protocol",    desc: "Configure OSPF, BGP, or Static routes" },
+    { label: "Interface Settings",   desc: "Manage IPs, masks, and gateway for each port" },
     { label: "NAT/PAT",             desc: "Translate private IPs to public addresses" },
     { label: "Access Control List", desc: "Create permit/deny traffic rules" },
     { label: "DHCP Server",         desc: "Manage IP address pools for the network" },
@@ -79,6 +81,7 @@ export default function PropertiesPanel({ canvasController }) {
 
   // ── Per-feature modal open state ──────────────────────────────────────────
   const [isRoutingModalOpen,      setIsRoutingModalOpen]      = useState(false);
+  const [isInterfaceModalOpen,    setIsInterfaceModalOpen]    = useState(false);
   const [isNATModalOpen,          setIsNATModalOpen]          = useState(false);
   const [isACLModalOpen,          setIsACLModalOpen]          = useState(false);
   const [isDHCPModalOpen,         setIsDHCPModalOpen]         = useState(false);
@@ -258,6 +261,7 @@ export default function PropertiesPanel({ canvasController }) {
   const handleConfigItemClick = (label) => {
     const map = {
       "Routing Protocol":    () => setIsRoutingModalOpen(true),
+      "Interface Settings":  () => setIsInterfaceModalOpen(true),
       "NAT/PAT":             () => setIsNATModalOpen(true),
       "Access Control List": () => setIsACLModalOpen(true),
       "DHCP Server":         () => setIsDHCPModalOpen(true),
@@ -341,21 +345,6 @@ export default function PropertiesPanel({ canvasController }) {
             <label>Device Name</label>
             <input className="field-input" value={selectedEntity?.label || ""}
               onChange={(e) => handleDeviceChange("label", e.target.value)} />
-          </div>
-          <div>
-            <label>IP Address</label>
-            <input className="field-input" value={selectedEntity?.interfaces?.[0]?.ipv4?.address || ""}
-              onChange={(e) => handleDeviceChange("ipAddress", e.target.value)} />
-          </div>
-          <div>
-            <label>Subnet Mask</label>
-            <input className="field-input" value={selectedEntity?.interfaces?.[0]?.ipv4?.subnetMask || ""}
-              onChange={(e) => handleDeviceChange("subnetMask", e.target.value)} />
-          </div>
-          <div>
-            <label>Default Gateway</label>
-            <input className="field-input" value={selectedEntity?.defaultGateway || ""}
-              onChange={(e) => handleDeviceChange("defaultGateway", e.target.value)} />
           </div>
           <button className="floor-specifier-btn" onClick={() => setIsModalOpen(true)}>
             Advanced Configuration
@@ -465,6 +454,14 @@ export default function PropertiesPanel({ canvasController }) {
       {isRoutingModalOpen && (
         <RoutingModal
           onClose={() => setIsRoutingModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+
+      {isInterfaceModalOpen && (
+        <InterfaceModal
+          onClose={() => setIsInterfaceModalOpen(false)}
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
         />

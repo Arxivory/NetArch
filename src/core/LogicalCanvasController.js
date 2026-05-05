@@ -131,6 +131,14 @@ export class LogicalCanvasController {
       const { conduitId } = e.detail;
       appState.structural.removeConduit(conduitId);
       this.layout.removeEntityById(conduitId);
+
+      if (this.layout.routeManager) {
+        this.layout.routeManager.clear();
+        const links   = appState.network.getAllLinks();
+        const devices = appState.network.getAllDevices();
+        this.layout.routeManager.resolveAll(links, devices);
+        this.layout._render();
+      }
     });
 
     this.invalidMoveAlerted = new Set();

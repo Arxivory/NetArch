@@ -1,40 +1,50 @@
 import DeviceFactory from '../../../data/DeviceFactory.js';
 import Link from '../Link.js';
-import { createEthernetFrame } from '../Packet.js';
 
 export default function testSwitchEngine() {
-  console.log("🚀 --- STARTING LAYER 2 SIMULATION ---");
+  console.log("🚀 --- STARTING STP LOOP PREVENTION TEST ---");
 
-  // 1. Boot up the hardware
-  const sw1 = DeviceFactory.create('2960', {x:0, y:0, z:0}, { hostname: "SW-Core" });
-  const pc1 = DeviceFactory.create('desktop', {x:0, y:0, z:0}, { hostname: "PC-A" });
-  const pc2 = DeviceFactory.create('desktop', {x:0, y:0, z:0}, { hostname: "PC-B" });
+  // 1. Boot up two switches
+  const sw1 = DeviceFactory.create('2960', {x:0, y:0, z:0}, { hostname: "SW-1" });
+  const sw2 = DeviceFactory.create('2960', {x:0, y:0, z:0}, { hostname: "SW-2" });
 
-  // 2. Plug in the cables safely
-  const pc1Eth = pc1.getPortByName('FastEthernet1');
-  const sw1Eth = sw1.getPortByName('FastEthernet0/1');
-  
-  const link1 = new Link({
-    sourcePort: pc1Eth,
-    targetPort: sw1Eth
-  });
+  // 2. Create a PHYSICAL LOOP by plugging TWO cables between them!
+  const sw1Port1 = sw1.getPortByName('FastEthernet0/1');
+  const sw2Port1 = sw2.getPortByName('FastEthernet0/1');
+  const link1 = new Link({ sourcePort: sw1Port1, targetPort: sw2Port1 });
 
-  // 3. PC-A sends a Broadcast Frame using your official Packet.js builder!
-  const pc1Mac = pc1.interfaces.find(i => i.name === 'FastEthernet1').macAddress;
-  
-  const broadcastFrame = createEthernetFrame({
-    srcMAC: pc1Mac,
-    dstMAC: "FF:FF:FF:FF:FF:FF", 
-    payload: "ARP REQUEST: Who has IP 192.168.1.2?"
-  });
+  const sw1Port2 = sw1.getPortByName('FastEthernet0/2');
+  const sw2Port2 = sw2.getPortByName('FastEthernet0/2');
+  const link2 = new Link({ sourcePort: sw1Port2, targetPort: sw2Port2 });
 
-  console.log(`📡 [PC-A] Transmitting broadcast frame...`);
-  
-  // Transmit specifically out of the Ethernet port we plugged in
-  pc1Eth.link.transmitPacket(broadcastFrame, pc1Eth);
+  console.log(`\n🔗 Created a physical loop between ${sw1.hostname} and ${sw2.hostname}!`);
+  console.log(`⏳ Waiting 5 seconds for BPDUs to be exchanged and STP to converge...`);
 
+  // 3. Wait for the STP engines to exchange BPDUs (They send every 2 seconds)
   setTimeout(() => {
-    console.log("🧠 --- SWITCH CAM TABLE ---");
-    console.table(sw1.showMacAddressTable());
-  }, 50);
+    console.log("\n🌳 --- STP TOPOLOGY RESULTS ---");
+    
+    // Check Switch 1
+    console.log(`\n[${sw1.hostname}] Bridge ID: ${sw1.stpEngine.bridgeId}`);
+    console.log(`Root Bridge ID recognized: ${sw1.stpEngine.rootId}`);
+    const sw1Ports = Array.from(sw1.stpEngine.portStates.entries())
+      // Filter out empty ports just to keep the console clean
+      .filter(([portId, state]) => sw1.getPortByName(portId.split('::')[1]).isOccupied)
+      .map(([portId, state]) => ({ Port: portId.split('::')[1], State: state }));
+    console.table(sw1Ports);
+
+    // Check Switch 2
+    console.log(`\n[${sw2.hostname}] Bridge ID: ${sw2.stpEngine.bridgeId}`);
+    console.log(`Root Bridge ID recognized: ${sw2.stpEngine.rootId}`);
+    const sw2Ports = Array.from(sw2.stpEngine.portStates.entries())
+      .filter(([portId, state]) => sw2.getPortByName(portId.split('::')[1]).isOccupied)
+      .map(([portId, state]) => ({ Port: portId.split('::')[1], State: state }));
+    console.table(sw2Ports);
+    
+    // Clean up timers so they don't run forever in the background
+    sw1.stpEngine.stop();
+    sw2.stpEngine.stop();
+    
+    console.log("\n✅ Test Complete: One of the ports above should be in a BLOCKING state to prevent the loop!");
+  }, 5000);
 }

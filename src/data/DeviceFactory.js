@@ -3,6 +3,7 @@ import Device from '../core/network/Device.js';
 import PhysicalPort from '../core/network/PhysicalPort.js';
 import Interface from '../core/network/Interface.js';
 import { installSwitchBehavior } from '../core/network/Switch.js';
+import { installRouterBehavior } from '../core/network/routing/Router.js';
 import appState from '../state/AppState.js';
 
 /**
@@ -58,9 +59,11 @@ export default class DeviceFactory {
       return device;
     }
 
-        if (catalog.family === 'switch') {
+    if (catalog.family === 'switch') {
       installSwitchBehavior(device);
-    } 
+    } else if (catalog.family === 'router') {
+      installRouterBehavior(device);
+    }
 
     for (const group of catalog.portGroups) {
       const ports = _expandPortGroup(group);

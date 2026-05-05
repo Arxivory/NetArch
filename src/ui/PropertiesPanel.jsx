@@ -25,8 +25,8 @@ import SyslogModal         from "./SwitchModals/SyslogModal";
 // ─── Config card map ──────────────────────────────────────────────────────────
 const DEVICE_CONFIGS = {
   router: [
-    { label: "Interface Settings",   desc: "Manage IPs, masks, and gateway for each port" },
     { label: "Routing Protocol",    desc: "Configure OSPF, BGP, or Static routes" },
+    { label: "Interface Settings",   desc: "Manage IPs, masks, and gateway for each port" },
     { label: "NAT/PAT",             desc: "Translate private IPs to public addresses" },
     { label: "Access Control List", desc: "Create permit/deny traffic rules" },
     { label: "DHCP Server",         desc: "Manage IP address pools for the network" },
@@ -37,10 +37,9 @@ const DEVICE_CONFIGS = {
   ],
   switch: [
     { label: "VLAN Manager",   desc: "Create and assign Virtual LANs" },
-    { label: "Interface Settings",   desc: "Manage IPs, masks, and gateway for each port" },
     { label: "Spanning Tree",  desc: "Configure STP to prevent network loops" },
-    { label: "VLAN Trunking",  desc: "Configure 802.1Q tags for switch links" },
     { label: "Port Security",  desc: "Bind specific MAC addresses to ports" },
+    { label: "VLAN Trunking",  desc: "Configure 802.1Q tags for switch links" },
     { label: "QoS Settings",   desc: "Prioritize voice or video data packets" },
     { label: "User Auth",      desc: "Configure RADIUS/802.1X port access" },
     { label: "IGMP Snooping",  desc: "Optimize multicast traffic delivery" },
@@ -524,6 +523,7 @@ export default function PropertiesPanel({ canvasController }) {
           onClose={() => setIsRoutingModalOpen(false)}
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
+          device={selectedEntity}
         />
       )}
 
@@ -532,7 +532,6 @@ export default function PropertiesPanel({ canvasController }) {
           onClose={() => setIsInterfaceModalOpen(false)}
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
-          device={selectedEntity}
         />
       )}
  

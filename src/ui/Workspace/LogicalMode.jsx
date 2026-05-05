@@ -15,12 +15,16 @@ const LogicalMode = forwardRef(function LogicalMode(
     if (!container) return;
 
     const rect = container.getBoundingClientRect();
-    controllerRef.current = new LogicalCanvasController(container, {
-      width: Math.max(rect.width, 1),
-      height: Math.max(rect.height, 1),
-      gridSize,
-      snap
-    });
+    controllerRef.current = new LogicalCanvasController(
+      container,
+      appState,
+      {
+        width: Math.max(rect.width, 1),
+        height: Math.max(rect.height, 1),
+        gridSize,
+        snap
+      }
+    );
 
     if (canvasControllerRef) {
       canvasControllerRef.current = controllerRef.current;

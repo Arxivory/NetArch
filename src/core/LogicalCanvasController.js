@@ -1,6 +1,7 @@
 import appState from '../state/AppState.js';
 import LogicalLayout from '../core/layout/LogicalLayout.js';
 import StructuralStore from '../state/stores/StructuralStore';
+import { System } from 'detect-collisions';
 import DeviceFactory from '../data/DeviceFactory.js';
 import { createFurnitureInstance } from '../data/furnitureCatalog';
 import Link from './network/Link.js';
@@ -44,8 +45,8 @@ export function importProject(data, canvasController) {
     appState.history.clear();
   }
 
-  if (canvasController?.layout?.clear) {
-    canvasController.layout.clear();
+  if (canvasController?.reset) {
+    canvasController.reset();
   }
 
   if (data?.domains) {
@@ -64,7 +65,8 @@ export function importProject(data, canvasController) {
 // import QUICKSTART from './network/routing/QUICKSTART.js';
 
 export class LogicalCanvasController {
-  constructor(container, opts = {}) {
+  constructor(container, appState, opts = {}) {
+    this.appState = appState; 
     this.counters = {
       domain: 0,
       site: 0,
@@ -74,6 +76,10 @@ export class LogicalCanvasController {
       riser: 0,
       undergroundConduit: 0
     };
+    this.nextX = 0;
+    this.nextY = 0;
+    this.spacing = 300;
+    this.occupiedPositions = new Set();
 
     this.entityIdMap = new Map();
     this.structuralToCanvasMap = new Map();
@@ -91,20 +97,16 @@ export class LogicalCanvasController {
                   typeof canvasEntity.tileX === 'number';
 
                 if (isLogicalDevice) {
-                    // Logical canvas devices use a 2D transform shape (`scale.factor`).
-                    // The physical store uses a 3D transform shape (`scale.x/y/z`).
-                    // Never overwrite the logical transform with the physical one.
                     const { transform, ...safeUpdates } = updates || {};
                     Object.assign(canvasEntity, safeUpdates);
                 } else {
                     Object.assign(canvasEntity, updates);
                 }
-                // Ensure text properties sync
                 if (updates.label !== undefined) {
                     canvasEntity.hostname = updates.label;
                     canvasEntity.name = updates.label;
                 }
-                this.layout._render(); // Force instant redraw
+                this.layout._render();
             }
         }
     });
@@ -172,7 +174,6 @@ export class LogicalCanvasController {
         const st = appState.structural;
         if (!st) return;
         
-        // Take a snapshot of every structure's X/Y before the drag starts
         const elements = [...(st.domains||[]), ...(st.sites||[]), ...(st.floors||[]), ...(st.spaces||[])];
         elements.forEach(el => {
             const x = Number(el.geometry ? el.geometry.x : (el.x || 0));
@@ -2067,6 +2068,87 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
 
     appState.selection.notify();
   }
+
+  reset() {
+  this.layout?.clear?.();
+
+  if (this.layout?.system) {
+    this.layout.system.clear?.();
+
+    if (this.layout.system.all) {
+      this.layout.system.all().forEach(b => this.layout.system.remove(b));
+    }
+
+    this.layout.system = new System();
+  }
+
+  this.rectangles = [];
+  this.circles = [];
+  this.walls = [];
+  this.doors = [];
+  this.windows = [];
+  this.polygons = [];
+
+  this.entityIdMap?.clear?.();
+  this.structuralToCanvasMap?.clear?.();
+
+  this.nextX = 0;
+  this.nextY = 0;
+
+  console.log("Layout + collision system fully reset");
+}
+
+  // reset() {
+  //   this.layout?.clear();
+
+  //   this.structuralToCanvasMap?.clear();
+  //   this.entityIdMap?.clear();
+
+  //   this.counters = {
+  //     domain: 0,
+  //     site: 0,
+  //     floor: 0,
+  //     space: 0,
+  //   };
+
+  //   this.nextX = 0;
+  //   this.nextY = 0;
+
+  //   if (this.occupiedPositions) {
+  //     this.occupiedPositions.clear();
+  //   }
+
+  //   this.appState.structural.domains = [];
+  //   this.appState.structural.sites = [];
+  //   this.appState.structural.floors = [];
+  //   this.appState.structural.spaces = [];
+
+  //   this.appState.notify?.();
+  // }
+
+  // destroy() {
+  //   this.system?.clear?.();
+
+  //   if (this.system?.all) {
+  //     this.system.all().forEach(b => this.system.remove(b));
+  //   }
+
+  //   this.layout?.clear?.();
+
+  //   this.rectangles = [];
+  //   this.circles = [];
+  //   this.walls = [];
+  //   this.doors = [];
+  //   this.windows = [];
+  //   this.polygons = [];
+
+  //   this.entityIdMap?.clear?.();
+  //   this.structuralToCanvasMap?.clear?.();
+
+  //   this.system = null;
+  //   this.layout = new LogicalLayout(/* pass deps if needed */);
+  //   // this.layout = null;
+  // }
 }
 
 export default LogicalCanvasController;

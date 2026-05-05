@@ -57,17 +57,9 @@ export default function Topbar({ canvasController }) {
                     onClick={async () => {
                       setOpenMenu(null);
 
-                      if (item === "New Project") {
-                        const confirmNew = window.confirm("Start a new project? Unsaved changes will be lost.");
-                        if (!confirmNew) return;
-
-                        importProject({ domains: [] }, canvasController);
-                        return;
-                      }
-
                       switch (item) {
                         case "New Project":
-                          newProject();
+                          newProject(canvasController);
                           break;
 
                         case "Save":
@@ -80,11 +72,7 @@ export default function Topbar({ canvasController }) {
                           break;
 
                         case "Open...":
-                          try {
-                            await openProject();
-                          } catch (err) {
-                            console.error(err);
-                          }
+                          await openProject(canvasController);
                           break;
 
                         case "Undo":

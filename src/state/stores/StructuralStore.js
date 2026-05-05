@@ -28,7 +28,7 @@ class StructuralStore {
     // ============= Domain Methods =============
     addDomain(domain) {
         if (!domain.id) {
-            throw new Error('Domain must have an id');
+            domain.id = `domain-${Date.now()}`; // unique
         }
 
         if (this.domains.find(d => d.id === domain.id)) {

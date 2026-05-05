@@ -10,6 +10,7 @@
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
     "check2d": "^9.36.4",
+    "detect-collisions": "^10.10.2025",
     "lucide-react": "^0.544.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

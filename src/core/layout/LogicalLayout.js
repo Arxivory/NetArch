@@ -144,6 +144,19 @@ export class LogicalLayout {
 
   }
 
+  reset() {
+    this.system = new System();
+
+    this.rectangles = [];
+    this.circles = [];
+    this.walls = [];
+    this.doors = [];
+    this.windows = [];
+    this.polygons = [];
+
+    this.currentPolygon = [];
+  }
+
   syncWithState() {
     this.selectedEntity = this.findEntityById(this.store.getFocusedId());
     this.selectedEntities = this._getSelectedEntitiesFromStore();
@@ -265,6 +278,8 @@ export class LogicalLayout {
   }
 
   clear() {
+    this.system = new System();
+
     this.rectangles = [];
     this.polygons = [];
     this.currentPolygon = [];
@@ -277,9 +292,11 @@ export class LogicalLayout {
     this.devices = [];
     this.furnitures = [];
     this.cables = [];
+
     this.mode = 'none';
     this.startPoint = null;
     this.currentPoint = null;
+
     this._render();
   }
 
@@ -1913,7 +1930,7 @@ if (this.mode === 'door' || this.mode === 'window') {
     const delta = this.pointerHandler.getPanDelta(clientX, clientY);
     this.viewState.e += delta.dx;
     this.viewState.f += delta.dy;
-    this.pointerHandler.setPanStart(clientX, clientY);
+    this.pointerHandler.setPanStart(clientX, clientY);  
   }
 
   _renderDeviceCables(ctx, activeFloor) {

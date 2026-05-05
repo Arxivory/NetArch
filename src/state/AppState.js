@@ -30,6 +30,12 @@ export class AppState {
     this.furniture.subscribe(() => this.notifyListeners());
   }
 
+  reset() {
+    this.structural = new StructuralStore();
+    this.selection.clear();
+    this.history.clear();
+  };
+
   // ============================================================================
   // MODE DELEGATION
   // ============================================================================

@@ -301,27 +301,45 @@ export class CreateDomainCommand extends Command {
   }
 
   execute() {
-      const cleanData = JSON.parse(JSON.stringify(this.domainData)); // The Shield
-      if (this.createdDomain) {
-        if (!this.appState.structural.domains.some(d => d.id === this.createdDomain.id)) {
-          this.appState.structural.addDomain(cleanData);
-        }
-        if (this.controller?.restoreCanvasShape) {
-          this.controller.restoreCanvasShape(cleanData, this.canvasId);
-          this.controller.layout?._render(); 
-        }
-        if (this.createdDomain && this.canvasId) {
-          this.controller?.structuralToCanvasMap?.set(this.createdDomain.id, this.canvasId);
-          this.controller?.entityIdMap?.set(this.canvasId, this.createdDomain.id);
-        }
-      } else {
-        this.createdDomain = this.appState.structural.addDomain(cleanData);
-        if (this.createdDomain && this.canvasId) {
-          this.controller?.structuralToCanvasMap?.set(this.createdDomain.id, this.canvasId);
-          this.controller?.entityIdMap?.set(this.canvasId, this.createdDomain.id);
-        }
-      }
+    const cleanData = JSON.parse(JSON.stringify(this.domainData));
+
+    // ✅ FIX STRUCTURE FIRST
+    if (!cleanData.transform) {
+      cleanData.transform = {};
     }
+
+    if (!cleanData.transform.position) {
+      cleanData.transform.position = {};
+    }
+
+    if (cleanData.transform.position.x === undefined) {
+      cleanData.transform.position.x = this.controller.nextX;
+    }
+
+    if (cleanData.transform.position.y === undefined) {
+      cleanData.transform.position.y = 0;
+    }
+
+    if (cleanData.transform.position.z === undefined) {
+      cleanData.transform.position.z = this.controller.nextY;
+    }
+
+    // ✅ geometry depends on transform → must come AFTER
+    cleanData.geometry = {
+      x: cleanData.transform.position.x,
+      y: cleanData.transform.position.z
+    };
+
+    // ✅ NOW insert into store
+    const domain = this.appState.structural.addDomain({
+      ...cleanData
+    });
+
+    // ✅ THEN update controller state
+    this.controller.nextX += this.controller.spacing;
+
+    this.createdDomain = domain;
+  }
 
   undo() {
     if (this.createdDomain) {

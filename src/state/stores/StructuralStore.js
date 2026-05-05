@@ -612,6 +612,20 @@ class StructuralStore {
             }
         })
     }
+
+    clear() {
+        console.log("FULL STRUCTURAL RESET");
+
+        this.domains = [];
+        this.sites = [];
+        this.floors = [];
+        this.spaces = [];
+        this.walls = [];
+        this.doors = [];
+        this.windows = [];
+
+        this.notify();
+    }
 }
 
 const structuralStore = new StructuralStore();

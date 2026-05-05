@@ -7,7 +7,7 @@ export const newProject = () => {
   );
 
   if (confirmNew) {
-    importProject({ domains: [] });
+    importProject({ domains: [] }); 
   }
 };
 

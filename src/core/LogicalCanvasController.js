@@ -22,7 +22,7 @@ import {
   DeleteEntityCommand
 } from './editor/DrawingCommands.js';
 
-import QUICKSTART from './network/routing/QUICKSTART.js';
+// import QUICKSTART from './network/routing/QUICKSTART.js';
 
 export class LogicalCanvasController {
   constructor(container, opts = {}) {

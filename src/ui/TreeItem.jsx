@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import appState from "../state/AppState"; 
 import { Mountain, Grid, ChevronRight, ChevronDown, Building, Server, Box, Layers, CopyPlus, Wifi, Armchair } from "lucide-react";
 import FloorSpecifier from "./FloorSpecifier";
+import { ChangePropertyCommand } from "../core/editor/DrawingCommands";
 
 const icons = {
   domain: Mountain,
@@ -82,24 +83,29 @@ export default function TreeItem({ node }) {
         }
       };
 
-    const submitRename = () => {
-        if (editValue.trim() !== "" && editValue !== node.label) {
-          
-          // Update the Global Store (The Store will handle the Canvas update now!)
-          if (node.type === "device" && appState.network) {
-            appState.network.updateDevice(node.id, { label: editValue });
-          } else if (node.type === "furniture" && appState.furniture) {
-            appState.furniture.updateFurniture(node.id, { label: editValue });
+      const submitRename = () => {
+          if (editValue.trim() !== "" && editValue !== node.label) {
+            
+            // --- NEW: Use the Time Machine! ---
+            const command = new ChangePropertyCommand(
+                appState, 
+                node.id, 
+                node.type, 
+                'label', 
+                node.label,   // Old Value
+                editValue    // New Value
+            );
+            
+            appState.pushCommand(command);
+            command.execute();
+            // ----------------------------------
+            
           } else {
-            appState.structural.renameStructure(node.id, editValue, node.type);
+            // Guardrail: Snap back to original name if empty
+            setEditValue(node.label); 
           }
-          
-        } else {
-          // Guardrail: Snap back to original name if empty
-          setEditValue(node.label); 
-        }
-        setIsEditing(false);
-      };
+          setIsEditing(false);
+        };
 
       const handleKeyDown = (e) => {
         if (e.key === 'Enter') submitRename();

@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import appState from "../state/AppState";
-import { UpdateEntityTransformCommand } from "../core/editor/DrawingCommands";
+import { UpdateEntityTransformCommand, ChangePropertyCommand } from "../core/editor/DrawingCommands";
+import testSwitchEngine from "../core/network/switching/QuickTest";
 
 import RoutingModal        from "./RouterModals/RoutingModal";
 import InterfaceModal      from "./RouterModals/InterfaceModal";
@@ -75,6 +76,7 @@ export default function PropertiesPanel({ canvasController }) {
     rotation: { x: 0, y: 0, z: 0 },
   });
   const originalLabelRef = useRef("");
+  const originalValueRef = useRef({});
 
   // ── Advanced Config grid modal ─────────────────────────────────────────────
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -128,7 +130,11 @@ export default function PropertiesPanel({ canvasController }) {
           storeNode = appState.furniture.getFurniture(entityId);
 
         if (entity && storeNode) {
-          entity = { ...entity, label: storeNode.label || storeNode.hostname || storeNode.name };
+          entity = {
+            ...entity,
+            ...storeNode,
+            label: storeNode.label || storeNode.hostname || storeNode.name || entity.label
+          };
         } else if (!entity && storeNode) {
           entity = storeNode;
         }
@@ -210,27 +216,77 @@ export default function PropertiesPanel({ canvasController }) {
       });
     }
   };
+  
+  const handleDeviceFocus = (field) => {
+    if (!selectedEntity) return;
+    let val = selectedEntity[field] || "";
+    if (field === 'ipAddress') val = selectedEntity?.interfaces?.[0]?.ipv4?.address || "";
+    if (field === 'subnetMask') val = selectedEntity?.interfaces?.[0]?.ipv4?.subnetMask || "";
+    
+    // Save the old value the moment the user clicks into the text box
+    originalValueRef.current[field] = val;
+  };
 
   const handleDeviceChange = (field, value) => {
     if (!selectedEntity) return;
-    setSelectedEntity({ ...selectedEntity, [field]: value });
-    if (field === "label" && value.trim() === "") return;
-    if (appState.network?.updateDevice)
-      appState.network.updateDevice(selectedEntity.id, { [field]: value });
+    
+    // ONLY update the local React UI so the user can type smoothly. 
+    // Do NOT dispatch a command here!
+    let updatedEntity = { ...selectedEntity, [field]: value };
+    if (field === "ipAddress" || field === "subnetMask") {
+      const interfaces = Array.isArray(selectedEntity.interfaces) ? [...selectedEntity.interfaces] : [];
+      const firstInterface = interfaces[0] ? { ...interfaces[0] } : {};
+      const ipv4 = { ...(firstInterface.ipv4 || {}) };
+
+      if (field === "ipAddress") ipv4.address = value;
+      if (field === "subnetMask") ipv4.subnetMask = value;
+
+      firstInterface.ipv4 = ipv4;
+      interfaces[0] = firstInterface;
+      updatedEntity = { ...selectedEntity, interfaces, [field]: value };
+    }
+    setSelectedEntity(updatedEntity);
+  };
+
+  const handleDeviceBlur = (field) => {
+    if (!selectedEntity) return;
+    const oldValue = originalValueRef.current[field] || "";
+    let newValue = selectedEntity[field] || "";
+    if (field === 'ipAddress') newValue = selectedEntity?.interfaces?.[0]?.ipv4?.address || "";
+    if (field === 'subnetMask') newValue = selectedEntity?.interfaces?.[0]?.ipv4?.subnetMask || "";
+
+    // The user clicked away. Did they actually change the text?
+    if (oldValue !== newValue) {
+      // Yes! Log ONE clean command containing the whole completed string
+      const command = new ChangePropertyCommand(appState, selectedEntity.id, 'device', field, oldValue, newValue);
+      appState.pushCommand(command);
+      command.execute();
+      
+      // Update our ref so subsequent edits don't glitch
+      originalValueRef.current[field] = newValue; 
+    }
+  };
+
+  const handleFurnitureFocus = (field) => {
+    if (!selectedEntity) return;
+    originalValueRef.current[field] = selectedEntity[field] || "";
   };
 
   const handleFurnitureChange = (field, value) => {
     if (!selectedEntity) return;
     setSelectedEntity({ ...selectedEntity, [field]: value });
-    if (appState.furniture?.updateFurniture)
-      appState.furniture.updateFurniture(selectedEntity.id, { [field]: value });
-    if (canvasController?.layout) {
-      const canvasEntity = canvasController.layout.findEntityById(selectedEntity.id);
-      if (canvasEntity) {
-        canvasEntity[field] = value;
-        if (field === "label") canvasEntity.name = value;
-        canvasController.layout._render();
-      }
+  };
+
+  const handleFurnitureBlur = (field) => {
+    if (!selectedEntity) return;
+    const oldValue = originalValueRef.current[field] || "";
+    const newValue = selectedEntity[field] || "";
+
+    if (oldValue !== newValue) {
+      const command = new ChangePropertyCommand(appState, selectedEntity.id, 'furniture', field, oldValue, newValue);
+      appState.pushCommand(command);
+      command.execute();
+      originalValueRef.current[field] = newValue;
     }
   };
 
@@ -239,22 +295,28 @@ export default function PropertiesPanel({ canvasController }) {
   };
 
   const handleStructureRenameChange = (e) => {
-    const newName = e.target.value;
-    setSelectedEntity({ ...selectedEntity, label: newName });
-    if (newName.trim() !== "") {
-      const typeStr = (selectedEntity.structureType || selectedEntity.type || "").toLowerCase();
-      if (appState.structural.renameStructure)
-        appState.structural.renameStructure(selectedEntity.id, newName, typeStr);
-    }
+    // Only update the local React UI state while they are actively typing. 
+    // Do NOT dispatch to the store yet!
+    setSelectedEntity({ ...selectedEntity, label: e.target.value });
   };
 
   const handleStructureRenameBlur = (e) => {
-    if (e.target.value.trim() === "") {
-      const previous = originalLabelRef.current;
-      setSelectedEntity({ ...selectedEntity, label: previous });
+    const newName = e.target.value;
+    const previousLabel = originalLabelRef.current;
+
+    if (newName.trim() === "") {
+      // Revert to old name if they left it blank
+      setSelectedEntity({ ...selectedEntity, label: previousLabel });
+    } else if (newName !== previousLabel) {
+      // If the name actually changed, log it in the Time Machine!
       const typeStr = (selectedEntity.structureType || selectedEntity.type || "").toLowerCase();
-      if (appState.structural.renameStructure)
-        appState.structural.renameStructure(selectedEntity.id, previous, typeStr);
+      
+      const command = new ChangePropertyCommand(appState, selectedEntity.id, typeStr, 'label', previousLabel, newName);
+      appState.pushCommand(command);
+      command.execute();
+      
+      // Update our reference so subsequent edits work correctly
+      originalLabelRef.current = newName; 
     }
   };
 
@@ -341,14 +403,27 @@ export default function PropertiesPanel({ canvasController }) {
       {isDevice && (
         <div className="properties-group">
           <hr className="header-separator" />
-          <div>
-            <label>Device Name</label>
-            <input className="field-input" value={selectedEntity?.label || ""}
-              onChange={(e) => handleDeviceChange("label", e.target.value)} />
+          <div><label>Device Name</label>
+            <input className="field-input" 
+              value={selectedEntity?.label || ""} 
+              onFocus={() => handleDeviceFocus('label')}
+              onChange={(e) => handleDeviceChange('label', e.target.value)} 
+              onBlur={() => handleDeviceBlur('label')}
+            />
           </div>
           <button className="floor-specifier-btn" onClick={() => setIsModalOpen(true)}>
             Advanced Configuration
           </button>
+
+          {/* This button now directly fires your exported QuickTest script! */}
+          <button 
+            className="floor-specifier-btn" 
+            onClick={testSwitchEngine} 
+            style={{ marginTop: '8px', backgroundColor: '#10b981', color: 'white' }}
+          >
+            Run Layer 2 Test
+          </button>
+
         </div>
       )}
 
@@ -356,10 +431,13 @@ export default function PropertiesPanel({ canvasController }) {
       {isFurniture && (
         <div className="properties-group">
           <hr className="header-separator" />
-          <div>
-            <label>Furniture Name</label>
-            <input className="field-input" value={selectedEntity?.label || ""}
-              onChange={(e) => handleFurnitureChange("label", e.target.value)} />
+          <div><label>Furniture Name</label>
+            <input className="field-input" 
+              value={selectedEntity?.label || ""} 
+              onFocus={() => handleFurnitureFocus('label')}
+              onChange={(e) => handleFurnitureChange('label', e.target.value)} 
+              onBlur={() => handleFurnitureBlur('label')}
+            />
           </div>
         </div>
       )}

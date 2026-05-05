@@ -64,22 +64,56 @@ updateDevice(deviceId, updates) {
     const device = this.devices.find(d => d.id === deviceId);
     if (!device) return false;
 
-    // 1. Guardrail: Prevent Empty Names
-    if (updates.label !== undefined) {
-        if (updates.label.trim() === '') {
-            delete updates.label; // Cancel this specific update
+    const normalizedUpdates = { ...updates };
+
+    if (normalizedUpdates.ipAddress !== undefined || normalizedUpdates.subnetMask !== undefined) {
+      const addressFromUpdate = normalizedUpdates.ipAddress;
+      const maskFromUpdate = normalizedUpdates.subnetMask;
+
+      const deviceInterfaces = Array.isArray(device.interfaces) ? device.interfaces : [];
+
+      if (deviceInterfaces.length > 0) {
+        const primaryInterface = deviceInterfaces[0];
+        const currentAddress = primaryInterface?.ipv4?.address ?? '';
+        const currentMask = primaryInterface?.ipv4?.subnetMask ?? '';
+        const nextAddress = addressFromUpdate !== undefined ? addressFromUpdate : currentAddress;
+        const nextMask = maskFromUpdate !== undefined ? maskFromUpdate : currentMask;
+
+        if (typeof primaryInterface.configureIPv4 === 'function') {
+          primaryInterface.configureIPv4(nextAddress, nextMask);
         } else {
-            device.hostname = updates.label;
-            device.name = updates.label;
-            device.label = updates.label;
+          primaryInterface.ipv4 = {
+            ...(primaryInterface.ipv4 || {}),
+            address: nextAddress,
+            subnetMask: nextMask
+          };
+        }
+      } else {
+        const fallbackAddress = addressFromUpdate !== undefined ? addressFromUpdate : '';
+        const fallbackMask = maskFromUpdate !== undefined ? maskFromUpdate : '';
+        device.interfaces = [{ ipv4: { address: fallbackAddress, subnetMask: fallbackMask } }];
+      }
+
+      delete normalizedUpdates.ipAddress;
+      delete normalizedUpdates.subnetMask;
+    }
+
+    // 1. Guardrail: Prevent Empty Names
+    if (normalizedUpdates.label !== undefined) {
+        if (normalizedUpdates.label.trim() === '') {
+            delete normalizedUpdates.label; // Cancel this specific update
+        } else {
+            device.hostname = normalizedUpdates.label;
+            device.name = normalizedUpdates.label;
+            device.label = normalizedUpdates.label;
         }
     }
 
-    Object.assign(device, updates);
+    Object.assign(device, normalizedUpdates);
 
     // 2. Dispatch event to instantly update Canvas
     window.dispatchEvent(new CustomEvent('forceCanvasUpdate', { 
-        detail: { id: deviceId, updates } 
+        detail: { id: deviceId, updates: normalizedUpdates } 
     }));
     
     this.updateModified();

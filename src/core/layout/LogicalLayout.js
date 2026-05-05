@@ -8,6 +8,7 @@ import { Selection } from '../editor/Selection.js';
 import EntityTransformer from './transform/EntityTransformer.js';
 import { System } from 'check2d';
 import appState from '../../state/AppState.js';
+import { CableRouteManager } from '../cabling/CableRouteManager.js';
 
 // ADD THIS IMPORT:
 import { UnitSystem, GridScale } from '../../util/UnitSystem.js'; // Adjust path if needed
@@ -41,8 +42,13 @@ export class LogicalLayout {
       onDoorCreated: opts.onDoorCreated || null,
       onWindowCreated: opts.onWindowCreated || null,
       onCableCreated: opts.onCableCreated || null,
+      onConduitCreated: opts.onConduitCreated ||null,
+      onRiserCreated: opts.onRiserCreated || null,
+      onUndergroundConduitCreated: opts.onUndergroundConduitCreated || null,
       system: this.system
     });
+
+    this.routeManager = new CableRouteManager(appState.structural, 0.7);
 
     // --- NEW: Global Listener for Entity Deletions ---
     window.addEventListener('forceCanvasDelete', (e) => {
@@ -69,6 +75,7 @@ export class LogicalLayout {
     this.entityTransformer = new EntityTransformer();
 
     this.selectedEntity = null;
+    this.selectedEntities = [];
     this.isResizing = false;
     this.resizeStart = null;
 
@@ -93,7 +100,9 @@ export class LogicalLayout {
     this.devices = [];
     this.cables = [];
     this.furnitures = [];
-
+    this.conduits = [];
+    this.risers = [];
+    this.undergroundConduits = [];
     this.store = appState.selection;
 
     this.store.subscribe(() => this.syncWithState());
@@ -115,6 +124,7 @@ export class LogicalLayout {
     this.onPortSelect = opts.onPortSelect || null;
 
     this.selectedEntity = null;
+    this.selectedEntities = [];
     this.originalEntity = null;
 
     this.interaction = {
@@ -136,7 +146,76 @@ export class LogicalLayout {
 
   syncWithState() {
     this.selectedEntity = this.findEntityById(this.store.getFocusedId());
+    this.selectedEntities = this._getSelectedEntitiesFromStore();
     this._render();
+  }
+
+  _getSelectedEntitiesFromStore() {
+    const ids = new Set([
+      ...(this.store.getSelectedDeviceIds?.() || []),
+      ...(this.store.getSelectedFurnitureIds?.() || []),
+      ...(this.store.getSelectedLinkIds?.() || [])
+    ]);
+
+    const focusedId = this.store.getFocusedId?.();
+    if (focusedId) ids.add(focusedId);
+
+    return [...ids]
+      .map(id => this.findEntityById(id))
+      .filter(Boolean);
+  }
+
+  _getMovableSelectedEntities(primaryEntity = null) {
+    const entities = this.selectedEntities?.length
+      ? this.selectedEntities
+      : (primaryEntity ? [primaryEntity] : []);
+
+    const unique = new Map();
+    for (const entity of entities) {
+      if (!entity || entity.sourceId || typeof entity.move !== 'function') continue;
+      unique.set(entity.id, entity);
+    }
+
+    if (primaryEntity && !primaryEntity.sourceId && typeof primaryEntity.move === 'function') {
+      unique.set(primaryEntity.id, primaryEntity);
+    }
+
+    return [...unique.values()];
+  }
+
+  _prepareMoveSelection(primaryEntity = null) {
+    const moveEntities = this._getMovableSelectedEntities(primaryEntity);
+    moveEntities.forEach((entity) => {
+      if (entity?.saveCurrentPosition) {
+        entity.saveCurrentPosition();
+      }
+    });
+    return moveEntities;
+  }
+
+  _resolveGroupMoveDelta(entities, dx, dy) {
+    if (!entities?.length) return { dx, dy };
+
+    let clampedDx = dx;
+    let clampedDy = dy;
+
+    for (const entity of entities) {
+      if (!entity) continue;
+
+      if (this._isDeviceEntity(entity) || this._isFurnitureEntity(entity)) {
+        const clamped = this._clampMovementWithinParent(entity, clampedDx, clampedDy);
+
+        if (Math.abs(clamped.dx) < Math.abs(clampedDx)) {
+          clampedDx = clamped.dx;
+        }
+
+        if (Math.abs(clamped.dy) < Math.abs(clampedDy)) {
+          clampedDy = clamped.dy;
+        }
+      }
+    }
+
+    return { dx: clampedDx, dy: clampedDy };
   }
 
   _initCanvas() {
@@ -322,6 +401,21 @@ export class LogicalLayout {
     this._updateCursor();
   }
 
+  startDrawConduit() {
+    this.mode = 'conduit';
+    this._updateCursor();
+  }
+
+  startDrawRiser() {
+    this.mode = 'riser';
+    this._updateCursor();
+  }
+
+  startDrawUndergroundConduit() {
+    this.mode = 'underground-conduit';
+    this._updateCursor();
+  }
+
   // Map legacy UI aliases to catalog keys so cables[type] lookups never miss.
   static _normalizeCableType(type) {
     const aliases = {
@@ -376,6 +470,8 @@ export class LogicalLayout {
     }
   }
 
+  
+
   addFurniture(furnitureData, x, y) {
     console.log('Adding furniture with data:', furnitureData, 'from LogicalLaypout bsuiyti');
     const size = this.shapeRenderer.gridSize * 1.5;
@@ -390,7 +486,7 @@ export class LogicalLayout {
     } else if (rawType.includes('chair') || rawType.includes('seat')) {
       iconKey = 'chair';
     } else if (rawType.includes('cabinet') || rawType.includes('rack')) {
-      iconKey = 'cabinet';
+      iconKey = 'rack';
     }
 
     // Assuming you might add a furnitureIcons dictionary in the future.
@@ -470,6 +566,9 @@ export class LogicalLayout {
       'cable': 'crosshair',
       'pan': 'grab',
       'none': 'default',
+      'conduit': 'crosshair',
+      'riser': 'crosshair',
+      'underground-conduit': 'crosshair',
       'select': 'default'
     };
     this.pointerHandler.setCursor(cursorMap[this.mode] || 'default');
@@ -554,15 +653,74 @@ export class LogicalLayout {
       return;
     }
 
+    if (this.mode === 'conduit') {
+      const conduit = this._placeConduitAt(snapped.x, snapped.y);
+      this._render();
+      return;
+    }
+
+    if (this.mode === 'riser') {
+      const riser = this._placeRiserAt(snapped.x, snapped.y);
+      this._render();
+      return;
+    }
+
+    if (this.mode === 'underground-conduit') {
+      const undergroundConduit = this._placeUndergroundConduitAt(snapped.x, snapped.y);
+      this._render();
+      return;
+    }
 
     if (this.mode === 'select') {
       const zoom = this.pointerHandler.getZoom();
       const worldPos = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
-      const en = this.identifyEntity(worldPos.x, worldPos.y);
-      console.log('[DOWN] identifyEntity result:', en?.id, en?.type, en?.entityType);
+      const multiSelect = e.ctrlKey || e.metaKey || e.shiftKey;
+      const selectionResult = this.identifyEntity(worldPos.x, worldPos.y, {multiSelect});
+      // console.log('[DOWN] identifyEntity result:', en?.id, en?.type, en?.entityType, { multiSelect });
+      console.log('[DOWN] identifyEntity result:', selectionResult?.id, selectionResult?.type, selectionResult?.entityType, { multiSelect });
+
+      const clickedConduit = this._findConduitAt(worldPos.x, worldPos.y);
+      if (clickedConduit) {
+        clickedConduit.saveCurrentPosition();
+        this.interaction = { mode: 'move_conduit', conduit: clickedConduit };
+        this.selectedEntity = clickedConduit;
+        this.selectedEntities = [clickedConduit];
+        appState.selection.selectConduit(clickedConduit.id);
+        this.pointerHandler.setPointerDown(true);
+        this._render();
+        return;
+      }
+
+      const clickedRiser = this._findRiserAt(worldPos.x, worldPos.y);
+      if (clickedRiser) {
+        clickedRiser.saveCurrentPosition();
+        this.interaction = { mode: 'move_riser', riser: clickedRiser };
+        this.selectedEntity = clickedRiser;
+        this.selectedEntities = [clickedRiser];
+        appState.selection.selectRiser(clickedRiser.id);
+        this.pointerHandler.setPointerDown(true);
+        this._render();
+        return;
+      }
+
+      const clickedUndergroundConduit = this._findUndergroundConduitAt(worldPos.x, worldPos.y);
+      if (clickedUndergroundConduit) {
+        clickedUndergroundConduit.saveCurrentPosition();
+        this.interaction = { mode: 'move_underground-conduit', undergroundConduit: clickedUndergroundConduit };
+        this.selectedEntity = clickedUndergroundConduit;
+        this.selectedEntities = [clickedUndergroundConduit];
+        appState.selection.selectUndergroundConduit(clickedUndergroundConduit.id);
+        this.pointerHandler.setPointerDown(true);
+        this._render();
+        return;
+      }
+
+      if (selectionResult.selectionOnly) {
+        return;
+      }
+
+      const en = selectionResult.entity;
       if (!en) {
-        // Clear focus when clicking on empty canvas
-        appState.selection.focusedNode(null, null);
         return;
       }
 
@@ -579,25 +737,23 @@ export class LogicalLayout {
           const distToSrc = Math.hypot(p.x - src.x, p.y - src.y);
           const distToDst = Math.hypot(p.x - dst.x, p.y - dst.y);
 
-          if (distToSrc < distToDst) {
-            // Detach the Source end
-            this.interaction = { mode: 'update_cable', cable: en, endpointType: 'source', fixedDevice: dst };
-          } else {
-            // Detach the Target end
-            this.interaction = { mode: 'update_cable', cable: en, endpointType: 'target', fixedDevice: src };
-          }
-
-          this.currentPoint = p;
-          this.pointerHandler.setPointerDown(true);
-          return; // CRITICAL: Return early so it doesn't try to bodily move the cable!
-        }
+              if (distToSrc < distToDst) {
+                  // Detach the Source end
+                  this.interaction = { mode: 'update_cable', cable: en, endpointType: 'source', fixedDevice: dst };
+              } else {
+                  // Detach the Target end
+                  this.interaction = { mode: 'update_cable', cable: en, endpointType: 'target', fixedDevice: src };
+              }
+              
+              this.currentPoint = p;
+              this.pointerHandler.setPointerDown(true);
+              return; // CRITICAL: Return early so it doesn't try to bodily move the cable!
+          } 
       }
 
 
 
-      if (en.saveCurrentPosition) {
-        en.saveCurrentPosition();
-      }
+      const moveEntities = this._prepareMoveSelection(en);
 
       const p = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
 
@@ -660,22 +816,33 @@ export class LogicalLayout {
             if (!srcOnFloor || !dstOnFloor) continue;
           }
 
-          // Use the exact same highly-optimized bounding box we built for hovering
-          if (this._hitTestCable(p.x, p.y, src, dst, 8)) {
-            // Dispatch a custom event telling the UI a link was clicked for deletion
-            window.dispatchEvent(new CustomEvent('requestLinkDeletion', {
-              detail: { linkId: cable.id, sourceName: src.label || src.name, targetName: dst.label || dst.name }
-            }));
-
-            // Reset the tool back to select automatically
-            this.pointerHandler.setPointerDown(false);
-            return;
-          }
+        // Use the exact same highly-optimized bounding box we built for hovering
+        if (this._hitTestCable(p.x, p.y, src, dst, 8)) {
+          // Dispatch a custom event telling the UI a link was clicked for deletion
+          window.dispatchEvent(new CustomEvent('requestLinkDeletion', { 
+            detail: { linkId: cable.id, sourceName: src.label || src.name, targetName: dst.label || dst.name } 
+          }));
+          
+          // Reset the tool back to select automatically
+          this.pointerHandler.setPointerDown(false);
+          return;
         }
       }
+
+      
+      const conduitToDelete = this._findConduitAt(p.x, p.y);
+      if (conduitToDelete) {
+        window.dispatchEvent(new CustomEvent('requestConduitDeletion', {
+          detail: { conduitId: conduitToDelete.id }
+        }));
+        this.pointerHandler.setPointerDown(false);
+        return;
+      }
+    }
       this.interaction = {
         mode: 'move',
-        start: { x: p.x, y: p.y }
+        start: { x: p.x, y: p.y },
+        entities: moveEntities
       };
 
       this.pointerHandler.setPointerDown(true);
@@ -914,6 +1081,67 @@ export class LogicalLayout {
 
     if (this.pointerHandler.getIsPointerDown()) {
 
+      if (this.interaction.mode === 'move_conduit') {
+        const conduit = this.interaction.conduit;
+        const parentShape =
+          this.rectangles.find(r => r.id === conduit.parentShapeId) ||
+          this.polygons.find(pol => pol.id === conduit.parentShapeId);
+
+        if (parentShape) {
+          const projected = this._projectPointOntoShapeEdges(p.x, p.y, parentShape);
+          if (projected) conduit.moveTo(projected.x, projected.y);
+        }
+
+        this._render();
+        return;
+      }
+
+      if (this.interaction.mode === 'move_riser') {
+        const riser = this.interaction.riser;
+        const parentShape =
+          this.rectangles.find(r => r.id === riser.parentShapeId) ||
+          this.polygons.find(pol => pol.id === riser.parentShapeId);
+
+        if (parentShape) {
+          const edges = this._getShapeEdges(parentShape);
+          const bounds = {
+            minX: Math.min(...edges.map(e => Math.min(e.x1, e.x2))),
+            minY: Math.min(...edges.map(e => Math.min(e.y1, e.y2))),
+            maxX: Math.max(...edges.map(e => Math.max(e.x1, e.x2))),
+            maxY: Math.max(...edges.map(e => Math.max(e.y1, e.y2))),
+          };
+          const clampedX = Math.max(bounds.minX, Math.min(p.x, bounds.maxX - riser.width));
+          const clampedY = Math.max(bounds.minY, Math.min(p.y, bounds.maxY - riser.height));
+          riser.moveTo(clampedX, clampedY);
+        }
+
+        this._render();
+        return;
+      }
+
+      if (this.interaction.mode === 'move_underground-conduit') {
+        const undergroundConduit = this.interaction.undergroundConduit;
+        const parentShape =
+          this.rectangles.find(r => r.id === undergroundConduit.parentShapeId) ||
+          this.polygons.find(pol => pol.id === undergroundConduit.parentShapeId);
+
+        if (parentShape) {
+          const edges = this._getShapeEdges(parentShape);
+          const bounds = {
+            minX: Math.min(...edges.map(e => Math.min(e.x1, e.x2))),
+            minY: Math.min(...edges.map(e => Math.min(e.y1, e.y2))),
+            maxX: Math.max(...edges.map(e => Math.max(e.x1, e.x2))),
+            maxY: Math.max(...edges.map(e => Math.max(e.y1, e.y2))),
+          };
+          const clampedX = Math.max(bounds.minX, Math.min(p.x, bounds.maxX - undergroundConduit.width));
+          const clampedY = Math.max(bounds.minY, Math.min(p.y, bounds.maxY - undergroundConduit.height));
+          undergroundConduit.moveTo(clampedX, clampedY);
+        }
+
+        this._render();
+        return;
+      }
+
       if (this.interaction.mode === 'update_cable') {
         this.currentPoint = p;
         this.hoveredDevice = this._findDeviceAt(snapped.x, snapped.y);
@@ -929,17 +1157,34 @@ export class LogicalLayout {
 
       if (this.mode === 'select' && this.selectedEntity && this.interaction.mode) {
         const en = this.selectedEntity;
+        const moveEntities = this.interaction.entities?.length
+          ? this.interaction.entities
+          : [en];
 
         const dx = p.x - this.interaction.start.x;
         const dy = p.y - this.interaction.start.y;
 
         if (this.interaction.mode === "move") {
-          if (this._isDeviceEntity(en) || this._isFurnitureEntity(en)) {
-            const clamped = this._clampMovementWithinParent(en, dx, dy);
-            en.move(clamped.dx, clamped.dy);
-          } else if (typeof en.move === 'function') {
-            en.move(dx, dy);
+          const groupDelta = this._resolveGroupMoveDelta(moveEntities, dx, dy);
+
+          for (const entity of moveEntities) {
+            if (!entity || typeof entity.move !== 'function') continue;
+            entity.move(groupDelta.dx, groupDelta.dy);
           }
+
+          this.interaction.start = {
+            x: this.interaction.start.x + groupDelta.dx,
+            y: this.interaction.start.y + groupDelta.dy
+          };
+
+          const structuralEntities = moveEntities.filter(entity => !!entity?.structureType);
+          if (structuralEntities.length > 0 && this.onEntityChanged) {
+            structuralEntities.forEach((entity) => {
+              this.onEntityChanged(entity, groupDelta.dx, groupDelta.dy);
+            });
+          }
+          this._render();
+          return;
         }
 
         if (this.interaction.mode === "resize" && en.type === 'rectangle') {
@@ -1019,28 +1264,49 @@ export class LogicalLayout {
 
   _onPointerUp(e) {
 
-    if (this.interaction && this.interaction.mode === 'update_cable') {
-      const dropDevice = this._findDeviceAt(this.currentPoint.x, this.currentPoint.y);
+  if (this.interaction && this.interaction.mode === 'update_cable') {
+        const dropDevice = this._findDeviceAt(this.currentPoint.x, this.currentPoint.y);
+        
+        if (dropDevice) {
+            // Tell the controller we want to re-attach this cable
+            window.dispatchEvent(new CustomEvent('requestLinkUpdate', {
+                detail: {
+                    linkId: this.interaction.cable.id,
+                    cableType: this.interaction.cable.type,
+                    endpointType: this.interaction.endpointType,
+                    newDevice: dropDevice,
+                    clientX: e.clientX,
+                    clientY: e.clientY
+                }
+            }));
+        }
+        
+        // Reset interaction state
+        this.interaction = { mode: null, handle: null, start: null };
+        this.pointerHandler.setPointerDown(false);
+        this.hoveredDevice = null;
+        this._render(); // Snaps the cable back if dropped on empty space
+        return;
+    }
 
-      if (dropDevice) {
-        // Tell the controller we want to re-attach this cable
-        window.dispatchEvent(new CustomEvent('requestLinkUpdate', {
-          detail: {
-            linkId: this.interaction.cable.id,
-            cableType: this.interaction.cable.type,
-            endpointType: this.interaction.endpointType,
-            newDevice: dropDevice,
-            clientX: e.clientX,
-            clientY: e.clientY
-          }
-        }));
-      }
-
-      // Reset interaction state
+    if (this.interaction?.mode === 'move_conduit') {
       this.interaction = { mode: null, handle: null, start: null };
       this.pointerHandler.setPointerDown(false);
-      this.hoveredDevice = null;
-      this._render(); // Snaps the cable back if dropped on empty space
+      this._render();
+      return;
+    }
+
+    if (this.interaction?.mode === 'move_riser') {
+      this.interaction = { mode: null, handle: null, start: null };
+      this.pointerHandler.setPointerDown(false);
+      this._render();
+      return;
+    }
+
+    if (this.interaction?.mode === 'move_underground-conduit') {
+      this.interaction = { mode: null, handle: null, start: null };
+      this.pointerHandler.setPointerDown(false);
+      this._render();
       return;
     }
 
@@ -1181,28 +1447,36 @@ if (this.mode === 'door' || this.mode === 'window') {
     }
 
     if (this.selectedEntity && (this.interaction.mode === 'move' || this.interaction.mode === 'resize')) {
-      let restoreDx = 0;
-      let restoreDy = 0;
       const isMove = this.interaction.mode === 'move';
-      const hasSavedPosition = this.selectedEntity.savedPosition !== undefined;
+      const entitiesToCommit = isMove
+        ? (this.interaction.entities?.length ? this.interaction.entities : [this.selectedEntity])
+        : [this.selectedEntity];
 
-      if (isMove && this._checkForOverlap(this.selectedEntity, "transformation")) {
-        if (hasSavedPosition && typeof this.selectedEntity.restoreToSavedPosition === 'function') {
-          restoreDx = this.selectedEntity.savedPosition.x - this.selectedEntity.x;
-          restoreDy = this.selectedEntity.savedPosition.y - this.selectedEntity.y;
-          this.selectedEntity.restoreToSavedPosition();
+      for (const entity of entitiesToCommit) {
+        if (!entity) continue;
+
+        let restoreDx = 0;
+        let restoreDy = 0;
+        const hasSavedPosition = entity.savedPosition !== undefined;
+
+        if (isMove && this._checkForOverlap(entity, "transformation")) {
+          if (hasSavedPosition && typeof entity.restoreToSavedPosition === 'function') {
+            restoreDx = entity.savedPosition.x - entity.x;
+            restoreDy = entity.savedPosition.y - entity.y;
+            entity.restoreToSavedPosition();
+          }
         }
-      }
 
-      const actualDx = hasSavedPosition
-        ? this.selectedEntity.x - this.selectedEntity.savedPosition.x
-        : restoreDx;
-      const actualDy = hasSavedPosition
-        ? this.selectedEntity.y - this.selectedEntity.savedPosition.y
-        : restoreDy;
+        const actualDx = hasSavedPosition
+          ? entity.x - entity.savedPosition.x
+          : restoreDx;
+        const actualDy = hasSavedPosition
+          ? entity.y - entity.savedPosition.y
+          : restoreDy;
 
-      if (this.onEntityChanged) {
-        this.onEntityChanged(this.selectedEntity, actualDx, actualDy); // CHANGED: commit device move/resize only once at drag end
+        if (this.onEntityChanged) {
+          this.onEntityChanged(entity, actualDx, actualDy);
+        }
       }
     }
 
@@ -1265,6 +1539,239 @@ if (this.mode === 'door' || this.mode === 'window') {
     }
   }
 
+
+  _findSpaceEdgeAt(x, y, tolerance = 8) {
+    const focusedId   = appState.selection.focusedId;
+    const focusedType = appState.selection.focusedType?.toLowerCase();
+
+    if (!focusedId || (focusedType !== 'space' && focusedType !== 'floor')) {
+      alert('Please select a Space or Floor first before placing a conduit.');
+      return null;
+    }
+
+    // Find the focused shape on the canvas
+    const shape =
+      this.rectangles.find(r => r.id === focusedId) ||
+      this.polygons.find(p => p.id === focusedId) ||
+      this.circles.find(c => c.id === focusedId);
+
+    if (!shape) {
+      alert('Could not find the selected Space or Floor on the canvas.');
+      return null;
+    }
+
+    const edges = this._getShapeEdges(shape);
+    for (const edge of edges) {
+      const dist = this._pointToLineDistance(x, y, edge.x1, edge.y1, edge.x2, edge.y2);
+      if (dist <= tolerance) {
+        return { shape, edge };
+      }
+    }
+
+    alert('Click closer to the edge of the selected Space or Floor.');
+    return null;
+  }
+
+  _getShapeEdges(shape) {
+    if (shape.type === 'rectangle') {
+      const { x, y } = shape;
+      const w = shape.w ?? shape.width;
+      const h = shape.h ?? shape.height;
+      return [
+        { x1: x,     y1: y,     x2: x + w, y2: y     }, // top
+        { x1: x + w, y1: y,     x2: x + w, y2: y + h }, // right
+        { x1: x,     y1: y + h, x2: x + w, y2: y + h }, // bottom
+        { x1: x,     y1: y,     x2: x,     y2: y + h }, // left
+      ];
+    }
+
+    if (shape.type === 'polygon' || shape.type === 'freeform') {
+      const pts = shape.points;
+      if (!pts || pts.length < 2) return [];
+      const edges = [];
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i];
+        const b = pts[(i + 1) % pts.length];
+        edges.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+      }
+      return edges;
+    }
+
+    return [];
+  }
+
+  _findConduitAt(x, y) {
+    for (const conduit of this.conduits) {
+      const dist = Math.hypot(x - conduit.x, y - conduit.y);
+      if (dist <= conduit.radius + 4) return conduit; // +4 for easier clicking
+    }
+    return null;
+  }
+
+  _findRiserAt(x, y) {
+    for (const riser of this.risers) {
+      if (x >= riser.x && x <= riser.x + riser.width &&
+          y >= riser.y && y <= riser.y + riser.height) {
+        return riser;
+      }
+    }
+    return null;
+  }
+
+  _findUndergroundConduitAt(x, y) {
+    for (const undergroundConduit of this.undergroundConduits) {
+      if (x >= undergroundConduit.x && x <= undergroundConduit.x + undergroundConduit.width &&
+          y >= undergroundConduit.y && y <= undergroundConduit.y + undergroundConduit.height) {
+        return undergroundConduit;
+      }
+    }
+    return null;
+  }
+
+  _projectPointOntoShapeEdges(x, y, shape) {
+    const edges = this._getShapeEdges(shape);
+    let bestPoint = null;
+    let bestDist = Infinity;
+
+    for (const edge of edges) {
+      const dx = edge.x2 - edge.x1;
+      const dy = edge.y2 - edge.y1;
+      const lenSq = dx * dx + dy * dy;
+      if (lenSq === 0) continue;
+
+      const t = Math.max(0, Math.min(1,
+        ((x - edge.x1) * dx + (y - edge.y1) * dy) / lenSq
+      ));
+
+      const projX = edge.x1 + t * dx;
+      const projY = edge.y1 + t * dy;
+      const dist = Math.hypot(x - projX, y - projY);
+
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestPoint = { x: projX, y: projY };
+      }
+    }
+
+    return bestPoint;
+  }
+
+  _placeConduitAt(clickX, clickY) {
+    const hit = this._findSpaceEdgeAt(clickX, clickY);
+    if (!hit) {
+      alert('Conduits must be placed on the edge of a Space or Floor.');
+      return null;
+    }
+
+    const { shape, edge } = hit;
+
+    // Snap to the closest point on the edge
+    const dx = edge.x2 - edge.x1, dy = edge.y2 - edge.y1;
+    const lenSq = dx * dx + dy * dy;
+    const t = lenSq > 0
+      ? Math.max(0, Math.min(1, ((clickX - edge.x1) * dx + (clickY - edge.y1) * dy) / lenSq))
+      : 0;
+    const snappedX = edge.x1 + t * dx;
+    const snappedY = edge.y1 + t * dy;
+
+    const conduit = this.shapeCreator.createConduit(snappedX, snappedY);
+    if (conduit) {
+      conduit.floorId = shape.floorId || null;
+      conduit.spaceId = shape.structureType === 'space' ? shape.id : null;
+      conduit.parentShapeId = shape.id;
+      this.conduits.push(conduit);
+    }
+    return conduit;
+  }
+
+  _placeRiserAt(clickX, clickY) {
+    const focusedId   = appState.selection.focusedId;
+    const focusedType = appState.selection.focusedType?.toLowerCase();
+    
+    console.log(focusedType);
+
+    if (!focusedId || (focusedType !== 'space' && focusedType !== 'floor')) {
+      alert('Please select a Space or Floor first before placing a Riser.');
+      return null;
+    }
+
+    const space = appState.structural.spaces.find(space => space.id === focusedId);
+
+    const parentShape =
+      this.rectangles.find(r => r.id === focusedId) ||
+      this.polygons.find(p => p.id === focusedId);
+
+    if (!parentShape) {
+      alert('Could not find the selected Space or Floor on the canvas.');
+      return null;
+    }
+
+    const edges = this._getShapeEdges(parentShape);
+    const bounds = {
+      minX: Math.min(...edges.map(e => Math.min(e.x1, e.x2))),
+      minY: Math.min(...edges.map(e => Math.min(e.y1, e.y2))),
+      maxX: Math.max(...edges.map(e => Math.max(e.x1, e.x2))),
+      maxY: Math.max(...edges.map(e => Math.max(e.y1, e.y2))),
+    };
+
+    if (clickX < bounds.minX || clickX > bounds.maxX ||
+        clickY < bounds.minY || clickY > bounds.maxY) {
+      alert('Risers must be placed inside a Space or Floor.');
+      return null;
+    }
+
+    parentShape.floorId = space.floorId;
+
+    const riser = this.shapeCreator.createRiser(clickX, clickY, 5, 5);
+    if (riser) {
+      riser.floorId       = parentShape.floorId || null;
+      riser.spaceId       = parentShape.structureType === 'space' ? parentShape.id : null;
+      riser.parentShapeId = parentShape.id;  // ← this is what was missing
+      this.risers.push(riser);
+    }
+    return riser;
+  }
+
+  _placeUndergroundConduitAt(clickX, clickY) {
+    const focusedId   = appState.selection.focusedId;
+    const focusedType = appState.selection.focusedType?.toLowerCase();
+
+    if (!focusedId || (focusedType !== 'site')) {
+      alert('Please select a Site first before placing an Underground Conduit.');
+      return null;
+    }
+
+    const parentShape =
+      this.rectangles.find(r => r.id === focusedId) ||
+      this.polygons.find(p => p.id === focusedId);
+
+    if (!parentShape) {
+      alert('Could not find the selected Space or Floor on the canvas.');
+      return null;
+    }
+
+    const edges = this._getShapeEdges(parentShape);
+    const bounds = {
+      minX: Math.min(...edges.map(e => Math.min(e.x1, e.x2))),
+      minY: Math.min(...edges.map(e => Math.min(e.y1, e.y2))),
+      maxX: Math.max(...edges.map(e => Math.max(e.x1, e.x2))),
+      maxY: Math.max(...edges.map(e => Math.max(e.y1, e.y2))),
+    };
+
+    if (clickX < bounds.minX || clickX > bounds.maxX ||
+        clickY < bounds.minY || clickY > bounds.maxY) {
+      alert('Underground Conduits must be placed inside a Site.');
+      return null;
+    }
+
+    const undergroundConduit = this.shapeCreator.createUndergroundConduit(clickX, clickY);
+    if (undergroundConduit) {
+      undergroundConduit.siteId = parentShape.id;
+      undergroundConduit.parentShapeId = parentShape.id;
+      this.undergroundConduits.push(undergroundConduit);
+    }
+    return undergroundConduit;
+  }
 
   _createShapeFromMode() {
     const activeFloor =
@@ -1393,6 +1900,12 @@ if (this.mode === 'door' || this.mode === 'window') {
           }
         }
       }
+    } else if (this.mode === 'conduit') {
+      this._placeConduitAt(this.currentPoint.x, this.currentPoint.y);
+    } else if (this.mode === 'riser') {
+      this._placeRiserAt(this.currentPoint.x, this.currentPoint.y);
+    } else if (this.mode === 'underground-conduit') {
+      this._placeUndergroundConduitAt(this.currentPoint.x, this.currentPoint.y);
     }
   }
 
@@ -1423,40 +1936,42 @@ if (this.mode === 'door' || this.mode === 'window') {
         if (!srcOnFloor || !dstOnFloor) continue;
       }
 
+      const resolvedPath = this.routeManager?.getPath(cable.id);
+      const isPartial = resolvedPath?.isPartial ?? false;
       ctx.beginPath();
-
-      if (cable.type === "console") {
-        ctx.strokeStyle = "#007BFF";
-        ctx.setLineDash([]);
-
-        const midX = (src.x + dst.x) / 2;
-        const midY = (src.y + dst.y) / 2 - 40;
-
-        ctx.moveTo(src.x, src.y);
-        ctx.quadraticCurveTo(midX, midY, dst.x, dst.y);
+      if (resolvedPath && !resolvedPath.isDirect && resolvedPath.canvasPoints.length >= 2) {
+        // Draw segmented route through conduits/risers
+        const pts = resolvedPath.canvasPoints;
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) {
+          ctx.lineTo(pts[i].x, pts[i].y);
+        }
+      } else {
+        // Fallback: straight line (same space or not yet resolved)
+        if (cable.type === 'console') {
+          const midX = (src.x + dst.x) / 2;
+          const midY = (src.y + dst.y) / 2 - 40;
+          ctx.moveTo(src.x, src.y);
+          ctx.quadraticCurveTo(midX, midY, dst.x, dst.y);
+        } else {
+          ctx.moveTo(src.x, src.y);
+          ctx.lineTo(dst.x, dst.y);
+        }
       }
 
-      else if (cable.type === "copper-crossover") {
-        ctx.strokeStyle = "#000000";
+      if (isPartial) {
+        ctx.strokeStyle = '#f97316'; // orange = missing pathway warning
+        ctx.setLineDash([6, 3]);
+      } else if (cable.type === 'copper-crossover') {
+        ctx.strokeStyle = '#000000';
         ctx.setLineDash([6, 4]);
-        ctx.moveTo(src.x, src.y);
-        ctx.lineTo(dst.x, dst.y);
-      }
-
-      else if (cable.type === "copper-straight") {
-        ctx.strokeStyle = "#000000";
+      } else if (cable.type === 'console') {
+        ctx.strokeStyle = '#007BFF';
         ctx.setLineDash([]);
-        ctx.moveTo(src.x, src.y);
-        ctx.lineTo(dst.x, dst.y);
-      }
-
-      else {
-        ctx.strokeStyle = "#000000";
+      } else {
+        ctx.strokeStyle = '#000000';
         ctx.setLineDash([]);
-        ctx.moveTo(src.x, src.y);
-        ctx.lineTo(dst.x, dst.y);
       }
-
       ctx.stroke();
     }
 
@@ -1557,8 +2072,8 @@ if (this.mode === 'door' || this.mode === 'window') {
 
     ctx.save();
     for (const device of filterForFloor(this.devices)) {
-      ctx.fillStyle = '#ffffff';
-      ctx.strokeStyle = '#cbd5e1';
+      ctx.fillStyle = '#ffffff00';
+      ctx.strokeStyle = '#cbd5e100';
       ctx.lineWidth = 1;
 
       ctx.beginPath();
@@ -1581,8 +2096,8 @@ if (this.mode === 'door' || this.mode === 'window') {
       const tx = furniture.x - tileW / 2;
       const ty = furniture.y - tileH / 2.5;
 
-      ctx.fillStyle = '#ffffff';
-      ctx.strokeStyle = '#cbd5e1';
+      ctx.fillStyle = '#ffffff00';
+      ctx.strokeStyle = '#cbd5e100';
       ctx.lineWidth = 1;
 
       ctx.beginPath();
@@ -1595,18 +2110,21 @@ if (this.mode === 'door' || this.mode === 'window') {
     this.shapeRenderer.renderDevices(ctx, filterForFloor(this.devices));
     this.shapeRenderer.renderFurnitures(ctx, filterForFloor(this.furnitures));
 
-    if (this.selectedEntity && this.selectedEntity.sourceId) {
-      const cable = this.selectedEntity;
-      const src = this.findEntityById(cable.sourceId);
-      const dst = this.findEntityById(cable.targetId);
+    const entitiesToOutline = this.selectedEntities?.length
+      ? this.selectedEntities
+      : (this.selectedEntity ? [this.selectedEntity] : []);
+
+    for (const selected of entitiesToOutline) {
+      if (!selected?.sourceId) continue;
+
+      const src = this.findEntityById(selected.sourceId);
+      const dst = this.findEntityById(selected.targetId);
 
       if (src && dst) {
-
         ctx.save();
         ctx.strokeStyle = "#00AEEF";
         ctx.lineWidth = 4;
         ctx.setLineDash([4, 4]);
-
         ctx.beginPath();
         ctx.moveTo(src.x, src.y);
         ctx.lineTo(dst.x, dst.y);
@@ -1689,270 +2207,225 @@ else if (this.startPoint && this.currentPoint) {
       } else if (this.mode === 'cable') {
         this.shapeRenderer.outlineCable(ctx, this.startPoint, this.currentPoint);
       }
+
       ctx.restore();
     }
 
-    if (this.selectedEntity && !this.selectedEntity.sourceId) {
-      const en = this.selectedEntity;
-      const bounds = this._getEntityInteractionBounds(en); // CHANGED: use the same bounds logic for shapes, devices, and furniture
+    ctx.save();
+    for (const conduit of filterForFloor(this.conduits)) {
+      const isSelected = this.selectedEntity?.id === conduit.id ||
+        this.selectedEntities?.some(e => e?.id === conduit.id);
 
+      if (isSelected) {
+        ctx.beginPath();
+        ctx.arc(conduit.x, conduit.y, conduit.radius + 5, 0, Math.PI * 2);
+        ctx.strokeStyle = '#00AEEF';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      ctx.beginPath();
+      ctx.arc(conduit.x, conduit.y, conduit.radius, 0, Math.PI * 2);
+      ctx.fillStyle = isSelected ? '#e2e8f0' : '#000000';
+      ctx.strokeStyle = isSelected ? '#00AEEF' : '#000000';
+      ctx.lineWidth = isSelected ? 2 : 4;
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.save();
+    for (const riser of filterForFloor(this.risers)) {
+      const isSelected = this.selectedEntity?.id === riser.id ||
+        this.selectedEntities?.some(e => e?.id === riser.id);
+
+      if (isSelected) {
+        ctx.beginPath();
+        ctx.rect(riser.x - 3, riser.y - 3, riser.width + 6, riser.height + 6);
+        ctx.strokeStyle = '#00AEEF';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = isSelected ? '#00AEEF' : '#000000';
+      ctx.lineWidth = isSelected ? 2 : 1.5;
+      ctx.stroke(riser.path);
+    }
+    ctx.restore();
+
+    ctx.save();
+    for (const undergroundConduit of this.undergroundConduits) {
+      const isSelected = this.selectedEntity?.id === undergroundConduit.id ||
+        this.selectedEntities?.some(e => e?.id === undergroundConduit.id);
+
+      ctx.beginPath();
+      ctx.arc(undergroundConduit.x, undergroundConduit.y, undergroundConduit.radius, 0, Math.PI * 2);
+      ctx.fillStyle = isSelected ? '#e2e8f0' : '#000000';
+      ctx.strokeStyle = isSelected ? '#00AEEF' : '#000000';
+      ctx.lineWidth = isSelected ? 2 : 4;
+      ctx.fill();
+      ctx.stroke(undergroundConduit.path);
+    }
+    ctx.restore();
+
+    for (const en of entitiesToOutline) {
+      if (!en || en.sourceId) continue;
+
+      const bounds = this._getEntityInteractionBounds(en);
       const x = bounds?.x;
       const y = bounds?.y;
       const w = bounds?.w;
       const h = bounds?.h;
-
-      // For circles, we only need x, y, and radius defined
       const isCircle = en.type === 'circle' && en.r !== undefined;
+      const isFocused = this.selectedEntity?.id === en.id;
 
       if (isCircle || (x !== undefined && w !== undefined)) {
         ctx.save();
         ctx.strokeStyle = "#00AEEF";
-        ctx.lineWidth = 2;
+        ctx.lineWidth = isFocused ? 2 : 1.5;
 
-        // Draw selection indicators
         if (isCircle) {
-          // For circles, draw a circle outline
           ctx.beginPath();
           ctx.arc(en.x, en.y, en.r, 0, Math.PI * 2);
           ctx.stroke();
 
-          // Draw handles at cardinal points
-          const size = 8;
-          const handles = [
-            [en.x, en.y - en.r],     // top
-            [en.x, en.y + en.r],     // bottom
-            [en.x - en.r, en.y],     // left
-            [en.x + en.r, en.y]      // right
-          ];
+          if (isFocused) {
+            const size = 8;
+            const handles = [
+              [en.x, en.y - en.r],
+              [en.x, en.y + en.r],
+              [en.x - en.r, en.y],
+              [en.x + en.r, en.y]
+            ];
 
-          ctx.fillStyle = "#00AEEF";
-          handles.forEach(([hx, hy]) => {
-            ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
-          });
+            ctx.fillStyle = "#00AEEF";
+            handles.forEach(([hx, hy]) => {
+              ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
+            });
+          }
         } else {
-          // For rectangles, draw bounding box
           ctx.strokeRect(x, y, w, h);
 
-          const size = 8;
-          const handles = [
-            [x, y], [x + w, y], [x, y + h], [x + w, y + h]
-          ];
+          if (isFocused) {
+            const size = 8;
+            const handles = [
+              [x, y], [x + w, y], [x, y + h], [x + w, y + h]
+            ];
 
-          ctx.fillStyle = "#00AEEF";
-          handles.forEach(([hx, hy]) => {
-            ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
-          });
+            ctx.fillStyle = "#00AEEF";
+            handles.forEach(([hx, hy]) => {
+              ctx.fillRect(hx - size / 2, hy - size / 2, size, size);
+            });
+          }
         }
 
-        if (this.hoveredCable && this.mode === 'select') {
-          const cable = this.hoveredCable;
-          const src = this.findEntityById(cable.sourceId);
-          const dst = this.findEntityById(cable.targetId);
+        if (isFocused) {
+          const isStructural = ['rectangle', 'site', 'domain', 'space', 'polygon', 'freeform', 'circle'].includes(en.type);
 
-          if (src && dst) {
-            ctx.save();
-
-            // 1. Highlight the hovered line so the user knows which one they are looking at
-            ctx.strokeStyle = "rgba(0, 174, 239, 0.4)";
-            ctx.lineWidth = 6;
-            ctx.beginPath();
-            ctx.moveTo(src.x, src.y);
-            ctx.lineTo(dst.x, dst.y);
-            ctx.stroke();
-
-            // 2. Setup text styling
-            ctx.font = "bold 12px Arial";
+          if (isStructural) {
+            ctx.fillStyle = "black";
+            ctx.font = "bold 14px Arial";
             ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
 
-            // Helper to draw a clean UI badge
-            const drawPortBadge = (x, y, text) => {
-              if (!text) return;
-              // Handle both string IDs or object structures depending on your state
-              const displayStr = typeof text === 'object' ? (text.name || text.id || "port") : text;
+            if (en.type === 'circle' && en.r !== undefined) {
+              const diameter = en.r * 2;
+              const circumference = 2 * Math.PI * en.r;
 
-              const textMetrics = ctx.measureText(displayStr);
-              const bgW = textMetrics.width + 12; // 6px padding sides
-              const bgH = 20; // fixed height
+              const diameterInMeters = UnitSystem.format(GridScale.toMeters(diameter), 'm');
+              const circumferenceInMeters = UnitSystem.format(GridScale.toMeters(circumference), 'm');
 
-              ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-              ctx.strokeStyle = "#94a3b8"; // subtle border
-              ctx.lineWidth = 1;
+              ctx.fillText(`Ø ${diameterInMeters}`, en.x, en.y - en.r - 20);
+              ctx.fillText(`C ${circumferenceInMeters}`, en.x, en.y + en.r + 35);
+            } else if (en.points && en.points.length > 1) {
+              for (let i = 0; i < en.points.length; i++) {
+                const p1 = en.points[i];
+                const p2 = en.points[(i + 1) % en.points.length];
+                const dx = p2.x - p1.x;
+                const dy = p2.y - p1.y;
+                const pixelDistance = Math.sqrt(dx * dx + dy * dy);
+                const meters = UnitSystem.format(GridScale.toMeters(pixelDistance), 'm');
+                const midX = (p1.x + p2.x) / 2;
+                const midY = (p1.y + p2.y) / 2;
 
-              ctx.beginPath();
-              ctx.roundRect(x - bgW / 2, y - bgH / 2, bgW, bgH, 4);
-              ctx.fill();
-              ctx.stroke();
+                let angle = Math.atan2(dy, dx);
+                if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
+                  angle += Math.PI;
+                }
 
-              ctx.fillStyle = "#0f172a";
-              ctx.fillText(displayStr, x, y);
-            };
-
-            // 3. Calculate Geometry to offset labels from device centers
-            const dx = dst.x - src.x;
-            const dy = dst.y - src.y;
-            const angle = Math.atan2(dy, dx);
-
-            // Push the label 40 pixels out from the absolute center of the device
-            const offset = 40;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-
-            // Only render badges if the devices are far enough apart (prevents text overlap)
-            if (dist > offset * 2.5) {
-              const srcBadgeX = src.x + Math.cos(angle) * offset;
-              const srcBadgeY = src.y + Math.sin(angle) * offset;
-              drawPortBadge(srcBadgeX, srcBadgeY, cable.sourcePort);
-
-              const dstBadgeX = dst.x - Math.cos(angle) * offset;
-              const dstBadgeY = dst.y - Math.sin(angle) * offset;
-              drawPortBadge(dstBadgeX, dstBadgeY, cable.targetPort);
-            }
-
-            ctx.restore();
-          }
-        }
-
-        if (this.hoveredCable && this.mode === 'select') {
-          const cable = this.hoveredCable;
-          const src = this.findEntityById(cable.sourceId);
-          const dst = this.findEntityById(cable.targetId);
-
-          if (src && dst) {
-            ctx.save();
-
-            // 1. Highlight the hovered line so the user knows which one they are looking at
-            ctx.strokeStyle = "rgba(0, 174, 239, 0.4)";
-            ctx.lineWidth = 6;
-            ctx.beginPath();
-            ctx.moveTo(src.x, src.y);
-            ctx.lineTo(dst.x, dst.y);
-            ctx.stroke();
-
-            // 2. Setup text styling
-            ctx.font = "bold 12px Arial";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-
-            // Helper to draw a clean UI badge
-            const drawPortBadge = (x, y, text) => {
-              if (!text) return;
-              // Handle both string IDs or object structures depending on your state
-              const displayStr = typeof text === 'object' ? (text.name || text.id || "port") : text;
-
-              const textMetrics = ctx.measureText(displayStr);
-              const bgW = textMetrics.width + 12; // 6px padding sides
-              const bgH = 20; // fixed height
-
-              ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-              ctx.strokeStyle = "#94a3b8"; // subtle border
-              ctx.lineWidth = 1;
-
-              ctx.beginPath();
-              ctx.roundRect(x - bgW / 2, y - bgH / 2, bgW, bgH, 4);
-              ctx.fill();
-              ctx.stroke();
-
-              ctx.fillStyle = "#0f172a";
-              ctx.fillText(displayStr, x, y);
-            };
-
-            // 3. Calculate Geometry to offset labels from device centers
-            const dx = dst.x - src.x;
-            const dy = dst.y - src.y;
-            const angle = Math.atan2(dy, dx);
-
-            // Push the label 40 pixels out from the absolute center of the device
-            const offset = 40;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-
-            // Only render badges if the devices are far enough apart (prevents text overlap)
-            if (dist > offset * 2.5) {
-              const srcBadgeX = src.x + Math.cos(angle) * offset;
-              const srcBadgeY = src.y + Math.sin(angle) * offset;
-              drawPortBadge(srcBadgeX, srcBadgeY, cable.sourcePort);
-
-              const dstBadgeX = dst.x - Math.cos(angle) * offset;
-              const dstBadgeY = dst.y - Math.sin(angle) * offset;
-              drawPortBadge(dstBadgeX, dstBadgeY, cable.targetPort);
-            }
-
-            ctx.restore();
-          }
-        }
-
-        const isStructural = ['rectangle', 'site', 'domain', 'space', 'polygon', 'freeform', 'circle'].includes(en.type);
-
-        if (isStructural) {
-          ctx.fillStyle = "black";
-          ctx.font = "bold 14px Arial";
-          ctx.textAlign = "center";
-
-          // CIRCLE LOGIC: Display diameter and circumference
-          if (en.type === 'circle' && en.r !== undefined) {
-            const diameter = en.r * 2;
-            const circumference = 2 * Math.PI * en.r;
-
-            const diameterInMeters = UnitSystem.format(GridScale.toMeters(diameter), 'm');
-            const circumferenceInMeters = UnitSystem.format(GridScale.toMeters(circumference), 'm');
-
-            // Diameter label at the top
-            ctx.fillText(`Ø ${diameterInMeters}`, en.x, en.y - en.r - 20);
-
-            // Circumference label at the bottom
-            ctx.fillText(`C ${circumferenceInMeters}`, en.x, en.y + en.r + 35);
-          }
-
-          else if (en.points && en.points.length > 1) {
-
-            // PERIMETER LOGIC FOR ANY CUSTOM SHAPE
-            for (let i = 0; i < en.points.length; i++) {
-              const p1 = en.points[i];
-              const p2 = en.points[(i + 1) % en.points.length];
-
-              const dx = p2.x - p1.x;
-              const dy = p2.y - p1.y;
-              const pixelDistance = Math.sqrt(dx * dx + dy * dy);
-
-              const meters = UnitSystem.format(GridScale.toMeters(pixelDistance), 'm');
-
-              const midX = (p1.x + p2.x) / 2;
-              const midY = (p1.y + p2.y) / 2;
-
-              let angle = Math.atan2(dy, dx);
-
-              if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
-                angle += Math.PI;
+                ctx.save();
+                ctx.translate(midX, midY);
+                ctx.rotate(angle);
+                ctx.fillText(meters, 0, -8);
+                ctx.restore();
+              }
+            } else {
+              if (w !== undefined) {
+                const widthInMeters = UnitSystem.format(GridScale.toMeters(w), 'm');
+                ctx.fillText(widthInMeters, x + (w / 2), y - 15);
               }
 
-              ctx.save();
-              ctx.translate(midX, midY);
-              ctx.rotate(angle);
-              ctx.fillText(meters, 0, -8);
-              ctx.restore();
-            }
-          } else {
-            // BOUNDING BOX LOGIC FOR STANDARD WxH RECTANGLES
-            let boxX = x;
-            let boxY = y;
-            let boxW = w;
-            let boxH = h;
-
-            // Top Label: Overall Width
-            if (boxW !== undefined) {
-              const widthInMeters = UnitSystem.format(GridScale.toMeters(boxW), 'm');
-              ctx.fillText(widthInMeters, boxX + (boxW / 2), boxY - 15);
-            }
-
-            // Right Label: Overall Height
-            if (boxH !== undefined) {
-              const heightInMeters = UnitSystem.format(GridScale.toMeters(boxH), 'm');
-              ctx.save();
-              ctx.translate(boxX + boxW + 20, boxY + (boxH / 2));
-              ctx.rotate(Math.PI / 2);
-              ctx.fillText(heightInMeters, 0, 0);
-              ctx.restore();
+              if (h !== undefined) {
+                const heightInMeters = UnitSystem.format(GridScale.toMeters(h), 'm');
+                ctx.save();
+                ctx.translate(x + w + 20, y + (h / 2));
+                ctx.rotate(Math.PI / 2);
+                ctx.fillText(heightInMeters, 0, 0);
+                ctx.restore();
+              }
             }
           }
+        }
+
+            ctx.restore();
+          }
+        }
+
+    if (this.hoveredCable && this.mode === 'select') {
+      const cable = this.hoveredCable;
+      const src = this.findEntityById(cable.sourceId);
+      const dst = this.findEntityById(cable.targetId);
+
+      if (src && dst) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(0, 174, 239, 0.4)";
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(dst.x, dst.y);
+        ctx.stroke();
+
+        ctx.font = "bold 12px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        const drawPortBadge = (x, y, text) => {
+          if (!text) return;
+          const displayStr = typeof text === 'object' ? (text.name || text.id || "port") : text;
+          const textMetrics = ctx.measureText(displayStr);
+          const bgW = textMetrics.width + 12;
+          const bgH = 20;
+
+          ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+          ctx.strokeStyle = "#94a3b8";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(x - bgW / 2, y - bgH / 2, bgW, bgH, 4);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = "#0f172a";
+          ctx.fillText(displayStr, x, y);
+        };
+
+        const dx = dst.x - src.x;
+        const dy = dst.y - src.y;
+        const angle = Math.atan2(dy, dx);
+        const offset = 40;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > offset * 2.5) {
+          drawPortBadge(src.x + Math.cos(angle) * offset, src.y + Math.sin(angle) * offset, cable.sourcePort);
+          drawPortBadge(dst.x - Math.cos(angle) * offset, dst.y - Math.sin(angle) * offset, cable.targetPort);
         }
 
         ctx.restore();
@@ -2037,7 +2510,10 @@ else if (this.startPoint && this.currentPoint) {
       this.windows,
       this.roofs,
       this.freeforms,
-      this.furnitures
+      this.furnitures,
+      this.conduits,
+      this.risers,
+      this.undergroundConduits
     ];
   }
 
@@ -2072,7 +2548,7 @@ else if (this.startPoint && this.currentPoint) {
     // 3. Find and splice the entity from its array
     let entityToRemove = null;
     const targetArrays = ['rectangles', 'circles', 'polygons', 'freeforms',
-      'devices', 'furnitures', 'cables', 'walls'];
+                          'devices', 'furnitures', 'cables', 'walls', 'conduits', 'risers', 'undergroundConduits'];
 
     for (const arrName of targetArrays) {
       if (!this[arrName]) continue;
@@ -2138,7 +2614,9 @@ else if (this.startPoint && this.currentPoint) {
     return false;
   }
 
-  identifyEntity(x, y) {
+  identifyEntity(x, y, options = {}) {
+    const multiSelect = !!options.multiSelect;
+
     for (const cable of this.cables) {
       const src = this.findEntityById(cable.sourceId);
       const dst = this.findEntityById(cable.targetId);
@@ -2146,15 +2624,7 @@ else if (this.startPoint && this.currentPoint) {
 
       // Re-use our optimized hit test with a generous 8px click radius
       if (this._hitTestCable(x, y, src, dst, 8)) {
-        this.selectedEntity = cable;
-
-        // Temporarily notify the state so the Controller can intercept it
-        appState.selection.focusedId = cable.id;
-        appState.selection.focusedType = 'cable';
-
-        if (this.onEntitySelected) this.onEntitySelected(cable);
-        this._render();
-        return cable;
+        return this._applySelectionForEntity(cable, multiSelect);
       }
     }
 
@@ -2187,29 +2657,94 @@ else if (this.startPoint && this.currentPoint) {
     if (!en) {
       const structuralEntities = [
         this.rectangles, this.polygons, this.circles,
-        this.walls, this.doors, this.windows, this.roofs, this.freeforms
+        this.walls, this.doors, this.windows, this.roofs, this.freeforms,
+        this.undergroundConduits
       ];
       en = this.selection.identifyEntity(x, y, structuralEntities, this.ctx);
     }
+    
+    if (!en) {
+      this.selectedEntity = null;
 
+      if (!multiSelect) {
+        appState.selection.clearSelection?.();
+        if (this.onEntitySelected) this.onEntitySelected(null);
+        this._render();
+      }
+
+      return { entity: null, selectionOnly: multiSelect };
+    }
+
+    return this._applySelectionForEntity(en, multiSelect);
+  }
+
+  _applySelectionForEntity(en, multiSelect = false) {
     this.selectedEntity = en || null;
 
-    if (en) {
-      if (en.structureType) {
-        appState.selection.focusedId = en.id;
-        appState.selection.focusedType = en.structureType.toLowerCase();
-        appState.selection.notify?.();
+    if (!en) {
+      if (this.onEntitySelected) this.onEntitySelected(null);
+      this._render();
+      return { entity: null, selectionOnly: false };
+    }
+
+    const selectionCount = appState.selection.getSelectionCount?.() ?? 0;
+    const preserveExistingGroup =
+      !multiSelect &&
+      selectionCount > 1 &&
+      (
+        (en.sourceId && en.targetId && appState.selection.isLinkSelected?.(en.id)) ||
+        (this._isFurnitureEntity(en) && appState.selection.isFurnitureSelected?.(en.id)) ||
+        (!en.structureType && !this._isFurnitureEntity(en) && !en.sourceId && appState.selection.isDeviceSelected?.(en.id))
+      );
+
+    if (preserveExistingGroup) {
+      const focusType = en.sourceId && en.targetId
+        ? 'cable'
+        : this._isFurnitureEntity(en)
+          ? 'furniture'
+          : 'device';
+
+      appState.selection.focusSelection?.(en.id, focusType);
+      if (this.onEntitySelected) this.onEntitySelected(this.selectedEntity);
+      this._render();
+      return {
+        entity: this.selectedEntity,
+        selectionOnly: false
+      };
+    }
+
+    if (en.structureType) {
+      appState.selection.focusedNode(en.id, en.structureType.toLowerCase());
+    } else if (en.sourceId && en.targetId) {
+      if (multiSelect) {
+        const stillSelected = appState.selection.toggleLinkSelection?.(en.id);
+        this.selectedEntity = stillSelected ? en : this.findEntityById(appState.selection.getFocusedId?.());
+      } else {
+        appState.selection.selectLink?.(en.id, false);
+      }
+    } else if (this._isFurnitureEntity(en)) {
+      if (multiSelect) {
+        const stillSelected = appState.selection.toggleFurnitureSelection?.(en.id);
+        this.selectedEntity = stillSelected ? en : this.findEntityById(appState.selection.getFocusedId?.());
+      } else {
+        appState.selection.selectFurniture?.(en.id, false);
+      }
+    } else {
+      if (multiSelect) {
+        const stillSelected = appState.selection.toggleDeviceSelection?.(en.id);
+        this.selectedEntity = stillSelected ? en : this.findEntityById(appState.selection.getFocusedId?.());
       } else {
         appState.selection.selectDevice?.(en.id, false);
       }
-    } else {
-      appState.selection.clearSelection?.();
     }
 
-    if (this.onEntitySelected) this.onEntitySelected(en);
+    if (this.onEntitySelected) this.onEntitySelected(this.selectedEntity);
 
     this._render();
-    return en;
+    return {
+      entity: multiSelect ? null : this.selectedEntity,
+      selectionOnly: multiSelect
+    };
   }
 
   setZoom(zoom) {
@@ -2346,9 +2881,15 @@ else if (this.startPoint && this.currentPoint) {
   _getEntityInteractionBounds(en) {
     if (!en) return null;
 
+    if (en.type === 'conduit') return null;
+
+    if (en.type === 'riser') return null;
+
+    if (en.type === 'undergroundConduit') return null;
+
     if (this._isDeviceEntity(en)) {
       return {
-        x: en.tileX,       // ADDED: devices are drawn/hit-tested using tile bounds, not raw x/y/w/h
+        x: en.tileX,
         y: en.tileY,
         w: en.tileWidth,
         h: en.tileHeight

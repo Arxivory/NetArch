@@ -36,6 +36,9 @@ import { cables, PORT_TYPES } from '../../data/deviceCatalog.js';
 export function validateConnection({ cableType, sourcePort, targetPort }) {
   const warnings = [];
 
+  console.log('Validating: ', { cableType, sourcePort, targetPort });
+
+
   // ── Guard: ports must exist ────────────────────────────────────────────────
   if (!sourcePort || !targetPort) {
     return _fail('Please select a specific port on both devices.');

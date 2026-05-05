@@ -23,7 +23,7 @@ export default function QoSModal({ onClose, deviceName = "Switch", deviceLocatio
 
   return createPortal(
     <div className="config-modal-overlay qos-modal-layer">
-      <div className="nat-sidebar-layout">
+      <div className="config-modal-content nat-sidebar-layout">
 
         <div className="nat-sidebar">
           <div className="sidebar-header">

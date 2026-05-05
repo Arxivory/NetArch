@@ -668,6 +668,46 @@ export class LogicalLayout {
       const zoom = this.pointerHandler.getZoom();
       const worldPos = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
       const multiSelect = e.ctrlKey || e.metaKey || e.shiftKey;
+
+      // FIX 2 – Scaling Hijack: If an entity is already selected and the pointer is
+      // over one of its resize handles, begin the resize immediately and skip the
+      // re-selection step entirely.  This prevents a parent shape from being
+      // selected instead of handling the child's scale handle.
+      if (this.selectedEntity && this._isResizableEntity(this.selectedEntity)) {
+        const prevBounds = this._getEntityInteractionBounds(this.selectedEntity);
+        if (prevBounds) {
+          const { x: bx, y: by, w: bw, h: bh } = prevBounds;
+          const handleSize = 8;
+          const candidateHandles = {
+            nw: [bx,        by       ],
+            ne: [bx + bw,   by       ],
+            sw: [bx,        by + bh  ],
+            se: [bx + bw,   by + bh  ]
+          };
+          for (const [key, [hx, hy]] of Object.entries(candidateHandles)) {
+            if (Math.abs(worldPos.x - hx) < handleSize &&
+                Math.abs(worldPos.y - hy) < handleSize) {
+              if (this.selectedEntity.saveCurrentScale) {
+                this.selectedEntity.saveCurrentScale();
+              }
+              if (this.selectedEntity.saveCurrentPosition) {
+                this.selectedEntity.saveCurrentPosition();
+              }
+              this.interaction = {
+                mode: 'resize',
+                handle: key,
+                start: { x: worldPos.x, y: worldPos.y },
+                bounds: prevBounds,
+                center: { x: bx + bw / 2, y: by + bh / 2 },
+                baseScale: this.selectedEntity.transform?.scale?.factor ?? 1
+              };
+              this.pointerHandler.setPointerDown(true);
+              return; // ← stop here; no parent can hijack this interaction
+            }
+          }
+        }
+      }
+
       const selectionResult = this.identifyEntity(worldPos.x, worldPos.y, {multiSelect});
       // console.log('[DOWN] identifyEntity result:', en?.id, en?.type, en?.entityType, { multiSelect });
       console.log('[DOWN] identifyEntity result:', selectionResult?.id, selectionResult?.type, selectionResult?.entityType, { multiSelect });
@@ -712,10 +752,40 @@ export class LogicalLayout {
         return;
       }
 
-      const en = selectionResult.entity;
-      if (!en) {
-        return;
-      }
+      let en = selectionResult?.entity;
+
+// ✅ FALLBACK: manually detect structural shapes if identifyEntity fails
+if (!en) {
+  const allStructures = [
+    ...this.rectangles,
+    ...this.polygons,
+    ...this.circles,
+    ...this.freeforms
+  ];
+
+  for (let i = allStructures.length - 1; i >= 0; i--) {
+    const candidate = allStructures[i];
+
+    if (!candidate) continue;
+
+    const type =
+      candidate.structureType ??
+      candidate.structType ??
+      candidate.body?.structType;
+
+    if (!type) continue;
+
+    if (this.isPointInsideShape(candidate.id, worldPos.x, worldPos.y)) {
+      en = candidate;
+      break;
+    }
+  }
+}
+
+// ❌ If STILL nothing → then return
+if (!en) {
+  return;
+}
 
       // --- NEW: SMART CABLE DETACHMENT ---
       // If the selected entity is a cable (has sourceId and targetId)
@@ -2644,15 +2714,49 @@ else if (this.startPoint && this.currentPoint) {
       }
     }
 
-    // Only fall back to the canvas path-based hit-test for structural shapes
-    // (rectangles, polygons, circles etc.) if no device/furniture was hit.
+    // FIX 1 – Selection Priority: Collect ALL structural shape hits under the pointer
+    // and return the deepest one (Space > Floor > Site > Domain) so children always
+    // win over their parent containers when they overlap.
     if (!en) {
-      const structuralEntities = [
+      const STRUCTURE_DEPTH = { space: 4, floor: 3, site: 2, domain: 1 };
+
+      const structuralArrays = [
         this.rectangles, this.polygons, this.circles,
         this.walls, this.doors, this.windows, this.roofs, this.freeforms,
         this.undergroundConduits
       ];
-      en = this.selection.identifyEntity(x, y, structuralEntities, this.ctx);
+
+      let bestMatch = null;
+      let bestDepth = -Infinity;
+
+      for (const arr of structuralArrays) {
+        if (!arr) continue;
+        for (const entity of arr) {
+          if (!entity) continue;
+
+          // Prefer the path-based hit-test (exact perimeter), fall back to AABB.
+          let hit = false;
+          if (entity.path && this.ctx) {
+            hit = this.ctx.isPointInPath(entity.path, x, y);
+          } else {
+            const bounds = this._getEntityBounds(entity);
+            if (bounds) {
+              hit = x >= bounds.minX && x <= bounds.maxX &&
+                    y >= bounds.minY && y <= bounds.maxY;
+            }
+          }
+
+          if (hit) {
+            const depth = STRUCTURE_DEPTH[entity.structureType?.toLowerCase()] ?? 0;
+            if (depth > bestDepth) {
+              bestDepth = depth;
+              bestMatch = entity;
+            }
+          }
+        }
+      }
+
+      en = bestMatch;
     }
     
     if (!en) {

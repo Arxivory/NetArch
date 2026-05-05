@@ -438,10 +438,13 @@ executeDelete(idToDelete) {
     }
 
     shape.id = canvasId;
+    shape.structureType = structureType;
+    shape.structType = structureType;
     shape.floorId = structure.floorId || null;
     if (shape.body) {
       shape.body.floorId = shape.floorId;
       shape.body.structType = structureType;
+
     }
 
     const containerMap = {
@@ -653,12 +656,12 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
 
   _isStructuralMoveWithinBounds(structure, shapeType, dx, dy) {
     if (!structure) return true;
-
+ 
     const getBounds = (shape) => {
       if (!shape) return null;
       const src = shape.geometry || shape;
       const points = src.points || shape.points;
-
+ 
       if (Array.isArray(points) && points.length) {
         const xs = points.map(p => Number(p.x ?? 0));
         const ys = points.map(p => Number(p.y ?? 0));
@@ -677,12 +680,12 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
           maxY
         };
       }
-
+ 
       const x0 = Number(src.x ?? src.left ?? 0);
       const y0 = Number(src.y ?? src.top ?? 0);
       const w0 = Number(src.w ?? src.width ?? 0);
       const h0 = Number(src.h ?? src.height ?? 0);
-
+ 
       if ((w0 || h0) || shape.shapeType !== 'circle') {
         const minX0 = Math.min(x0, x0 + w0);
         const minY0 = Math.min(y0, y0 + h0);
@@ -699,7 +702,7 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
           maxY: maxY0
         };
       }
-
+ 
       const r0 = Number(src.r ?? src.radius ?? 0);
       return {
         x: x0 - r0,
@@ -715,7 +718,7 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
 
     const st = appState.structural;
     if (!st) return true;
-
+ 
     const childBounds = getBounds(structure);
     if (!childBounds) return true;
     childBounds.minX += dx;
@@ -742,7 +745,7 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
     if (!parent) {
       return true;
     }
-
+ 
     const parentBounds = getBounds(parent);
     if (!parentBounds || parentBounds.w === 0 || parentBounds.h === 0) {
       return true;
@@ -755,7 +758,91 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
       childBounds.maxY > parentBounds.maxY
     ); // CHANGED: strict containment, no tolerance padding past the parent perimeter
   }
-
+ 
+  // FIX 3 – Boundary Clamping helper.
+  // Returns the largest {dx, dy} that keeps `structure` fully inside its parent.
+  // Each axis is clamped independently so diagonal drags slide along parent walls.
+  _clampStructuralMoveDelta(structure, shapeType, dx, dy) {
+    if (!structure) return { dx, dy };
+ 
+    // Reuse the same bounds extractor that _isStructuralMoveWithinBounds uses.
+    const getBounds = (shape) => {
+      if (!shape) return null;
+      const src = shape.geometry || shape;
+      const points = src.points || shape.points;
+ 
+      if (Array.isArray(points) && points.length) {
+        const xs = points.map(p => Number(p.x ?? 0));
+        const ys = points.map(p => Number(p.y ?? 0));
+        return {
+          minX: Math.min(...xs), minY: Math.min(...ys),
+          maxX: Math.max(...xs), maxY: Math.max(...ys)
+        };
+      }
+ 
+      const x0 = Number(src.x ?? src.left ?? 0);
+      const y0 = Number(src.y ?? src.top ?? 0);
+      const w0 = Number(src.w ?? src.width ?? 0);
+      const h0 = Number(src.h ?? src.height ?? 0);
+      const r0 = Number(src.r ?? src.radius ?? 0);
+ 
+      if (w0 || h0) {
+        return {
+          minX: Math.min(x0, x0 + w0), minY: Math.min(y0, y0 + h0),
+          maxX: Math.max(x0, x0 + w0), maxY: Math.max(y0, y0 + h0)
+        };
+      }
+      return {
+        minX: x0 - r0, minY: y0 - r0,
+        maxX: x0 + r0, maxY: y0 + r0
+      };
+    };
+ 
+    const st = appState.structural;
+    if (!st) return { dx, dy };
+ 
+    const childBounds = getBounds(structure);
+    if (!childBounds) return { dx, dy };
+ 
+    let parent = null;
+    if (shapeType === 'site') {
+      parent = st.domains?.find(d => String(d.id) === String(structure.domainId));
+    } else if (shapeType === 'floor') {
+      parent = st.sites?.find(s => String(s.id) === String(structure.siteId));
+    } else if (shapeType === 'space') {
+      parent = st.floors?.find(f => String(f.id) === String(structure.floorId));
+      const floorBounds = getBounds(parent);
+      if (parent && (!floorBounds || floorBounds.maxX - floorBounds.minX === 0)) {
+        const parentSite = st.sites?.find(s => String(s.id) === String(parent?.siteId));
+        if (parentSite) parent = parentSite;
+      }
+    }
+ 
+    if (!parent) return { dx, dy };
+ 
+    const parentBounds = getBounds(parent);
+    if (!parentBounds || (parentBounds.maxX - parentBounds.minX === 0)) return { dx, dy };
+ 
+    // Clamp each axis so the child never crosses the parent wall.
+    let clampedDx = dx;
+    let clampedDy = dy;
+ 
+    if (childBounds.minX + clampedDx < parentBounds.minX) {
+      clampedDx = parentBounds.minX - childBounds.minX;
+    }
+    if (childBounds.maxX + clampedDx > parentBounds.maxX) {
+      clampedDx = parentBounds.maxX - childBounds.maxX;
+    }
+    if (childBounds.minY + clampedDy < parentBounds.minY) {
+      clampedDy = parentBounds.minY - childBounds.minY;
+    }
+    if (childBounds.maxY + clampedDy > parentBounds.maxY) {
+      clampedDy = parentBounds.maxY - childBounds.maxY;
+    }
+ 
+    return { dx: clampedDx, dy: clampedDy };
+  }
+ 
   applyStructuralMove(structuralId, shapeType, dx, dy, options = {}) {
     const structure = this._getStructuralObjectById(structuralId);
     if (!structure || (dx === 0 && dy === 0)) {
@@ -765,8 +852,16 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
     const skipCanvasMove = options.skipCanvasMove === true;
     const skipBounds = options.skipBounds === true;
 
-    if (!skipBounds && !this._isStructuralMoveWithinBounds(structure, shapeType, dx, dy)) {
-      return false;
+    // FIX 3 – Boundary Clamping: Instead of refusing the move outright when it would
+    // breach the parent boundary, clamp the delta to the maximum distance the child
+    // can travel before hitting each wall.  Only bail out if both axes are zero.
+    if (!skipBounds) {
+      const clamped = this._clampStructuralMoveDelta(structure, shapeType, dx, dy);
+      dx = clamped.dx;
+      dy = clamped.dy;
+      if (dx === 0 && dy === 0) {
+        return false;
+      }
     }
 
     const moveItem = (item) => {
@@ -789,7 +884,7 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
     let childFloors = [];
     let childSpaces = [];
     const st = appState.structural;
-
+ 
     if (shapeType === 'domain') {
       childSites = st.sites.filter(s => String(s.domainId) === String(structuralId));
       childFloors = st.floors.filter(f => childSites.some(s => String(s.id) === String(f.siteId)));
@@ -847,17 +942,17 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
     if (typeof this.layout._render === 'function') {
       this.layout._render();
     }
-
+ 
     return true;
   }
-
+ 
   _normalizeBounds(bounds) {
     if (!bounds) return null;
     const minX = Number(bounds.minX ?? bounds.x ?? 0);
     const minY = Number(bounds.minY ?? bounds.y ?? 0);
     const maxX = Number(bounds.maxX ?? (minX + Number(bounds.width ?? bounds.w ?? 0)));
     const maxY = Number(bounds.maxY ?? (minY + Number(bounds.height ?? bounds.h ?? 0)));
-
+ 
     return {
       minX,
       minY,
@@ -867,30 +962,30 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
       height: Math.max(0.0001, maxY - minY)
     };
   }
-
+ 
   _mapPointBetweenBounds(point, fromBounds, toBounds) {
     const from = this._normalizeBounds(fromBounds);
     const to = this._normalizeBounds(toBounds);
     const ratioX = (Number(point.x ?? 0) - from.minX) / from.width;
     const ratioY = (Number(point.y ?? 0) - from.minY) / from.height;
-
+ 
     return {
       x: to.minX + ratioX * to.width,
       y: to.minY + ratioY * to.height
     };
   }
-
+ 
   _getStructuralResizeChildren(structuralId, shapeType) {
     const st = appState.structural;
     if (!st) {
       return { childSites: [], childFloors: [], childSpaces: [], floorIds: [], spaceIds: [] };
     }
-
+ 
     const idText = String(structuralId);
     let childSites = [];
     let childFloors = [];
     let childSpaces = [];
-
+ 
     if (shapeType === 'domain') {
       childSites = (st.sites || []).filter(s => String(s.domainId) === idText);
       childFloors = (st.floors || []).filter(f => childSites.some(s => String(s.id) === String(f.siteId)));
@@ -901,30 +996,30 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
     } else if (shapeType === 'floor') {
       childSpaces = (st.spaces || []).filter(sp => String(sp.floorId) === idText);
     }
-
+ 
     const floorIds = childFloors.map(f => f.id);
     if (shapeType === 'floor') floorIds.push(structuralId);
-
+ 
     const spaceIds = childSpaces.map(sp => sp.id);
     if (shapeType === 'space') spaceIds.push(structuralId);
-
+ 
     return { childSites, childFloors, childSpaces, floorIds, spaceIds };
   }
-
+ 
   _transformStoredGeometryByBounds(item, fromBounds, toBounds) {
     if (!item) return;
-
+ 
     const geom = item.geometry || item;
     const mapPoint = (point) => this._mapPointBetweenBounds(point, fromBounds, toBounds);
     const scaleX = this._normalizeBounds(toBounds).width / this._normalizeBounds(fromBounds).width;
     const scaleY = this._normalizeBounds(toBounds).height / this._normalizeBounds(fromBounds).height;
     const points = geom.points || item.points;
-
+ 
     if (Array.isArray(points) && points.length) {
       const mappedPoints = points.map(point => mapPoint(point));
       if (geom.points) geom.points = mappedPoints;
       if (item.points) item.points = mappedPoints.map(point => ({ ...point }));
-
+ 
       const xs = mappedPoints.map(point => point.x);
       const ys = mappedPoints.map(point => point.y);
       geom.x = Math.min(...xs);
@@ -933,11 +1028,11 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
       geom.height = Math.max(...ys) - geom.y;
       return;
     }
-
+ 
     const radius = Number(geom.radius ?? geom.r ?? 0);
     const width = Number(geom.width ?? geom.w ?? item.w ?? 0);
     const height = Number(geom.height ?? geom.h ?? item.h ?? 0);
-
+ 
     if (radius > 0 && width === 0 && height === 0) {
       const center = mapPoint({ x: Number(geom.x ?? 0), y: Number(geom.y ?? 0) });
       const nextRadius = radius * Math.min(scaleX, scaleY);
@@ -947,13 +1042,13 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
       if ('r' in geom) geom.r = nextRadius;
       return;
     }
-
+ 
     const topLeft = mapPoint({ x: Number(geom.x ?? item.x ?? 0), y: Number(geom.y ?? item.y ?? 0) });
     const bottomRight = mapPoint({
       x: Number(geom.x ?? item.x ?? 0) + width,
       y: Number(geom.y ?? item.y ?? 0) + height
     });
-
+ 
     geom.x = Math.min(topLeft.x, bottomRight.x);
     geom.y = Math.min(topLeft.y, bottomRight.y);
     geom.width = Math.abs(bottomRight.x - topLeft.x);
@@ -961,15 +1056,15 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
     if ('w' in geom) geom.w = geom.width;
     if ('h' in geom) geom.h = geom.height;
   }
-
+ 
   _transformStoredAssetByBounds(item, fromBounds, toBounds) {
     if (!item) return;
-
+ 
     const position = item.transform?.position;
     const x = Number(position?.x ?? item.x ?? 0);
     const y = Number(position?.z ?? position?.y ?? item.y ?? 0);
     const mapped = this._mapPointBetweenBounds({ x, y }, fromBounds, toBounds);
-
+ 
     if (position) {
       position.x = mapped.x;
       if (position.z !== undefined) {
@@ -978,15 +1073,15 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
         position.y = mapped.y;
       }
     }
-
+ 
     if (item.x !== undefined) item.x = mapped.x;
     if (item.y !== undefined) item.y = mapped.y;
   }
-
+ 
   _transformCanvasEntityByBounds(entityId, fromBounds, toBounds, options = {}) {
     const entity = this.layout?.findEntityById?.(entityId);
     if (!entity) return;
-
+ 
     const from = this._normalizeBounds(fromBounds);
     const to = this._normalizeBounds(toBounds);
     const mapPoint = (point) => this._mapPointBetweenBounds(point, from, to);
@@ -994,11 +1089,11 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
     const scaleY = to.height / from.height;
     const isDevice = entity.entityType === 'device' || entity.catalogId !== undefined || entity.interfaces !== undefined;
     const isFurniture = entity.type === 'furniture' || entity.entityType === 'furniture';
-
+ 
     if (isDevice || isFurniture || options.keepSize) {
       const bounds = this.layout?._getEntityBounds?.(entity);
       if (!bounds || typeof entity.move !== 'function') return;
-
+ 
       const center = mapPoint({
         x: bounds.minX + bounds.width / 2,
         y: bounds.minY + bounds.height / 2
@@ -1010,11 +1105,11 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
       entity.move(center.x - currentCenter.x, center.y - currentCenter.y);
       return; // ADDED: devices/furniture follow parent scaling by position, not icon size
     }
-
+ 
     if (entity.type === 'rectangle') {
       const bounds = this.layout?._getEntityBounds?.(entity);
       if (!bounds) return;
-
+ 
       const topLeft = mapPoint({ x: bounds.minX, y: bounds.minY });
       const bottomRight = mapPoint({ x: bounds.maxX, y: bounds.maxY });
       entity.x = Math.min(topLeft.x, bottomRight.x);
@@ -1024,7 +1119,7 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
       entity.setWidthAndHeight(Math.abs(bottomRight.x - topLeft.x), Math.abs(bottomRight.y - topLeft.y));
       return;
     }
-
+ 
     if (entity.type === 'polygon' || entity.type === 'freeform') {
       const sourcePoints = entity.transform?.scale?.points || entity.points || [];
       const mappedPoints = sourcePoints.map(point => mapPoint(point));
@@ -1042,7 +1137,7 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
       entity.updatePath?.();
       return;
     }
-
+ 
     if (entity.type === 'circle') {
       const center = mapPoint({ x: Number(entity.x ?? 0), y: Number(entity.y ?? 0) });
       const currentRadius = Number(entity.transform?.scale?.r ?? entity.r ?? 0);
@@ -1061,24 +1156,24 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
       entity.updatePath?.();
     }
   }
-
+ 
   applyStructuralResize(structuralId, shapeType, previousBounds, nextBounds, options = {}) {
     const structure = this._getStructuralObjectById(structuralId);
     const from = this._normalizeBounds(previousBounds);
     const to = this._normalizeBounds(nextBounds);
     if (!structure || !from || !to) return false;
-
+ 
     this._transformStoredGeometryByBounds(structure, from, to);
-
+ 
     const { childSites, childFloors, childSpaces, floorIds, spaceIds } =
       this._getStructuralResizeChildren(structuralId, shapeType);
     const childStructures = [...childSites, ...childFloors, ...childSpaces];
-
+ 
     childStructures.forEach(child => {
       this._transformStoredGeometryByBounds(child, from, to);
       this._transformCanvasEntityByBounds(child.id, from, to);
     });
-
+ 
     const transformAssets = (items) => {
       (items || []).forEach(item => {
         if (floorIds.some(id => String(id) === String(item.floorId)) || spaceIds.some(id => String(id) === String(item.spaceId))) {
@@ -1087,29 +1182,29 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
         }
       });
     };
-
+ 
     if (appState.network && typeof appState.network.getAllDevices === 'function') {
       transformAssets(appState.network.getAllDevices());
       if (!options.skipNotify && typeof appState.network.notify === 'function') {
         appState.network.notify();
       }
     }
-
+ 
     if (appState.furniture?.furnitures) {
       transformAssets(appState.furniture.furnitures);
     }
-
+ 
     if (!options.skipNotify && appState.structural && typeof appState.structural.notify === 'function') {
       appState.structural.notify();
     }
-
+ 
     if (!options.skipRender && typeof this.layout?._render === 'function') {
       this.layout._render();
     }
-
+ 
     return true;
   }
-
+ 
   applyDeviceMove(deviceId, dx, dy, options = {}) {
     if (dx === 0 && dy === 0) {
       return false;
@@ -2179,108 +2274,299 @@ _handleShapeCreated(shapeData, shapeType) {
   }
   
 _handleEntitySelected(entity) {
-    if (!entity || !entity.id) {
-      appState.selection.clearSelection?.();
-      appState.selection.notify?.();
-      return;
-    }
-
-    // --- Intercept clicks for Delete Mode safely ---
-if (appState.tools && appState.tools.activeTool === 'delete') {
-        window.addEventListener('pointerup', () => {
-            setTimeout(() => {
-                // NEW: Check if the clicked entity is a Cable (cables have source/target IDs)
-                if (entity.sourceId && entity.targetId) {
-                    const src = this.layout.findEntityById(entity.sourceId);
-                    const dst = this.layout.findEntityById(entity.targetId);
-                    
-                    // Trigger the confirmation modal!
-                    window.dispatchEvent(new CustomEvent('requestLinkDeletion', { 
-                        detail: { 
-                            linkId: entity.id, 
-                            sourceName: src?.label || src?.name || "Device", 
-                            targetName: dst?.label || dst?.name || "Device" 
-                        } 
-                    }));
-                } else {
-                    // Standard instant-delete for Devices, Furniture, and Spaces
-                    if (this.executeDelete) {
-                        this.executeDelete(entity.id);
-                    }
-                    // Reset tool back to select
-                    if (appState.tools) appState.tools.setActiveTool('select');
-                }
-            }, 0);
-        }, { once: true }); 
-        return; 
-    }
-
-    const selectionCount = appState.selection.getSelectionCount?.() ?? 0;
-    const isAlreadyMultiSelected =
-      selectionCount > 1 &&
-      (
-        appState.selection.isDeviceSelected?.(entity.id) ||
-        appState.selection.isFurnitureSelected?.(entity.id) ||
-        appState.selection.isLinkSelected?.(entity.id)
-      );
-
-    if (isAlreadyMultiSelected) {
-      appState.selection.notify?.();
-      return;
-    }
-
-    if (entity.structureType) {
-        const typeStr = entity.structureType.toLowerCase(); 
-      
-        appState.selection.focusedId = entity.id;
-        appState.selection.focusedType = typeStr;
-        appState.selection.notify?.(); 
-    } 
-    else if (entity.entityType === 'furniture' || entity.type === 'furniture') {
-        if (typeof appState.selection.selectFurniture === 'function') {
-            appState.selection.selectFurniture(entity.id);
-        } else {
-            appState.selection.focusedId = entity.id;
-            appState.selection.focusedType = 'furniture';
-            appState.selection.notify?.();
-        }
-    }
-    else if (entity.type === 'wall') {
-        appState.selection.focusedId = entity.id;
-        appState.selection.focusedType = 'wall';
-        appState.selection.notify?.();
-    }
-    else {
-        appState.selection.selectDevice?.(entity.id, false);
-    }
+  if (!entity || !entity.id) {
+    appState.selection.clearSelection?.();
+    appState.selection.notify?.();
+    return;
   }
 
+  // ---------- helpers (kept inside this function so you only edit one place) ----------
+  const extractStructureType = (en) => {
+    if (!en) return null;
+    const raw =
+      en.structureType ??
+      en.structType ??
+      en.body?.structType ??
+      en.body?.structureType;
+
+    if (!raw) return null;
+
+    const t = String(raw).toLowerCase();
+    if (t === 'domain' || t === 'site' || t === 'floor' || t === 'space') return t;
+    if (t === 'domains') return 'domain';
+    if (t === 'sites') return 'site';
+    if (t === 'floors') return 'floor';
+    if (t === 'spaces') return 'space';
+    return null;
+  };
+
+  const rank = (typeStr) => {
+    switch (typeStr) {
+      case 'domain': return 1;
+      case 'site': return 2;
+      case 'floor': return 3;
+      case 'space': return 4;
+      default: return 0;
+    }
+  };
+
+  const pointInPoly = (p, pts) => {
+    const x = Number(p?.x ?? 0);
+    const y = Number(p?.y ?? 0);
+    let inside = false;
+
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const xi = Number(pts[i]?.x ?? 0);
+      const yi = Number(pts[i]?.y ?? 0);
+      const xj = Number(pts[j]?.x ?? 0);
+      const yj = Number(pts[j]?.y ?? 0);
+
+      const intersect =
+        ((yi > y) !== (yj > y)) &&
+        (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-9) + xi);
+
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  };
+
+  const polyArea = (pts) => {
+    let area = 0;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const xi = Number(pts[i]?.x ?? 0);
+      const yi = Number(pts[i]?.y ?? 0);
+      const xj = Number(pts[j]?.x ?? 0);
+      const yj = Number(pts[j]?.y ?? 0);
+      area += (xj + xi) * (yj - yi);
+    }
+    return Math.abs(area / 2);
+  };
+
+  const shapeContainsPoint = (en, p) => {
+    if (!en || !p) return { contains: false, area: Number.POSITIVE_INFINITY };
+    const px = Number(p.x);
+    const py = Number(p.y);
+
+    if (en.type === 'rectangle') {
+      const x0 = Number(en.x ?? 0);
+      const y0 = Number(en.y ?? 0);
+      const w = Number(en.w ?? en.width ?? 0);
+      const h = Number(en.h ?? en.height ?? 0);
+
+      const minX = Math.min(x0, x0 + w);
+      const maxX = Math.max(x0, x0 + w);
+      const minY = Math.min(y0, y0 + h);
+      const maxY = Math.max(y0, y0 + h);
+
+      return {
+        contains: px >= minX && px <= maxX && py >= minY && py <= maxY,
+        area: Math.abs(w * h) || Number.POSITIVE_INFINITY
+      };
+    }
+
+    if (en.type === 'circle') {
+      const cx = Number(en.x ?? 0);
+      const cy = Number(en.y ?? 0);
+      const r = Number(en.r ?? en.radius ?? en.transform?.scale?.r ?? 0);
+      const dx = px - cx;
+      const dy = py - cy;
+      return {
+        contains: (dx * dx + dy * dy) <= (r * r),
+        area: (Math.PI * r * r) || Number.POSITIVE_INFINITY
+      };
+    }
+
+    if (en.type === 'polygon' || en.type === 'freeform') {
+      const pts = en.transform?.scale?.points || en.points || [];
+      if (!Array.isArray(pts) || pts.length < 3) {
+        return { contains: false, area: Number.POSITIVE_INFINITY };
+      }
+      return {
+        contains: pointInPoly(p, pts),
+        area: polyArea(pts) || Number.POSITIVE_INFINITY
+      };
+    }
+
+    return { contains: false, area: Number.POSITIVE_INFINITY };
+  };
+
+  const getCanvasPointFromClick = () => {
+    const evt = window.event;
+    const cx = evt?.clientX;
+    const cy = evt?.clientY;
+    if (typeof cx !== 'number' || typeof cy !== 'number') return null;
+    return this.layout?.getSnappedCanvasCoords?.(cx, cy) || null;
+  };
+
+  // Pick the “deepest” structure under pointer: Space > Floor > Site > Domain.
+  const pickBestStructuralAtPoint = (p) => {
+    if (!this.layout || !p) return null;
+
+    const lists = [
+      this.layout.rectangles || [],
+      this.layout.circles || [],
+      this.layout.polygons || [],
+      this.layout.freeforms || []
+    ];
+
+    let best = null;
+
+    for (const list of lists) {
+      for (let i = list.length - 1; i >= 0; i--) {
+        const cand = list[i];
+        const t = extractStructureType(cand);
+        if (!t) continue;
+
+        const info = shapeContainsPoint(cand, p);
+        if (!info.contains) continue;
+
+        const r = rank(t);
+        const bestR = best ? best.r : -1;
+
+        // Prefer higher hierarchy rank (space > ...), then smaller area (more specific)
+        if (!best || r > bestR || (r === bestR && info.area < best.area)) {
+          best = { en: cand, r, area: info.area };
+        }
+      }
+    }
+
+    return best?.en || null;
+  };
+
+  const resolveForSelection = (en) => {
+    if (!en) return en;
+
+    // Don’t interfere with non-structural entities
+    const isCable = en.sourceId && en.targetId;
+    const isFurniture = en.entityType === 'furniture' || en.type === 'furniture';
+    const isWall = en.type === 'wall';
+    const isDevice =
+      en.entityType === 'device' ||
+      en.interfaces !== undefined ||
+      en.catalogId !== undefined ||
+      typeof en.tileX === 'number';
+
+    if (isCable || isDevice || isFurniture || isWall) return en;
+
+    const pt = getCanvasPointFromClick();
+    // ⚠️ If no valid pointer, don’t override selection
+      if (!pt) return en;
+
+      const picked = pickBestStructuralAtPoint(pt);
+
+      // ✅ Only override if a valid structure was found
+      if (picked && picked.id) {
+        return picked;
+      }
+
+      return en;
+    };
+  // ---------- end helpers ----------
+
+  const target = resolveForSelection(entity) || entity;
+
+  // --- Intercept clicks for Delete Mode safely ---
+  if (appState.tools && appState.tools.activeTool === 'delete') {
+    window.addEventListener('pointerup', () => {
+      setTimeout(() => {
+        if (target.sourceId && target.targetId) {
+          const src = this.layout.findEntityById(target.sourceId);
+          const dst = this.layout.findEntityById(target.targetId);
+
+          window.dispatchEvent(new CustomEvent('requestLinkDeletion', {
+            detail: {
+              linkId: target.id,
+              sourceName: src?.label || src?.name || "Device",
+              targetName: dst?.label || dst?.name || "Device"
+            }
+          }));
+        } else {
+          if (this.executeDelete) {
+            this.executeDelete(target.id);
+          }
+          if (appState.tools) appState.tools.setActiveTool('select');
+        }
+      }, 0);
+    }, { once: true });
+    return;
+  }
+
+  const selectionCount = appState.selection.getSelectionCount?.() ?? 0;
+  const isAlreadyMultiSelected =
+    selectionCount > 1 &&
+    (
+      appState.selection.isDeviceSelected?.(target.id) ||
+      appState.selection.isFurnitureSelected?.(target.id) ||
+      appState.selection.isLinkSelected?.(target.id)
+    );
+
+  if (isAlreadyMultiSelected) {
+    appState.selection.notify?.();
+    return;
+  }
+
+  // ✅ Structural selection: support both entity.structureType and entity.body.structType
+  const structType = extractStructureType(target);
+  if (structType) {
+    const structuralId = this.entityIdMap?.get(target.id) || target.id;
+
+    appState.selection.clearSelection?.(); // avoid stale multi-selection conflicts
+    appState.selection.focusedId = structuralId;
+    appState.selection.focusedType = structType;
+    appState.selection.notify?.();
+    return;
+  }
+
+  // Furniture
+  if (target.entityType === 'furniture' || target.type === 'furniture') {
+    if (typeof appState.selection.selectFurniture === 'function') {
+      appState.selection.selectFurniture(target.id);
+    } else {
+      appState.selection.focusedId = target.id;
+      appState.selection.focusedType = 'furniture';
+      appState.selection.notify?.();
+    }
+    return;
+  }
+
+  // Wall
+  if (target.type === 'wall') {
+    appState.selection.focusedId = target.id;
+    appState.selection.focusedType = 'wall';
+    appState.selection.notify?.();
+    return;
+  }
+
+  // Default: device
+  appState.selection.selectDevice?.(target.id, false);
+}
+ 
 _handleEntityResized(en, previousBounds = null, nextBounds = null, options = {}) {
     if (!en?.id || !en.structureType) return;
-
+ 
     if (options.finalize) {
         appState.structural?.notify?.();
         appState.network?.notify?.();
         return; // ADDED: live resize mutates state every tick, but UI notifications happen once at the end
     }
-
+ 
     const st = appState.structural;
     const structuralId = this.entityIdMap.get(en.id) || en.id;
     let shapeType = null;
-
+ 
     if (st.domains?.some(d => String(d.id) === String(structuralId))) shapeType = 'domain';
     else if (st.sites?.some(s => String(s.id) === String(structuralId))) shapeType = 'site';
     else if (st.floors?.some(f => String(f.id) === String(structuralId))) shapeType = 'floor';
     else if (st.spaces?.some(s => String(s.id) === String(structuralId))) shapeType = 'space';
-
+ 
     if (!shapeType || !previousBounds || !nextBounds) return;
-
+ 
     this.applyStructuralResize(structuralId, shapeType, previousBounds, nextBounds, {
         skipNotify: options.live === true,
         skipRender: options.live === true
     }); // ADDED: scale descendants from the parent's previous local bounds into its new local bounds
   }
-
+ 
 _handleEntityChanged(en, dx = 0, dy = 0) {
     if (!en || !en.id) {
         appState.selection.notify();
@@ -2331,10 +2617,10 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
         const st = appState.structural;
         let shapeType = null;
         let shapeObj = null;
-
+ 
         // CRITICAL: Convert canvas entity ID to structural entity ID using mapping
         const structuralId = this.entityIdMap.get(en.id) || en.id; // CHANGED: restored/new-branch shapes can already use structural IDs
-
+ 
         if (st.domains && st.domains.some(d => String(d.id) === String(structuralId))) {
             shapeType = 'domain';
             shapeObj = st.domains.find(d => String(d.id) === String(structuralId));

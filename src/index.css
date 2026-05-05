@@ -1831,14 +1831,22 @@ html,
   z-index: 9999;
 }
 
-/* ================= TABLE FIXES ================= */
+.vlan-modal-layer .nat-sidebar-layout {
+  width: min(960px, 94vw);
+  height: min(660px, 86vh);
+}
+
+/* ================= TABLE FIXES ===
+============== */
+
 
 .vlan-modal-layer .acl-table {
   width: 100%;
+  table-layout: fixed;
   overflow-x: auto;
-  border: 1px solid #2a2a2a;
+  border: 1px solid #e5e5e5;
   border-radius: 12px;
-  background: #111111;
+  background: #ffffff;
 }
 
 .vlan-modal-layer .acl-table table {
@@ -1847,18 +1855,20 @@ html,
 }
 
 .vlan-modal-layer .acl-table th {
-  background: #181818;
-  color: #f5f5f5;
+  background: #fafafa;
+  color: #333333;
   font-size: 13px;
   font-weight: 600;
-  padding: 14px;
-  border-bottom: 1px solid #2a2a2a;
+  padding: 11px 12px;
+  border-bottom: 1px solid #e5e5e5;
   text-align: left;
 }
 
 .vlan-modal-layer .acl-table td {
-  padding: 12px;
-  border-bottom: 1px solid #222;
+  padding: 10px 12px;
+  border-bottom: 1px solid #eeeeee;
+  vertical-align: middle;
+  word-break: normal;
 }
 
 .vlan-modal-layer .acl-table tr:last-child td {
@@ -1870,20 +1880,75 @@ html,
 .vlan-modal-layer input,
 .vlan-modal-layer select {
   width: 100%;
-  background: #0d0d0d;
-  border: 1px solid #2c2c2c;
-  color: #f5f5f5;
-  padding: 10px 12px;
-  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #dddddd;
+  color: #222222;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
   outline: none;
   transition: 0.2s ease;
   font-size: 13px;
 }
 
+.switch-config-table th:nth-child(1),
+.switch-config-table td:nth-child(1) {
+  width: 13%;
+}
+
+.switch-config-table th:nth-child(2),
+.switch-config-table td:nth-child(2),
+.switch-config-table th:nth-child(5),
+.switch-config-table td:nth-child(5) {
+  width: 16%;
+}
+
+.switch-config-table th:nth-child(3),
+.switch-config-table td:nth-child(3),
+.switch-config-table th:nth-child(4),
+.switch-config-table td:nth-child(4) {
+  width: 13%;
+}
+
+.switch-config-table th:nth-child(6),
+.switch-config-table td:nth-child(6) {
+  width: 12%;
+  text-align: center;
+}
+
+.switch-config-table th:nth-child(7),
+.switch-config-table td:nth-child(7) {
+  width: 12%;
+  text-align: right;
+}
+
+.table-muted-value {
+  color: #8a94a6;
+}
+
+.table-status-on {
+  color: #166534;
+  font-weight: 600;
+}
+
+.table-action-btn {
+  border: 1px solid #d9d9d9;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #111111;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.table-action-btn:hover {
+  background: #f5f5f5;
+}
+
 .vlan-modal-layer input:focus,
 .vlan-modal-layer select:focus {
-  border-color: #4b8dff;
-  box-shadow: 0 0 0 1px #4b8dff;
+  border-color: #111111;
+  box-shadow: none;
 }
 
 /* ================= STATUS COLORS ================= */

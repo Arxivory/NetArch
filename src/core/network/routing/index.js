@@ -17,6 +17,7 @@ export { default as PacketBuilder } from './PacketBuilder.js';
 export { default as RouterPipeline } from './RouterPipeline.js';
 export { default as SimulationBus } from './SimulationBus.js';
 export { default as RIPEngine } from './RIPEngine.js';
+export { default as OSPFEngine } from './OSPFEngine.js';
 
 // Re-export packet schema for convenience
 export {

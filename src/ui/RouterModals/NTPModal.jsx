@@ -46,63 +46,31 @@ export default function NTPModal({ onClose, deviceName = "Router-Core-01", devic
   const now = () => new Date().toISOString().replace("T", " ").slice(0, 19);
 
   const handleApply = () => {
-    const prev = prevState.current;
     const logs = [];
-    const ts = now();
 
-    // Server entries
+    // NTP Servers
     state.servers.forEach((srv, i) => {
-      if (!srv.host) return;
-      const prevSrv = (prev.servers || [])[i] || {};
-      if (srv.host !== prevSrv.host || srv.type !== prevSrv.type) {
-        logs.push(
-          `%NTP-5-SERVER_MODIFY: [${ts}] ${deviceName} @ ${deviceLocation} — NTP source #${i + 1} updated. ` +
-          `Previous: "${prevSrv.host || "—"}" (${prevSrv.type || "—"}) → New: "${srv.host}" (${srv.type}). ` +
-          `Stratum re-evaluation will occur after initial SYNC exchange.`
-        );
-      } else {
-        logs.push(
-          `%NTP-6-SERVER_INSTALL: [${ts}] ${deviceName} — NTP server #${i + 1} registered: ${srv.host} [${srv.type}]. ` +
-          `${srv.enabled ? "Server is ACTIVE in polling queue." : "Server is STANDBY — will activate on primary failure."}`
-        );
+      if (srv.host) {
+        logs.push(`[NTP Server #${i + 1}] Host: ${srv.host} | Type: ${srv.type} | Enabled: ${srv.enabled ? "Yes" : "No"}`);
       }
     });
 
-    // Sync engine
-    if (state.syncInterval !== prev.syncInterval) {
-      logs.push(
-        `%NTP-6-INTERVAL_MOD: [${ts}] ${deviceName} — Polling interval changed from ${prev.syncInterval || "—"} to ${state.syncInterval}. ` +
-        `MINPOLL/MAXPOLL values recalculated; next sync cycle adjusted accordingly.`
-      );
-    }
-    if (state.syncMode !== prev.syncMode) {
-      logs.push(
-        `%NTP-5-MODE_CHANGE: [${ts}] ${deviceName} — NTP operational mode changed from ${prev.syncMode || "—"} to ${state.syncMode}. ` +
-        `${state.syncMode === "Server" ? "This device will now serve time to downstream clients." : "Device will synchronize from upstream NTP sources only."}`
-      );
-    }
+    // Sync Engine
+    if (state.syncInterval && state.syncInterval !== "Select") logs.push(`[NTP Sync] Interval: ${state.syncInterval}`);
+    if (state.syncMode     && state.syncMode     !== "Select") logs.push(`[NTP Sync] Mode: ${state.syncMode}`);
+    if (state.autoDrift)    logs.push(`[NTP Sync] Auto Drift Correction: Enabled`);
+    if (state.forceOnBoot)  logs.push(`[NTP Sync] Force Sync on Boot: Enabled`);
+    if (state.fallback)     logs.push(`[NTP Sync] Fallback to Secondary: Enabled`);
 
     // Authentication
-    if (state.requireAuth !== prev.requireAuth) {
-      logs.push(
-        state.requireAuth
-          ? `%NTP-5-AUTH_ENABLED: [${ts}] ${deviceName} — NTP authentication enforcement enabled (${state.algorithm}). ` +
-            `Unauthenticated NTP packets will be rejected. Verify all peers share Key ID ${state.keyId || "N/A"}.`
-          : `%NTP-5-AUTH_DISABLED: [${ts}] ${deviceName} — NTP authentication disabled. ` +
-            `Device will accept time updates from any reachable NTP source without key validation.`
-      );
-    }
+    if (state.keyId)       logs.push(`[NTP Auth] Key ID: ${state.keyId}`);
+    if (state.algorithm && state.algorithm !== "Select") logs.push(`[NTP Auth] Algorithm: ${state.algorithm}`);
+    if (state.sharedKey)   logs.push(`[NTP Auth] Shared Key: configured`);
+    if (state.requireAuth) logs.push(`[NTP Auth] Require Authentication: Enabled`);
 
-    if (logs.length === 0) {
-      logs.push(
-        `%NTP-6-NOP: [${ts}] ${deviceName} @ ${deviceLocation} — NTP Apply invoked; no configuration changes detected. ` +
-        `Clock synchronization policy unchanged.`
-      );
-    }
+    if (logs.length === 0) logs.push(`[NTP] Applied — no parameters configured`);
 
     logs.forEach((message) => dispatchLog(deviceName, deviceLocation, message));
-    persistentNTPState = state;
-    prevState.current = state;
     onClose();
   };
 

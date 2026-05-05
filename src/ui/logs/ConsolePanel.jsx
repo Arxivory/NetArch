@@ -45,8 +45,7 @@ function Colgroup() {
   );
 }
 
-export default function ConsolePanel() {
-  const [logData,        setLogData]        = useState([]);
+export default function ConsolePanel({ logData, setLogData }) {
   const [search,         setSearch]         = useState("");
   const [showClearModal, setShowClearModal] = useState(false);
   const [showFilters,    setShowFilters]    = useState(false);
@@ -56,34 +55,6 @@ export default function ConsolePanel() {
   const scrollRef  = useRef(null);
   const tbodyWrap  = useRef(null);
   const [scrollH, setScrollH] = useState(40);
-
-  // ── Listen for add-system-log events ──────────────────────────────────────
-  useEffect(() => {
-    const handleNewLog = (event) => {
-      const { device, deviceName, message, location } = event.detail;
-      const now = new Date();
-      const sev = deriveSeverity(message);
-
-      const newEntry = {
-        id:         now.getTime() + Math.random(),
-        device:     device     || "System",
-        deviceName: deviceName || "Unknown Device",
-        message:    formatEnterpriseLog(message, sev),
-        time:       now.toLocaleTimeString([], {
-                      hour:   "2-digit",
-                      minute: "2-digit",
-                      second: "2-digit",
-                    }),
-        date:       now.toLocaleDateString("en-GB"),
-        location:   location || "Unspecified",
-      };
-
-      setLogData((prev) => [newEntry, ...prev]);
-    };
-
-    window.addEventListener("add-system-log", handleNewLog);
-    return () => window.removeEventListener("add-system-log", handleNewLog);
-  }, []);
 
   // ── Scroll to top on new log ───────────────────────────────────────────────
   useEffect(() => {
@@ -273,7 +244,7 @@ export default function ConsolePanel() {
                     <td style={cellStyle}>{log.device}</td>
                     <td style={cellStyle}>{log.deviceName}</td>
                     <td style={{ ...cellStyle, fontStyle: "italic", whiteSpace: "normal", wordBreak: "break-word", overflowWrap: "break-word", overflow: "visible" }}>
-                      {highlightText(log.message, search)}
+                      {highlightText(formatEnterpriseLog(log.message, deriveSeverity(log.message)), search)}
                     </td>
                     <td style={cellStyle}>{log.time}</td>
                     <td style={cellStyle}>{log.date}</td>

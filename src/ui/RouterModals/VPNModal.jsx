@@ -38,83 +38,31 @@ export default function VPNModal({ onClose, deviceName = "Router-Core-01", devic
   const now = () => new Date().toISOString().replace("T", " ").slice(0, 19);
 
   const handleApply = () => {
-    const prev = prevState.current;
     const logs = [];
-    const ts = now();
 
     // Tunnel
-    if (state.localGateway !== prev.localGateway || state.remoteGateway !== prev.remoteGateway) {
-      logs.push(
-        `%VPN-5-TUNNEL_MODIFY: [${ts}] ${deviceName} @ ${deviceLocation} — IPSec tunnel endpoints updated. ` +
-        `Local: ${prev.localGateway || "—"} → ${state.localGateway} | Remote: ${prev.remoteGateway || "—"} → ${state.remoteGateway}. ` +
-        `Existing IKE SA will be torn down and re-negotiated with new parameters.`
-      );
-    } else if (state.localGateway) {
-      logs.push(
-        `%VPN-6-TUNNEL_INSTALL: [${ts}] ${deviceName} @ ${deviceLocation} — Site-to-Site tunnel configured. ` +
-        `Local endpoint: ${state.localGateway} | Remote peer: ${state.remoteGateway}. ` +
-        `IKE negotiation initiated; expecting ISAKMP MAIN_MODE exchange.`
-      );
-    }
+    if (state.localGateway)  logs.push(`[VPN Tunnel] Local Gateway: ${state.localGateway}`);
+    if (state.remoteGateway) logs.push(`[VPN Tunnel] Remote Gateway: ${state.remoteGateway}`);
+    if (state.localSubnet)   logs.push(`[VPN Tunnel] Local Subnet: ${state.localSubnet}`);
+    if (state.remoteSubnet)  logs.push(`[VPN Tunnel] Remote Subnet: ${state.remoteSubnet}`);
+    if (state.autoNegotiate) logs.push(`[VPN Tunnel] Auto-Negotiate: Enabled`);
 
-    if (state.localSubnet !== prev.localSubnet || state.remoteSubnet !== prev.remoteSubnet) {
-      logs.push(
-        `%VPN-5-SUBNET_MODIFY: [${ts}] ${deviceName} — Protected subnet selectors updated. ` +
-        `Local: ${prev.localSubnet || "—"} → ${state.localSubnet} | Remote: ${prev.remoteSubnet || "—"} → ${state.remoteSubnet}. ` +
-        `Crypto ACL re-generated; Phase 2 (IPSec SA) will renegotiate.`
-      );
-    }
+    // Encryption
+    if (state.ikeVersion && state.ikeVersion !== "Select") logs.push(`[VPN Crypto] IKE Version: ${state.ikeVersion}`);
+    if (state.encryption && state.encryption !== "Select") logs.push(`[VPN Crypto] Encryption: ${state.encryption}`);
+    if (state.integrity  && state.integrity  !== "Select") logs.push(`[VPN Crypto] Integrity: ${state.integrity}`);
+    if (state.preSharedKey) logs.push(`[VPN Crypto] Pre-Shared Key: configured`);
+    if (state.pfs)          logs.push(`[VPN Crypto] Perfect Forward Secrecy: Enabled`);
 
-    // Crypto
-    if (state.ikeVersion !== prev.ikeVersion) {
-      logs.push(
-        `%CRYPTO-5-IKE_VERSION_MOD: [${ts}] ${deviceName} — IKE version changed from ${prev.ikeVersion || "—"} to ${state.ikeVersion}. ` +
-        `All active IKE SAs terminated; re-negotiation required on both peers.`
-      );
-    }
-    if (state.encryption !== prev.encryption) {
-      logs.push(
-        `%CRYPTO-5-CIPHER_MOD: [${ts}] ${deviceName} — Encryption algorithm changed from ` +
-        `${prev.encryption || "—"} to ${state.encryption}. ` +
-        `IPSec ESP proposals updated; peer must support matching cipher suite.`
-      );
-    }
-    if (state.integrity !== prev.integrity) {
-      logs.push(
-        `%CRYPTO-5-HMAC_MOD: [${ts}] ${deviceName} — Integrity algorithm changed from ` +
-        `${prev.integrity || "—"} to ${state.integrity}. ` +
-        `Packet authentication hash updated on both Phase 1 and Phase 2 proposals.`
-      );
-    }
-    if (state.pfs !== prev.pfs) {
-      logs.push(
-        state.pfs
-          ? `%CRYPTO-5-PFS_ENABLED: [${ts}] ${deviceName} — Perfect Forward Secrecy enabled (DH Group 14). ` +
-            `Each Phase 2 SA will generate independent keying material, preventing retroactive decryption.`
-          : `%CRYPTO-5-PFS_DISABLED: [${ts}] ${deviceName} — PFS disabled. ` +
-            `Phase 2 keys will be derived from Phase 1 master secret; consider re-enabling for compliance.`
-      );
-    }
+    // Traffic Rules
+    if (state.srcNetwork)    logs.push(`[VPN Traffic] Source Network: ${state.srcNetwork}`);
+    if (state.dstNetwork)    logs.push(`[VPN Traffic] Destination Network: ${state.dstNetwork}`);
+    if (state.encryptMatched) logs.push(`[VPN Traffic] Encrypt Matched Traffic Only: Enabled`);
+    if (state.bypassLocal)   logs.push(`[VPN Traffic] Bypass Local Traffic Optimization: Enabled`);
 
-    // Traffic rules
-    if (state.srcNetwork !== prev.srcNetwork || state.dstNetwork !== prev.dstNetwork) {
-      logs.push(
-        `%VPN-5-CRYPTO_ACL_MOD: [${ts}] ${deviceName} — Crypto ACL selectors updated. ` +
-        `Source: ${prev.srcNetwork || "—"} → ${state.srcNetwork} | Dest: ${prev.dstNetwork || "—"} → ${state.dstNetwork}. ` +
-        `Interesting-traffic classification refreshed; Phase 2 SAs renegotiating.`
-      );
-    }
-
-    if (logs.length === 0) {
-      logs.push(
-        `%VPN-6-NOP: [${ts}] ${deviceName} @ ${deviceLocation} — VPN Apply invoked; no configuration changes detected. ` +
-        `Existing tunnel state and cryptographic policies remain unchanged.`
-      );
-    }
+    if (logs.length === 0) logs.push(`[VPN] Applied — no parameters configured`);
 
     logs.forEach((message) => dispatchLog(deviceName, deviceLocation, message));
-    persistentVPNState = state;
-    prevState.current = state;
     onClose();
   };
 

@@ -40,72 +40,33 @@ export default function SNMPModal({ onClose, deviceName = "Router-Core-01", devi
   const now = () => new Date().toISOString().replace("T", " ").slice(0, 19);
 
   const handleApply = () => {
-    const prev = prevState.current;
     const logs = [];
-    const ts = now();
 
-    // Agent identity
-    if (state.systemName !== prev.systemName || state.snmpVersion !== prev.snmpVersion) {
-      logs.push(
-        `%SNMP-5-AGENT_MODIFY: [${ts}] ${deviceName} @ ${deviceLocation} — SNMP agent identity updated. ` +
-        `System Name: "${prev.systemName || "—"}" → "${state.systemName}" | ` +
-        `Version: ${prev.snmpVersion || "—"} → ${state.snmpVersion}. ` +
-        `sysDescr and sysName OIDs updated in MIB-II; management station re-discovery recommended.`
-      );
-    } else if (state.systemName) {
-      logs.push(
-        `%SNMP-6-AGENT_CONFIG: [${ts}] ${deviceName} @ ${deviceLocation} — SNMP agent committed. ` +
-        `System: "${state.systemName}" | Location: "${state.location}" | Contact: "${state.contact}" | Version: ${state.snmpVersion}. ` +
-        `Agent socket bound on UDP/161.`
-      );
-    }
+    // Agent
+    if (state.systemName)                              logs.push(`[SNMP Agent] System Name: ${state.systemName}`);
+    if (state.location)                                logs.push(`[SNMP Agent] Location: ${state.location}`);
+    if (state.snmpVersion && state.snmpVersion !== "Select") logs.push(`[SNMP Agent] Version: ${state.snmpVersion}`);
+    if (state.contact)                                 logs.push(`[SNMP Agent] Contact: ${state.contact}`);
+    if (!state.agentEnabled)                           logs.push(`[SNMP Agent] Global Agent: Disabled`);
 
     // Security
-    if (state.readCommunity !== prev.readCommunity || state.writeCommunity !== prev.writeCommunity) {
-      logs.push(
-        `%SNMP-5-COMMUNITY_MODIFY: [${ts}] ${deviceName} — Community strings updated. ` +
-        `RO community changed: ${prev.readCommunity ? "****" : "—"} → ${state.readCommunity ? "****" : "—"} | ` +
-        `RW community changed: ${prev.writeCommunity ? "****" : "—"} → ${state.writeCommunity ? "****" : "—"}. ` +
-        `Old community strings immediately invalidated; update NMS polling credentials.`
-      );
-    }
-
-    if (state.securityLevel !== prev.securityLevel) {
-      logs.push(
-        `%SNMP-5-SECLEVEL_CHANGE: [${ts}] ${deviceName} — SNMPv3 security level changed ` +
-        `from "${prev.securityLevel || "—"}" to "${state.securityLevel}". ` +
-        `Re-authentication of all v3 users required. Non-compliant managers will be denied access.`
-      );
-    }
+    if (state.readCommunity)                           logs.push(`[SNMP Security] Read Community: configured`);
+    if (state.writeCommunity)                          logs.push(`[SNMP Security] Write Community: configured`);
+    if (state.managerACL)                              logs.push(`[SNMP Security] Manager IP ACL: ${state.managerACL}`);
+    if (state.securityLevel && state.securityLevel !== "Select") logs.push(`[SNMP Security] Security Level: ${state.securityLevel}`);
+    if (state.accessLogging)                           logs.push(`[SNMP Security] Access Logging: Enabled`);
+    if (state.restrictTrusted)                         logs.push(`[SNMP Security] Restrict to Trusted Networks: Enabled`);
 
     // Traps
-    if (state.trapReceiver !== prev.trapReceiver || state.trapPort !== prev.trapPort) {
-      logs.push(
-        `%SNMP-5-TRAP_DEST_MODIFY: [${ts}] ${deviceName} — Trap receiver updated. ` +
-        `Old: ${prev.trapReceiver || "—"}:${prev.trapPort || "—"} → New: ${state.trapReceiver}:${state.trapPort}. ` +
-        `Test trap will be dispatched to verify reachability of new destination.`
-      );
-    }
-    if (state.trapLinkUpDown !== prev.trapLinkUpDown) {
-      logs.push(
-        state.trapLinkUpDown
-          ? `%SNMP-6-TRAP_LINK_ENABLED: [${ts}] ${deviceName} — Link up/down trap notifications enabled. ` +
-            `Interface state changes will generate SNMP linkDown (OID .1.3.6.1.6.3.1.1.5.3) and linkUp traps.`
-          : `%SNMP-6-TRAP_LINK_DISABLED: [${ts}] ${deviceName} — Link up/down trap notifications disabled. ` +
-            `Interface state changes will be suppressed from trap dispatch queue.`
-      );
-    }
+    if (state.trapReceiver) logs.push(`[SNMP Traps] Receiver IP: ${state.trapReceiver}`);
+    if (state.trapPort)     logs.push(`[SNMP Traps] Port: ${state.trapPort}`);
+    if (state.trapLinkUpDown) logs.push(`[SNMP Traps] Link Up/Down Notifications: Enabled`);
+    if (state.trapCpuMemory)  logs.push(`[SNMP Traps] CPU/Memory Alerts: Enabled`);
+    if (state.trapAnomaly)    logs.push(`[SNMP Traps] Anomaly Detection: Enabled`);
 
-    if (logs.length === 0) {
-      logs.push(
-        `%SNMP-6-NOP: [${ts}] ${deviceName} @ ${deviceLocation} — SNMP Apply invoked with no parameter changes. ` +
-        `Agent state, community strings, and trap policies remain unchanged.`
-      );
-    }
+    if (logs.length === 0) logs.push(`[SNMP] Applied — no parameters configured`);
 
     logs.forEach((message) => dispatchLog(deviceName, deviceLocation, message));
-    persistentSNMPState = state;
-    prevState.current = state;
     onClose();
   };
 

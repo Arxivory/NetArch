@@ -1293,6 +1293,16 @@ _onPointerUp(e) {
     }
 
     if (this.interaction?.mode === 'move_conduit') {
+      const conduit = this.interaction.conduit;
+      if (this.routeManager && conduit) {
+        // Re-resolve all cables — any could be using this conduit
+        const links   = appState.network.getAllLinks();
+        const devices = appState.network.getAllDevices();
+        this.routeManager.resolveAll(links, devices);   // won't re-resolve cached ones
+        // Force clear and re-resolve everything since conduit position changed
+        this.routeManager.clear();
+        this.routeManager.resolveAll(links, devices);
+      }
       this.interaction = { mode: null, handle: null, start: null };
       this.pointerHandler.setPointerDown(false);
       this._render();
@@ -1300,6 +1310,13 @@ _onPointerUp(e) {
     }
 
     if (this.interaction?.mode === 'move_riser') {
+      const riser = this.interaction.riser;
+      if (this.routeManager && riser) {
+        this.routeManager.clear();
+        const links   = appState.network.getAllLinks();
+        const devices = appState.network.getAllDevices();
+        this.routeManager.resolveAll(links, devices);
+      }
       this.interaction = { mode: null, handle: null, start: null };
       this.pointerHandler.setPointerDown(false);
       this._render();
@@ -1358,6 +1375,12 @@ _onPointerUp(e) {
 
         if (this.onEntityChanged) {
           this.onEntityChanged(entity, actualDx, actualDy);
+        }
+
+        if (this._isDeviceEntity(entity) && this.routeManager) {
+          const links   = appState.network.getAllLinks();
+          const devices = appState.network.getAllDevices();
+          this.routeManager.reResolveForDevice(entity.id, links, devices);
         }
       }
     }
@@ -1795,10 +1818,11 @@ _onPointerUp(e) {
       if (resolvedPath && !resolvedPath.isDirect && resolvedPath.canvasPoints.length >= 2) {
         // Draw segmented route through conduits/risers
         const pts = resolvedPath.canvasPoints;
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let i = 1; i < pts.length; i++) {
+        ctx.moveTo(src.x, src.y); 
+        for (let i = 1; i < pts.length - 1; i++) {
           ctx.lineTo(pts[i].x, pts[i].y);
         }
+        ctx.lineTo(dst.x, dst.y);
       } else {
         // Fallback: straight line (same space or not yet resolved)
         if (cable.type === 'console') {

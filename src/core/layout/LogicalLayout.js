@@ -121,6 +121,7 @@ export class LogicalLayout {
     this.onFurnitureAdded = opts.onFurnitureAdded || null;
     this.onEntitySelected = opts.onEntitySelected || null;
     this.onEntityChanged = opts.onEntityChanged || null;
+    this.onEntityResized = opts.onEntityResized || null; // ADDED: parent scaling needs a separate hierarchy transform path
     this.onPortSelect = opts.onPortSelect || null;
 
     this.selectedEntity = null;
@@ -202,17 +203,9 @@ export class LogicalLayout {
     for (const entity of entities) {
       if (!entity) continue;
 
-      if (this._isDeviceEntity(entity) || this._isFurnitureEntity(entity)) {
-        const clamped = this._clampMovementWithinParent(entity, clampedDx, clampedDy);
-
-        if (Math.abs(clamped.dx) < Math.abs(clampedDx)) {
-          clampedDx = clamped.dx;
-        }
-
-        if (Math.abs(clamped.dy) < Math.abs(clampedDy)) {
-          clampedDy = clamped.dy;
-        }
-      }
+      const clamped = this._clampMovementWithinParent(entity, clampedDx, clampedDy); // ADDED: clamp every child entity type, including Site/Floor/Space, against its parent bounds
+      clampedDx = clamped.dx;
+      clampedDy = clamped.dy;
     }
 
     return { dx: clampedDx, dy: clampedDy };
@@ -1182,38 +1175,32 @@ export class LogicalLayout {
             structuralEntities.forEach((entity) => {
               this.onEntityChanged(entity, groupDelta.dx, groupDelta.dy);
             });
+            this.interaction.syncedDuringDrag = true; // ADDED: pointerup must not reapply the full parent move after live child sync
           }
           this._render();
           return;
         }
 
         if (this.interaction.mode === "resize" && en.type === 'rectangle') {
-          let wKey = en.transform.scale.w;
-          let hKey = en.transform.scale.h;
-          switch (this.interaction.handle) {
-            case "se":
-              wKey += dx;
-              hKey += dy;
-              break;
-            case "nw":
-              en.move(dx, dy);
-              wKey -= dx;
-              hKey -= dy;
-              break;
-            case "ne":
-              en.move(0, dy)
-              wKey += dx;
-              hKey -= dy;
-              break;
-            case "sw":
-              en.move(dx, 0);
-              wKey -= dx;
-              hKey += dy;
-              break;
-            default:
-              throw new Error();
+          const beforeResizeBounds = this._getEntityBounds(en); // ADDED: used to scale/move descendants in parent-local space
+          const resize = this._getClampedRectangleResize(en, this.interaction.handle, dx, dy); // ADDED: stop resizing at the parent's perimeter instead of allowing overflow
+          if (resize.moveDx || resize.moveDy) {
+            en.move(resize.moveDx, resize.moveDy);
           }
-          en.setWidthAndHeight(wKey, hKey);
+          en.setWidthAndHeight(resize.w, resize.h);
+          en.updatePath?.(); // ADDED: keep the drawn path in sync after clamped resizing
+          const afterResizeBounds = this._getEntityBounds(en);
+
+          if (
+            en.structureType &&
+            this.onEntityResized &&
+            beforeResizeBounds &&
+            afterResizeBounds &&
+            this._boundsChanged(beforeResizeBounds, afterResizeBounds)
+          ) {
+            this.onEntityResized(en, beforeResizeBounds, afterResizeBounds, { live: true }); // ADDED: resize descendants while the parent is being scaled
+            this.interaction.syncedDuringResize = true;
+          }
         }
         else if (this.interaction.mode === "resize" && this._isDeviceEntity(en)) {
           const baseBounds = this.interaction.bounds;
@@ -1236,7 +1223,7 @@ export class LogicalLayout {
         }
 
         this.interaction.start = { x: p.x, y: p.y };
-        const shouldSyncDuringDrag = !!en.structureType; // ADDED: only structural parents need live sync while dragging so children follow immediately
+        const shouldSyncDuringDrag = this.interaction.mode === 'move' && !!en.structureType; // CHANGED: resizing must not move persisted hierarchy state every pointer tick
 
         if (shouldSyncDuringDrag && this.onEntityChanged) {
           this.onEntityChanged(en, dx, dy); // CHANGED: defer device persistence until pointerup for smoother dragging
@@ -1474,9 +1461,14 @@ if (this.mode === 'door' || this.mode === 'window') {
           ? entity.y - entity.savedPosition.y
           : restoreDy;
 
-        if (this.onEntityChanged) {
+        const moveAlreadySynced = isMove && entity.structureType && this.interaction.syncedDuringDrag;
+        if (this.onEntityChanged && isMove && !moveAlreadySynced) {
           this.onEntityChanged(entity, actualDx, actualDy);
         }
+      }
+
+      if (!isMove && this.interaction.syncedDuringResize && this.onEntityResized) {
+        this.onEntityResized(this.selectedEntity, null, null, { finalize: true }); // ADDED: notify once after live resize inheritance completes
       }
     }
 
@@ -2522,7 +2514,7 @@ else if (this.startPoint && this.currentPoint) {
     for (const arr of lists) {
       if (!arr) continue;
       for (const en of arr) {
-        if (en && (en.id === id || String(en.id) === id)) {
+        if (en && String(en.id) === String(id)) { // CHANGED: hierarchy IDs can arrive as numbers or strings after save/load
           return en;
         }
       }
@@ -2800,30 +2792,94 @@ else if (this.startPoint && this.currentPoint) {
       };
     }
 
-    const x = Number(en.x ?? 0);
-    const y = Number(en.y ?? 0);
-    const w = Number(en.w ?? en.width ?? 0);
-    const h = Number(en.h ?? en.height ?? 0);
+    if (typeof en.getCurrentBounds === 'function') {
+      const bounds = en.getCurrentBounds();
+      if (bounds) {
+        return {
+          minX: bounds.minX,
+          minY: bounds.minY,
+          maxX: bounds.maxX,
+          maxY: bounds.maxY,
+          width: bounds.maxX - bounds.minX,
+          height: bounds.maxY - bounds.minY
+        };
+      }
+    }
+
+    if (en.type === 'circle') {
+      const r = Number(en.transform?.scale?.r ?? en.r ?? 0);
+      const cx = Number(en.x ?? 0);
+      const cy = Number(en.y ?? 0);
+      return {
+        minX: cx - r,
+        minY: cy - r,
+        maxX: cx + r,
+        maxY: cy + r,
+        width: r * 2,
+        height: r * 2
+      };
+    }
+
+    const points = en.transform?.scale?.points || en.points;
+    if (Array.isArray(points) && points.length) {
+      const xs = points.map(p => Number(p.x ?? 0));
+      const ys = points.map(p => Number(p.y ?? 0));
+      const minX = Math.min(...xs);
+      const minY = Math.min(...ys);
+      const maxX = Math.max(...xs);
+      const maxY = Math.max(...ys);
+      return {
+        minX,
+        minY,
+        maxX,
+        maxY,
+        width: maxX - minX,
+        height: maxY - minY
+      };
+    }
+
+    const x = Number(en.x ?? en.transform?.position?.x ?? 0);
+    const y = Number(en.y ?? en.transform?.position?.y ?? 0);
+    const w = Number(en.transform?.scale?.w ?? en.w ?? en.width ?? 0);
+    const h = Number(en.transform?.scale?.h ?? en.h ?? en.height ?? 0);
     return {
-      minX: x,
-      minY: y,
-      maxX: x + w,
-      maxY: y + h,
-      width: w,
-      height: h
+      minX: Math.min(x, x + w),
+      minY: Math.min(y, y + h),
+      maxX: Math.max(x, x + w),
+      maxY: Math.max(y, y + h),
+      width: Math.abs(w),
+      height: Math.abs(h)
     };
   }
 
-  _getParentBounds(en) {
-    if (!en || !appState.structural) return null;
-    const st = appState.structural;
-    const getBounds = (shape) => {
-      if (!shape) return null;
-      const src = shape.geometry || shape;
-      const x = Number(src.x ?? src.left ?? 0);
-      const y = Number(src.y ?? src.top ?? 0);
-      const w = Number(src.w ?? src.width ?? 0);
-      const h = Number(src.h ?? src.height ?? 0);
+  _getBoundsFromStoredShape(shape) {
+    if (!shape) return null;
+    const src = shape.geometry || shape;
+    const points = src.points || shape.points;
+
+    if (Array.isArray(points) && points.length) {
+      const xs = points.map(p => Number(p.x ?? 0));
+      const ys = points.map(p => Number(p.y ?? 0));
+      const minX = Math.min(...xs);
+      const minY = Math.min(...ys);
+      const maxX = Math.max(...xs);
+      const maxY = Math.max(...ys);
+      return {
+        minX,
+        minY,
+        maxX,
+        maxY,
+        width: maxX - minX,
+        height: maxY - minY
+      };
+    }
+
+    const x = Number(src.x ?? src.left ?? 0);
+    const y = Number(src.y ?? src.top ?? 0);
+    const w = Number(src.w ?? src.width ?? 0);
+    const h = Number(src.h ?? src.height ?? 0);
+
+    if ((w || h) || shape.shapeType !== 'circle') {
       return {
         minX: Math.min(x, x + w),
         minY: Math.min(y, y + h),
@@ -2832,26 +2888,276 @@ else if (this.startPoint && this.currentPoint) {
         width: Math.abs(w),
         height: Math.abs(h)
       };
-    };
-
-    if (en.spaceId) {
-      const space = st.spaces?.find(s => s.id === en.spaceId);
-      if (space) return getBounds(space);
     }
 
-    if (en.floorId) {
-      const floor = st.floors?.find(f => f.id === en.floorId);
-      if (floor) {
-        const floorBounds = getBounds(floor);
-        if (floorBounds && floorBounds.width > 0 && floorBounds.height > 0) {
-          return floorBounds;
-        }
-        const parentSite = st.sites?.find(s => s.id === floor.siteId);
-        if (parentSite) return getBounds(parentSite);
-      }
+    const r = Number(src.r ?? src.radius ?? 0);
+    return {
+      minX: x - r,
+      minY: y - r,
+      maxX: x + r,
+      maxY: y + r,
+      width: r * 2,
+      height: r * 2
+    };
+  }
+
+  _getStructuralRecordById(id) {
+    if (!id || !appState.structural) return null;
+    const st = appState.structural;
+    const idText = String(id);
+    return (
+      st.domains?.find(d => String(d.id) === idText) ||
+      st.sites?.find(s => String(s.id) === idText) ||
+      st.floors?.find(f => String(f.id) === idText) ||
+      st.spaces?.find(sp => String(sp.id) === idText) ||
+      null
+    );
+  }
+
+  _getStructuralRecordForEntity(en) {
+    if (!en?.id) return null;
+    return this._getStructuralRecordById(en.id);
+  }
+
+  _getStructuralParentId(en) {
+    if (!en?.structureType) return null;
+
+    const record = this._getStructuralRecordForEntity(en);
+    const type = String(en.structureType).toLowerCase();
+
+    if (type === 'site') return record?.domainId ?? null;
+    if (type === 'floor') return record?.siteId ?? null;
+    if (type === 'space') return record?.floorId ?? null;
+
+    return null;
+  }
+
+  _getBoundsForStructuralId(id) {
+    if (!id) return null;
+
+    const canvasEntity = this.findEntityById(id);
+    const canvasBounds = this._getEntityBounds(canvasEntity);
+    if (canvasBounds && canvasBounds.width > 0 && canvasBounds.height > 0) {
+      return canvasBounds; // ADDED: prefer live canvas bounds so child math uses the parent's current local coordinate frame
+    }
+
+    const record = this._getStructuralRecordById(id);
+    const storedBounds = this._getBoundsFromStoredShape(record);
+    if (storedBounds && storedBounds.width > 0 && storedBounds.height > 0) {
+      return storedBounds;
     }
 
     return null;
+  }
+
+  _getParentBounds(en) {
+    if (!en || !appState.structural) return null;
+    const st = appState.structural;
+
+    if (en.structureType) {
+      const parentId = this._getStructuralParentId(en);
+      const parentBounds = this._getBoundsForStructuralId(parentId);
+      if (parentBounds) return parentBounds;
+
+      const parentRecord = this._getStructuralRecordById(parentId);
+      if (String(en.structureType).toLowerCase() === 'space' && parentRecord?.siteId) {
+        return this._getBoundsForStructuralId(parentRecord.siteId); // ADDED: auto-generated floors borrow their Site bounds
+      }
+    }
+
+    if (en.spaceId) {
+      return this._getBoundsForStructuralId(en.spaceId);
+    }
+
+    if (en.floorId) {
+      const floor = st.floors?.find(f => String(f.id) === String(en.floorId));
+      const floorBounds = this._getBoundsForStructuralId(en.floorId);
+      if (floorBounds && floorBounds.width > 0 && floorBounds.height > 0) {
+        return floorBounds;
+      }
+      if (floor?.siteId) return this._getBoundsForStructuralId(floor.siteId);
+    }
+
+    return null;
+  }
+
+  _getParentEntity(en) {
+    if (!en) return null;
+
+    if (en.structureType) {
+      const parentId = this._getStructuralParentId(en);
+      const parentEntity = this.findEntityById(parentId);
+      if (parentEntity) return parentEntity;
+
+      const parentRecord = this._getStructuralRecordById(parentId);
+      if (String(en.structureType).toLowerCase() === 'space' && parentRecord?.siteId) {
+        return this.findEntityById(parentRecord.siteId); // ADDED: use Site outline when the active Floor only inherits Site bounds
+      }
+      return null;
+    }
+
+    if (en.spaceId) return this.findEntityById(en.spaceId);
+
+    if (en.floorId) {
+      const floorEntity = this.findEntityById(en.floorId);
+      if (floorEntity) return floorEntity;
+
+      const floor = appState.structural?.floors?.find(f => String(f.id) === String(en.floorId));
+      if (floor?.siteId) return this.findEntityById(floor.siteId);
+    }
+
+    return null;
+  }
+
+  _getLocalBounds(bounds, parentBounds) {
+    return {
+      minX: bounds.minX - parentBounds.minX,
+      minY: bounds.minY - parentBounds.minY,
+      maxX: bounds.maxX - parentBounds.minX,
+      maxY: bounds.maxY - parentBounds.minY,
+      width: bounds.width,
+      height: bounds.height
+    };
+  }
+
+  _boundsChanged(a, b) {
+    if (!a || !b) return false;
+    return (
+      Math.abs(a.minX - b.minX) > 0.001 ||
+      Math.abs(a.minY - b.minY) > 0.001 ||
+      Math.abs(a.maxX - b.maxX) > 0.001 ||
+      Math.abs(a.maxY - b.maxY) > 0.001
+    );
+  }
+
+  _getBoundsCornerPoints(bounds) {
+    return [
+      { x: bounds.minX, y: bounds.minY },
+      { x: bounds.maxX, y: bounds.minY },
+      { x: bounds.maxX, y: bounds.maxY },
+      { x: bounds.minX, y: bounds.maxY }
+    ];
+  }
+
+  _getEntityContainmentPoints(en, bounds = null) {
+    if (!en) return [];
+
+    if (en.type === 'circle') {
+      const r = Number(en.transform?.scale?.r ?? en.r ?? 0);
+      const cx = Number(en.x ?? 0);
+      const cy = Number(en.y ?? 0);
+      const points = [];
+      for (let i = 0; i < 16; i++) {
+        const angle = (Math.PI * 2 * i) / 16;
+        points.push({
+          x: cx + Math.cos(angle) * r,
+          y: cy + Math.sin(angle) * r
+        });
+      }
+      return points; // ADDED: sampled circle perimeter keeps circular children inside non-rectangular parents
+    }
+
+    const shapePoints = en.transform?.scale?.points || en.points;
+    if (Array.isArray(shapePoints) && shapePoints.length) {
+      return shapePoints.map(p => ({ x: Number(p.x ?? 0), y: Number(p.y ?? 0) }));
+    }
+
+    const entityBounds = bounds || this._getEntityBounds(en);
+    return entityBounds ? this._getBoundsCornerPoints(entityBounds) : [];
+  }
+
+  _isPointOnSegment(point, a, b) {
+    const cross = (point.y - a.y) * (b.x - a.x) - (point.x - a.x) * (b.y - a.y);
+    if (Math.abs(cross) > 0.001) return false;
+
+    const dot = (point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y);
+    if (dot < -0.001) return false;
+
+    const lenSq = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
+    return dot <= lenSq + 0.001;
+  }
+
+  _isPointInPolygon(point, points) {
+    let inside = false;
+
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+      const a = points[i];
+      const b = points[j];
+
+      if (this._isPointOnSegment(point, a, b)) {
+        return true; // ADDED: touching the parent perimeter is allowed, crossing it is not
+      }
+
+      const intersects = ((a.y > point.y) !== (b.y > point.y)) &&
+        point.x <= ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x;
+
+      if (intersects) inside = !inside;
+    }
+
+    return inside;
+  }
+
+  _isPointInsideParentEntity(parent, point) {
+    if (!parent) return true;
+
+    if (parent.type === 'circle') {
+      const r = Number(parent.transform?.scale?.r ?? parent.r ?? 0);
+      const dx = point.x - Number(parent.x ?? 0);
+      const dy = point.y - Number(parent.y ?? 0);
+      return Math.hypot(dx, dy) <= r + 0.001;
+    }
+
+    const parentPoints = parent.transform?.scale?.points || parent.points;
+    if (Array.isArray(parentPoints) && parentPoints.length >= 3) {
+      const normalizedPoints = parentPoints.map(p => ({
+        x: Number(p.x ?? 0),
+        y: Number(p.y ?? 0)
+      }));
+      return this._isPointInPolygon(point, normalizedPoints);
+    }
+
+    const parentBounds = this._getEntityBounds(parent);
+    if (!parentBounds) return true;
+
+    return (
+      point.x >= parentBounds.minX &&
+      point.y >= parentBounds.minY &&
+      point.x <= parentBounds.maxX &&
+      point.y <= parentBounds.maxY
+    );
+  }
+
+  _arePointsInsideParentEntity(parent, points, dx = 0, dy = 0) {
+    if (!parent) return true;
+    return points.every(point => this._isPointInsideParentEntity(parent, {
+      x: point.x + dx,
+      y: point.y + dy
+    }));
+  }
+
+  _isEntityContainedByParentShape(en, dx = 0, dy = 0) {
+    const parent = this._getParentEntity(en);
+    if (!parent) return true;
+
+    const points = this._getEntityContainmentPoints(en);
+    if (!points.length) return true;
+
+    return this._arePointsInsideParentEntity(parent, points, dx, dy);
+  }
+
+  _isEntityWithinParentBounds(en) {
+    const entityBounds = this._getEntityBounds(en);
+    const parentBounds = this._getParentBounds(en);
+    if (!entityBounds || !parentBounds) return true;
+
+    const insideParentBounds = (
+      entityBounds.minX >= parentBounds.minX &&
+      entityBounds.minY >= parentBounds.minY &&
+      entityBounds.maxX <= parentBounds.maxX &&
+      entityBounds.maxY <= parentBounds.maxY
+    );
+
+    return insideParentBounds && this._isEntityContainedByParentShape(en); // ADDED: enforce the actual polygon/circle parent outline when available
   }
 
   _clampMovementWithinParent(en, dx, dy) {
@@ -2861,21 +3167,132 @@ else if (this.startPoint && this.currentPoint) {
 
     let clampedDx = dx;
     let clampedDy = dy;
+    const localEntity = this._getLocalBounds(entityBounds, parentBounds); // ADDED: containment is resolved in the parent's local bounds
 
-    if (entityBounds.minX + clampedDx < parentBounds.minX) {
-      clampedDx = parentBounds.minX - entityBounds.minX;
+    if (localEntity.minX + clampedDx < 0) {
+      clampedDx = -localEntity.minX;
     }
-    if (entityBounds.maxX + clampedDx > parentBounds.maxX) {
-      clampedDx = parentBounds.maxX - entityBounds.maxX;
+    if (localEntity.maxX + clampedDx > parentBounds.width) {
+      clampedDx = parentBounds.width - localEntity.maxX;
     }
-    if (entityBounds.minY + clampedDy < parentBounds.minY) {
-      clampedDy = parentBounds.minY - entityBounds.minY;
+    if (localEntity.minY + clampedDy < 0) {
+      clampedDy = -localEntity.minY;
     }
-    if (entityBounds.maxY + clampedDy > parentBounds.maxY) {
-      clampedDy = parentBounds.maxY - entityBounds.maxY;
+    if (localEntity.maxY + clampedDy > parentBounds.height) {
+      clampedDy = parentBounds.height - localEntity.maxY;
+    }
+
+    if (!this._isEntityContainedByParentShape(en, clampedDx, clampedDy)) {
+      let low = 0;
+      let high = 1;
+
+      for (let i = 0; i < 20; i++) {
+        const mid = (low + high) / 2;
+        if (this._isEntityContainedByParentShape(en, clampedDx * mid, clampedDy * mid)) {
+          low = mid;
+        } else {
+          high = mid;
+        }
+      }
+
+      clampedDx *= low; // ADDED: binary-search the last valid drag point before a true shape perimeter crossing
+      clampedDy *= low;
     }
 
     return { dx: clampedDx, dy: clampedDy };
+  }
+
+  _getClampedRectangleResize(en, handle, dx, dy) {
+    const bounds = this._getEntityBounds(en);
+    if (!bounds) {
+      return {
+        moveDx: 0,
+        moveDy: 0,
+        w: Math.max(1, Number(en.transform?.scale?.w ?? en.w ?? 1) + dx),
+        h: Math.max(1, Number(en.transform?.scale?.h ?? en.h ?? 1) + dy)
+      };
+    }
+
+    const parentBounds = this._getParentBounds(en);
+    const minW = 1;
+    const minH = 1;
+    const clampRange = (value, min, max) => {
+      const safeMax = Math.max(min, max);
+      return Math.max(min, Math.min(value, safeMax));
+    };
+
+    let left = bounds.minX;
+    let top = bounds.minY;
+    let right = bounds.maxX;
+    let bottom = bounds.maxY;
+
+    const parentMinX = parentBounds?.minX ?? -Infinity;
+    const parentMinY = parentBounds?.minY ?? -Infinity;
+    const parentMaxX = parentBounds?.maxX ?? Infinity;
+    const parentMaxY = parentBounds?.maxY ?? Infinity;
+
+    if (handle.includes('w')) {
+      left = clampRange(left + dx, parentMinX, right - minW);
+    }
+    if (handle.includes('e')) {
+      right = clampRange(right + dx, left + minW, parentMaxX);
+    }
+    if (handle.includes('n')) {
+      top = clampRange(top + dy, parentMinY, bottom - minH);
+    }
+    if (handle.includes('s')) {
+      bottom = clampRange(bottom + dy, top + minH, parentMaxY);
+    }
+
+    const parentEntity = this._getParentEntity(en);
+    const isProposedResizeInsideParent = (nextLeft, nextTop, nextRight, nextBottom) => {
+      if (!parentEntity) return true;
+      return this._arePointsInsideParentEntity(parentEntity, this._getBoundsCornerPoints({
+        minX: nextLeft,
+        minY: nextTop,
+        maxX: nextRight,
+        maxY: nextBottom
+      }));
+    };
+
+    if (!isProposedResizeInsideParent(left, top, right, bottom)) {
+      const startLeft = bounds.minX;
+      const startTop = bounds.minY;
+      const startRight = bounds.maxX;
+      const startBottom = bounds.maxY;
+      const targetLeft = left;
+      const targetTop = top;
+      const targetRight = right;
+      const targetBottom = bottom;
+      let low = 0;
+      let high = 1;
+
+      for (let i = 0; i < 20; i++) {
+        const mid = (low + high) / 2;
+        const nextLeft = startLeft + (targetLeft - startLeft) * mid;
+        const nextTop = startTop + (targetTop - startTop) * mid;
+        const nextRight = startRight + (targetRight - startRight) * mid;
+        const nextBottom = startBottom + (targetBottom - startBottom) * mid;
+
+        if (isProposedResizeInsideParent(nextLeft, nextTop, nextRight, nextBottom)) {
+          low = mid;
+        } else {
+          high = mid;
+        }
+      }
+
+      left = startLeft + (targetLeft - startLeft) * low; // ADDED: stop resize exactly before a corner crosses polygon/circle parent edges
+      top = startTop + (targetTop - startTop) * low;
+      right = startRight + (targetRight - startRight) * low;
+      bottom = startBottom + (targetBottom - startBottom) * low;
+    }
+
+    return {
+      moveDx: left - bounds.minX,
+      moveDy: top - bounds.minY,
+      w: right - left,
+      h: bottom - top
+    };
   }
 
   _getEntityInteractionBounds(en) {
@@ -2981,6 +3398,20 @@ else if (this.startPoint && this.currentPoint) {
 
     if (isAsset || isFenestration) {
       return false; // Skip the overlap alert for these!
+    }
+
+    if (currentEntity.structureType && !this._isEntityWithinParentBounds(currentEntity)) {
+      if (action === 'creation') {
+        if (currentEntity.type === 'freeform') {
+          for (const body of currentEntity.bodies) {
+            this.system.remove(body);
+          }
+        } else {
+          this.system.remove(currentEntity.body);
+        }
+      }
+
+      return true; // ADDED: structural transformations fail silently when they would leave the parent perimeter
     }
 
     // Only check for overlap on entities that support it (like structures),

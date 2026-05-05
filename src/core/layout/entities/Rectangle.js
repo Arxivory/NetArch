@@ -50,12 +50,16 @@ export class Rectangle {
     }
 
     setWidthAndHeight(w, h) {
-        this.w = w;
-        this.h = h;
-        this.transform.scale.w = w;
-        this.transform.scale.h = h;
-        this.body.width = w;
-        this.body.height = h;
+        this.w = Math.max(1, Number(w) || 1); // ADDED: prevent resize math from producing invalid or negative bounds
+        this.h = Math.max(1, Number(h) || 1);
+        this.maxX = this.x + this.w; // ADDED: keep max bounds aligned for hierarchy clamping
+        this.maxY = this.y + this.h;
+        this.transform.scale.w = this.w;
+        this.transform.scale.h = this.h;
+        this.body.width = this.w;
+        this.body.height = this.h;
+        this.body.setPosition(this.x, this.y, true);
+        this.updatePath();
     }
 
     setScale(newScale) {

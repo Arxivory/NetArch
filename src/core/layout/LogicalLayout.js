@@ -9,6 +9,7 @@ import { Selection } from '../editor/Selection.js';
 import EntityTransformer from './transform/EntityTransformer.js';
 import { System } from 'check2d';
 import appState from '../../state/AppState.js';
+import { CableRouteManager } from '../cabling/CableRouteManager.js';
 
 // ADD THIS IMPORT:
 import { UnitSystem, GridScale } from '../../util/UnitSystem.js'; // Adjust path if needed
@@ -47,6 +48,8 @@ export class LogicalLayout {
       onUndergroundConduitCreated: opts.onUndergroundConduitCreated || null,
       system: this.system
     });
+
+    this.routeManager = new CableRouteManager(appState.structural, 0.7);
 
     // --- NEW: Global Listener for Entity Deletions ---
     window.addEventListener('forceCanvasDelete', (e) => {
@@ -1313,6 +1316,16 @@ export class LogicalLayout {
     }
 
     if (this.interaction?.mode === 'move_conduit') {
+      const conduit = this.interaction.conduit;
+      if (this.routeManager && conduit) {
+        // Re-resolve all cables — any could be using this conduit
+        const links   = appState.network.getAllLinks();
+        const devices = appState.network.getAllDevices();
+        this.routeManager.resolveAll(links, devices);   // won't re-resolve cached ones
+        // Force clear and re-resolve everything since conduit position changed
+        this.routeManager.clear();
+        this.routeManager.resolveAll(links, devices);
+      }
       this.interaction = { mode: null, handle: null, start: null };
       this.pointerHandler.setPointerDown(false);
       this._render();
@@ -1320,6 +1333,13 @@ export class LogicalLayout {
     }
 
     if (this.interaction?.mode === 'move_riser') {
+      const riser = this.interaction.riser;
+      if (this.routeManager && riser) {
+        this.routeManager.clear();
+        const links   = appState.network.getAllLinks();
+        const devices = appState.network.getAllDevices();
+        this.routeManager.resolveAll(links, devices);
+      }
       this.interaction = { mode: null, handle: null, start: null };
       this.pointerHandler.setPointerDown(false);
       this._render();
@@ -1499,6 +1519,12 @@ if (this.mode === 'door' || this.mode === 'window') {
 
         if (this.onEntityChanged) {
           this.onEntityChanged(entity, actualDx, actualDy);
+        }
+
+        if (this._isDeviceEntity(entity) && this.routeManager) {
+          const links   = appState.network.getAllLinks();
+          const devices = appState.network.getAllDevices();
+          this.routeManager.reResolveForDevice(entity.id, links, devices);
         }
       }
     }
@@ -1710,11 +1736,15 @@ if (this.mode === 'door' || this.mode === 'window') {
   _placeRiserAt(clickX, clickY) {
     const focusedId   = appState.selection.focusedId;
     const focusedType = appState.selection.focusedType?.toLowerCase();
+    
+    console.log(focusedType);
 
     if (!focusedId || (focusedType !== 'space' && focusedType !== 'floor')) {
       alert('Please select a Space or Floor first before placing a Riser.');
       return null;
     }
+
+    const space = appState.structural.spaces.find(space => space.id === focusedId);
 
     const parentShape =
       this.rectangles.find(r => r.id === focusedId) ||
@@ -1738,6 +1768,8 @@ if (this.mode === 'door' || this.mode === 'window') {
       alert('Risers must be placed inside a Space or Floor.');
       return null;
     }
+
+    parentShape.floorId = space.floorId;
 
     const riser = this.shapeCreator.createRiser(clickX, clickY, 5, 5);
     if (riser) {
@@ -1953,40 +1985,43 @@ if (this.mode === 'door' || this.mode === 'window') {
         if (!srcOnFloor || !dstOnFloor) continue;
       }
 
+      const resolvedPath = this.routeManager?.getPath(cable.id);
+      const isPartial = resolvedPath?.isPartial ?? false;
       ctx.beginPath();
-
-      if (cable.type === "console") {
-        ctx.strokeStyle = "#007BFF";
-        ctx.setLineDash([]);
-
-        const midX = (src.x + dst.x) / 2;
-        const midY = (src.y + dst.y) / 2 - 40;
-
-        ctx.moveTo(src.x, src.y);
-        ctx.quadraticCurveTo(midX, midY, dst.x, dst.y);
+      if (resolvedPath && !resolvedPath.isDirect && resolvedPath.canvasPoints.length >= 2) {
+        // Draw segmented route through conduits/risers
+        const pts = resolvedPath.canvasPoints;
+        ctx.moveTo(src.x, src.y); 
+        for (let i = 1; i < pts.length - 1; i++) {
+          ctx.lineTo(pts[i].x, pts[i].y);
+        }
+        ctx.lineTo(dst.x, dst.y);
+      } else {
+        // Fallback: straight line (same space or not yet resolved)
+        if (cable.type === 'console') {
+          const midX = (src.x + dst.x) / 2;
+          const midY = (src.y + dst.y) / 2 - 40;
+          ctx.moveTo(src.x, src.y);
+          ctx.quadraticCurveTo(midX, midY, dst.x, dst.y);
+        } else {
+          ctx.moveTo(src.x, src.y);
+          ctx.lineTo(dst.x, dst.y);
+        }
       }
 
-      else if (cable.type === "copper-crossover") {
-        ctx.strokeStyle = "#000000";
+      if (isPartial) {
+        ctx.strokeStyle = '#f97316'; // orange = missing pathway warning
+        ctx.setLineDash([6, 3]);
+      } else if (cable.type === 'copper-crossover') {
+        ctx.strokeStyle = '#000000';
         ctx.setLineDash([6, 4]);
-        ctx.moveTo(src.x, src.y);
-        ctx.lineTo(dst.x, dst.y);
-      }
-
-      else if (cable.type === "copper-straight") {
-        ctx.strokeStyle = "#000000";
+      } else if (cable.type === 'console') {
+        ctx.strokeStyle = '#007BFF';
         ctx.setLineDash([]);
-        ctx.moveTo(src.x, src.y);
-        ctx.lineTo(dst.x, dst.y);
-      }
-
-      else {
-        ctx.strokeStyle = "#000000";
+      } else {
+        ctx.strokeStyle = '#000000';
         ctx.setLineDash([]);
-        ctx.moveTo(src.x, src.y);
-        ctx.lineTo(dst.x, dst.y);
       }
-
       ctx.stroke();
     }
 

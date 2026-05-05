@@ -13,6 +13,7 @@ import { GizmoManager } from './rendering/GizmoManager.js';
 import { getScene, getCamera, getRenderer } from './rendering/SceneAccess';
 import WallMesh from './rendering/structures/WallMesh.js';
 import CableMesh from './rendering/cables/CableMesh.js';
+import { CableRouteManager } from './cabling/CableRouteManager.js';
 
 export class PhysicalController {
     constructor(scene) {
@@ -40,6 +41,8 @@ export class PhysicalController {
         this.selectionHelpers = new Map();
 
         this.furnitureCatalog = furnitureCatalog.furnitures;
+
+        this.routeManager = new CableRouteManager(this.store, this.defaultScaler);
 
         this.unsubscribe = this.store.subscribe(() => this.syncWithState());
         this.unsubscribeNetwork = this.networkStore.subscribe(() => this.syncWithState());
@@ -182,6 +185,8 @@ export class PhysicalController {
             }
         }
 
+        this.routeManager.resolveAll(links, devices);
+
         for (const link of links) {
             console.log(link);
             activeLinkIds.add(link.id);
@@ -314,15 +319,17 @@ export class PhysicalController {
     }
 
     _refreshCablesForDevice(deviceId) {
+        const links = this.networkStore.links;
+        const devices = this.networkStore.devices;
+        this.routeManager.reResolveForDevice(deviceId, links, devices);
         for (const [linkId, cable] of this.cableMeshes) {
-            if (
-                cable.sourceDeviceId === deviceId ||
-                cable.targetDeviceId === deviceId
-            ) {
-                cable.update();
+            if (cable.sourceDeviceId === deviceId || cable.targetDeviceId === deviceId) {
+                const newPath = this.routeManager.getPath(linkId);
+                cable.updateResolvedPath(newPath);
             }
         }
     }
+
 
     createDomainMesh(domain) {
         const newDomain = new DomainMesh(domain, this.defaultScaler);
@@ -462,9 +469,9 @@ export class PhysicalController {
     }
 
     createCableMesh(link) {
-        const newCable = new CableMesh(link, this.defaultScaler, this.deviceMeshes);
+        const resolvedPath = this.routeManager.getPath(link.id);
+        const newCable = new CableMesh(link, this.defaultScaler, this.deviceMeshes, resolvedPath);
         const cableMesh = newCable.getMesh();
-
         this.scene.add(cableMesh);
         this.cableMeshes.set(link.id, newCable);
     }

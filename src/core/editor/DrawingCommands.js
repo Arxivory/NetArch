@@ -303,7 +303,6 @@ export class CreateDomainCommand extends Command {
   execute() {
     const cleanData = JSON.parse(JSON.stringify(this.domainData));
 
-    // ✅ FIX STRUCTURE FIRST
     if (!cleanData.transform) {
       cleanData.transform = {};
     }
@@ -324,18 +323,15 @@ export class CreateDomainCommand extends Command {
       cleanData.transform.position.z = this.controller.nextY;
     }
 
-    // ✅ geometry depends on transform → must come AFTER
     cleanData.geometry = {
       x: cleanData.transform.position.x,
       y: cleanData.transform.position.z
     };
 
-    // ✅ NOW insert into store
     const domain = this.appState.structural.addDomain({
       ...cleanData
     });
 
-    // ✅ THEN update controller state
     this.controller.nextX += this.controller.spacing;
 
     this.createdDomain = domain;

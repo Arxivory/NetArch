@@ -15,6 +15,7 @@
  */
 
 import SwitchingEngine from './switching/SwitchingEngine.js';
+import VLANManager from './switching/VLAN.js';
 
 /**
  * Install switch behavior on a Device instance.
@@ -36,7 +37,8 @@ export function installSwitchBehavior(device) {
   // =========================================================================
   // INSTALL SWITCHING COMPONENTS
   // =========================================================================
-
+  // Install the VLAN Manager first, as the Switching Engine will rely on it for VLAN info
+  device.vlanManager = new VLANManager(device);
   // Instantiates the brain, which internally creates the MacTable
   device.engine = new SwitchingEngine(device);
 
@@ -103,6 +105,22 @@ export function installSwitchBehavior(device) {
     console.log(`[${this.hostname}] MAC address table cleared.`);
   };
 
+  // NEW: UI helper to display VLAN assignments (Cisco: show vlan brief)
+  device.showVlanBrief = function() {
+    const db = this.vlanManager.getDatabase();
+    return db.map(vlan => {
+       const ports = [];
+       // Find all access ports assigned to this VLAN
+       for(const [portId, vId] of this.vlanManager.accessVlans.entries()) {
+           if(vId === vlan.id && this.vlanManager.portModes.get(portId) !== 'trunk') {
+               const portName = portId.split('::')[1] || portId; // Extract friendly name
+               ports.push(portName);
+           }
+       }
+       return { ...vlan, ports };
+    });
+  };
+
   // =========================================================================
   // MARK INSTALLATION COMPLETE
   // =========================================================================
@@ -138,9 +156,11 @@ export function uninstallSwitchBehavior(device) {
   }
 
   // Remove added methods and components
+  delete device.vlanManager;
   delete device.engine;
   delete device.showMacAddressTable;
   delete device.clearMacAddressTable;
+  delete device.showVlanBrief;
   delete device._switchInstalled;
 
   console.log(`[${device.hostname}] Switch behavior uninstalled`);

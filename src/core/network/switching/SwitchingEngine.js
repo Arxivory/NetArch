@@ -4,8 +4,7 @@ import { isBroadcast } from '../Packet.js';
 /**
  * SwitchingEngine.js
  * 
- * The Layer 2 processing brain of a switch.
- * Mirrors the RouterPipeline.js logic for Layer 2.
+ * The Layer 2 processing brain. Now upgraded with 802.1Q VLAN awareness.
  */
 export default class SwitchingEngine {
   constructor(device) {
@@ -14,42 +13,54 @@ export default class SwitchingEngine {
   }
 
   processFrame(frame, ingressInterface) {
-    // 1. Frame Ingress (Aligned with Packet.js schema)
-    if (!frame || !frame.srcMAC || !frame.dstMAC) {
-      console.warn(`[${this.device.hostname}] Dropping invalid frame.`);
-      return;
-    }
+    if (!frame || !frame.srcMAC || !frame.dstMAC) return;
 
     const ingressPort = ingressInterface.physicalPort;
-    if (!ingressPort || ingressPort.physicalStatus !== 'up') {
-      return;
+    if (!ingressPort || ingressPort.physicalStatus !== 'up') return;
+
+    // --- STEP 1: INGRESS VLAN DETERMINATION ---
+    const portMode = this.device.vlanManager.portModes.get(ingressPort.id) || 'access';
+    let vlanId;
+
+    if (portMode === 'trunk') {
+      // Trunks trust incoming 802.1Q tags. If missing, assumes Native VLAN 1.
+      vlanId = frame.vlanTag?.id || 1;
+    } else {
+      // Access ports ignore incoming tags. They forcefully assign their configured VLAN.
+      vlanId = this.device.vlanManager.getIngressVlan(ingressPort.id);
+      delete frame.vlanTag; // Strip tags (Security feature to prevent VLAN hopping)
     }
 
-    // 2. Extract VLAN from Packet.js vlanTag schema
-    const vlanId = frame.vlanTag?.id || ingressInterface.vlan || 1;
-
-    // 3. MAC Learning
+    // --- STEP 2: MAC LEARNING ---
+    // The switch now memorizes the MAC address ALONG with its isolated VLAN ID
     this.macTable.learn(frame.srcMAC, ingressPort.id, vlanId);
 
-    // 4. Forwarding Decision (Using Packet.js helper)
+    // --- STEP 3: FORWARDING DECISION ---
     if (isBroadcast(frame)) {
       this._flood(frame, ingressPort, vlanId);
     } else {
       const egressPortId = this.macTable.lookup(frame.dstMAC, vlanId);
 
       if (egressPortId) {
-        this._forward(frame, egressPortId);
+        this._forward(frame, egressPortId, vlanId);
       } else {
         this._flood(frame, ingressPort, vlanId);
       }
     }
   }
 
-  _forward(frame, egressPortId) {
+  _forward(frame, egressPortId, frameVlanId) {
+    // SECURITY GATE: Is this frame allowed to exit this specific port?
+    if (!this.device.vlanManager.isEgressAllowed(egressPortId, frameVlanId)) {
+       return; // Packet Dropped: VLAN Boundary isolation
+    }
+
     const egressPort = this.device.ports.find(p => p.id === egressPortId);
     if (!egressPort || !egressPort.link || egressPort.physicalStatus !== 'up') return;
-    
-    egressPort.link.transmitPacket(frame, egressPort);
+
+    // Prepare the frame for leaving the switch
+    const frameClone = this._prepareEgressFrame(frame, egressPortId, frameVlanId);
+    egressPort.link.transmitPacket(frameClone, egressPort);
   }
 
   _flood(frame, ingressPort, vlanId) {
@@ -58,12 +69,29 @@ export default class SwitchingEngine {
     );
 
     activePorts.forEach(egressPort => {
-      const portVlan = egressPort.interface?.vlan || 1;
-      
-      if (portVlan === vlanId) {
-        const frameClone = JSON.parse(JSON.stringify(frame));
+      // SECURITY GATE: Only flood out of ports allowed to carry this VLAN
+      if (this.device.vlanManager.isEgressAllowed(egressPort.id, vlanId)) {
+        const frameClone = this._prepareEgressFrame(frame, egressPort.id, vlanId);
         egressPort.link.transmitPacket(frameClone, egressPort);
       }
     });
+  }
+
+  /**
+   * Helper: Modifies the Ethernet Frame headers depending on the port it is leaving.
+   */
+  _prepareEgressFrame(frame, egressPortId, frameVlanId) {
+    const frameClone = JSON.parse(JSON.stringify(frame));
+    const mode = this.device.vlanManager.portModes.get(egressPortId) || 'access';
+
+    if (mode === 'trunk') {
+      // Add the IEEE 802.1Q Tag so the next switch knows what VLAN this is
+      frameClone.vlanTag = { id: frameVlanId, priority: 0 };
+    } else {
+      // Strip the tag! Standard PCs drop tagged frames, so access ports must strip them.
+      delete frameClone.vlanTag;
+    }
+    
+    return frameClone;
   }
 }

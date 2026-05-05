@@ -36,11 +36,11 @@ const DEVICE_CONFIGS = {
     { label: "SSH",                 desc: "Secure remote command line access" },
   ],
   switch: [
-    { label: "Interface Settings",   desc: "Manage IPs, masks, and gateway for each port" },
     { label: "VLAN Manager",   desc: "Create and assign Virtual LANs" },
+    { label: "Interface Settings",   desc: "Manage IPs, masks, and gateway for each port" },
     { label: "Spanning Tree",  desc: "Configure STP to prevent network loops" },
-    { label: "Port Security",  desc: "Bind specific MAC addresses to ports" },
     { label: "VLAN Trunking",  desc: "Configure 802.1Q tags for switch links" },
+    { label: "Port Security",  desc: "Bind specific MAC addresses to ports" },
     { label: "QoS Settings",   desc: "Prioritize voice or video data packets" },
     { label: "User Auth",      desc: "Configure RADIUS/802.1X port access" },
     { label: "IGMP Snooping",  desc: "Optimize multicast traffic delivery" },

@@ -1,5 +1,3 @@
-import appState from "../../state/AppState";
-
 export class Selection {
     constructor(opts) {
         this.dpr = opts.dpr || 1;
@@ -37,9 +35,7 @@ export class Selection {
     identifyEntity(x, y, entities, ctx) {
         x *= this.dpr;
         y *= this.dpr;
-        
-        const priorityMap = { 'Space': 3, 'Site': 2, 'Domain': 1 };
-        
+
         let bestMatch = null;
         let bestPriority = -1;
 
@@ -48,7 +44,7 @@ export class Selection {
                 if (!en || !en.path) continue;
 
                 if (this.wasHit(en, x, y, ctx)) {
-                    const priority = priorityMap[en.structureType] || 0;
+                    const priority = this.getEntityPriority(en);
                     if (priority > bestPriority) {
                         bestMatch = en;
                         bestPriority = priority;
@@ -57,12 +53,7 @@ export class Selection {
             }
         }
 
-        if (bestMatch) {
-            appState.selection.focusedNode(bestMatch.id, this.getFocusType(bestMatch)); // CHANGED: store a clean focused type
-            return bestMatch;
-        }
-
-        return null;
+        return bestMatch;
     }
 
     wasHit(en, x, y, ctx) {

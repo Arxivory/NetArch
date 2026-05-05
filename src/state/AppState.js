@@ -141,6 +141,14 @@ export class AppState {
     this.selection.deselectLink(linkId);
   }
 
+  selectFurniture(furnitureId, multiSelect = false) {
+    this.selection.selectFurniture(furnitureId, multiSelect);
+  }
+
+  deselectFurniture(furnitureId) {
+    this.selection.deselectFurniture(furnitureId);
+  }
+
   clearSelection() {
     this.selection.clearSelection();
   }
@@ -294,8 +302,10 @@ export class AppState {
       },
       selection: {
         selectedDeviceIds: this.selection.selectedDeviceIds,
+        selectedFurnitureIds: this.selection.selectedFurnitureIds,
         selectedLinkIds: this.selection.selectedLinkIds,
-        focusedId: this.selection.focusedId
+        focusedId: this.selection.focusedId,
+        focusedType: this.selection.focusedType
       },
       ui: {
         hierarchyPanelOpen: this.ui.hierarchyPanelOpen,
@@ -323,8 +333,10 @@ export class AppState {
     }
     if (snapshot.selection) {
       this.selection.selectedDeviceIds = snapshot.selection.selectedDeviceIds || [];
+      this.selection.selectedFurnitureIds = snapshot.selection.selectedFurnitureIds || [];
       this.selection.selectedLinkIds = snapshot.selection.selectedLinkIds || [];
       this.selection.focusedId = snapshot.selection.focusedId || null;
+      this.selection.focusedType = snapshot.selection.focusedType || null;
     }
     if (snapshot.ui) {
       Object.assign(this.ui, snapshot.ui);
@@ -338,6 +350,7 @@ export class AppState {
       deviceCount: this.network.devices.length,
       linkCount: this.network.links.length,
       selectedDevices: this.selection.selectedDeviceIds.length,
+      selectedFurniture: this.selection.selectedFurnitureIds.length,
       selectedLinks: this.selection.selectedLinkIds.length,
       activeTool: this.tools.activeTool,
       isDragging: this.tools.isDragging,

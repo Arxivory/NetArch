@@ -4,24 +4,15 @@ const SwitchPanel = ({ activeTab, setActiveTab }) => {
   return (
     <div className="switch-panel">
       <button
-     
         onClick={() => setActiveTab("console")}
-        className={`log-button ${
-      
-          activeTab === "console"
-            ? "active"
-            : "log-button"
-        }`}
+        className={`switch-btn ${activeTab === "console" ? "active" : ""}`}
       >
-        Console 
+        Console
       </button>
+
       <button
         onClick={() => setActiveTab("simulation")}
-        className={`log-button ${
-          activeTab === "simulation"
-            ? "active"
-            : "log-button"
-        }`}
+        className={`switch-btn ${activeTab === "simulation" ? "active" : ""}`}
       >
         Simulation
       </button>

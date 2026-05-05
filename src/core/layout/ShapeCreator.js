@@ -6,6 +6,9 @@ import { Device }     from './entities/Device.js';
 import { Wall }       from './entities/Wall.js';
 import { Door }       from './entities/Door.js';
 import { Window }     from './entities/Window.js';
+import { Conduit }    from './entities/Conduit.js';
+import { Riser }      from './entities/Riser.js';
+import { UndergroundConduit } from './entities/UndergroundConduit.js';
 
 import { validateConnection }    from '../utils/ValidateConnection.js';
 import Link                      from '../network/Link.js';
@@ -40,7 +43,9 @@ export class ShapeCreator {
     this.onWallCreated      = opts.onWallCreated      || null;
     this.onDoorCreated      = opts.onDoorCreated      || null;
     this.onWindowCreated    = opts.onWindowCreated    || null;
-
+    this.onConduitCreated   = opts.onConduitCreated   || null;
+    this.onRiserCreated     = opts.onRiserCreated     || null;
+    this.onUndergroundConduitCreated = opts.onUndergroundConduitCreated || null;
     // Network entity callbacks
     this.onCableCreated     = opts.onCableCreated     || null;
     this.onDeviceCreated    = opts.onDeviceCreated    || null; // ← NEW
@@ -67,6 +72,7 @@ export class ShapeCreator {
       return null;
     }
     rectangle.id = this._genId(`Rectangle ${structureType}`);
+    rectangle.body.id = rectangle.id;
     return rectangle;
   }
 
@@ -77,6 +83,7 @@ export class ShapeCreator {
       return null;
     }
     circle.id = this._genId(`Circle ${structureType}`);
+    circle.body.id = circle.id;
     return circle;
   }
 
@@ -84,6 +91,7 @@ export class ShapeCreator {
     if (!points || points.length < 3) return null;
     const polygon = new Polygon(points, structureType, this.system);
     polygon.id = this._genId(`Polygon ${structureType}`);
+    polygon.body.id = polygon.id;
     return polygon;
   }
 
@@ -103,6 +111,27 @@ export class ShapeCreator {
     wall.id = this._genId('Wall ');
     if (this.onWallCreated) this.onWallCreated(wall);
     return wall;
+  }
+
+  createConduit(x, y) {
+    const conduit = new Conduit(x, y, this.system);
+    conduit.id = this._genId('Conduit ');
+    if (this.onConduitCreated) this.onConduitCreated(conduit);
+    return conduit;
+  }
+
+  createRiser(x, y, width, height) {
+    const riser = new Riser(x, y, width, height, this.system);
+    riser.id = this._genId('Riser ');
+    if (this.onRiserCreated) this.onRiserCreated(riser);
+    return riser;
+  }
+
+  createUndergroundConduit(x, y) {
+    const ugConduit = new UndergroundConduit(x, y, this.system);
+    ugConduit.id = this._genId('Underground Conduit ');
+    if (this.onUndergroundConduitCreated) this.onUndergroundConduitCreated(ugConduit);
+    return ugConduit;
   }
 
   createDoor(startPoint, currentPoint) {

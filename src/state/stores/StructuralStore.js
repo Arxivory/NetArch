@@ -5,6 +5,9 @@ import Space from "../../core/structural/Space";
 import Wall from "../../core/structural/Wall";
 import Door from "../../core/structural/Door";
 import Window from "../../core/structural/Window";
+import Conduit from "../../core/structural/Conduit";
+import Riser from "../../core/structural/Riser";
+import UndergroundConduit from "../../core/structural/UndergroundConduit";
 import appState from "../AppState";
 
 class StructuralStore {
@@ -17,6 +20,9 @@ class StructuralStore {
         this.listeners = [];
         this.walls = [];
         this.windows = [];
+        this.conduits = [];
+        this.risers = [];
+        this.undergroundConduits = [];
     }
 
     // ============= Domain Methods =============
@@ -33,7 +39,7 @@ class StructuralStore {
         const newDomain = new Domain(domain);
 
         console.log('Adding domain: ', newDomain);
-        
+
         this.domains.push(newDomain);
         this.notify();
         return newDomain;
@@ -54,7 +60,7 @@ class StructuralStore {
         // --- NEW: Bulletproof Cascading Delete for Assets ---
         if (appState.network) {
             const allDevices = Array.isArray(appState.network.devices) ? appState.network.devices : [];
-            const devicesToDelete = allDevices.filter(d => 
+            const devicesToDelete = allDevices.filter(d =>
                 d.domainId === domainId || siteIds.includes(d.siteId) || floorIds.includes(d.floorId) || spaceIds.includes(d.spaceId)
             );
             devicesToDelete.forEach(d => {
@@ -64,7 +70,7 @@ class StructuralStore {
 
         if (appState.furniture) {
             const allFurniture = Array.isArray(appState.furniture.furnitures) ? appState.furniture.furnitures : [];
-            const furnituresToDelete = allFurniture.filter(f => 
+            const furnituresToDelete = allFurniture.filter(f =>
                 floorIds.includes(f.floorId) || spaceIds.includes(f.spaceId)
             );
             furnituresToDelete.forEach(f => {
@@ -77,9 +83,9 @@ class StructuralStore {
         this.floors = this.floors.filter(f => !siteIds.includes(f.siteId));
         this.spaces = this.spaces.filter(sp => !floorIds.includes(sp.floorId));
         this.domains.splice(index, 1);
-        
-        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: domainId } })); 
-        
+
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: domainId } }));
+
         this.notify();
         // 3. Return an array of EVERY ID that was just deleted
         return [domainId, ...siteIds, ...floorIds, ...spaceIds];
@@ -110,7 +116,9 @@ class StructuralStore {
 
         this.sites.push(newSite);
         this.notify();
-        return site;
+        
+        // --- CRITICAL FIX: Return the instantiated class, not the raw argument ---
+        return newSite; 
     }
 
     removeSite(siteId) {
@@ -126,7 +134,7 @@ class StructuralStore {
         // --- NEW: Bulletproof Cascading Delete for Assets ---
         if (appState.network) {
             const allDevices = Array.isArray(appState.network.devices) ? appState.network.devices : [];
-            const devicesToDelete = allDevices.filter(d => 
+            const devicesToDelete = allDevices.filter(d =>
                 d.siteId === siteId || floorIds.includes(d.floorId) || spaceIds.includes(d.spaceId)
             );
             devicesToDelete.forEach(d => {
@@ -136,7 +144,7 @@ class StructuralStore {
 
         if (appState.furniture) {
             const allFurniture = Array.isArray(appState.furniture.furnitures) ? appState.furniture.furnitures : [];
-            const furnituresToDelete = allFurniture.filter(f => 
+            const furnituresToDelete = allFurniture.filter(f =>
                 floorIds.includes(f.floorId) || spaceIds.includes(f.spaceId)
             );
             furnituresToDelete.forEach(f => {
@@ -147,9 +155,9 @@ class StructuralStore {
         this.floors = this.floors.filter(f => f.siteId !== siteId);
         this.spaces = this.spaces.filter(sp => !floorIds.includes(sp.floorId));
         this.sites.splice(index, 1);
-        
-        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: siteId } })); 
-        
+
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: siteId } }));
+
         this.notify();
         return [siteId, ...floorIds, ...spaceIds];
     }
@@ -173,7 +181,7 @@ class StructuralStore {
 
         if (floor.altitude === undefined || floor.altitude === null) {
             const existingFloorsForSite = this.floors.filter(f => f.siteId === floor.siteId);
-            const DEFAULT_FLOOR_HEIGHT = 50.0; 
+            const DEFAULT_FLOOR_HEIGHT = 50.0;
             floor.altitude = existingFloorsForSite.length * DEFAULT_FLOOR_HEIGHT;
             console.log(`Auto-calculated floor altitude: ${floor.altitude} for floor ${floor.id}`);
         }
@@ -192,11 +200,14 @@ class StructuralStore {
         }
 
         const spaceIds = this.spaces.filter(sp => sp.floorId === floorId).map(sp => sp.id);
+        this.conduits = this.conduits.filter(c => 
+            c.floorId !== floorId && !spaceIds.includes(c.spaceId)
+        );
 
         // --- NEW: Bulletproof Cascading Delete for Assets ---
         if (appState.network) {
             const allDevices = Array.isArray(appState.network.devices) ? appState.network.devices : [];
-            const devicesToDelete = allDevices.filter(d => 
+            const devicesToDelete = allDevices.filter(d =>
                 d.floorId === floorId || spaceIds.includes(d.spaceId)
             );
             devicesToDelete.forEach(d => {
@@ -206,7 +217,7 @@ class StructuralStore {
 
         if (appState.furniture) {
             const allFurniture = Array.isArray(appState.furniture.furnitures) ? appState.furniture.furnitures : [];
-            const furnituresToDelete = allFurniture.filter(f => 
+            const furnituresToDelete = allFurniture.filter(f =>
                 f.floorId === floorId || spaceIds.includes(f.spaceId)
             );
             furnituresToDelete.forEach(f => {
@@ -217,7 +228,12 @@ class StructuralStore {
         this.spaces = this.spaces.filter(sp => sp.floorId !== floorId);
         this.floors.splice(index, 1);
         
-        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: floorId } })); 
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: floorId } }));
+        
+        if (appState.ui && appState.ui.activeFloorId === floorId) {
+            appState.ui.setActiveFloor(null);
+            if (window.__layoutRef) window.__layoutRef.setActiveFloor(null);
+        }
         
         this.notify();
         return [floorId, ...spaceIds];
@@ -263,7 +279,7 @@ class StructuralStore {
         if (appState.network) {
             const allDevices = Array.isArray(appState.network.devices) ? appState.network.devices : [];
             const devicesToDelete = allDevices.filter(d => d.spaceId === spaceId);
-            
+
             devicesToDelete.forEach(d => {
                 if (typeof appState.network.removeDevice === 'function') appState.network.removeDevice(d.id);
             });
@@ -272,16 +288,18 @@ class StructuralStore {
         if (appState.furniture) {
             const allFurniture = Array.isArray(appState.furniture.furnitures) ? appState.furniture.furnitures : [];
             const furnituresToDelete = allFurniture.filter(f => f.spaceId === spaceId);
-            
+
             furnituresToDelete.forEach(f => {
                 if (typeof appState.furniture.removeFurniture === 'function') appState.furniture.removeFurniture(f.id);
             });
         }
 
+        this.conduits = this.conduits.filter(c => c.spaceId !== spaceId);
+
         this.spaces.splice(index, 1);
-        
+
         window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: spaceId } }));
-        
+
         this.notify();
         return [spaceId];
     }
@@ -295,6 +313,63 @@ class StructuralStore {
         this.walls.splice(index, 1);
         this.notify();
         return [wallId];
+    }
+
+    addConduit(conduit) {
+        if (!conduit.id) throw new Error('Conduit must have an id');
+        if (this.conduits.find(c => c.id === conduit.id)) return null;
+
+        const newConduit = new Conduit(conduit);
+
+        this.conduits.push(newConduit);
+        this.notify();
+        return newConduit;
+    }
+
+    removeConduit(conduitId) {
+        const index = this.conduits.findIndex(c => c.id === conduitId);
+        if (index === -1) return false;
+        this.conduits.splice(index, 1);
+        this.notify();
+        return true;
+    }
+
+    addRiser(riser) {
+        if (!riser.id) throw new Error('Riser must have an id');
+        if (this.risers.find(r => r.id === riser.id)) return null;
+
+        const newRiser = new Riser(riser);
+
+        this.risers.push(newRiser);
+        this.notify();
+        return newRiser;
+    }
+
+    removeRiser(riserId) {
+        const index = this.risers.findIndex(r => r.id === riserId);
+        if (index === -1) return false;
+        this.risers.splice(index, 1);
+        this.notify();
+        return true;
+    }
+
+    addUndergroundConduit(ugConduit) {
+        if (!ugConduit.id) throw new Error('Underground Conduit must have an id');
+        if (this.undergroundConduits.find(ug => ug.id === ugConduit.id)) return null;
+
+        const newUGConduit = new UndergroundConduit(ugConduit);
+
+        this.undergroundConduits.push(newUGConduit);
+        this.notify();
+        return newUGConduit;
+    }
+
+    removeUndergroundConduit(ugConduitId) {
+        const index = this.undergroundConduits.findIndex(ug => ug.id === ugConduitId);
+        if (index === -1) return false;
+        this.undergroundConduits.splice(index, 1);
+        this.notify();
+        return true;
     }
 
     getSpacesByFloor(floorId) {
@@ -362,9 +437,30 @@ class StructuralStore {
         this.notify();
     }
 
+    getAncestorsId() {
+        const parentID = appState.selection.getFocusedId();
+        const ancestorsId = [parentID];
+        let ancestor = this.getById(parentID);
+        while (ancestor.getParentId){
+            ancestor = this.getById(ancestor.getParentId());
+            ancestorsId.push(ancestor.id);
+        }
+        return ancestorsId;
+    }
+
+    getById(targetId) {
+        const lookup = new Map(
+            [...this.domains, ...this.sites, ...this.floors, ...this.doors,
+            ...this.spaces, ...this.walls, ...this.windows]
+                .map(x => [x.id, x])
+        );
+        const item = lookup.get(targetId);
+        return item;
+    }
+
     renameStructure(id, newLabel, type) {
         let item = null;
-        
+
         // Find the right array based on the type
         if (type === 'domain') item = this.domains.find(d => d.id === id);
         else if (type === 'site') item = this.sites.find(s => s.id === id);
@@ -378,7 +474,7 @@ class StructuralStore {
             this.notify();
             return true;
         }
-        
+
         console.warn(`Could not find ${type} with ID ${id} to rename.`);
         return false;
     }
@@ -390,7 +486,7 @@ class StructuralStore {
             console.log(`Removing Domain: ${id}`);
             return this.removeDomain(id);
         }
-        
+
         // Check Sites
         if (this.sites.some(s => s.id === id)) {
             console.log(`Removing Site: ${id}`);
@@ -431,13 +527,28 @@ class StructuralStore {
 
     _buildSiteChildren(domainId, networkStore = null, furnitureStore = null) {
         const sites = this.sites.filter(s => String(s.domainId) === String(domainId));
-        return sites.map(site => ({
-            id: site.id,
-            label: site.label || `Site ${site.id}`,
-            type: 'site',
-            domainId: site.domainId,
-            children: this._buildFloorChildren(site.id, networkStore, furnitureStore)
-        }));
+        
+        return sites.map(site => {
+            const floorChildren = this._buildFloorChildren(site.id, networkStore, furnitureStore);
+
+            const siteUndergroundConduits = this.undergroundConduits
+                .filter(ug => String(ug.siteId) === String(site.id))
+                .map(ug => ({
+                    id: ug.id,
+                    label: ug.label || `Underground Conduit ${ug.id}`,
+                    type: 'undergroundConduit',
+                    siteId: ug.siteId,
+                    children: []
+                }));
+
+            return {
+                id: site.id,
+                label: site.label || `Site ${site.id}`,
+                type: 'site',
+                domainId: site.domainId,
+                children: [...floorChildren, ...siteUndergroundConduits]
+            };
+        });
     }
 
     _buildFloorChildren(siteId, networkStore = null, furnitureStore = null) {
@@ -453,7 +564,7 @@ class StructuralStore {
 
     _buildFloorItemChildren(floorId, networkStore = null, furnitureStore = null) {
         const spaces = this._buildSpaceChildren(floorId, networkStore, furnitureStore);
-        
+
         const devicesWithoutSpace = [];
         if (networkStore) {
             const allDevices = networkStore.getAllDevices();
@@ -506,8 +617,8 @@ class StructuralStore {
                 windowId: window.id,
                 children: []
             }));
-        
-        return [...spaces, ...devicesWithoutSpace, ...furnituresWithoutSpace, ...wallsOnFloor, ...windowsOnFloor];        
+
+        return [...spaces, ...devicesWithoutSpace, ...furnituresWithoutSpace, ...wallsOnFloor, ...windowsOnFloor];
     }
 
     _buildSpaceChildren(floorId, networkStore = null, furnitureStore = null) {
@@ -523,7 +634,7 @@ class StructuralStore {
 
     _buildSpaceItemChildren(spaceId, networkStore = null, furnitureStore = null) {
         const devicesInSpace = [];
-        
+
         if (networkStore) {
             const allDevices = networkStore.getAllDevices();
             devicesInSpace.push(...allDevices
@@ -576,7 +687,7 @@ class StructuralStore {
                 doorId: door.id,
                 children: []
             }));
-        
+
         const windowsInSpace = this.windows
             .filter(w => w.spaceId === spaceId)
             .map(window => ({
@@ -588,13 +699,34 @@ class StructuralStore {
                 children: []
             }));
 
-        return [...devicesInSpace, ...furnituresInSpace, ...wallsInSpace, ...doorsInSpace, ...windowsInSpace];
+        const conduits = this.conduits
+            .filter(c => c.spaceId === spaceId)
+            .map(conduit => ({
+                id: conduit.id,
+                label: conduit.label || `Conduit ${conduit.id}`,
+                type: 'conduit',
+                spaceId: conduit.spaceId,
+                conduitId: conduit.id,
+                children: []
+            }));
+
+        const risersInSpace = this.risers
+        .filter(r => r.spaceId === spaceId)
+        .map(r => ({
+            id: r.id,
+            label: r.label || `Riser ${r.id}`,
+            type: 'riser',
+            spaceId: r.spaceId,
+            children: []
+        }));
+
+        return [...devicesInSpace, ...furnituresInSpace, ...wallsInSpace, ...doorsInSpace, ...windowsInSpace, ...conduits, ...risersInSpace];
     }
 
     subscribe(callback) {
         if (typeof callback !== 'function') {
             console.error('Listener must be a function');
-            return () => {};
+            return () => { };
         }
 
         this.listeners.push(callback);

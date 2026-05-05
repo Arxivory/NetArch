@@ -123,6 +123,8 @@ export class LogicalCanvasController {
         );
     });
 
+
+
     window.addEventListener('requestConduitDeletion', (e) => {
       const { conduitId } = e.detail;
       appState.structural.removeConduit(conduitId);

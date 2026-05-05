@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import appState from "../state/AppState";
 import { UpdateEntityTransformCommand, ChangePropertyCommand } from "../core/editor/DrawingCommands";
+import testSwitchEngine from "../core/network/switching/QuickTest";
 
 import RoutingModal        from "./ConfigModals/RoutingModal";
 import NATModal            from "./ConfigModals/NATModal";
@@ -433,6 +434,16 @@ export default function PropertiesPanel({ canvasController }) {
           <button className="floor-specifier-btn" onClick={() => setIsModalOpen(true)}>
             Advanced Configuration
           </button>
+
+          {/* This button now directly fires your exported QuickTest script! */}
+          <button 
+            className="floor-specifier-btn" 
+            onClick={testSwitchEngine} 
+            style={{ marginTop: '8px', backgroundColor: '#10b981', color: 'white' }}
+          >
+            Run Layer 2 Test
+          </button>
+
         </div>
       )}
 

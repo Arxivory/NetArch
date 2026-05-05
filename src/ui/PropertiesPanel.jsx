@@ -25,8 +25,8 @@ import SyslogModal         from "./SwitchModals/SyslogModal";
 // ─── Config card map ──────────────────────────────────────────────────────────
 const DEVICE_CONFIGS = {
   router: [
-    { label: "Routing Protocol",    desc: "Configure OSPF, BGP, or Static routes" },
     { label: "Interface Settings",   desc: "Manage IPs, masks, and gateway for each port" },
+    { label: "Routing Protocol",    desc: "Configure OSPF, BGP, or Static routes" },
     { label: "NAT/PAT",             desc: "Translate private IPs to public addresses" },
     { label: "Access Control List", desc: "Create permit/deny traffic rules" },
     { label: "DHCP Server",         desc: "Manage IP address pools for the network" },
@@ -36,6 +36,7 @@ const DEVICE_CONFIGS = {
     { label: "SSH",                 desc: "Secure remote command line access" },
   ],
   switch: [
+    { label: "Interface Settings",   desc: "Manage IPs, masks, and gateway for each port" },
     { label: "VLAN Manager",   desc: "Create and assign Virtual LANs" },
     { label: "Spanning Tree",  desc: "Configure STP to prevent network loops" },
     { label: "Port Security",  desc: "Bind specific MAC addresses to ports" },

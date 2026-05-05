@@ -1832,8 +1832,8 @@ html,
 }
 
 .vlan-modal-layer .nat-sidebar-layout {
-  width: min(960px, 94vw);
-  height: min(660px, 86vh);
+  width: min(960px, 100vw);
+  height: min(550px, 100vh);
 }
 
 /* ================= TABLE FIXES ===

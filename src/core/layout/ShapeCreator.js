@@ -72,6 +72,7 @@ export class ShapeCreator {
       return null;
     }
     rectangle.id = this._genId(`Rectangle ${structureType}`);
+    rectangle.body.id = rectangle.id;
     return rectangle;
   }
 
@@ -82,6 +83,7 @@ export class ShapeCreator {
       return null;
     }
     circle.id = this._genId(`Circle ${structureType}`);
+    circle.body.id = circle.id;
     return circle;
   }
 
@@ -89,6 +91,7 @@ export class ShapeCreator {
     if (!points || points.length < 3) return null;
     const polygon = new Polygon(points, structureType, this.system);
     polygon.id = this._genId(`Polygon ${structureType}`);
+    polygon.body.id = polygon.id;
     return polygon;
   }
 

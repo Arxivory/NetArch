@@ -191,3 +191,39 @@ export function isARPFrame(frame) {
 export function isIPv4Frame(frame) {
   return frame.etherType === 0x0800;
 }
+
+// ============================================================================
+// STP BPDU (Layer 2 payload)
+// ============================================================================
+
+/**
+ * @typedef {object} BPDUPacket
+ * @property {string} rootId         - Bridge ID of the Root Bridge
+ * @property {number} rootPathCost   - Cost to reach the Root Bridge
+ * @property {string} bridgeId       - Bridge ID of the sender
+ * @property {string} portId         - Port ID of the sender
+ */
+export function createBPDUPacket({
+  rootId,
+  rootPathCost = 0,
+  bridgeId,
+  portId,
+}) {
+  return {
+    protocol: 'stp',
+    type: 'bpdu',
+    rootId,
+    rootPathCost,
+    bridgeId,
+    portId,
+    _timestamp: Date.now(),
+  };
+}
+
+/**
+ * Helper to check if a frame is an STP BPDU
+ */
+export function isSTPFrame(frame) {
+  // STP uses a specific multicast destination MAC address
+  return frame.dstMAC === '01:80:C2:00:00:00'; 
+}

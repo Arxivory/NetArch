@@ -16,6 +16,7 @@
 
 import SwitchingEngine from './switching/SwitchingEngine.js';
 import VLANManager from './switching/VLAN.js';
+import STPEngine from './switching/protocols/STP.js';
 
 /**
  * Install switch behavior on a Device instance.
@@ -42,6 +43,9 @@ export function installSwitchBehavior(device) {
   // Instantiates the brain, which internally creates the MacTable
   device.engine = new SwitchingEngine(device);
 
+  // Install and boot Spanning Tree
+  device.stpEngine = new STPEngine(device);
+  device.stpEngine.start()
   // =========================================================================
   // OVERRIDE PACKET HANDLING
   // =========================================================================

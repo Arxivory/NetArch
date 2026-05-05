@@ -1,5 +1,5 @@
 import MacTable from './MacTable.js';
-import { isBroadcast } from '../Packet.js';
+import { isBroadcast, isSTPFrame } from '../Packet.js';
 
 /**
  * SwitchingEngine.js
@@ -17,6 +17,21 @@ export default class SwitchingEngine {
 
     const ingressPort = ingressInterface.physicalPort;
     if (!ingressPort || ingressPort.physicalStatus !== 'up') return;
+
+    // --- NEW: STP INTERCEPTION ---
+    // If it's a BPDU, send it directly to the STP Engine and STOP processing.
+    if (isSTPFrame(frame)) {
+      if (this.device.stpEngine) {
+        this.device.stpEngine.processBPDU(frame.payload, ingressPort);
+      }
+      return; 
+    }
+
+    // --- NEW: STP BLOCKING GATE ---
+    // If STP has blocked this port, DROP all normal data frames entering here.
+    if (this.device.stpEngine?.portStates.get(ingressPort.id) === 'BLOCKING') {
+      return; // Packet silently dropped
+    }
 
     // --- STEP 1: INGRESS VLAN DETERMINATION ---
     const portMode = this.device.vlanManager.portModes.get(ingressPort.id) || 'access';
@@ -50,6 +65,11 @@ export default class SwitchingEngine {
   }
 
   _forward(frame, egressPortId, frameVlanId) {
+    // --- NEW: STP EGRESS BLOCKING GATE ---
+    // Do not forward data traffic out of a blocked port
+    if (this.device.stpEngine?.portStates.get(egressPortId) === 'BLOCKING') {
+      return; 
+    }
     // SECURITY GATE: Is this frame allowed to exit this specific port?
     if (!this.device.vlanManager.isEgressAllowed(egressPortId, frameVlanId)) {
        return; // Packet Dropped: VLAN Boundary isolation
@@ -69,6 +89,10 @@ export default class SwitchingEngine {
     );
 
     activePorts.forEach(egressPort => {
+      // --- NEW: STP EGRESS BLOCKING GATE ---
+      if (this.device.stpEngine?.portStates.get(egressPort.id) === 'BLOCKING') {
+        return; // Skip flooding down blocked links
+      }
       // SECURITY GATE: Only flood out of ports allowed to carry this VLAN
       if (this.device.vlanManager.isEgressAllowed(egressPort.id, vlanId)) {
         const frameClone = this._prepareEgressFrame(frame, egressPort.id, vlanId);

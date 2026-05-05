@@ -1,52 +1,50 @@
 import DeviceFactory from '../../../data/DeviceFactory.js';
 import Link from '../Link.js';
-import { createEthernetFrame } from '../Packet.js';
 
 export default function testSwitchEngine() {
-  console.log("🚀 --- STARTING VLAN ISOLATION TEST ---");
+  console.log("🚀 --- STARTING STP LOOP PREVENTION TEST ---");
 
-  // 1. Boot up the hardware
-  const sw1 = DeviceFactory.create('2960', {x:0, y:0, z:0}, { hostname: "SW-Core" });
-  const pcA = DeviceFactory.create('desktop', {x:0, y:0, z:0}, { hostname: "PC-A" });
-  const pcB = DeviceFactory.create('desktop', {x:0, y:0, z:0}, { hostname: "PC-B" });
+  // 1. Boot up two switches
+  const sw1 = DeviceFactory.create('2960', {x:0, y:0, z:0}, { hostname: "SW-1" });
+  const sw2 = DeviceFactory.create('2960', {x:0, y:0, z:0}, { hostname: "SW-2" });
 
-  // 2. Plug in the cables
-  const pcAEth = pcA.getPortByName('FastEthernet1');
+  // 2. Create a PHYSICAL LOOP by plugging TWO cables between them!
   const sw1Port1 = sw1.getPortByName('FastEthernet0/1');
-  const link1 = new Link({ sourcePort: pcAEth, targetPort: sw1Port1 });
+  const sw2Port1 = sw2.getPortByName('FastEthernet0/1');
+  const link1 = new Link({ sourcePort: sw1Port1, targetPort: sw2Port1 });
 
-  const pcBEth = pcB.getPortByName('FastEthernet1');
   const sw1Port2 = sw1.getPortByName('FastEthernet0/2');
-  const link2 = new Link({ sourcePort: pcBEth, targetPort: sw1Port2 });
+  const sw2Port2 = sw2.getPortByName('FastEthernet0/2');
+  const link2 = new Link({ sourcePort: sw1Port2, targetPort: sw2Port2 });
 
-  // 3. CONFIGURE VLANs ON THE SWITCH
-  console.log("\n⚙️ Configuring VLANs...");
-  sw1.vlanManager.addVlan(10, "HR_Dept");
-  sw1.vlanManager.addVlan(20, "Eng_Dept");
-  
-  // Assign ports to VLANs
-  sw1.vlanManager.setAccessVlan(sw1Port1.id, 10); // PC-A -> VLAN 10
-  sw1.vlanManager.setAccessVlan(sw1Port2.id, 20); // PC-B -> VLAN 20
+  console.log(`\n🔗 Created a physical loop between ${sw1.hostname} and ${sw2.hostname}!`);
+  console.log(`⏳ Waiting 5 seconds for BPDUs to be exchanged and STP to converge...`);
 
-  console.log("\n📊 CURRENT VLAN DATABASE:");
-  console.table(sw1.showVlanBrief());
-
-  // 4. PC-A sends a Broadcast Frame
-  const pcAMac = pcA.interfaces[0].macAddress;
-  const broadcastFrame = createEthernetFrame({
-    srcMAC: pcAMac,
-    dstMAC: "FF:FF:FF:FF:FF:FF", 
-    payload: "ARP REQUEST: Who has IP 192.168.1.2?"
-  });
-
-  console.log(`\n📡 [PC-A] Transmitting broadcast frame...`);
-  pcAEth.link.transmitPacket(broadcastFrame, pcAEth);
-
+  // 3. Wait for the STP engines to exchange BPDUs (They send every 2 seconds)
   setTimeout(() => {
-    console.log("\n🧠 --- SWITCH CAM TABLE ---");
-    // You should see PC-A learned on VLAN 10!
-    console.table(sw1.showMacAddressTable());
+    console.log("\n🌳 --- STP TOPOLOGY RESULTS ---");
     
-    console.log("\n✅ Test Complete: PC-B did NOT receive the broadcast because it is isolated in VLAN 20!");
-  }, 50);
+    // Check Switch 1
+    console.log(`\n[${sw1.hostname}] Bridge ID: ${sw1.stpEngine.bridgeId}`);
+    console.log(`Root Bridge ID recognized: ${sw1.stpEngine.rootId}`);
+    const sw1Ports = Array.from(sw1.stpEngine.portStates.entries())
+      // Filter out empty ports just to keep the console clean
+      .filter(([portId, state]) => sw1.getPortByName(portId.split('::')[1]).isOccupied)
+      .map(([portId, state]) => ({ Port: portId.split('::')[1], State: state }));
+    console.table(sw1Ports);
+
+    // Check Switch 2
+    console.log(`\n[${sw2.hostname}] Bridge ID: ${sw2.stpEngine.bridgeId}`);
+    console.log(`Root Bridge ID recognized: ${sw2.stpEngine.rootId}`);
+    const sw2Ports = Array.from(sw2.stpEngine.portStates.entries())
+      .filter(([portId, state]) => sw2.getPortByName(portId.split('::')[1]).isOccupied)
+      .map(([portId, state]) => ({ Port: portId.split('::')[1], State: state }));
+    console.table(sw2Ports);
+    
+    // Clean up timers so they don't run forever in the background
+    sw1.stpEngine.stop();
+    sw2.stpEngine.stop();
+    
+    console.log("\n✅ Test Complete: One of the ports above should be in a BLOCKING state to prevent the loop!");
+  }, 5000);
 }

@@ -46,24 +46,13 @@ const DEVICE_CONFIGS = {
     { label: "Logs/Syslog",    desc: "Export event logs to a central server" },
   ],
   pc: [
-    { label: "Interface Metric",   desc: "Set priority between Wi-Fi and Ethernet" },
-    { label: "802.1X Supplicant",  desc: "Configure certificate-based port auth" },
-    { label: "DNS Suffix",         desc: "Set domain name for internal host lookups" },
-    { label: "Static Route",       desc: "Manually override default gateway paths" },
-    { label: "Wake-on-LAN",        desc: "Enable remote power-on via network" },
-    { label: "Proxy Settings",     desc: "Configure web traffic filtering" },
-    { label: "Local Firewall",     desc: "Manage OS-level software rules" },
-    { label: "Remote Desktop",     desc: "Enable/Disable RDP or VNC access" },
+    { label: "IP Configuration",        desc: "Set IP address, subnet mask, and gateway" },
+    { label: "Command Prompt",         desc: "Executes commands to manage and control system operations" },
   ],
+  
   smartphone: [
-    { label: "APN Settings",        desc: "Configure cellular data carrier gateway" },
-    { label: "MDM Profile",         desc: "Enroll device in corporate management" },
-    { label: "VPN On-Demand",       desc: "Trigger secure tunnel for work apps" },
-    { label: "SSID Priority",       desc: "Manage preferred Wi-Fi network list" },
-    { label: "Hotspot Config",      desc: "Manage tethering and sharing settings" },
-    { label: "Certificate Manager", desc: "Install digital IDs for secure Wi-Fi" },
-    { label: "Data Roaming",        desc: "Configure behavior on foreign networks" },
-    { label: "Location Services",   desc: "Permissions for network-based GPS" },
+    { label: "IP Configuration",        desc: "Set IP address, subnet mask, and gateway" },
+    { label: "Command Prompt",         desc: "Executes commands to manage and control system operations" },
   ],
 };
 
@@ -542,6 +531,7 @@ export default function PropertiesPanel({ canvasController }) {
           onClose={() => setIsInterfaceModalOpen(false)}
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
+          device={selectedEntity}
         />
       )}
  

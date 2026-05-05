@@ -1,28 +1,95 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Network, ChevronDown, ChevronRight, Layers } from "lucide-react";
+import appState from "../../state/AppState";
 
-const DEFAULT_INTERFACES = [
-  { id: "g0/0",   label: "GigabitEthernet 0/0", description: "LAN-facing port"       },
-  { id: "g0/1",   label: "GigabitEthernet 0/1", description: "WAN-facing port"       },
-  { id: "g0/2",   label: "GigabitEthernet 0/2", description: "DMZ / uplink"          },
-  { id: "s0/0/0", label: "Serial 0/0/0",         description: "WAN serial link"       },
-  { id: "lo0",    label: "Loopback 0",            description: "Management / BGP RID" },
+// ---------------------------------------------------------------------------
+// Fallback interfaces shown when a device has no interfaces registered yet.
+// These mirror common Cisco router defaults so the modal is never empty.
+// ---------------------------------------------------------------------------
+const FALLBACK_INTERFACES = [
+  { id: "g0/0",   name: "GigabitEthernet0/0", description: "LAN-facing port"       },
+  { id: "g0/1",   name: "GigabitEthernet0/1", description: "WAN-facing port"       },
+  { id: "g0/2",   name: "GigabitEthernet0/2", description: "DMZ / uplink"          },
+  { id: "s0/0/0", name: "Serial0/0/0",         description: "WAN serial link"       },
+  { id: "lo0",    name: "Loopback0",            description: "Management / BGP RID" },
 ];
 
-function InterfaceRow({ iface, deviceName, deviceLocation }) {
+// ---------------------------------------------------------------------------
+// Normalise a raw interface object (from Device.js or a plain data object)
+// into a consistent shape that InterfaceRow can consume.
+// ---------------------------------------------------------------------------
+function normaliseInterface(raw, index) {
+  if (!raw) return null;
+
+  // Support both Device.js Interface instances and plain JS objects
+  const id   = raw.id   ?? raw.name ?? `iface-${index}`;
+  const name = raw.name ?? raw.label ?? raw.id ?? `Interface ${index}`;
+  const desc = raw.description ?? raw.desc ?? "";
+
+  // IP — accept both class instances (ipv4.address) and plain objects
+  const address    = raw.ipv4?.address    ?? raw.ipAddress  ?? raw.ip   ?? "";
+  const subnetMask = raw.ipv4?.subnetMask ?? raw.subnetMask ?? raw.mask ?? "";
+  const gateway    = raw.gateway ?? raw.defaultGateway ?? "";
+
+  // Operational status — Device.js exposes isUp / lineStatus
+  const isUp =
+    raw.isUp !== undefined ? raw.isUp :
+    raw.status === "up"   ? true      : null;   // null = unknown
+
+  return { id, name, desc, address, subnetMask, gateway, isUp };
+}
+
+// ---------------------------------------------------------------------------
+// InterfaceRow
+// ---------------------------------------------------------------------------
+function InterfaceRow({ iface, deviceId, deviceName, deviceLocation }) {
   const [open,    setOpen]    = useState(false);
-  const [ip,      setIp]      = useState("");
-  const [mask,    setMask]    = useState("");
-  const [gateway, setGateway] = useState("");
+  const [ip,      setIp]      = useState(iface.address);
+  const [mask,    setMask]    = useState(iface.subnetMask);
+  const [gateway, setGateway] = useState(iface.gateway);
   const [applied, setApplied] = useState(false);
 
   const handleApply = () => {
+    // 1. Persist into NetworkStore so the data survives modal close
+    if (deviceId && appState?.network) {
+      const device = appState.network.getDevice(deviceId);
+      if (device) {
+        // Try the Device.js class method first, fall back to plain object mutation
+        const rawIface =
+          device._interfaces?.get?.(iface.name) ??
+          device._interfaces?.get?.(iface.id)   ??
+          (Array.isArray(device.interfaces)
+            ? device.interfaces.find(
+                i => (i.id ?? i.name) === iface.id || i.name === iface.name
+              )
+            : null);
+
+        if (rawIface) {
+          if (typeof rawIface.configureIPv4 === "function") {
+            rawIface.configureIPv4(ip, mask);
+          } else {
+            rawIface.ipv4 = {
+              ...(rawIface.ipv4 ?? {}),
+              address:    ip,
+              subnetMask: mask,
+            };
+            if (gateway) rawIface.gateway = gateway;
+          }
+        }
+
+        // Trigger store notification so rest of app stays in sync
+        appState.network.updateModified?.();
+        appState.network.notify?.();
+      }
+    }
+
+    // 2. Fire system log events (existing pattern)
     const logs = [];
-    if (ip)      logs.push(`[Interface ${iface.label}] IP Address: ${ip}`);
-    if (mask)    logs.push(`[Interface ${iface.label}] Subnet Mask: ${mask}`);
-    if (gateway) logs.push(`[Interface ${iface.label}] Default Gateway: ${gateway}`);
-    if (!logs.length) logs.push(`[Interface ${iface.label}] Applied — no parameters configured`);
+    if (ip)      logs.push(`[Interface ${iface.name}] IP Address: ${ip}`);
+    if (mask)    logs.push(`[Interface ${iface.name}] Subnet Mask: ${mask}`);
+    if (gateway) logs.push(`[Interface ${iface.name}] Default Gateway: ${gateway}`);
+    if (!logs.length) logs.push(`[Interface ${iface.name}] Applied — no parameters configured`);
 
     logs.forEach((message) =>
       window.dispatchEvent(
@@ -38,6 +105,11 @@ function InterfaceRow({ iface, deviceName, deviceLocation }) {
 
   const isConfigured = ip || mask || gateway;
 
+  // Status dot colour
+  const statusColor =
+    iface.isUp === true  ? "#22c55e" :
+    iface.isUp === false ? "#ef4444" : "#6b7280";
+
   return (
     <div className={`iface-row ${open ? "iface-row--open" : ""}`}>
 
@@ -49,15 +121,26 @@ function InterfaceRow({ iface, deviceName, deviceLocation }) {
         <span className="iface-icon">
           <Network size={14} />
         </span>
-        <span className="iface-label">{iface.label}</span>
-        <span className="iface-desc">{iface.description}</span>
+        <span
+          title={iface.isUp === true ? "Up" : iface.isUp === false ? "Down" : "Status unknown"}
+          style={{
+            display:      "inline-block",
+            width:        8,
+            height:       8,
+            borderRadius: "50%",
+            background:   statusColor,
+            marginRight:  6,
+            flexShrink:   0,
+          }}
+        />
+        <span className="iface-label">{iface.name}</span>
+        {iface.desc && <span className="iface-desc">{iface.desc}</span>}
         {isConfigured && <span className="iface-badge">configured</span>}
       </button>
 
       {/* ── Expanded config ── */}
       {open && (
         <div className="iface-body">
-
           <div className="iface-fields">
             <div className="iface-field">
               <span className="iface-field-label">IP Address</span>
@@ -68,7 +151,6 @@ function InterfaceRow({ iface, deviceName, deviceLocation }) {
                 onChange={(e) => setIp(e.target.value)}
               />
             </div>
-
             <div className="iface-field">
               <span className="iface-field-label">Subnet Mask</span>
               <input
@@ -78,7 +160,6 @@ function InterfaceRow({ iface, deviceName, deviceLocation }) {
                 onChange={(e) => setMask(e.target.value)}
               />
             </div>
-
             <div className="iface-field">
               <span className="iface-field-label">Default Gateway</span>
               <input
@@ -89,7 +170,6 @@ function InterfaceRow({ iface, deviceName, deviceLocation }) {
               />
             </div>
           </div>
-
           <div className="iface-apply-row">
             <button
               className={`iface-apply-btn ${applied ? "iface-apply-btn--ok" : ""}`}
@@ -98,18 +178,45 @@ function InterfaceRow({ iface, deviceName, deviceLocation }) {
               {applied ? "✓ Applied" : "Apply Interface"}
             </button>
           </div>
-
         </div>
       )}
     </div>
   );
 }
 
+// ---------------------------------------------------------------------------
+// InterfaceModal
+// ---------------------------------------------------------------------------
 export default function InterfaceModal({
   onClose,
   deviceName     = "Router",
   deviceLocation = "Network",
+  device         = null,          // ← the selectedEntity passed from PropertiesPanel
 }) {
+  // Derive the canonical interface list from the live device object.
+  // Priority:
+  //   1. device._interfaces  (Device.js Map — most authoritative)
+  //   2. device.interfaces   (plain Array on serialised/store objects)
+  //   3. FALLBACK_INTERFACES (sensible defaults when nothing is registered)
+  const interfaces = useMemo(() => {
+    if (!device) return FALLBACK_INTERFACES.map(normaliseInterface);
+
+    // Device.js class instances expose ._interfaces as a Map
+    if (device._interfaces instanceof Map && device._interfaces.size > 0) {
+      return [...device._interfaces.values()].map(normaliseInterface).filter(Boolean);
+    }
+
+    // Plain array (store objects, serialised JSON)
+    if (Array.isArray(device.interfaces) && device.interfaces.length > 0) {
+      return device.interfaces.map(normaliseInterface).filter(Boolean);
+    }
+
+    // No interfaces found — use fallback defaults
+    return FALLBACK_INTERFACES.map(normaliseInterface);
+  }, [device]);
+
+  const deviceId = device?.id ?? null;
+
   return createPortal(
     <div className="config-modal-overlay nat-modal-layer">
       <div className="config-modal-content nat-sidebar-layout">
@@ -130,8 +237,6 @@ export default function InterfaceModal({
               </div>
             </button>
           </div>
-
-          
         </div>
 
         {/* ── MAIN ────────────────────────────────────────────────────── */}
@@ -143,14 +248,19 @@ export default function InterfaceModal({
 
           <div className="config-body">
             <div className="iface-list-group">
-              <p className="iface-section-label">Router Interfaces</p>
-              <p className="iface-hint">Select an interface to configure its network parameters.</p>
+              <p className="iface-section-label">
+                {deviceName} — {interfaces.length} Interface{interfaces.length !== 1 ? "s" : ""}
+              </p>
+              <p className="iface-hint">
+                Select an interface to configure its network parameters.
+              </p>
 
               <div className="iface-list">
-                {DEFAULT_INTERFACES.map((iface) => (
+                {interfaces.map((iface) => (
                   <InterfaceRow
                     key={iface.id}
                     iface={iface}
+                    deviceId={deviceId}
                     deviceName={deviceName}
                     deviceLocation={deviceLocation}
                   />

@@ -22,6 +22,8 @@ import {
   DeleteEntityCommand
 } from './editor/DrawingCommands.js';
 
+import QUICKSTART from './network/routing/QUICKSTART.js';
+
 export class LogicalCanvasController {
   constructor(container, opts = {}) {
     this.counters = {
@@ -1271,12 +1273,19 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
         newDevice.name = newLabel;
         newDevice.iconHint = deviceData.iconHint; 
 
+
         if (focusedType === 'space') {
             newDevice.spaceId = focusedId;
             const space = appState.structural.spaces.find(s => s.id === focusedId);
             if (space) newDevice.floorId = space.floorId;
+
+            const floor = appState.structural.floors.find(f => f.id === space.floorId);
+            if (floor) newDevice.siteId = floor.siteId;
         } else if (focusedType === 'floor') {
             newDevice.floorId = focusedId;
+
+            const floor = appState.structural.floors.find(f => f.id === focusedId);
+            if (floor) newDevice.siteId = floor.siteId;
         }
 
         const command = new AddDeviceCommand(appState, this, newDevice, x, y);
@@ -1741,7 +1750,7 @@ _handleShapeCreated(shapeData, shapeType) {
 
   _handleRiserCreated(riserData) {
     const activeSpaceId = appState.selection.focusedType === 'space' ? appState.selection.focusedId : null;
-    const activeFloorId = appState.selection.focusedType === 'floor' ? appState.selection.focusedId : appState.ui.activeFloorId;
+    const activeFloorId = appState.structural.floors.find(f => f.id === appState.structural.spaces.find(s => s.id === activeSpaceId).floorId).id;
     if (activeFloorId || activeSpaceId || appState.structural.addRiser) {
       console.log('New Riser Data: ', riserData);
       appState.structural.addRiser({ ...riserData, floorId: activeFloorId, spaceId: activeSpaceId, label: riserData.label || `Riser ${this.counters.riser++}` });
@@ -1838,6 +1847,13 @@ _handleShapeCreated(shapeData, shapeType) {
 
           console.log('Network Adding Link...');
           appState.network.addLink(link);
+          const srcDevice = appState.network.getDevice(cableData.sourceDeviceId);
+          const dstDevice = appState.network.getDevice(cableData.targetDeviceId);
+          if (srcDevice && dstDevice && this.layout.routeManager) {
+            const link = appState.network.getLink(cableData.id) || cableData;
+            this.layout.routeManager.resolveOne(link, srcDevice, dstDevice);
+          }
+
 
       } catch (err) {
           showErrorModal(err.message, "Connection Error");

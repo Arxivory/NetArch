@@ -32,6 +32,7 @@ export default class NetworkManager {
     this.networkStore = networkStore;
     this.engine = null;
     this._isInitialized = false;
+    this._storeUnsubscribe = null;
 
     // Event listeners
     this.eventListeners = {
@@ -55,11 +56,18 @@ export default class NetworkManager {
     }
 
     try {
-      const devices = this.networkStore.devices || [];
-      const links = this.networkStore.links || [];
+      const devices = typeof this.networkStore.getAllDevices === 'function'
+        ? this.networkStore.getAllDevices()
+        : this.networkStore.devices || [];
+      const links = typeof this.networkStore.getAllLinks === 'function'
+        ? this.networkStore.getAllLinks()
+        : this.networkStore.links || [];
 
       this.engine = new NetworkIntegrationEngine(devices, links);
-      
+      this._storeUnsubscribe = typeof this.networkStore.subscribe === 'function'
+        ? this.networkStore.subscribe(() => this._syncWithStore())
+        : null;
+
       console.log(`[NetworkManager] Initialized with ${devices.length} devices and ${links.length} links`);
       this._isInitialized = true;
       return true;
@@ -248,6 +256,39 @@ export default class NetworkManager {
     if (this.eventListeners[eventType]) {
       this.eventListeners[eventType] = this.eventListeners[eventType].filter(cb => cb !== callback);
     }
+  }
+
+  /**
+   * Destroy the network manager and unsubscribe from store updates.
+   */
+  destroy() {
+    this.stop();
+    if (typeof this._storeUnsubscribe === 'function') {
+      this._storeUnsubscribe();
+      this._storeUnsubscribe = null;
+    }
+    this.engine = null;
+    this._isInitialized = false;
+  }
+
+  /**
+   * Keep the engine in sync with the NetworkStore.
+   * This allows network changes to apply while the simulation is active.
+   */
+  _syncWithStore() {
+    if (!this.engine) return;
+
+    const devices = typeof this.networkStore.getAllDevices === 'function'
+      ? this.networkStore.getAllDevices()
+      : this.networkStore.devices || [];
+    const links = typeof this.networkStore.getAllLinks === 'function'
+      ? this.networkStore.getAllLinks()
+      : this.networkStore.links || [];
+
+    this.engine.devices = new Map(devices.map(d => [d.id, d]));
+    this.engine.links = new Map(links.map(l => [l.id, l]));
+    this.engine.packetRouter.updateDevices(this.engine.devices);
+    this.engine.packetRouter.updateLinks(this.engine.links);
   }
 
   // ===========================================================================

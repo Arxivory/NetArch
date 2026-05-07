@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Network, Activity, ArrowLeftRight, Map, Server } from "lucide-react";
+import { Network, Activity, ArrowLeftRight, Map, Server, Trash2 } from "lucide-react";
 
 export default function RoutingModal({ onClose, deviceName = "Router", deviceLocation = "Network" }) {
   const [activeRoutingTab, setActiveRoutingTab] = useState("ospf");
@@ -65,6 +65,10 @@ export default function RoutingModal({ onClose, deviceName = "Router", deviceLoc
         },
       })
     );
+  };
+
+  const handleDeleteStaticRoute = (routeId) => {
+    setStaticRoutes((currentRoutes) => currentRoutes.filter((route) => route.id !== routeId));
   };
 
   // ── Apply: collect only what was configured and dispatch to ConsolePanel ───
@@ -417,6 +421,7 @@ export default function RoutingModal({ onClose, deviceName = "Router", deviceLoc
                               <th style={{ textAlign: 'left', padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Metric</th>
                               <th style={{ textAlign: 'left', padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Interface</th>
                               <th style={{ textAlign: 'left', padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Floating</th>
+                              <th style={{ textAlign: 'center', padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Action</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -427,6 +432,23 @@ export default function RoutingModal({ onClose, deviceName = "Router", deviceLoc
                                 <td style={{ padding: '10px', borderBottom: '1px solid #f1f5f9' }}>{route.metric}</td>
                                 <td style={{ padding: '10px', borderBottom: '1px solid #f1f5f9' }}>{route.interface}</td>
                                 <td style={{ padding: '10px', borderBottom: '1px solid #f1f5f9' }}>{route.floating}</td>
+                                <td style={{ padding: '10px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
+                                  <button
+                                    onClick={() => handleDeleteStaticRoute(route.id)}
+                                    style={{
+                                      background: 'transparent',
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      color: '#ef4444',
+                                      padding: '4px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }}
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </td>
                               </tr>
                             ))}
                           </tbody>

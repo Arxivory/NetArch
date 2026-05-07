@@ -21,6 +21,8 @@ import QoSModal            from "./SwitchModals/QoSModal";
 import AuthenticationModal from "./SwitchModals/AuthenticationModal";
 import IGMPModals          from "./SwitchModals/IGMPModals";
 import SyslogModal         from "./SwitchModals/SyslogModal";
+import IPConfigurationModal from "./PCModals/IPConfigurationModal";
+import CommandPromptModal  from "./PCModals/CommandPromptModal";
 
 // ─── Config card map ──────────────────────────────────────────────────────────
 const DEVICE_CONFIGS = {
@@ -89,6 +91,8 @@ export default function PropertiesPanel({ canvasController }) {
   const [isAuthModalOpen,         setIsAuthModalOpen]         = useState(false);
   const [isIGMPModalOpen,         setIsIGMPModalOpen]         = useState(false);
   const [isSyslogModalOpen,       setIsSyslogModalOpen]       = useState(false);
+  const [isIPConfigurationModalOpen, setIsIPConfigurationModalOpen]     = useState(false);
+  const [isCommandPromptModalOpen, setIsCommandPromptModalOpen] = useState(false);
 
   // ── Subscription: keep selectedEntity in sync with appState ───────────────
   useEffect(() => {
@@ -329,6 +333,8 @@ export default function PropertiesPanel({ canvasController }) {
       "User Auth":           () => setIsAuthModalOpen(true),
       "IGMP Snooping":       () => setIsIGMPModalOpen(true),
       "Logs/Syslog":         () => setIsSyslogModalOpen(true),
+      "IP Configuration":     () => setIsIPConfigurationModalOpen(true),
+      "Command Prompt":      () => setIsCommandPromptModalOpen(true),
     };
     map[label]?.() ?? console.log(`Opening ${label}`);
   };
@@ -629,6 +635,24 @@ export default function PropertiesPanel({ canvasController }) {
       {isAuthModalOpen         && <AuthenticationModal onClose={() => setIsAuthModalOpen(false)}         />}
       {isIGMPModalOpen         && <IGMPModals          onClose={() => setIsIGMPModalOpen(false)}         />}
       {isSyslogModalOpen       && <SyslogModal         onClose={() => setIsSyslogModalOpen(false)}       />}
+
+        {isIPConfigurationModalOpen && (
+        <IPConfigurationModal
+          onClose={() => setIsIPConfigurationModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+          device={selectedEntity}
+        />
+      )}
+
+      {isCommandPromptModalOpen && (
+        <CommandPromptModal
+          onClose={() => setIsCommandPromptModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+          device={selectedEntity}
+        />
+      )}
     </div>
   );
 }

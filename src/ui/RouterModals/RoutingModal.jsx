@@ -31,12 +31,41 @@ export default function RoutingModal({ onClose, deviceName = "Router", deviceLoc
   const [staticMetric,   setStaticMetric]   = useState("");
   const [staticIface,    setStaticIface]    = useState("G0/0");
   const [staticFloating, setStaticFloating] = useState(false);
+  const [staticRoutes,   setStaticRoutes]   = useState([]);
 
   // ── Route Control ──────────────────────────────────────────────────────────
   const [ctrlRedist,    setCtrlRedist]    = useState("None");
   const [ctrlFilter,    setCtrlFilter]    = useState("");
   const [ctrlMaxRoutes, setCtrlMaxRoutes] = useState("");
   const [ctrlLogging,   setCtrlLogging]   = useState(false);
+
+   const handleAddStaticRoute = () => {
+    if (!staticDest || !staticNextHop) return;
+
+    setStaticRoutes((currentRoutes) => [
+      ...currentRoutes,
+      {
+        id: `static-${Date.now()}`,
+        destination: staticDest,
+        nextHop: staticNextHop,
+        metric: staticMetric || "-",
+        interface: staticIface,
+        floating: staticFloating ? "Yes" : "No",
+      },
+    ]);
+
+    const staticSummary = `[Static] ${staticDest} -> ${staticNextHop}`;
+    window.dispatchEvent(
+      new CustomEvent("add-system-log", {
+        detail: {
+          device: "Router",
+          deviceName,
+          message: staticSummary,
+          location: deviceLocation,
+        },
+      })
+    );
+  };
 
   // ── Apply: collect only what was configured and dispatch to ConsolePanel ───
   const handleApply = () => {
@@ -68,6 +97,20 @@ export default function RoutingModal({ onClose, deviceName = "Router", deviceLoc
   if (staticMetric)   logs.push(`[Static] Metric: ${staticMetric}`);
   if (staticIface)    logs.push(`[Static] Interface: ${staticIface}`);
   if (staticFloating) logs.push(`[Static] Floating Route: Enabled`);
+
+  if (activeRoutingTab === "static" && staticDest && staticNextHop) {
+    setStaticRoutes((currentRoutes) => [
+      ...currentRoutes,
+      {
+        id: `static-${Date.now()}`,
+        destination: staticDest,
+        nextHop: staticNextHop,
+        metric: staticMetric || "-",
+        interface: staticIface,
+        floating: staticFloating ? "Yes" : "No",
+      },
+    ]);
+  }
 
   // Route Control
   if (ctrlRedist !== "None") logs.push(`[Route Control] Redistribution: ${ctrlRedist}`);
@@ -150,8 +193,7 @@ export default function RoutingModal({ onClose, deviceName = "Router", deviceLoc
           </div>
 
           <div className="config-body">
-
-            {/* GLOBAL — always shown */}
+            
             <div className="config-group-mono">
               <label>Global Routing Settings</label>
               <div className="inline-fields">
@@ -361,7 +403,46 @@ export default function RoutingModal({ onClose, deviceName = "Router", deviceLoc
                       onChange={(e) => setStaticFloating(e.target.checked)}
                     />
                     <span>Floating Route (backup)</span>
+                  </div> 
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px" }}>
+                    <button
+                      className="btn-primary"
+                      onClick={handleAddStaticRoute}
+                      disabled={!staticDest || !staticNextHop}
+                    >
+                      Add Static Route
+                    </button>
                   </div>
+
+                  {staticRoutes.length > 0 && (
+                    <div style={{ marginTop: '18px' }}>
+                      <label>Configured Static Routes</label>
+                      <div style={{ overflowX: 'auto', marginTop: '10px' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                          <thead>
+                            <tr>
+                              <th style={{ textAlign: 'left', padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Destination</th>
+                              <th style={{ textAlign: 'left', padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Next Hop</th>
+                              <th style={{ textAlign: 'left', padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Metric</th>
+                              <th style={{ textAlign: 'left', padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Interface</th>
+                              <th style={{ textAlign: 'left', padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Floating</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {staticRoutes.map((route) => (
+                              <tr key={route.id}>
+                                <td style={{ padding: '10px', borderBottom: '1px solid #f1f5f9' }}>{route.destination}</td>
+                                <td style={{ padding: '10px', borderBottom: '1px solid #f1f5f9' }}>{route.nextHop}</td>
+                                <td style={{ padding: '10px', borderBottom: '1px solid #f1f5f9' }}>{route.metric}</td>
+                                <td style={{ padding: '10px', borderBottom: '1px solid #f1f5f9' }}>{route.interface}</td>
+                                <td style={{ padding: '10px', borderBottom: '1px solid #f1f5f9' }}>{route.floating}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 

@@ -30,14 +30,17 @@ function normaliseInterface(raw, index) {
   // IP — accept both class instances (ipv4.address) and plain objects
   const address    = raw.ipv4?.address    ?? raw.ipAddress  ?? raw.ip   ?? "";
   const subnetMask = raw.ipv4?.subnetMask ?? raw.subnetMask ?? raw.mask ?? "";
-  const gateway    = raw.gateway ?? raw.defaultGateway ?? "";
 
   // Operational status — Device.js exposes isUp / lineStatus
   const isUp =
     raw.isUp !== undefined ? raw.isUp :
     raw.status === "up"   ? true      : null;   // null = unknown
 
-  return { id, name, desc, address, subnetMask, gateway, isUp };
+  // Connection info — populated by the modal's useMemo via link cross-reference
+  const isConnected = raw.isConnected ?? false;
+  const connectedTo = raw.connectedTo ?? null;  // { deviceName, portName }
+
+  return { id, name, desc, address, subnetMask, isUp, isConnected, connectedTo };
 }
 
 // ---------------------------------------------------------------------------
@@ -47,7 +50,6 @@ function InterfaceRow({ iface, deviceId, deviceName, deviceLocation }) {
   const [open,    setOpen]    = useState(false);
   const [ip,      setIp]      = useState(iface.address);
   const [mask,    setMask]    = useState(iface.subnetMask);
-  const [gateway, setGateway] = useState(iface.gateway);
   const [applied, setApplied] = useState(false);
 
   const handleApply = () => {
@@ -74,7 +76,6 @@ function InterfaceRow({ iface, deviceId, deviceName, deviceLocation }) {
               address:    ip,
               subnetMask: mask,
             };
-            if (gateway) rawIface.gateway = gateway;
           }
         }
 
@@ -86,9 +87,8 @@ function InterfaceRow({ iface, deviceId, deviceName, deviceLocation }) {
 
     // 2. Fire system log events (existing pattern)
     const logs = [];
-    if (ip)      logs.push(`[Interface ${iface.name}] IP Address: ${ip}`);
-    if (mask)    logs.push(`[Interface ${iface.name}] Subnet Mask: ${mask}`);
-    if (gateway) logs.push(`[Interface ${iface.name}] Default Gateway: ${gateway}`);
+    if (ip)   logs.push(`[Interface ${iface.name}] IP Address: ${ip}`);
+    if (mask) logs.push(`[Interface ${iface.name}] Subnet Mask: ${mask}`);
     if (!logs.length) logs.push(`[Interface ${iface.name}] Applied — no parameters configured`);
 
     logs.forEach((message) =>
@@ -103,7 +103,7 @@ function InterfaceRow({ iface, deviceId, deviceName, deviceLocation }) {
     setTimeout(() => setApplied(false), 2000);
   };
 
-  const isConfigured = ip || mask || gateway;
+  const isConfigured = ip || mask;
 
   // Status dot colour
   const statusColor =
@@ -135,12 +135,24 @@ function InterfaceRow({ iface, deviceId, deviceName, deviceLocation }) {
         />
         <span className="iface-label">{iface.name}</span>
         {iface.desc && <span className="iface-desc">{iface.desc}</span>}
+        {iface.isConnected && (
+          <span className="iface-badge iface-badge--connected">connected</span>
+        )}
         {isConfigured && <span className="iface-badge">configured</span>}
       </button>
 
       {/* ── Expanded config ── */}
       {open && (
         <div className="iface-body">
+          {iface.connectedTo && (
+            <div className="iface-connected-info">
+              <span className="iface-connected-label">↔ Connected to</span>
+              <span className="iface-connected-peer">
+                {iface.connectedTo.deviceName}
+                {iface.connectedTo.portName ? ` / ${iface.connectedTo.portName}` : ""}
+              </span>
+            </div>
+          )}
           <div className="iface-fields">
             <div className="iface-field">
               <span className="iface-field-label">IP Address</span>
@@ -158,15 +170,6 @@ function InterfaceRow({ iface, deviceId, deviceName, deviceLocation }) {
                 placeholder="255.255.255.0"
                 value={mask}
                 onChange={(e) => setMask(e.target.value)}
-              />
-            </div>
-            <div className="iface-field">
-              <span className="iface-field-label">Default Gateway</span>
-              <input
-                className="iface-input"
-                placeholder="192.168.1.254"
-                value={gateway}
-                onChange={(e) => setGateway(e.target.value)}
               />
             </div>
           </div>
@@ -194,25 +197,109 @@ export default function InterfaceModal({
   device         = null,          // ← the selectedEntity passed from PropertiesPanel
 }) {
   // Derive the canonical interface list from the live device object.
-  // Priority:
-  //   1. device._interfaces  (Device.js Map — most authoritative)
-  //   2. device.interfaces   (plain Array on serialised/store objects)
-  //   3. FALLBACK_INTERFACES (sensible defaults when nothing is registered)
+  // Sources (merged, deduped by name):
+  //   1. device._interfaces  (Device.js Map — logical, Layer 2/3)
+  //   2. device._ports       (Device.js Map — physical, Layer 1)
+  //   3. device.interfaces   (plain Array on serialised/store objects)
+  //   4. FALLBACK_INTERFACES (sensible defaults when nothing is registered)
+  //
+  // Each interface is then annotated with live connectivity data from
+  // appState.network.links so the "connected" badge reflects real topology.
   const interfaces = useMemo(() => {
-    if (!device) return FALLBACK_INTERFACES.map(normaliseInterface);
+    const rawList = [];
+    const seen    = new Set();
 
-    // Device.js class instances expose ._interfaces as a Map
-    if (device._interfaces instanceof Map && device._interfaces.size > 0) {
-      return [...device._interfaces.values()].map(normaliseInterface).filter(Boolean);
+    const push = (raw, idx) => {
+      if (!raw) return;
+      const key = raw.name ?? raw.id ?? raw.label ?? `iface-${idx}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      rawList.push(raw);
+    };
+
+    if (device) {
+      // Priority 1: Device.js _interfaces Map
+      if (device._interfaces instanceof Map && device._interfaces.size > 0) {
+        [...device._interfaces.values()].forEach(push);
+      }
+
+      // Priority 2: Device.js _ports Map (physical ports not already covered)
+      if (device._ports instanceof Map && device._ports.size > 0) {
+        [...device._ports.values()].forEach(push);
+      }
+
+      // Priority 3: plain interfaces array (serialised/store objects)
+      if (Array.isArray(device.interfaces) && device.interfaces.length > 0) {
+        device.interfaces.forEach(push);
+      }
     }
 
-    // Plain array (store objects, serialised JSON)
-    if (Array.isArray(device.interfaces) && device.interfaces.length > 0) {
-      return device.interfaces.map(normaliseInterface).filter(Boolean);
+    // Fallback when device has no registered interfaces or ports at all
+    if (rawList.length === 0) {
+      return FALLBACK_INTERFACES.map(normaliseInterface).filter(Boolean);
     }
 
-    // No interfaces found — use fallback defaults
-    return FALLBACK_INTERFACES.map(normaliseInterface);
+    // Build a quick lookup: portName → { peerDeviceName, peerPortName }
+    // Links in NetworkStore carry sourcePort/targetPort with id = "deviceId::portName"
+    const connMap = new Map();
+    const deviceId = device?.id;
+    if (deviceId && appState?.network) {
+      const links   = appState.network.getAllLinks?.() ?? appState.network.links ?? [];
+      const devices = appState.network.getAllDevices?.() ?? appState.network.devices ?? [];
+
+      const resolveDevice = (id) =>
+        devices.find(d => d.id === id);
+
+      for (const link of links) {
+        // sourcePort.id format: "deviceId::portName"
+        const srcId   = link.sourcePort?.id ?? "";
+        const tgtId   = link.targetPort?.id ?? "";
+        const [srcDev, srcPort] = srcId.split("::");
+        const [tgtDev, tgtPort] = tgtId.split("::");
+
+        if (srcDev === deviceId && srcPort) {
+          const peer = resolveDevice(tgtDev);
+          const peerName = peer?.hostname ?? peer?.label ?? peer?.name ?? tgtDev ?? "Unknown";
+          connMap.set(srcPort, { deviceName: peerName, portName: tgtPort ?? "" });
+        }
+        if (tgtDev === deviceId && tgtPort) {
+          const peer = resolveDevice(srcDev);
+          const peerName = peer?.hostname ?? peer?.label ?? peer?.name ?? srcDev ?? "Unknown";
+          connMap.set(tgtPort, { deviceName: peerName, portName: srcPort ?? "" });
+        }
+
+        // Also support plain sourceId/targetId + sourcePort/targetPort strings
+        if (link.sourceId === deviceId && link.sourcePort && typeof link.sourcePort === "string") {
+          const peer = resolveDevice(link.targetId);
+          const peerName = peer?.hostname ?? peer?.label ?? peer?.name ?? link.targetId ?? "Unknown";
+          connMap.set(link.sourcePort, { deviceName: peerName, portName: link.targetPort ?? "" });
+        }
+        if (link.targetId === deviceId && link.targetPort && typeof link.targetPort === "string") {
+          const peer = resolveDevice(link.sourceId);
+          const peerName = peer?.hostname ?? peer?.label ?? peer?.name ?? link.sourceId ?? "Unknown";
+          connMap.set(link.targetPort, { deviceName: peerName, portName: link.sourcePort ?? "" });
+        }
+      }
+    }
+
+    // Normalise and annotate with connectivity
+    return rawList
+      .map((raw, idx) => {
+        const norm = normaliseInterface(raw, idx);
+        if (!norm) return null;
+        // Try matching by name, id, or short abbreviation
+        const conn = connMap.get(norm.name) ?? connMap.get(norm.id) ?? null;
+        // Also check port's own isOccupied flag (Device.js PhysicalPort)
+        const occupied = raw.isOccupied === true;
+        return {
+          ...norm,
+          isConnected: conn !== null || occupied,
+          connectedTo: conn,
+          // Upgrade isUp: if a link is present the line protocol is up
+          isUp: norm.isUp !== null ? norm.isUp : (conn !== null || occupied ? true : null),
+        };
+      })
+      .filter(Boolean);
   }, [device]);
 
   const deviceId = device?.id ?? null;

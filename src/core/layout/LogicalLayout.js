@@ -1365,15 +1365,55 @@ const door = this.shapeCreator.createDoor(this.startPoint, this.currentPoint);
         const doorPath = new Path2D();
         doorPath.moveTo(this.startPoint.x, this.startPoint.y);
         doorPath.lineTo(this.currentPoint.x, this.currentPoint.y);
-        doorPath.arc(this.startPoint.x, this.startPoint.y, doorLength, angle, angle + Math.PI / 2, false);
-        door.path = doorPath;
-        // ---------------------------------------------
+        doorPath.arc(this.startPoint.x, this.startPoint.y, doorLength, angle, angle + Math.PI / 2, false);
+        door.path = doorPath;
+        door.hitTestMode = 'stroke';
+        
+        // Add properties needed for movement
+        door.x = this.startPoint.x;
+        door.y = this.startPoint.y;
+        door.startPoint = { x: this.startPoint.x, y: this.startPoint.y };
+        door.currentPoint = { x: this.currentPoint.x, y: this.currentPoint.y };
+        
+        door.saveCurrentPosition = function() {
+          this.savedStartPoint = { x: this.startPoint.x, y: this.startPoint.y };
+          this.savedCurrentPoint = { x: this.currentPoint.x, y: this.currentPoint.y };
+          this.savedX = this.x;
+          this.savedY = this.y;
+        };
+        
+        door.restoreToSavedPosition = function() {
+          if (!this.savedStartPoint || !this.savedCurrentPoint) return;
+          this.startPoint = { x: this.savedStartPoint.x, y: this.savedStartPoint.y };
+          this.currentPoint = { x: this.savedCurrentPoint.x, y: this.savedCurrentPoint.y };
+          this.x = this.savedX;
+          this.y = this.savedY;
+        };
+        
+        door.move = function(dx, dy) {
+          this.x += dx;
+          this.y += dy;
+          this.startPoint.x += dx;
+          this.startPoint.y += dy;
+          this.currentPoint.x += dx;
+          this.currentPoint.y += dy;
+          
+          // Recalculate the path with the new position
+          const doorDx = this.currentPoint.x - this.startPoint.x;
+          const doorDy = this.currentPoint.y - this.startPoint.y;
+          const doorLength = Math.sqrt(doorDx * doorDx + doorDy * doorDy);
+          const angle = Math.atan2(doorDy, doorDx);
+          const newPath = new Path2D();
+          newPath.moveTo(this.startPoint.x, this.startPoint.y);
+          newPath.lineTo(this.currentPoint.x, this.currentPoint.y);
+          newPath.arc(this.startPoint.x, this.startPoint.y, doorLength, angle, angle + Math.PI / 2, false);
+          this.path = newPath;
+        };
+        // ---------------------------------------------
 
         door.floorId = activeFloor || null;
         door.spaceId = activeSpace || null;
-        if (door.body) door.body.floorId = activeFloor || null;
-
-        if (door.spaceId !== null && !this._checkForOverlap(door, "creation")) {
+        if (door.body) door.body.floorId = activeFloor || null;        if (door.spaceId !== null && !this._checkForOverlap(door, "creation")) {
           this.doors.push(door);
           // ✅ PUMASA SA CANVAS! Ngayon lang natin sasabihan ang UI na i-add ito.
           if (this.shapeCreator.onDoorCreated) this.shapeCreator.onDoorCreated(door);
@@ -1665,8 +1705,18 @@ const visibleDoors = filterForFloor(this.doors);
 
       // For circles, we only need x, y, and radius defined
       const isCircle = en.type === 'circle' && en.r !== undefined;
+      const isDoor = en.type === 'door';
 
-      if (isCircle || (x !== undefined && w !== undefined)) {
+      if (isDoor) {
+        // Draw door selection highlight
+        ctx.save();
+        ctx.strokeStyle = "#00AEEF";
+        ctx.lineWidth = 4;
+        if (en.path) {
+          ctx.stroke(en.path);
+        }
+        ctx.restore();
+      } else if (isCircle || (x !== undefined && w !== undefined)) {
         ctx.save();
         ctx.strokeStyle = "#00AEEF";
         ctx.lineWidth = 2;
@@ -2223,12 +2273,30 @@ else if (this.startPoint && this.currentPoint) {
       }
     }
 
+    // Check doors BEFORE other structural shapes to give them priority
+    // with a wider click tolerance for better usability
+    if (!en) {
+      for (const door of this.doors) {
+        if (door.path) {
+          // Save the current line width and temporarily increase it for hit detection
+          const originalLineWidth = this.ctx.lineWidth;
+          this.ctx.lineWidth = 12;
+          if (this.ctx.isPointInStroke(door.path, x, y)) {
+            en = door;
+            this.ctx.lineWidth = originalLineWidth;
+            break;
+          }
+          this.ctx.lineWidth = originalLineWidth;
+        }
+      }
+    }
+
     // Only fall back to the canvas path-based hit-test for structural shapes
     // (rectangles, polygons, circles etc.) if no device/furniture was hit.
     if (!en) {
       const structuralEntities = [
         this.rectangles, this.polygons, this.circles,
-        this.walls, this.doors, this.windows, this.roofs, this.freeforms
+        this.windows, this.walls, this.roofs, this.freeforms
       ];
       en = this.selection.identifyEntity(x, y, structuralEntities, this.ctx);
     }

@@ -50,7 +50,10 @@ export class Selection {
                 if (!en || !en.path) continue;
 
                 if (this.wasHit(en, x, y, ctx)) {
-                    const priority = priorityMap[en.structureType] || 0;
+                    // ADDED: Give doors higher priority (2) than walls (0)
+                    let priority = priorityMap[en.structureType] || 0;
+                    if (en.type === 'door') priority = 2;
+                    
                     if (priority > bestPriority) {
                         bestMatch = en;
                         bestPriority = priority;
@@ -60,7 +63,7 @@ export class Selection {
         }
 
         if (bestMatch) {
-            appState.selection.focusedNode(bestMatch.id, this.getFocusType(bestMatch)); // CHANGED: store a clean focused type
+            appState.selection.focusedNode(bestMatch.id, this.getFocusType(bestMatch));
             return bestMatch;
         }
 

@@ -30,25 +30,28 @@ function normaliseInterface(raw, index) {
   // IP — accept both class instances (ipv4.address) and plain objects
   const address    = raw.ipv4?.address    ?? raw.ipAddress  ?? raw.ip   ?? "";
   const subnetMask = raw.ipv4?.subnetMask ?? raw.subnetMask ?? raw.mask ?? "";
-  const gateway    = raw.gateway ?? raw.defaultGateway ?? "";
+  const ipv6Addr   = raw.ipv6?.address    ?? raw.ipv6Address ?? "";
+  const ipv6Prefix = raw.ipv6?.prefixLength ?? raw.ipv6Prefix ?? "";
 
   // Operational status — Device.js exposes isUp / lineStatus
   const isUp =
     raw.isUp !== undefined ? raw.isUp :
     raw.status === "up"   ? true      : null;   // null = unknown
 
-  return { id, name, desc, address, subnetMask, gateway, isUp };
+  return { id, name, desc, address, subnetMask, ipv6Addr, ipv6Prefix, isUp };
 }
 
 // ---------------------------------------------------------------------------
 // InterfaceRow
 // ---------------------------------------------------------------------------
-function InterfaceRow({ iface, deviceId, deviceName, deviceLocation }) {
+function InterfaceRow({ iface, deviceId, deviceName, deviceLocation, deviceType }) {
   const [open,    setOpen]    = useState(false);
   const [ip,      setIp]      = useState(iface.address);
   const [mask,    setMask]    = useState(iface.subnetMask);
-  const [gateway, setGateway] = useState(iface.gateway);
+  const [ipv6,    setIpv6]    = useState(iface.ipv6Addr);
+  const [prefix,  setPrefix]  = useState(iface.ipv6Prefix);
   const [applied, setApplied] = useState(false);
+  const isSwitch = deviceType === 'switch';
 
   const handleApply = () => {
     // 1. Persist into NetworkStore so the data survives modal close
@@ -74,7 +77,19 @@ function InterfaceRow({ iface, deviceId, deviceName, deviceLocation }) {
               address:    ip,
               subnetMask: mask,
             };
-            if (gateway) rawIface.gateway = gateway;
+          }
+          
+          // Configure IPv6 for switches
+          if (isSwitch && (ipv6 || prefix)) {
+            if (typeof rawIface.configureIPv6 === "function") {
+              rawIface.configureIPv6(ipv6, parseInt(prefix));
+            } else {
+              rawIface.ipv6 = {
+                ...(rawIface.ipv6 ?? {}),
+                address: ipv6,
+                prefixLength: parseInt(prefix),
+              };
+            }
           }
         }
 
@@ -88,7 +103,7 @@ function InterfaceRow({ iface, deviceId, deviceName, deviceLocation }) {
     const logs = [];
     if (ip)      logs.push(`[Interface ${iface.name}] IP Address: ${ip}`);
     if (mask)    logs.push(`[Interface ${iface.name}] Subnet Mask: ${mask}`);
-    if (gateway) logs.push(`[Interface ${iface.name}] Default Gateway: ${gateway}`);
+    if (isSwitch && ipv6) logs.push(`[Interface ${iface.name}] IPv6 Address: ${ipv6}/${prefix}`);
     if (!logs.length) logs.push(`[Interface ${iface.name}] Applied — no parameters configured`);
 
     logs.forEach((message) =>
@@ -103,7 +118,7 @@ function InterfaceRow({ iface, deviceId, deviceName, deviceLocation }) {
     setTimeout(() => setApplied(false), 2000);
   };
 
-  const isConfigured = ip || mask || gateway;
+  const isConfigured = ip || mask || (isSwitch && (ipv6 || prefix));
 
   // Status dot colour
   const statusColor =
@@ -141,7 +156,8 @@ function InterfaceRow({ iface, deviceId, deviceName, deviceLocation }) {
       {/* ── Expanded config ── */}
       {open && (
         <div className="iface-body">
-          <div className="iface-fields">
+          <div className="iface-fields" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            {/* IPv4 Configuration - Row 1 */}
             <div className="iface-field">
               <span className="iface-field-label">IP Address</span>
               <input
@@ -160,15 +176,32 @@ function InterfaceRow({ iface, deviceId, deviceName, deviceLocation }) {
                 onChange={(e) => setMask(e.target.value)}
               />
             </div>
-            <div className="iface-field">
-              <span className="iface-field-label">Default Gateway</span>
-              <input
-                className="iface-input"
-                placeholder="192.168.1.254"
-                value={gateway}
-                onChange={(e) => setGateway(e.target.value)}
-              />
-            </div>
+            {/* IPv6 Configuration - Row 2 (Switches Only) */}
+            {isSwitch && (
+              <>
+                <div className="iface-field">
+                  <span className="iface-field-label">IPv6 Address</span>
+                  <input
+                    className="iface-input"
+                    placeholder="2001:db8::1"
+                    value={ipv6}
+                    onChange={(e) => setIpv6(e.target.value)}
+                  />
+                </div>
+                <div className="iface-field">
+                  <span className="iface-field-label">IPv6 Prefix</span>
+                  <input
+                    className="iface-input"
+                    type="number"
+                    placeholder="64"
+                    value={prefix}
+                    onChange={(e) => setPrefix(e.target.value)}
+                    min="1"
+                    max="128"
+                  />
+                </div>
+              </>
+            )}
           </div>
           <div className="iface-apply-row">
             <button
@@ -192,6 +225,7 @@ export default function InterfaceModal({
   deviceName     = "Router",
   deviceLocation = "Network",
   device         = null,          // ← the selectedEntity passed from PropertiesPanel
+  deviceType     = "router",      // ← device type (router, switch, etc.)
 }) {
   // Derive the canonical interface list from the live device object.
   // Priority:
@@ -263,6 +297,7 @@ export default function InterfaceModal({
                     deviceId={deviceId}
                     deviceName={deviceName}
                     deviceLocation={deviceLocation}
+                    deviceType={deviceType}
                   />
                 ))}
               </div>

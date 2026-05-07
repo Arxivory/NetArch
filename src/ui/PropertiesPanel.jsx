@@ -212,6 +212,7 @@ export default function PropertiesPanel({ canvasController }) {
     let val = selectedEntity[field] || "";
     if (field === 'ipAddress') val = selectedEntity?.interfaces?.[0]?.ipv4?.address || "";
     if (field === 'subnetMask') val = selectedEntity?.interfaces?.[0]?.ipv4?.subnetMask || "";
+    if (field === 'defaultGateway') val = selectedEntity?.defaultGateway || "";
     
     // Save the old value the moment the user clicks into the text box
     originalValueRef.current[field] = val;
@@ -234,6 +235,8 @@ export default function PropertiesPanel({ canvasController }) {
       firstInterface.ipv4 = ipv4;
       interfaces[0] = firstInterface;
       updatedEntity = { ...selectedEntity, interfaces, [field]: value };
+    } else if (field === "defaultGateway") {
+      updatedEntity = { ...selectedEntity, defaultGateway: value };
     }
     setSelectedEntity(updatedEntity);
   };
@@ -244,6 +247,7 @@ export default function PropertiesPanel({ canvasController }) {
     let newValue = selectedEntity[field] || "";
     if (field === 'ipAddress') newValue = selectedEntity?.interfaces?.[0]?.ipv4?.address || "";
     if (field === 'subnetMask') newValue = selectedEntity?.interfaces?.[0]?.ipv4?.subnetMask || "";
+    if (field === 'defaultGateway') newValue = selectedEntity?.defaultGateway || "";
 
     // The user clicked away. Did they actually change the text?
     if (oldValue !== newValue) {
@@ -401,6 +405,15 @@ export default function PropertiesPanel({ canvasController }) {
               onBlur={() => handleDeviceBlur('label')}
             />
           </div>
+          <div><label>Default Gateway</label>
+            <input className="field-input" 
+              value={selectedEntity?.defaultGateway || ""} 
+              onFocus={() => handleDeviceFocus('defaultGateway')}
+              onChange={(e) => handleDeviceChange('defaultGateway', e.target.value)} 
+              onBlur={() => handleDeviceBlur('defaultGateway')}
+              placeholder="192.168.1.254"
+            />
+          </div>
           <button className="floor-specifier-btn" onClick={() => setIsModalOpen(true)}>
             Advanced Configuration
           </button>
@@ -533,6 +546,7 @@ export default function PropertiesPanel({ canvasController }) {
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
           device={selectedEntity}
+          deviceType={deviceType}
         />
       )}
  

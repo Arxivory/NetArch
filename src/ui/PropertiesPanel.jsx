@@ -36,7 +36,7 @@ const DEVICE_CONFIGS = {
     { label: "SSH",                 desc: "Secure remote command line access" },
   ],
   switch: [
-    { label: "Interface Settings",   desc: "Manage IPs, masks, and gateway for each port" },
+    { label: "Interface Settings",   desc: "Manage IPs, masks" },
     { label: "VLAN Manager",   desc: "Create and assign Virtual LANs" },
     { label: "Spanning Tree",  desc: "Configure STP to prevent network loops" },
     { label: "Port Security",  desc: "Bind specific MAC addresses to ports" },

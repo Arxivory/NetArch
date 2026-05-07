@@ -195,23 +195,14 @@ export default function RoutingModal({ onClose, deviceName = "Router", deviceLoc
           <div className="config-body">
             
             <div className="config-group-mono">
-              <label>Global Routing Settings</label>
+              {/* <label>Global Routing Settings</label> */}
               <div className="inline-fields">
                 <div className="input-wrap">
-                  <span>Router ID</span>
-                  <input
-                    placeholder="1.1.1.1"
-                    value={routerId}
-                    onChange={(e) => setRouterId(e.target.value)}
-                  />
+                  {/* <span>Router ID</span> */}
                 </div>
                 <div className="input-wrap">
-                  <span>Default Route</span>
-                  <input
-                    placeholder="0.0.0.0/0 → 192.168.1.1"
-                    value={defaultRoute}
-                    onChange={(e) => setDefaultRoute(e.target.value)}
-                  />
+                  {/* <span>Default Route</span> */}
+                  
                 </div>
               </div>
             </div>

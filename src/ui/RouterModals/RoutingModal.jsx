@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Network, Activity, ArrowLeftRight, Map, Server, Trash2 } from "lucide-react";
 
-export default function RoutingModal({ onClose, deviceName = "Router", deviceLocation = "Network" }) {
+export default function RoutingModal({ onClose, deviceName = "Router", deviceLocation = "Network", device = null }) {
   const [activeRoutingTab, setActiveRoutingTab] = useState("ospf");
 
   // ── Global ─────────────────────────────────────────────────────────────────
@@ -95,26 +95,29 @@ export default function RoutingModal({ onClose, deviceName = "Router", deviceLoc
   if (bgpNetworks)   logs.push(`[BGP] Advertised Networks: ${bgpNetworks}`);
   if (bgpReflector)  logs.push(`[BGP] Route Reflector: Enabled`);
 
-  // Static Route
-  if (staticDest)     logs.push(`[Static] Destination: ${staticDest}`);
-  if (staticNextHop)  logs.push(`[Static] Next Hop: ${staticNextHop}`);
-  if (staticMetric)   logs.push(`[Static] Metric: ${staticMetric}`);
-  if (staticIface)    logs.push(`[Static] Interface: ${staticIface}`);
-  if (staticFloating) logs.push(`[Static] Floating Route: Enabled`);
+  // Static Route - Add to routing table
+  staticRoutes.forEach((route) => {
+    if (device && device.routingTable) {
+      // Parse the CIDR notation from destination if present
+      const [destNet, prefixLen] = route.destination.includes('/') 
+        ? route.destination.split('/') 
+        : [route.destination, '24'];
+      
+      // Convert prefix length to subnet mask (simplified - assumes classless)
+      const subnetMask = _prefixLengthToMask(parseInt(prefixLen) || 24);
 
-  if (activeRoutingTab === "static" && staticDest && staticNextHop) {
-    setStaticRoutes((currentRoutes) => [
-      ...currentRoutes,
-      {
-        id: `static-${Date.now()}`,
-        destination: staticDest,
-        nextHop: staticNextHop,
-        metric: staticMetric || "-",
-        interface: staticIface,
-        floating: staticFloating ? "Yes" : "No",
-      },
-    ]);
-  }
+      device.routingTable.addRoute({
+        destination: destNet,
+        mask: subnetMask,
+        nextHop: route.nextHop,
+        egressInterface: route.interface,
+        metric: parseInt(route.metric) || 1,
+        protocol: 'static',
+        active: true,
+      });
+    }
+    logs.push(`[Static] ${route.destination} -> ${route.nextHop}`);
+  });
 
   // Route Control
   if (ctrlRedist !== "None") logs.push(`[Route Control] Redistribution: ${ctrlRedist}`);
@@ -139,6 +142,20 @@ export default function RoutingModal({ onClose, deviceName = "Router", deviceLoc
   });
 
   onClose();
+};
+
+// Helper function to convert prefix length to subnet mask
+const _prefixLengthToMask = (prefixLen) => {
+  if (prefixLen <= 0) return "255.255.255.255";
+  if (prefixLen >= 32) return "0.0.0.0";
+  
+  const bits = (0xffffffff << (32 - prefixLen)) >>> 0;
+  return [
+    (bits >>> 24) & 0xff,
+    (bits >>> 16) & 0xff,
+    (bits >>> 8) & 0xff,
+    bits & 0xff
+  ].join('.');
 };
 
   return createPortal(

@@ -537,6 +537,7 @@ export default function PropertiesPanel({ canvasController }) {
           onClose={() => setIsRoutingModalOpen(false)}
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
+          device={selectedEntity}
         />
       )}
 

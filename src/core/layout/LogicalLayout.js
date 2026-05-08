@@ -1990,7 +1990,7 @@ if (this.mode === 'door' || this.mode === 'window') {
         if (!srcOnFloor || !dstOnFloor) continue;
       }
 
-      const resolvedPath = this.routeManager?.getPath(cable.id);
+      const resolvedPath = this.routeManager?.getPath(cable.linkId || cable.id) || this.routeManager?.getPath(cable.id);
       const isPartial = resolvedPath?.isPartial ?? false;
       ctx.beginPath();
       if (resolvedPath && !resolvedPath.isDirect && resolvedPath.canvasPoints.length >= 2) {

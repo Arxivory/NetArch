@@ -185,14 +185,17 @@ export class PhysicalController {
             }
         }
 
-        this.routeManager.resolveAll(links, devices);
+        this.routeManager.resolveAll(links, devices, true);
 
         for (const link of links) {
             console.log(link);
             activeLinkIds.add(link.id);
             
-            if (this.cableMeshes.has(link.id))
+            if (this.cableMeshes.has(link.id)) {
+                const existingCable = this.cableMeshes.get(link.id);
+                existingCable.updateResolvedPath(this.routeManager.getPath(link.id));
                 continue;
+            }
 
             this.createCableMesh(link);
         }

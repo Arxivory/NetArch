@@ -1953,7 +1953,6 @@ _handleShapeCreated(shapeData, shapeType) {
           const srcDevice = appState.network.getDevice(cableData.sourceDeviceId);
           const dstDevice = appState.network.getDevice(cableData.targetDeviceId);
           if (srcDevice && dstDevice && this.layout.routeManager) {
-            const link = appState.network.getLink(cableData.id) || cableData;
             this.layout.routeManager.resolveOne(link, srcDevice, dstDevice);
           }
 

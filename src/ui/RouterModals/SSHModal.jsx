@@ -30,7 +30,7 @@ const defaultState = {
 function dispatchLog(deviceName, deviceLocation, message) {
   window.dispatchEvent(
     new CustomEvent("add-system-log", {
-      detail: { device: "Router", deviceName, message, location: deviceLocation },
+      detail: { device: "Router", deviceName, message, location: deviceLocation, italic: true },
     })
   );
 }
@@ -49,81 +49,38 @@ export default function SSHModal({ onClose, deviceName = "Router-Core-01", devic
   const now = () => new Date().toISOString().replace("T", " ").slice(0, 19);
 
   const handleApply = () => {
-    const prev = prevState.current;
     const logs = [];
-    const ts = now();
 
-    // Service status
-    if (state.sshEnabled !== prev.sshEnabled) {
-      logs.push(
-        state.sshEnabled === "Enabled"
-          ? `%SSH-5-SERVICE_ENABLED: [${ts}] ${deviceName} @ ${deviceLocation} — SSH service STARTED. ` +
-            `Listening on TCP/${state.port || "22"} using ${state.protocolVersion}. ` +
-            `Remote management access is now available on this device.`
-          : `%SSH-5-SERVICE_DISABLED: [${ts}] ${deviceName} @ ${deviceLocation} — SSH service STOPPED. ` +
-            `All active sessions terminated. Remote CLI access is no longer available until re-enabled.`
-      );
-    }
-    if (state.port !== prev.port && state.port) {
-      logs.push(
-        `%SSH-5-PORT_CHANGE: [${ts}] ${deviceName} — SSH listener port changed from ` +
-        `${prev.port || "22"} to ${state.port}. ` +
-        `Firewall ACLs and management station configurations must be updated to reflect new port.`
-      );
-    }
-    if (state.protocolVersion !== prev.protocolVersion) {
-      logs.push(
-        `%SSH-5-PROTO_MOD: [${ts}] ${deviceName} — Protocol version changed from ` +
-        `${prev.protocolVersion || "—"} to ${state.protocolVersion}. ` +
-        `${state.protocolVersion.includes("1") ? "WARNING: SSH-1 is deprecated and cryptographically weak." : "SSH-2 selected; KEX and cipher negotiation updated."}`
-      );
-    }
+    // General
+    if (state.sshEnabled && state.sshEnabled !== "Select") logs.push(`[SSH] Service: ${state.sshEnabled}`);
+    if (state.port)                                        logs.push(`[SSH] Port: ${state.port}`);
+    if (state.protocolVersion && state.protocolVersion !== "Select") logs.push(`[SSH] Protocol Version: ${state.protocolVersion}`);
+    if (state.allowRootLogin) logs.push(`[SSH] Allow Root Login: Enabled`);
 
-    // Auth methods
-    if (state.passwordLogin !== prev.passwordLogin) {
-      logs.push(
-        `%SSH-5-AUTH_PASSWD_MOD: [${ts}] ${deviceName} — Password authentication changed ` +
-        `from ${prev.passwordLogin || "—"} to ${state.passwordLogin}. ` +
-        `${state.passwordLogin === "Disabled" ? "Users must authenticate via SSH keys only." : "Password-based login re-enabled; ensure strong credential policy is enforced."}`
-      );
-    }
-    if (state.keyBasedAuth !== prev.keyBasedAuth) {
-      logs.push(
-        `%SSH-5-AUTH_KEY_MOD: [${ts}] ${deviceName} — Key-based authentication policy changed ` +
-        `from "${prev.keyBasedAuth || "—"}" to "${state.keyBasedAuth}". ` +
-        `Authorized keys file re-evaluated on next connection attempt.`
-      );
-    }
+    // Authentication
+    if (state.passwordLogin && state.passwordLogin !== "Select") logs.push(`[SSH Auth] Password Login: ${state.passwordLogin}`);
+    if (state.keyBasedAuth  && state.keyBasedAuth  !== "Select") logs.push(`[SSH Auth] Key-Based Auth: ${state.keyBasedAuth}`);
+    if (state.disableEmpty) logs.push(`[SSH Auth] Disable Empty Passwords: Enabled`);
+    if (state.twoFA)        logs.push(`[SSH Auth] 2FA: Enabled`);
 
-    // Access control
-    if (state.allowedIP !== prev.allowedIP || state.blockedIP !== prev.blockedIP) {
-      logs.push(
-        `%SSH-5-ACCESS_CTRL_MOD: [${ts}] ${deviceName} — SSH access control lists updated. ` +
-        `Permitted: ${state.allowedIP || "any"} | Blocked: ${state.blockedIP || "none"}. ` +
-        `IP filtering ${state.ipFiltering ? "ACTIVE" : "INACTIVE"}. ` +
-        `New rules take effect immediately; existing sessions are not affected.`
-      );
-    }
-    if (state.rateLimiting !== prev.rateLimiting) {
-      logs.push(
-        state.rateLimiting
-          ? `%SSH-5-RATELIMIT_ENABLED: [${ts}] ${deviceName} — SSH brute-force protection enabled. ` +
-            `Connection rate limiting active; excessive failed attempts will trigger temporary source block.`
-          : `%SSH-6-RATELIMIT_DISABLED: [${ts}] ${deviceName} — SSH rate limiting disabled. ` +
-            `No automatic blocking on repeated failed authentication attempts.`
-      );
-    }
+    // SSH Keys
+    state.keys.forEach((k, i) => {
+      if (k.user || k.fingerprint) {
+        logs.push(`[SSH Key #${i + 1}] User: ${k.user || "—"} | Type: ${k.keyType}` +
+          (k.fingerprint ? ` | Fingerprint: ${k.fingerprint}` : "") +
+          ` | Active: ${k.active ? "Yes" : "No"}`);
+      }
+    });
 
-    if (logs.length === 0) {
-      logs.push(
-        `%SSH-6-NOP: [${ts}] ${deviceName} @ ${deviceLocation} — SSH Apply invoked; no configuration changes detected. ` +
-        `Service configuration, authentication policy, and access control rules remain unchanged.`
-      );
-    }
+    // Access Control
+    if (state.allowedIP)    logs.push(`[SSH Access] Allowed IP Range: ${state.allowedIP}`);
+    if (state.blockedIP)    logs.push(`[SSH Access] Blocked IP: ${state.blockedIP}`);
+    if (state.ipFiltering)  logs.push(`[SSH Access] IP Filtering: Enabled`);
+    if (state.rateLimiting) logs.push(`[SSH Access] Rate Limiting: Enabled`);
+
+    if (logs.length === 0) logs.push(`[SSH] Applied — no parameters configured`);
 
     logs.forEach((message) => dispatchLog(deviceName, deviceLocation, message));
-    persistentSSHState = state;
-    prevState.current = state;
     onClose();
   };
 

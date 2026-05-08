@@ -45,84 +45,84 @@ export class LogicalCanvasController {
     this.positionSnapshot = new Map();
     // --- NEW: Global Listener for Entity Updates ---
     window.addEventListener('forceCanvasUpdate', (e) => {
-        if (this.layout) {
-            const { id, updates } = e.detail;
-            const canvasEntity = this.layout.findEntityById(id);
-            if (canvasEntity) {
-                const isLogicalDevice =
-                  canvasEntity.interfaces !== undefined ||
-                  canvasEntity.catalogId !== undefined ||
-                  typeof canvasEntity.tileX === 'number';
+      if (this.layout) {
+        const { id, updates } = e.detail;
+        const canvasEntity = this.layout.findEntityById(id);
+        if (canvasEntity) {
+          const isLogicalDevice =
+            canvasEntity.interfaces !== undefined ||
+            canvasEntity.catalogId !== undefined ||
+            typeof canvasEntity.tileX === 'number';
 
-                if (isLogicalDevice) {
-                    // Logical canvas devices use a 2D transform shape (`scale.factor`).
-                    // The physical store uses a 3D transform shape (`scale.x/y/z`).
-                    // Never overwrite the logical transform with the physical one.
-                    const { transform, ...safeUpdates } = updates || {};
-                    Object.assign(canvasEntity, safeUpdates);
-                } else {
-                    Object.assign(canvasEntity, updates);
-                }
-                // Ensure text properties sync
-                if (updates.label !== undefined) {
-                    canvasEntity.hostname = updates.label;
-                    canvasEntity.name = updates.label;
-                }
-                this.layout._render(); // Force instant redraw
-            }
+          if (isLogicalDevice) {
+            // Logical canvas devices use a 2D transform shape (`scale.factor`).
+            // The physical store uses a 3D transform shape (`scale.x/y/z`).
+            // Never overwrite the logical transform with the physical one.
+            const { transform, ...safeUpdates } = updates || {};
+            Object.assign(canvasEntity, safeUpdates);
+          } else {
+            Object.assign(canvasEntity, updates);
+          }
+          // Ensure text properties sync
+          if (updates.label !== undefined) {
+            canvasEntity.hostname = updates.label;
+            canvasEntity.name = updates.label;
+          }
+          this.layout._render(); // Force instant redraw
         }
+      }
     });
     window.addEventListener('requestLinkUpdate', (e) => {
-        const { linkId, cableType, endpointType, newDevice, clientX, clientY } = e.detail; 
-        
-        // Pass cableType as the 5th parameter
-        this._handlePortSelect(newDevice, clientX, clientY, (selectedPort) => {
-            if (!selectedPort) {
-                this.layout._render();
-                return; 
-            }
-            
-            // 1. Execute the data update in the Store
-            if (appState.network && typeof appState.network.updateLinkEndpoint === 'function') {
-                appState.network.updateLinkEndpoint(linkId, endpointType, newDevice.id, selectedPort);
-            }
+      const { linkId, cableType, endpointType, newDevice, clientX, clientY } = e.detail;
 
-            // 2. CRITICAL FIX: Sync the visual layout cable!
-            if (this.layout && this.layout.cables) {
-                const canvasCable = this.layout.cables.find(c => c.id === linkId);
-                if (canvasCable) {
-                    if (endpointType === 'source') {
-                        canvasCable.sourceId = newDevice.id;
-                        canvasCable.sourcePort = selectedPort;
-                    } else {
-                        canvasCable.targetId = newDevice.id;
-                        canvasCable.targetPort = selectedPort;
-                    }
-                }
+      // Pass cableType as the 5th parameter
+      this._handlePortSelect(newDevice, clientX, clientY, (selectedPort) => {
+        if (!selectedPort) {
+          this.layout._render();
+          return;
+        }
+
+        // 1. Execute the data update in the Store
+        if (appState.network && typeof appState.network.updateLinkEndpoint === 'function') {
+          appState.network.updateLinkEndpoint(linkId, endpointType, newDevice.id, selectedPort);
+        }
+
+        // 2. CRITICAL FIX: Sync the visual layout cable!
+        if (this.layout && this.layout.cables) {
+          const canvasCable = this.layout.cables.find(c => c.id === linkId);
+          if (canvasCable) {
+            if (endpointType === 'source') {
+              canvasCable.sourceId = newDevice.id;
+              canvasCable.sourcePort = selectedPort;
+            } else {
+              canvasCable.targetId = newDevice.id;
+              canvasCable.targetPort = selectedPort;
             }
-            
-            // 3. Force UI refresh so the cable visually snaps to the new device
-            this.layout._render();
-            
-        }, cableType); 
+          }
+        }
+
+        // 3. Force UI refresh so the cable visually snaps to the new device
+        this.layout._render();
+
+      }, cableType);
     });
 
     window.addEventListener('requestLinkDeletion', (e) => {
-        const { linkId, sourceName, targetName } = e.detail;
-        
-        showConfirmationModal(
-            `Are you sure you want to delete the connection between ${sourceName} and ${targetName}?\n\nThe link will be removed and the device ports will become available again.`,
-            "Confirm Deletion",
-            () => {
-                // If the user clicks "Delete Link", execute the deletion
-                this.executeDelete(linkId);
-                
-                // Switch the tool back to select so they aren't stuck in delete mode
-                if (appState.tools) {
-                    appState.tools.setActiveTool('select');
-                }
-            }
-        );
+      const { linkId, sourceName, targetName } = e.detail;
+
+      showConfirmationModal(
+        `Are you sure you want to delete the connection between ${sourceName} and ${targetName}?\n\nThe link will be removed and the device ports will become available again.`,
+        "Confirm Deletion",
+        () => {
+          // If the user clicks "Delete Link", execute the deletion
+          this.executeDelete(linkId);
+
+          // Switch the tool back to select so they aren't stuck in delete mode
+          if (appState.tools) {
+            appState.tools.setActiveTool('select');
+          }
+        }
+      );
     });
 
 
@@ -131,97 +131,105 @@ export class LogicalCanvasController {
       const { conduitId } = e.detail;
       appState.structural.removeConduit(conduitId);
       this.layout.removeEntityById(conduitId);
+
+      if (this.layout.routeManager) {
+        this.layout.routeManager.clear();
+        const links = appState.network.getAllLinks();
+        const devices = appState.network.getAllDevices();
+        this.layout.routeManager.resolveAll(links, devices);
+        this.layout._render();
+      }
     });
 
     this.invalidMoveAlerted = new Set();
-    this.pendingMoveEntities = new Map(); 
+    this.pendingMoveEntities = new Map();
     window.addEventListener('pointerdown', () => {
-        this.positionSnapshot.clear();
-        this.pendingMoveEntities.clear();
-        this.invalidMoveAlerted.clear();
-        const st = appState.structural;
-        if (!st) return;
-        
-        // Take a snapshot of every structure's X/Y before the drag starts
-        const elements = [...(st.domains||[]), ...(st.sites||[]), ...(st.floors||[]), ...(st.spaces||[])];
-        elements.forEach(el => {
-            const x = Number(el.geometry ? el.geometry.x : (el.x || 0));
-            const y = Number(el.geometry ? el.geometry.y : (el.y || 0));
-            this.positionSnapshot.set(el.id, { x, y });
-        });
+      this.positionSnapshot.clear();
+      this.pendingMoveEntities.clear();
+      this.invalidMoveAlerted.clear();
+      const st = appState.structural;
+      if (!st) return;
 
-        // Also snapshot all devices for drag undo/redo support
-        const allDevices = typeof appState.getAllDevices === 'function' ? appState.getAllDevices() : [];
-        allDevices.forEach(device => {
-            const x = Number(device.transform?.position?.x || 0);
-            const y = Number(device.transform?.position?.y || 0);
-            this.positionSnapshot.set(device.id, { x, y });
-        });
+      // Take a snapshot of every structure's X/Y before the drag starts
+      const elements = [...(st.domains || []), ...(st.sites || []), ...(st.floors || []), ...(st.spaces || [])];
+      elements.forEach(el => {
+        const x = Number(el.geometry ? el.geometry.x : (el.x || 0));
+        const y = Number(el.geometry ? el.geometry.y : (el.y || 0));
+        this.positionSnapshot.set(el.id, { x, y });
+      });
+
+      // Also snapshot all devices for drag undo/redo support
+      const allDevices = typeof appState.getAllDevices === 'function' ? appState.getAllDevices() : [];
+      allDevices.forEach(device => {
+        const x = Number(device.transform?.position?.x || 0);
+        const y = Number(device.transform?.position?.y || 0);
+        this.positionSnapshot.set(device.id, { x, y });
+      });
     }, { capture: true });
 
     // --- NEW: Global Keyboard Listener for Shortcuts & Deletions ---
     window.addEventListener('keydown', (e) => {
-        // 1. GUARDRAIL: Let the browser handle shortcuts if the user is typing in a text box
-        const activeElement = document.activeElement;
-        const isTyping = activeElement.tagName === 'INPUT' || 
-                         activeElement.tagName === 'TEXTAREA' || 
-                         activeElement.isContentEditable;
-        if (isTyping) return;
+      // 1. GUARDRAIL: Let the browser handle shortcuts if the user is typing in a text box
+      const activeElement = document.activeElement;
+      const isTyping = activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.isContentEditable;
+      if (isTyping) return;
 
-        // 2. TIME MACHINE SHORTCUTS (Undo / Redo)
-        const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-        const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+      // 2. TIME MACHINE SHORTCUTS (Undo / Redo)
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
 
-        if (cmdOrCtrl) {
-            // Undo: Ctrl + Z
-            if (e.key.toLowerCase() === 'z' && !e.shiftKey) {
-                e.preventDefault(); // Stop browser's default undo
-                this.undo();
-                return; // Stop processing other keys
-            }
-            
-            // Redo: Ctrl + Y (Windows) OR Ctrl + Shift + Z (Mac)
-            if (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey)) {
-                e.preventDefault(); 
-                this.redo();
-                return; 
-            }
+      if (cmdOrCtrl) {
+        // Undo: Ctrl + Z
+        if (e.key.toLowerCase() === 'z' && !e.shiftKey) {
+          e.preventDefault(); // Stop browser's default undo
+          this.undo();
+          return; // Stop processing other keys
         }
 
-        // 3. DELETION SHORTCUTS (Backspace / Delete)
-        if (e.key === 'Backspace' || e.key === 'Delete') {
-            if (!appState || !appState.selection) return;
+        // Redo: Ctrl + Y (Windows) OR Ctrl + Shift + Z (Mac)
+        if (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey)) {
+          e.preventDefault();
+          this.redo();
+          return;
+        }
+      }
 
-            let ids = appState.selection.getSelectedDeviceIds();
-            if (!ids || ids.length === 0) {
-                const focused = appState.selection.getFocusedId();
-                if (focused) ids = [focused];
-            }
+      // 3. DELETION SHORTCUTS (Backspace / Delete)
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        if (!appState || !appState.selection) return;
 
-            if (ids && ids.length > 0) {
-                const idToDelete = ids[0]; 
+        let ids = appState.selection.getSelectedDeviceIds();
+        if (!ids || ids.length === 0) {
+          const focused = appState.selection.getFocusedId();
+          if (focused) ids = [focused];
+        }
 
-                if (appState.selection.focusedType === 'cable' && this.layout) {
-                    const cable = this.layout.cables.find(c => c.id === idToDelete) || 
-                                  appState.network?.getLink?.(idToDelete);
-                                  
-                    if (cable) {
-                        const src = this.layout.findEntityById(cable.sourceId);
-                        const dst = this.layout.findEntityById(cable.targetId);
-                        
-                        window.dispatchEvent(new CustomEvent('requestLinkDeletion', {
-                            detail: {
-                                linkId: cable.id,
-                                sourceName: src?.label || src?.name || "Device",
-                                targetName: dst?.label || dst?.name || "Device"
-                            }
-                        }));
-                    }
-                } else {
-                    this.executeDelete(idToDelete);
+        if (ids && ids.length > 0) {
+          const idToDelete = ids[0];
+
+          if (appState.selection.focusedType === 'cable' && this.layout) {
+            const cable = this.layout.cables.find(c => c.id === idToDelete) ||
+              appState.network?.getLink?.(idToDelete);
+
+            if (cable) {
+              const src = this.layout.findEntityById(cable.sourceId);
+              const dst = this.layout.findEntityById(cable.targetId);
+
+              window.dispatchEvent(new CustomEvent('requestLinkDeletion', {
+                detail: {
+                  linkId: cable.id,
+                  sourceName: src?.label || src?.name || "Device",
+                  targetName: dst?.label || dst?.name || "Device"
                 }
+              }));
             }
+          } else {
+            this.executeDelete(idToDelete);
+          }
         }
+      }
     });
     // ---------------------------------------------------
 
@@ -256,6 +264,21 @@ export class LogicalCanvasController {
 
     // Initialize CommandHistory for undo/redo
     this.commandHistory = new CommandHistory(appState.commands);
+  }
+
+  // Helper method to determine if an entity is a furniture asset based on its properties
+  _isFurnitureAsset(entity) {
+    if (!entity || entity.sourceId || entity.targetId || entity.interfaces !== undefined) {
+      return false;
+    }
+
+    return (
+      entity.entityType === 'furniture' ||
+      entity.type === 'furniture' ||
+      ['desk', 'chair', 'rack', 'cabinet', 'table'].includes(entity.type) ||
+      ['desk', 'chair', 'rack', 'cabinet', 'table'].includes(entity.catalogId) ||
+      ['desk', 'chair', 'rack', 'cabinet', 'table'].includes(entity.modelId)
+    );
   }
 
   destroy() {
@@ -321,12 +344,12 @@ export class LogicalCanvasController {
     }
 
     if (this.layout.cables) {
-        const before = this.layout.cables.length;
-        this.layout.cables = this.layout.cables.filter(c => c.id !== id);
-        if (this.layout.cables.length < before) {
-            this.layout._render?.();
-            return; // was a cable, done
-        }
+      const before = this.layout.cables.length;
+      this.layout.cables = this.layout.cables.filter(c => c.id !== id);
+      if (this.layout.cables.length < before) {
+        this.layout._render?.();
+        return; // was a cable, done
+      }
     }
 
     // 2. Try removing it as a Device or Furniture
@@ -336,7 +359,7 @@ export class LogicalCanvasController {
     if (typeof this.layout.removeFurniture === 'function') {
       this.layout.removeFurniture(id);
     }
-    
+
     // 3. Generic fallback just in case your layout engine uses a unified method
     if (typeof this.layout.removeEntity === 'function') {
       this.layout.removeEntity(id);
@@ -350,29 +373,29 @@ export class LogicalCanvasController {
     }
   }
 
-executeDelete(idToDelete) {
+  executeDelete(idToDelete) {
     // 1. Calculate how many items will be destroyed alongside this one
     const blastInfo = this._calculateBlastRadius(idToDelete);
 
     // 2. If children exist, throw the confirmation modal
     if (blastInfo.count > 0) {
-        showConfirmationModal(
-            `Are you sure you want to delete "${blastInfo.name}"?\n\nThis will permanently delete ${blastInfo.count} dependent item(s) located inside it.`,
-            "Confirm Cascading Deletion",
-            () => {
-                this._commitDelete(idToDelete);
-            }
-        );
+      showConfirmationModal(
+        `Are you sure you want to delete "${blastInfo.name}"?\n\nThis will permanently delete ${blastInfo.count} dependent item(s) located inside it.`,
+        "Confirm Cascading Deletion",
+        () => {
+          this._commitDelete(idToDelete);
+        }
+      );
     } else {
-        // 3. If it's empty (or just a standalone device), delete instantly
-        this._commitDelete(idToDelete);
+      // 3. If it's empty (or just a standalone device), delete instantly
+      this._commitDelete(idToDelete);
     }
   }
 
   _commitDelete(idToDelete) {
     // Stop bypassing the stack! Use the Time Machine.
     const command = new DeleteEntityCommand(appState, this, idToDelete);
-    
+
     appState.pushCommand(command);
     command.execute();
   }
@@ -397,12 +420,12 @@ executeDelete(idToDelete) {
 
     // 1. Extract the structural metadata safely
     const structureType = structure.structureType || structure.type || '';
-    
+
     // 2. CRITICAL FIX: The "Phantom Shape" Parser Shield
     // If the parser accidentally reads "Domain" or "Site" instead of a 2D shape type, force it back to a rectangle.
     let primitiveType = structure.shapeType || structure.type;
     if (!['rectangle', 'circle', 'polygon', 'freeform'].includes(primitiveType)) {
-        primitiveType = 'rectangle'; 
+      primitiveType = 'rectangle';
     }
 
     const geom = structure.geometry || {};
@@ -469,73 +492,73 @@ executeDelete(idToDelete) {
     return shape;
   }
 
-restoreCanvasDevice(deviceData, canvasId, x, y) {
-      if (!this.layout?.shapeCreator) return null;
-      
-      const safeX = x ?? deviceData.x ?? deviceData.position?.x ?? deviceData.transform?.position?.x ?? 0;
-      const safeY = y ?? deviceData.y ?? deviceData.position?.y ?? deviceData.transform?.position?.y ?? 0;
+  restoreCanvasDevice(deviceData, canvasId, x, y) {
+    if (!this.layout?.shapeCreator) return null;
 
-      // FIX: Ensure hostname is checked! That's where Factory stores the real name.
-      deviceData.label = deviceData.label || deviceData.name || deviceData.hostname || "Device";
-      deviceData.name = deviceData.label;
+    const safeX = x ?? deviceData.x ?? deviceData.position?.x ?? deviceData.transform?.position?.x ?? 0;
+    const safeY = y ?? deviceData.y ?? deviceData.position?.y ?? deviceData.transform?.position?.y ?? 0;
 
-      const layoutDevice = this.layout.shapeCreator.createDevice(
-          deviceData, safeX, safeY, this.layout.shapeRenderer?.gridSize * 1.5 || 48
-      );
+    // FIX: Ensure hostname is checked! That's where Factory stores the real name.
+    deviceData.label = deviceData.label || deviceData.name || deviceData.hostname || "Device";
+    deviceData.name = deviceData.label;
 
-      layoutDevice.id = canvasId || deviceData.id;
-      layoutDevice.label = deviceData.label;
-      layoutDevice.name = deviceData.name;
-      layoutDevice.catalogId = deviceData.catalogId || deviceData.modelId;
-      layoutDevice.floorId = deviceData.floorId;
-      layoutDevice.spaceId = deviceData.spaceId;
-      layoutDevice.iconHint = deviceData.iconHint;
-      layoutDevice.isRehydration = true; 
-      
-      this.entityIdMap.set(layoutDevice.id, deviceData.id);
-      this.structuralToCanvasMap.set(deviceData.id, layoutDevice.id);
+    const layoutDevice = this.layout.shapeCreator.createDevice(
+      deviceData, safeX, safeY, this.layout.shapeRenderer?.gridSize * 1.5 || 48
+    );
 
-      this.layout.devices.push(layoutDevice);
-      this.layout._render();
-      
-      return layoutDevice;
+    layoutDevice.id = canvasId || deviceData.id;
+    layoutDevice.label = deviceData.label;
+    layoutDevice.name = deviceData.name;
+    layoutDevice.catalogId = deviceData.catalogId || deviceData.modelId;
+    layoutDevice.floorId = deviceData.floorId;
+    layoutDevice.spaceId = deviceData.spaceId;
+    layoutDevice.iconHint = deviceData.iconHint;
+    layoutDevice.isRehydration = true;
+
+    this.entityIdMap.set(layoutDevice.id, deviceData.id);
+    this.structuralToCanvasMap.set(deviceData.id, layoutDevice.id);
+
+    this.layout.devices.push(layoutDevice);
+    this.layout._render();
+
+    return layoutDevice;
   }
 
   restoreCanvasFurniture(furnitureData, canvasId, x, y) {
-      if (!this.layout) return null;
+    if (!this.layout) return null;
 
-      const fData = { ...furnitureData, id: canvasId || furnitureData.id };
-      fData.x = x ?? fData.x ?? fData.transform?.position?.x ?? 0;
-      fData.y = y ?? fData.y ?? fData.transform?.position?.y ?? 0;
-      fData.isRehydration = true; 
+    const fData = { ...furnitureData, id: canvasId || furnitureData.id };
+    fData.x = x ?? fData.x ?? fData.transform?.position?.x ?? 0;
+    fData.y = y ?? fData.y ?? fData.transform?.position?.y ?? 0;
+    fData.isRehydration = true;
 
-      fData.label = fData.label || fData.name || "Furniture";
-      fData.name = fData.label;
+    fData.label = fData.label || fData.name || "Furniture";
+    fData.name = fData.label;
 
-      // 🛑 ENGAGE TIME MACHINE LOCK: Stop the "Select Floor" modal loop!
-      this._isRehydrating = true;
+    // 🛑 ENGAGE TIME MACHINE LOCK: Stop the "Select Floor" modal loop!
+    this._isRehydrating = true;
 
-      // 🎨 PADDING FIX: Use the layout engine's native method! 
-      // This automatically generates the white background box.
-      if (typeof this.layout.addFurniture === 'function') {
-          this.layout.addFurniture(fData, fData.x, fData.y);
-      } else {
-          if(!this.layout.furnitures) this.layout.furnitures = [];
-          this.layout.furnitures.push(fData);
-      }
+    // 🎨 PADDING FIX: Use the layout engine's native method! 
+    // This automatically generates the white background box.
+    if (typeof this.layout.addFurniture === 'function') {
+      this.layout.addFurniture(fData, fData.x, fData.y);
+    } else {
+      if (!this.layout.furnitures) this.layout.furnitures = [];
+      this.layout.furnitures.push(fData);
+    }
 
-      // 🟢 DISENGAGE TIME MACHINE LOCK
-      this._isRehydrating = false;
+    // 🟢 DISENGAGE TIME MACHINE LOCK
+    this._isRehydrating = false;
 
-      if (this.physicalController && this.physicalController.createFurnitureGLTFMesh) {
-          this.physicalController.createFurnitureGLTFMesh(fData);
-      }
+    if (this.physicalController && this.physicalController.createFurnitureGLTFMesh) {
+      this.physicalController.createFurnitureGLTFMesh(fData);
+    }
 
-      this.entityIdMap.set(fData.id, furnitureData.id);
-      this.structuralToCanvasMap.set(fData.id, fData.id);
+    this.entityIdMap.set(fData.id, furnitureData.id);
+    this.structuralToCanvasMap.set(fData.id, fData.id);
 
-      this.layout._render();
-      return fData;
+    this.layout._render();
+    return fData;
   }
   enableSnap(enabled) {
     this.layout?.enableSnap(enabled);
@@ -812,6 +835,11 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
     return true;
   }
 
+  // applyDeviceMove(deviceId, dx, dy, options = {}) {
+  //   if (dx === 0 && dy === 0) {
+  //     return false;
+  //   }
+
   applyDeviceMove(deviceId, dx, dy, options = {}) {
     if (dx === 0 && dy === 0) {
       return false;
@@ -846,12 +874,17 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
       return false;
     }
 
-    const furniture = typeof appState.furniture?.getFurniture === 'function' ? appState.furniture.getFurniture(furnitureId) : null;
+    const furniture = appState.furniture?.getFurniture?.(furnitureId);
     if (!furniture) {
       return false;
     }
 
-    furniture.transform = furniture.transform || { position: { x: 0, y: 0, z: 0 } };
+    furniture.transform = furniture.transform || {
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      scale: { x: 1, y: 1, z: 1 }
+    };
+
     furniture.transform.position.x = Number(furniture.transform.position.x || 0) + (dx * 0.7);
     furniture.transform.position.z = Number(furniture.transform.position.z || 0) + (dy * 0.7);
 
@@ -859,9 +892,7 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
       this._applyCanvasEntityMoveById(furnitureId, dx, dy);
     }
 
-    if (appState.furniture && typeof appState.furniture.notify === 'function') {
-      appState.furniture.notify();
-    }
+    appState.furniture?.notify?.();
 
     if (typeof this.layout._render === 'function') {
       this.layout._render();
@@ -942,7 +973,7 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
     if (!entity) return null;
 
     if (typeof entity.tileX === 'number' && typeof entity.tileY === 'number' &&
-        typeof entity.tileWidth === 'number' && typeof entity.tileHeight === 'number') {
+      typeof entity.tileWidth === 'number' && typeof entity.tileHeight === 'number') {
       return {
         minX: entity.tileX,
         minY: entity.tileY,
@@ -952,7 +983,7 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
     }
 
     if (typeof entity.x === 'number' && typeof entity.y === 'number' &&
-        typeof entity.width === 'number' && typeof entity.height === 'number') {
+      typeof entity.width === 'number' && typeof entity.height === 'number') {
       return {
         minX: entity.x,
         minY: entity.y,
@@ -1019,25 +1050,25 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
     const parentBounds = this._getParentBounds(entity);
     if (!entityBounds || !parentBounds) return true;
     const tol = 2;
-//     return !(
-//       entityBounds.minX < parentBounds.minX - tol ||
-//       entityBounds.minY < parentBounds.minY - tol ||
-//       entityBounds.maxX > parentBounds.maxX + tol ||
-//       entityBounds.maxY > parentBounds.maxY + tol
-//     );
-//   }
+    //     return !(
+    //       entityBounds.minX < parentBounds.minX - tol ||
+    //       entityBounds.minY < parentBounds.minY - tol ||
+    //       entityBounds.maxX > parentBounds.maxX + tol ||
+    //       entityBounds.maxY > parentBounds.maxY + tol
+    //     );
+    //   }
 
-// addDevice(deviceData, x, y) {
-//     if (!this.layout) return;
+    // addDevice(deviceData, x, y) {
+    //     if (!this.layout) return;
     return !(
       entityBounds.minX < parentBounds.minX - tol ||
       entityBounds.minY < parentBounds.minY - tol ||
       entityBounds.maxX > parentBounds.maxX + tol ||
       entityBounds.maxY > parentBounds.maxY + tol
     );
-  } 
+  }
 
-   _getDuplicateSelection() {
+  _getDuplicateSelection() {
     const deviceIds = appState.selection?.getSelectedDeviceIds?.() || [];
     const furnitureIds = appState.selection?.getSelectedFurnitureIds?.() || [];
     const focusedId = appState.selection?.getFocusedId?.();
@@ -1254,7 +1285,7 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
     return true;
   }
 
-   addDevice(deviceData, x, y) {
+  addDevice(deviceData, x, y) {
     if (!this.layout) return;
     if (deviceData.entityType === 'furniture') return this.addFurniture(deviceData, x, y);
 
@@ -1262,84 +1293,91 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
     const focusedId = appState.selection.focusedId;
 
     if (focusedType !== 'floor' && focusedType !== 'space') {
-        showErrorModal("Please select a floor or space in the hierarchy before adding a device.", "Invalid Selection");
-        return;
+      showErrorModal("Please select a floor or space in the hierarchy before adding a device.", "Invalid Selection");
+      return;
     }
 
     if (this.layout && typeof this.layout.isPointInsideShape === 'function') {
-        const canvasParentId = this.structuralToCanvasMap.get(focusedId) || focusedId;
-        const dropIsInsideParent = this.layout.isPointInsideShape(canvasParentId, x, y);
-        if (!dropIsInsideParent) {
-            const prettyTypeName = focusedType.charAt(0).toUpperCase() + focusedType.slice(1);
-            showErrorModal(`Placement Failed.\nYou dropped the item outside the physical area of the selected ${prettyTypeName}.`, "Out of Bounds Error");
-            return; 
-        }
+      const canvasParentId = this.structuralToCanvasMap.get(focusedId) || focusedId;
+      const dropIsInsideParent = this.layout.isPointInsideShape(canvasParentId, x, y);
+      if (!dropIsInsideParent) {
+        const prettyTypeName = focusedType.charAt(0).toUpperCase() + focusedType.slice(1);
+        showErrorModal(`Placement Failed.\nYou dropped the item outside the physical area of the selected ${prettyTypeName}.`, "Out of Bounds Error");
+        return;
+      }
     }
 
     if (focusedType === 'floor' && appState.structural && appState.structural.spaces) {
-        const spacesOnFloor = appState.structural.spaces.filter(s => s.floorId === focusedId);
-        const droppedInsideSpace = spacesOnFloor.find(space => {
-            const canvasSpaceId = this.structuralToCanvasMap.get(space.id) || space.id;
-            return this.layout.isPointInsideShape(canvasSpaceId, x, y);
-        });
-        if (droppedInsideSpace) {
-            showErrorModal(`You dropped the device inside "${droppedInsideSpace.label}".\n\nTo place a device inside a Space, you must explicitly select that Space in the Hierarchy Panel first.`, "Specific Placement Required");
-            return; 
-        }
+      const spacesOnFloor = appState.structural.spaces.filter(s => s.floorId === focusedId);
+      const droppedInsideSpace = spacesOnFloor.find(space => {
+        const canvasSpaceId = this.structuralToCanvasMap.get(space.id) || space.id;
+        return this.layout.isPointInsideShape(canvasSpaceId, x, y);
+      });
+      if (droppedInsideSpace) {
+        showErrorModal(`You dropped the device inside "${droppedInsideSpace.label}".\n\nTo place a device inside a Space, you must explicitly select that Space in the Hierarchy Panel first.`, "Specific Placement Required");
+        return;
+      }
     }
 
     const catalogId = deviceData.modelId || deviceData.catalogId;
     if (!catalogId) return;
 
     try {
-        // BUG 1 FIX: Don't forcefully overwrite the name! Let the Factory fetch the real catalog name.
-        const providedLabel = deviceData.label || deviceData.displayName || deviceData.name;
-        const opts = { id: deviceData.id, iconHint: deviceData.iconHint };
-        
-        // Only override if the user explicitly typed a custom name. Otherwise, let the Factory handle it.
-        if (providedLabel && providedLabel.toLowerCase() !== 'device') {
-            opts.hostname = providedLabel;
-        }
+      // BUG 1 FIX: Don't forcefully overwrite the name! Let the Factory fetch the real catalog name.
+      const providedLabel = deviceData.label || deviceData.displayName || deviceData.name;
+      const opts = { id: deviceData.id, iconHint: deviceData.iconHint };
 
-        const newDevice = DeviceFactory.create(catalogId, { x, y, z: 0 }, opts);
-        
-        // Now extract the 100% accurate, Factory-approved base name!
-        const baseName = newDevice.hostname;
-        
-        const existing = this.layout.devices.filter(d => d.name === baseName || d.label?.startsWith(baseName));
-        let newLabel = baseName;
-        if (existing.length > 0) newLabel = baseName + " (" + (existing.length + 1) + ")";
+      // Only override if the user explicitly typed a custom name. Otherwise, let the Factory handle it.
+      if (providedLabel && providedLabel.toLowerCase() !== 'device') {
+        opts.hostname = providedLabel;
+      }
 
-        newDevice.x = x;
-        newDevice.y = y;
-        newDevice.transform = newDevice.transform || { position: { x, y, z: 0 } };
-        newDevice.transform.position.x = x * 0.7;
-        newDevice.transform.position.z = y * 0.7;
+      const newDevice = DeviceFactory.create(catalogId, { x, y, z: 0 }, opts);
 
-        newDevice.label = newLabel;
-        newDevice.name = newLabel;
-        newDevice.iconHint = deviceData.iconHint; 
+      // Now extract the 100% accurate, Factory-approved base name!
+      const baseName = newDevice.hostname;
+
+      const existing = this.layout.devices.filter(d => d.name === baseName || d.label?.startsWith(baseName));
+      let newLabel = baseName;
+      if (existing.length > 0) newLabel = baseName + " (" + (existing.length + 1) + ")";
+
+      newDevice.x = x;
+      newDevice.y = y;
+      newDevice.transform = newDevice.transform || { position: { x, y, z: 0 } };
+      newDevice.transform.position.x = x * 0.7;
+      newDevice.transform.position.z = y * 0.7;
 
 
-        if (focusedType === 'space') {
-            newDevice.spaceId = focusedId;
-            const space = appState.structural.spaces.find(s => s.id === focusedId);
-            if (space) newDevice.floorId = space.floorId;
+      // newDevice.x = x;
+      // newDevice.y = y;
+      // newDevice.transform = newDevice.transform || { position: { x, y, z: 0 } };
+      // newDevice.transform.position.x = x * 0.7;
+      // newDevice.transform.position.z = y * 0.7;
 
-            const floor = appState.structural.floors.find(f => f.id === space.floorId);
-            if (floor) newDevice.siteId = floor.siteId;
-        } else if (focusedType === 'floor') {
-            newDevice.floorId = focusedId;
+      newDevice.label = newLabel;
+      newDevice.name = newLabel;
+      newDevice.iconHint = deviceData.iconHint;
 
-            const floor = appState.structural.floors.find(f => f.id === focusedId);
-            if (floor) newDevice.siteId = floor.siteId;
-        }
 
-        const command = new AddDeviceCommand(appState, this, newDevice, x, y);
-        appState.pushCommand(command);
-        command.execute();
+      if (focusedType === 'space') {
+        newDevice.spaceId = focusedId;
+        const space = appState.structural.spaces.find(s => s.id === focusedId);
+        if (space) newDevice.floorId = space.floorId;
+
+        const floor = appState.structural.floors.find(f => f.id === space.floorId);
+        if (floor) newDevice.siteId = floor.siteId;
+      } else if (focusedType === 'floor') {
+        newDevice.floorId = focusedId;
+
+        const floor = appState.structural.floors.find(f => f.id === focusedId);
+        if (floor) newDevice.siteId = floor.siteId;
+      }
+
+      const command = new AddDeviceCommand(appState, this, newDevice, x, y);
+      appState.pushCommand(command);
+      command.execute();
     } catch (error) {
-        showErrorModal("The selected object is not supported for placement yet.", "Unsupported Object");
+      showErrorModal("The selected object is not supported for placement yet.", "Unsupported Object");
     }
   }
 
@@ -1350,62 +1388,62 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
     const focusedId = appState.selection.focusedId;
 
     if (focusedType !== 'floor' && focusedType !== 'space') {
-        showErrorModal('Please select a floor or space in the hierarchy before adding furniture.', "Invalid Selection");
-        return;
+      showErrorModal('Please select a floor or space in the hierarchy before adding furniture.', "Invalid Selection");
+      return;
     }
 
     if (this.layout && typeof this.layout.isPointInsideShape === 'function') {
-        const canvasParentId = this.structuralToCanvasMap.get(focusedId) || focusedId;
-        const dropIsInsideParent = this.layout.isPointInsideShape(canvasParentId, x, y);
-        if (!dropIsInsideParent) {
-            const prettyTypeName = focusedType.charAt(0).toUpperCase() + focusedType.slice(1);
-            showErrorModal(`Placement Failed.\nYou dropped the furniture outside the physical area of the selected ${prettyTypeName}.`, "Out of Bounds Error");
-            return;
-        }
+      const canvasParentId = this.structuralToCanvasMap.get(focusedId) || focusedId;
+      const dropIsInsideParent = this.layout.isPointInsideShape(canvasParentId, x, y);
+      if (!dropIsInsideParent) {
+        const prettyTypeName = focusedType.charAt(0).toUpperCase() + focusedType.slice(1);
+        showErrorModal(`Placement Failed.\nYou dropped the furniture outside the physical area of the selected ${prettyTypeName}.`, "Out of Bounds Error");
+        return;
+      }
     }
 
     if (focusedType === 'floor' && appState.structural && appState.structural.spaces) {
-        const spacesOnFloor = appState.structural.spaces.filter(s => s.floorId === focusedId);
-        const droppedInsideSpace = spacesOnFloor.find(space => {
-            const canvasSpaceId = this.structuralToCanvasMap.get(space.id) || space.id;
-            return this.layout.isPointInsideShape(canvasSpaceId, x, y);
-        });
-        if (droppedInsideSpace) {
-            showErrorModal(`You dropped the furniture inside "${droppedInsideSpace.label}".\n\nTo place furniture inside a Space, you must explicitly select that Space in the Hierarchy Panel first.`, "Specific Placement Required");
-            return;
-        }
+      const spacesOnFloor = appState.structural.spaces.filter(s => s.floorId === focusedId);
+      const droppedInsideSpace = spacesOnFloor.find(space => {
+        const canvasSpaceId = this.structuralToCanvasMap.get(space.id) || space.id;
+        return this.layout.isPointInsideShape(canvasSpaceId, x, y);
+      });
+      if (droppedInsideSpace) {
+        showErrorModal(`You dropped the furniture inside "${droppedInsideSpace.label}".\n\nTo place furniture inside a Space, you must explicitly select that Space in the Hierarchy Panel first.`, "Specific Placement Required");
+        return;
+      }
     }
 
     const catalogId = furnitureData.modelId || furnitureData.catalogId;
     if (!catalogId) return;
 
     try {
-        const providedName = furnitureData.displayName || furnitureData.label || furnitureData.name || furnitureData.type || "Furniture";
-        const newFurniture = createFurnitureInstance(catalogId, { x, y, z: 0 });
-        
-        newFurniture.x = x;
-        newFurniture.y = y;
-        newFurniture.transform = newFurniture.transform || { position: { x, y, z: 0 } };
-        newFurniture.transform.position.x = x * 0.7;
-        newFurniture.transform.position.z = y * 0.7;
+      const providedName = furnitureData.displayName || furnitureData.label || furnitureData.name || furnitureData.type || "Furniture";
+      const newFurniture = createFurnitureInstance(catalogId, { x, y, z: 0 });
 
-        newFurniture.catalogId = catalogId; 
-        newFurniture.label = providedName;
-        newFurniture.iconHint = furnitureData.iconHint || "furniture";
+      newFurniture.x = x;
+      newFurniture.y = y;
+      newFurniture.transform = newFurniture.transform || { position: { x, y, z: 0 } };
+      newFurniture.transform.position.x = x * 0.7;
+      newFurniture.transform.position.z = y * 0.7;
 
-        if (focusedType === 'space') {
-            newFurniture.spaceId = focusedId;
-            const space = appState.structural.spaces.find(s => s.id === focusedId);
-            if (space) newFurniture.floorId = space.floorId;
-        } else if (focusedType === 'floor') {
-            newFurniture.floorId = focusedId;
-        }
+      newFurniture.catalogId = catalogId;
+      newFurniture.label = providedName;
+      newFurniture.iconHint = furnitureData.iconHint || "furniture";
 
-        const command = new AddFurnitureCommand(appState, this, newFurniture, x, y);
-        appState.pushCommand(command);
-        command.execute();
+      if (focusedType === 'space') {
+        newFurniture.spaceId = focusedId;
+        const space = appState.structural.spaces.find(s => s.id === focusedId);
+        if (space) newFurniture.floorId = space.floorId;
+      } else if (focusedType === 'floor') {
+        newFurniture.floorId = focusedId;
+      }
+
+      const command = new AddFurnitureCommand(appState, this, newFurniture, x, y);
+      appState.pushCommand(command);
+      command.execute();
     } catch (error) {
-        console.error("Failed to add furniture:", error.message);
+      console.error("Failed to add furniture:", error.message);
     }
   }
 
@@ -1417,14 +1455,14 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
   // STATE MANAGEMENT HANDLERS
   // =========================================================
 
-_handlePortSelect(device, x, y, callback, overrideCableType = null) {
+  _handlePortSelect(device, x, y, callback, overrideCableType = null) {
     const existingMenu = document.getElementById('canvas-port-menu');
     if (existingMenu) existingMenu.remove();
 
     console.log('🔌 _handlePortSelect called for device:', device.id, device.label);
-    
+
     const realDevice = appState.network.getDevice?.(device.id);
-    
+
     console.log('🔌 realDevice found:', realDevice);
     console.log('🔌 realDevice.ports:', realDevice?.ports);
     console.log('🔌 appState.getDevice:', typeof appState.getDevice);
@@ -1468,8 +1506,8 @@ _handlePortSelect(device, x, y, callback, overrideCableType = null) {
     menu.style.padding = '4px 0';
     menu.style.zIndex = '9999';
     menu.style.minWidth = '140px';
-    menu.style.maxHeight = '300px'; 
-    menu.style.overflowY = 'auto';  
+    menu.style.maxHeight = '300px';
+    menu.style.overflowY = 'auto';
     menu.style.fontFamily = 'sans-serif';
     menu.style.fontSize = '12px';
     menu.style.color = '#0f172a';
@@ -1509,7 +1547,7 @@ _handlePortSelect(device, x, y, callback, overrideCableType = null) {
     }, 10);
   }
 
-_handleShapeCreated(shapeData, shapeType) {
+  _handleShapeCreated(shapeData, shapeType) {
     const { structureType, id, r, points } = shapeData;
     console.log(`📥 _handleShapeCreated: received shapeData with id=${id}, structureType=${structureType}`);
 
@@ -1517,21 +1555,21 @@ _handleShapeCreated(shapeData, shapeType) {
     // Stop invalid Domain creation BEFORE overlap or bounds logic runs
     if (structureType === 'Domain') {
       const selectedType = appState.selection?.focusedType;
-      
+
       if (selectedType === 'site' || selectedType === 'floor' || selectedType === 'space') {
         showErrorModal(
-          `You cannot create a Domain while a ${selectedType} is selected. Domains are top-level structures. Please click the canvas background to deselect before drawing.`, 
+          `You cannot create a Domain while a ${selectedType} is selected. Domains are top-level structures. Please click the canvas background to deselect before drawing.`,
           "Invalid Hierarchy"
         );
-        
+
         // Remove the invalid shape immediately
         setTimeout(() => {
           if (this.layout && typeof this.layout.removeShapeById === 'function') {
-             this.layout.removeShapeById(id);
+            this.layout.removeShapeById(id);
           }
         }, 10);
         if (appState.tools) appState.tools.setActiveTool('pointer');
-        
+
         return; // Halt the function completely so overlap checks don't run
       }
     }
@@ -1543,7 +1581,7 @@ _handleShapeCreated(shapeData, shapeType) {
       if (!shape) return null;
       // Handle both raw shape data and state-wrapped shapes (like geometry)
       const src = shape.geometry || shape;
-      
+
       // If it's a circle, calculate bounding box from center and radius
       if (src.r !== undefined && src.r !== null) {
         const cx = Number(src.x ?? 0);
@@ -1555,12 +1593,12 @@ _handleShapeCreated(shapeData, shapeType) {
           w: r * 2, h: r * 2, x: cx - r, y: cy - r, r
         };
       }
-      
+
       let x = Number(src.x ?? src.left ?? 0);
       let y = Number(src.y ?? src.top ?? 0);
       let w = Number(src.w ?? src.width ?? 0);
       let h = Number(src.h ?? src.height ?? 0);
-      
+
       // If width/height are missing, calculate them from maxX/maxY
       if (!w && src.maxX !== undefined) w = Number(src.maxX) - x;
       if (!h && src.maxY !== undefined) h = Number(src.maxY) - y;
@@ -1580,7 +1618,7 @@ _handleShapeCreated(shapeData, shapeType) {
     const removeInvalidShape = () => {
       setTimeout(() => {
         if (this.layout && typeof this.layout.removeShapeById === 'function') {
-           this.layout.removeShapeById(id);
+          this.layout.removeShapeById(id);
         }
       }, 10);
       if (appState.tools) appState.tools.setActiveTool('pointer');
@@ -1590,16 +1628,16 @@ _handleShapeCreated(shapeData, shapeType) {
     const checkParentBounds = (parentId, parentType) => {
       let parent = null;
       const st = appState.structural;
-      
+
       if (parentType === 'domain') {
         parent = (st.domains || []).find(d => d.id === parentId);
-      } 
+      }
       else if (parentType === 'site') {
         parent = (st.sites || []).find(s => s.id === parentId);
-      } 
+      }
       else if (parentType === 'floor') {
         parent = (st.floors || []).find(f => f.id === parentId);
-        
+
         // --- AUTO-GENERATED FLOOR FALLBACK ---
         // If the floor exists but has no intrinsic width/height because it was auto-generated,
         // we borrow the exact dimensions from the Site it belongs to.
@@ -1609,7 +1647,7 @@ _handleShapeCreated(shapeData, shapeType) {
             const parentSite = (st.sites || []).find(s => s.id === parent.siteId);
             if (parentSite) {
               console.log(`Borrowing bounds from Site (ID: ${parentSite.id}) for auto-generated Floor.`);
-              parent = parentSite; 
+              parent = parentSite;
             } else {
               console.warn("Could not find the parent Site to borrow bounds from!");
             }
@@ -1619,43 +1657,43 @@ _handleShapeCreated(shapeData, shapeType) {
 
       if (!parent) {
         console.error(`Bounds Check: Parent ${parentType} (ID: ${parentId}) not found in state.`);
-        return false; 
+        return false;
       }
 
       const pBounds = getBounds(parent);
 
       // We only flag stale state if BOTH the floor AND its fallback site have 0 dimensions
       if (pBounds.w === 0 || pBounds.h === 0) {
-         console.warn(`Bounds Check: The selected ${parentType} has 0 width/height in state. It was likely drawn before the code fix. Please delete it and redraw it.`);
-         return false; 
+        console.warn(`Bounds Check: The selected ${parentType} has 0 width/height in state. It was likely drawn before the code fix. Please delete it and redraw it.`);
+        return false;
       }
 
-      const tol = 5; 
+      const tol = 5;
 
       if (
-        cBounds.minX < pBounds.minX - tol || 
-        cBounds.minY < pBounds.minY - tol || 
-        cBounds.maxX > pBounds.maxX + tol || 
+        cBounds.minX < pBounds.minX - tol ||
+        cBounds.minY < pBounds.minY - tol ||
+        cBounds.maxX > pBounds.maxX + tol ||
         cBounds.maxY > pBounds.maxY + tol
       ) {
         console.error("Out of Bounds Mathematical Failure:");
         console.table({
-           "Parent Limits (Borrowed from Site)": { MinX: pBounds.minX, MinY: pBounds.minY, MaxX: pBounds.maxX, MaxY: pBounds.maxY },
-           "Child Limits (Space)": { MinX: cBounds.minX, MinY: cBounds.minY, MaxX: cBounds.maxX, MaxY: cBounds.maxY }
+          "Parent Limits (Borrowed from Site)": { MinX: pBounds.minX, MinY: pBounds.minY, MaxX: pBounds.maxX, MaxY: pBounds.maxY },
+          "Child Limits (Space)": { MinX: cBounds.minX, MinY: cBounds.minY, MaxX: cBounds.maxX, MaxY: cBounds.maxY }
         });
-        return false; 
+        return false;
       }
-      return true; 
+      return true;
     };
 
     // --- 4. SHAPE ROUTING - Execute commands for undo/redo tracking ---
-// --- 4. SHAPE ROUTING - Execute commands for undo/redo tracking ---
+    // --- 4. SHAPE ROUTING - Execute commands for undo/redo tracking ---
     if (structureType === 'Domain') {
       const domainData = {
         id, shapeType, structureType: 'Domain',
         x, y, w, h, maxX, maxY, r, points,
         // CRITICAL FIX: Match the exact property names expected by the Class constructors
-        geometry: { x, y, width: w, height: h, radius: r, points }, 
+        geometry: { x, y, width: w, height: h, radius: r, points },
         label: `Domain ${this.counters.domain++}`
       };
       console.log(`🏢 Creating Domain with id=${domainData.id}`);
@@ -1675,13 +1713,13 @@ _handleShapeCreated(shapeData, shapeType) {
       const siteData = {
         id, shapeType, structureType: 'Site',
         x, y, w, h, maxX, maxY, r, points,
-        geometry: { x, y, width: w, height: h, radius: r, points }, 
+        geometry: { x, y, width: w, height: h, radius: r, points },
         label: `Site ${this.counters.site++}`
       };
       console.log(`🏪 Creating Site with id=${siteData.id}, domainId=${parentId}`);
       const command = new CreateSiteCommand(appState, this, siteData, parentId, id);
       this.commandHistory.executeCommand(command);
-    } 
+    }
     else if (structureType === 'Floor') {
       const parentId = appState.selection.focusedType === 'site' ? appState.selection.focusedId : null;
       if (!parentId) {
@@ -1695,7 +1733,7 @@ _handleShapeCreated(shapeData, shapeType) {
       const floorData = {
         id, shapeType, structureType: 'Floor',
         x, y, w, h, maxX, maxY, r, points,
-        geometry: { x, y, width: w, height: h, radius: r, points }, 
+        geometry: { x, y, width: w, height: h, radius: r, points },
         label: `Floor ${this.counters.floor++}`
       };
       console.log(`🏗️ Creating Floor with id=${floorData.id}, siteId=${parentId}`);
@@ -1738,20 +1776,20 @@ _handleShapeCreated(shapeData, shapeType) {
     else if (st.spaces?.some(s => s.id === idToDelete)) { targetType = 'space'; targetObj = st.spaces.find(s => s.id === idToDelete); }
 
     // If it's a device or standalone object, the cascading blast radius is 0
-    if (!targetType) return { count: 0 }; 
+    if (!targetType) return { count: 0 };
 
     // 2. Map the structural descendants
     let childSites = [], childFloors = [], childSpaces = [];
 
     if (targetType === 'domain') {
-        childSites = (st.sites || []).filter(s => s.domainId === idToDelete);
-        childFloors = (st.floors || []).filter(f => childSites.some(s => s.id === f.siteId));
-        childSpaces = (st.spaces || []).filter(sp => childFloors.some(f => f.id === sp.floorId));
+      childSites = (st.sites || []).filter(s => s.domainId === idToDelete);
+      childFloors = (st.floors || []).filter(f => childSites.some(s => s.id === f.siteId));
+      childSpaces = (st.spaces || []).filter(sp => childFloors.some(f => f.id === sp.floorId));
     } else if (targetType === 'site') {
-        childFloors = (st.floors || []).filter(f => f.siteId === idToDelete);
-        childSpaces = (st.spaces || []).filter(sp => childFloors.some(f => f.id === sp.floorId));
+      childFloors = (st.floors || []).filter(f => f.siteId === idToDelete);
+      childSpaces = (st.spaces || []).filter(sp => childFloors.some(f => f.id === sp.floorId));
     } else if (targetType === 'floor') {
-        childSpaces = (st.spaces || []).filter(sp => sp.floorId === idToDelete);
+      childSpaces = (st.spaces || []).filter(sp => sp.floorId === idToDelete);
     }
 
     const structuralChildrenCount = childSites.length + childFloors.length + childSpaces.length;
@@ -1764,7 +1802,7 @@ _handleShapeCreated(shapeData, shapeType) {
     if (targetType === 'space') affectedSpaceIds.push(idToDelete);
 
     const isAssetAffected = (item) => {
-        return affectedFloorIds.includes(item.floorId) || affectedSpaceIds.includes(item.spaceId);
+      return affectedFloorIds.includes(item.floorId) || affectedSpaceIds.includes(item.spaceId);
     };
 
     // We check the layout arrays to guarantee we count exactly what the user sees on canvas
@@ -1774,8 +1812,8 @@ _handleShapeCreated(shapeData, shapeType) {
     const totalChildren = structuralChildrenCount + dependentDevices + dependentFurniture;
 
     return {
-        count: totalChildren,
-        name: targetObj.label || targetObj.name || targetType
+      count: totalChildren,
+      name: targetObj.label || targetObj.name || targetType
     };
   }
 
@@ -1817,7 +1855,7 @@ _handleShapeCreated(shapeData, shapeType) {
     const activeFloorId = appState.structural.spaces.find(s => s.id === activeSpaceId)?.floorId;
     if (activeFloorId && appState.structural.addDoor) {
       console.log('🚪 Persisting Door:', doorData);
-      appState.structural.addDoor({ ...doorData, floorId: activeFloorId, spaceId: activeSpaceId});
+      appState.structural.addDoor({ ...doorData, floorId: activeFloorId, spaceId: activeSpaceId });
     }
   }
 
@@ -1826,7 +1864,7 @@ _handleShapeCreated(shapeData, shapeType) {
     const activeFloorId = appState.ui?.activeFloorId;
     if ((activeFloorId || activeSpaceId) && appState.structural.addWindow) {
       console.log('🚪 Persisting Window:', windowData);
-      appState.structural.addWindow({ ...windowData, floorId: activeFloorId, spaceId: activeSpaceId});
+      appState.structural.addWindow({ ...windowData, floorId: activeFloorId, spaceId: activeSpaceId });
     }
   }
 
@@ -1834,7 +1872,7 @@ _handleShapeCreated(shapeData, shapeType) {
     console.log("🔌 Finalizing connection with data:", cableData);
 
     if (cableData.sourceId && cableData.targetId) {
-      
+
       const sourceDevice = appState.getDevice(cableData.sourceId) || this.layout.devices.find(d => d.id === cableData.sourceId);
       const targetDevice = appState.getDevice(cableData.targetId) || this.layout.devices.find(d => d.id === cableData.targetId);
 
@@ -1842,72 +1880,72 @@ _handleShapeCreated(shapeData, shapeType) {
       const targetId = cableData.targetDeviceId;
 
       if (!sourceDevice || !targetDevice) {
-         console.error("Could not find source or target device.");
-         return;
+        console.error("Could not find source or target device.");
+        return;
       }
 
       const possibleTypes = [
-        appState.ui?.selectedCable, 
-        appState.tools?.activeTool, 
-        cableData.cableType, 
+        appState.ui?.selectedCable,
+        appState.tools?.activeTool,
+        cableData.cableType,
         cableData.type
       ];
 
-      let actualCableId = possibleTypes.find(type => type && type !== 'cable');     
+      let actualCableId = possibleTypes.find(type => type && type !== 'cable');
       if (actualCableId === 'straight') actualCableId = 'copper-straight';
       if (actualCableId === 'crossover') actualCableId = 'copper-crossover';
       if (!actualCableId) actualCableId = 'copper-straight';
 
       const validation = validateConnection({
-          cableType: actualCableId,
-          sourcePort: cableData.sourcePort,
-          targetPort: cableData.targetPort
+        cableType: actualCableId,
+        sourcePort: cableData.sourcePort,
+        targetPort: cableData.targetPort
       });
 
       if (!validation.valid) {
-       showErrorModal(validation.error, "Connection Error");    
+        showErrorModal(validation.error, "Connection Error");
         if (this.layout && this.layout.cables) {
-            this.layout.cables = this.layout.cables.filter(c => c.id !== cableData.id);
-            if (typeof this.layout.render === 'function') {
-                this.layout.render();
-            } else if (typeof this.layout._render === 'function') {
-                this.layout._render();
-            }
+          this.layout.cables = this.layout.cables.filter(c => c.id !== cableData.id);
+          if (typeof this.layout.render === 'function') {
+            this.layout.render();
+          } else if (typeof this.layout._render === 'function') {
+            this.layout._render();
+          }
         }
-        return; 
+        return;
       }
 
       try {
-          const link = new Link({
-              cableType:  actualCableId,
-              sourcePort: cableData.sourcePort,
-              targetPort: cableData.targetPort,
-              geometry: {
-                  points: [
-                      { x: sourceDevice?.x ?? 0, y: sourceDevice?.y ?? 0, z: 0 },
-                      { x: targetDevice?.x ?? 0, y: targetDevice?.y ?? 0, z: 0 },
-                  ]
-              }
-          });
-
-          cableData.linkId = link.id;
-
-          console.log('Network Adding Link...');
-          appState.network.addLink(link);
-          const srcDevice = appState.network.getDevice(cableData.sourceDeviceId);
-          const dstDevice = appState.network.getDevice(cableData.targetDeviceId);
-          if (srcDevice && dstDevice && this.layout.routeManager) {
-            const link = appState.network.getLink(cableData.id) || cableData;
-            this.layout.routeManager.resolveOne(link, srcDevice, dstDevice);
+        const link = new Link({
+          cableType: actualCableId,
+          sourcePort: cableData.sourcePort,
+          targetPort: cableData.targetPort,
+          geometry: {
+            points: [
+              { x: sourceDevice?.x ?? 0, y: sourceDevice?.y ?? 0, z: 0 },
+              { x: targetDevice?.x ?? 0, y: targetDevice?.y ?? 0, z: 0 },
+            ]
           }
+        });
+
+        cableData.linkId = link.id;
+
+        console.log('Network Adding Link...');
+        appState.network.addLink(link);
+        const srcDevice = appState.network.getDevice(cableData.sourceDeviceId);
+        const dstDevice = appState.network.getDevice(cableData.targetDeviceId);
+        if (srcDevice && dstDevice && this.layout.routeManager) {
+          const link = appState.network.getLink(cableData.id) || cableData;
+          this.layout.routeManager.resolveOne(link, srcDevice, dstDevice);
+        }
 
 
       } catch (err) {
-          showErrorModal(err.message, "Connection Error");
-          if (this.layout?.cables) {
-              this.layout.cables = this.layout.cables.filter(c => c.id !== cableData.id);
-              this.layout._render?.();
-          }
+        showErrorModal(err.message, "Connection Error");
+        if (this.layout?.cables) {
+          this.layout.cables = this.layout.cables.filter(c => c.id !== cableData.id);
+          this.layout._render?.();
+        }
       }
 
     }
@@ -1926,8 +1964,8 @@ _handleShapeCreated(shapeData, shapeType) {
     if (furniture.isRehydration || this._isRehydrating) return;
     this.addFurniture(furniture, furniture.x, furniture.y);
   }
-  
-_handleEntitySelected(entity) {
+
+  _handleEntitySelected(entity) {
     if (!entity || !entity.id) {
       appState.selection.clearSelection?.();
       appState.selection.notify?.();
@@ -1935,33 +1973,33 @@ _handleEntitySelected(entity) {
     }
 
     // --- Intercept clicks for Delete Mode safely ---
-if (appState.tools && appState.tools.activeTool === 'delete') {
-        window.addEventListener('pointerup', () => {
-            setTimeout(() => {
-                // NEW: Check if the clicked entity is a Cable (cables have source/target IDs)
-                if (entity.sourceId && entity.targetId) {
-                    const src = this.layout.findEntityById(entity.sourceId);
-                    const dst = this.layout.findEntityById(entity.targetId);
-                    
-                    // Trigger the confirmation modal!
-                    window.dispatchEvent(new CustomEvent('requestLinkDeletion', { 
-                        detail: { 
-                            linkId: entity.id, 
-                            sourceName: src?.label || src?.name || "Device", 
-                            targetName: dst?.label || dst?.name || "Device" 
-                        } 
-                    }));
-                } else {
-                    // Standard instant-delete for Devices, Furniture, and Spaces
-                    if (this.executeDelete) {
-                        this.executeDelete(entity.id);
-                    }
-                    // Reset tool back to select
-                    if (appState.tools) appState.tools.setActiveTool('select');
-                }
-            }, 0);
-        }, { once: true }); 
-        return; 
+    if (appState.tools && appState.tools.activeTool === 'delete') {
+      window.addEventListener('pointerup', () => {
+        setTimeout(() => {
+          // NEW: Check if the clicked entity is a Cable (cables have source/target IDs)
+          if (entity.sourceId && entity.targetId) {
+            const src = this.layout.findEntityById(entity.sourceId);
+            const dst = this.layout.findEntityById(entity.targetId);
+
+            // Trigger the confirmation modal!
+            window.dispatchEvent(new CustomEvent('requestLinkDeletion', {
+              detail: {
+                linkId: entity.id,
+                sourceName: src?.label || src?.name || "Device",
+                targetName: dst?.label || dst?.name || "Device"
+              }
+            }));
+          } else {
+            // Standard instant-delete for Devices, Furniture, and Spaces
+            if (this.executeDelete) {
+              this.executeDelete(entity.id);
+            }
+            // Reset tool back to select
+            if (appState.tools) appState.tools.setActiveTool('select');
+          }
+        }, 0);
+      }, { once: true });
+      return;
     }
 
     const selectionCount = appState.selection.getSelectionCount?.() ?? 0;
@@ -1979,138 +2017,148 @@ if (appState.tools && appState.tools.activeTool === 'delete') {
     }
 
     if (entity.structureType) {
-        const typeStr = entity.structureType.toLowerCase(); 
-      
+      const typeStr = entity.structureType.toLowerCase();
+
+      appState.selection.focusedId = entity.id;
+      appState.selection.focusedType = typeStr;
+      appState.selection.notify?.();
+    }
+    else if (this._isFurnitureAsset(entity)) {
+      if (typeof appState.selection.selectFurniture === 'function') {
+        appState.selection.selectFurniture(entity.id);
+      } else {
         appState.selection.focusedId = entity.id;
-        appState.selection.focusedType = typeStr;
-        appState.selection.notify?.(); 
-    } 
-    else if (entity.entityType === 'furniture' || entity.type === 'furniture') {
-        if (typeof appState.selection.selectFurniture === 'function') {
-            appState.selection.selectFurniture(entity.id);
-        } else {
-            appState.selection.focusedId = entity.id;
-            appState.selection.focusedType = 'furniture';
-            appState.selection.notify?.();
-        }
+        appState.selection.focusedType = 'furniture';
+        appState.selection.notify?.();
+      }
     }
     else if (entity.type === 'wall') {
-        appState.selection.focusedId = entity.id;
-        appState.selection.focusedType = 'wall';
-        appState.selection.notify?.();
+      appState.selection.focusedId = entity.id;
+      appState.selection.focusedType = 'wall';
+      appState.selection.notify?.();
     }
     else {
-        appState.selection.selectDevice?.(entity.id, false);
+      appState.selection.selectDevice?.(entity.id, false);
     }
   }
 
-_handleEntityChanged(en, dx = 0, dy = 0) {
+  _handleEntityChanged(en, dx = 0, dy = 0) {
     console.log(`📢 _handleEntityChanged called: en.id=${en?.id}, en.structureType=${en?.structureType}, dx=${dx}, dy=${dy}`);
-    
+
     if (!en || !en.id) {
-        console.log(`⚠️ Entity is null or has no ID, skipping`);
-        appState.selection.notify();
-        return;
+      console.log(`⚠️ Entity is null or has no ID, skipping`);
+      appState.selection.notify();
+      return;
     }
 
-    const isFurniture = en?.type === 'furniture' || en?.entityType === 'furniture' || en?.id?.startsWith('furniture');
-    const isDevice = !isFurniture && (en.entityType === 'device' || en.interfaces !== undefined || en.catalogId !== undefined);
+    const isFurniture = this._isFurnitureAsset(en);
+    const isDevice = !isFurniture && (en.interfaces !== undefined || en.catalogId !== undefined);
     const hasSavedPosition = en && en.savedPosition !== undefined;
     const moved = (dx !== 0 || dy !== 0) ||
       (hasSavedPosition && (en.x !== en.savedPosition.x || en.y !== en.savedPosition.y));
 
     if ((isDevice || isFurniture) && moved) {
-        if (!this._isEntityWithinAssignedParentBounds(en)) {
-            if (typeof en.restoreToSavedPosition === 'function') {
-                en.restoreToSavedPosition();
-            }
-
-            if (this.layout) {
-                if (typeof this.layout._render === 'function') {
-                    this.layout._render();
-                } else if (typeof this.layout.render === 'function') {
-                    this.layout.render();
-                }
-            }
-
-            appState.selection.notify?.();
-            return;
+      if (!this._isEntityWithinAssignedParentBounds(en)) {
+        if (typeof en.restoreToSavedPosition === 'function') {
+          en.restoreToSavedPosition();
         }
-    }
 
-    if (isDevice || isFurniture) {
-        if (dx !== 0 || dy !== 0) {
-            const entityId = this.entityIdMap.get(en.id) || en.id;
-            const success = isDevice 
-                 ? this.applyDeviceMove(entityId, dx, dy, { skipCanvasMove: true })
-                 : this.applyFurnitureMove(entityId, dx, dy, { skipCanvasMove: true });
-                 
-            if (success) {
-                this._recordPendingMove(entityId, { kind: isDevice ? 'device' : 'furniture' });
-            }
+        if (this.layout) {
+          if (typeof this.layout._render === 'function') {
+            this.layout._render();
+          } else if (typeof this.layout.render === 'function') {
+            this.layout.render();
+          }
         }
 
         appState.selection.notify?.();
         return;
+      }
+    }
+
+    if (isDevice || isFurniture) {
+      if (dx !== 0 || dy !== 0) {
+        const entityId = this.entityIdMap.get(en.id) || en.id;
+        const success = isDevice
+          ? this.applyDeviceMove(entityId, dx, dy, { skipCanvasMove: true })
+          : this.applyFurnitureMove(entityId, dx, dy, { skipCanvasMove: true });
+
+        if (success) {
+          this._recordPendingMove(entityId, { kind: isDevice ? 'device' : 'furniture' });
+        }
+      }
+
+      appState.selection.notify?.();
+      return;
+    }
+
+    if (isFurniture) {
+      if (dx !== 0 || dy !== 0) {
+        const furnitureId = this.entityIdMap.get(en.id) || en.id;
+        this.applyFurnitureMove(furnitureId, dx, dy, { skipCanvasMove: true });
+      }
+
+      appState.selection.notify?.();
+      return;
     }
 
 
     // Debug: Log movement
     if ((dx !== 0 || dy !== 0) && en.structureType) {
-        console.log(`🚀 Moving ${en.structureType} canvas entity (${en.id}) by dx=${dx}, dy=${dy}`);
-        console.log(`   Canvas entity object:`, en);
-        console.log(`   Current position: x=${en.x}, y=${en.y}`);
+      console.log(`🚀 Moving ${en.structureType} canvas entity (${en.id}) by dx=${dx}, dy=${dy}`);
+      console.log(`   Canvas entity object:`, en);
+      console.log(`   Current position: x=${en.x}, y=${en.y}`);
     }
 
     // Only process children if the parent actually moved
     if (dx !== 0 || dy !== 0) {
-        const st = appState.structural;
-        let shapeType = null;
-        let shapeObj = null;
+      const st = appState.structural;
+      let shapeType = null;
+      let shapeObj = null;
 
-        // CRITICAL: Convert canvas entity ID to structural entity ID using mapping
-        const structuralId = this.entityIdMap.get(en.id);
-        console.log(`🔄 Converting canvas id(${en.id}) -> structural id(${structuralId})`);
+      // CRITICAL: Convert canvas entity ID to structural entity ID using mapping
+      const structuralId = this.entityIdMap.get(en.id);
+      console.log(`🔄 Converting canvas id(${en.id}) -> structural id(${structuralId})`);
 
-        if (st.domains && st.domains.some(d => d.id === structuralId)) { 
-            shapeType = 'domain'; 
-            shapeObj = st.domains.find(d => d.id === structuralId);
-            console.log(`✅ Found Domain: ${shapeObj?.id}`);
-        }
-        else if (st.sites && st.sites.some(s => s.id === structuralId)) { 
-            shapeType = 'site'; 
-            shapeObj = st.sites.find(s => s.id === structuralId);
-            console.log(`✅ Found Site: ${shapeObj?.id}`);
-        }
-        else if (st.floors && st.floors.some(f => f.id === structuralId)) { 
-            shapeType = 'floor'; 
-            shapeObj = st.floors.find(f => f.id === structuralId);
-            console.log(`✅ Found Floor: ${shapeObj?.id}`);
-        }
-        else if (st.spaces && st.spaces.some(s => s.id === structuralId)) { 
-            shapeType = 'space'; 
-            shapeObj = st.spaces.find(s => s.id === structuralId);
-            console.log(`✅ Found Space: ${shapeObj?.id}`);
-        }
+      if (st.domains && st.domains.some(d => d.id === structuralId)) {
+        shapeType = 'domain';
+        shapeObj = st.domains.find(d => d.id === structuralId);
+        console.log(`✅ Found Domain: ${shapeObj?.id}`);
+      }
+      else if (st.sites && st.sites.some(s => s.id === structuralId)) {
+        shapeType = 'site';
+        shapeObj = st.sites.find(s => s.id === structuralId);
+        console.log(`✅ Found Site: ${shapeObj?.id}`);
+      }
+      else if (st.floors && st.floors.some(f => f.id === structuralId)) {
+        shapeType = 'floor';
+        shapeObj = st.floors.find(f => f.id === structuralId);
+        console.log(`✅ Found Floor: ${shapeObj?.id}`);
+      }
+      else if (st.spaces && st.spaces.some(s => s.id === structuralId)) {
+        shapeType = 'space';
+        shapeObj = st.spaces.find(s => s.id === structuralId);
+        console.log(`✅ Found Space: ${shapeObj?.id}`);
+      }
 
-            if (shapeObj) {
-            const success = this.applyStructuralMove(structuralId, shapeType, dx, dy, { skipCanvasMove: true });
-            if (success) {
-                this._recordPendingMove(structuralId, { kind: 'structure', structureType: shapeType });
-            }
-        } else if (appState.network && typeof appState.getDevice === 'function') {
-            const entityId = this.entityIdMap.get(en.id) || en.id;
-            const device = appState.getDevice(entityId);
-            const furniture = appState.furniture?.getFurniture?.(entityId);
-            
-            if (device) {
-                this.applyDeviceMove(entityId, dx, dy, { skipCanvasMove: true });
-                this._recordPendingMove(entityId, { kind: 'device' });
-            } else if (furniture) {
-                this.applyFurnitureMove(entityId, dx, dy, { skipCanvasMove: true });
-                this._recordPendingMove(entityId, { kind: 'furniture' });
-            }
+      if (shapeObj) {
+        const success = this.applyStructuralMove(structuralId, shapeType, dx, dy, { skipCanvasMove: true });
+        if (success) {
+          this._recordPendingMove(structuralId, { kind: 'structure', structureType: shapeType });
         }
+      } else if (appState.network && typeof appState.getDevice === 'function') {
+        const entityId = this.entityIdMap.get(en.id) || en.id;
+        const device = appState.getDevice(entityId);
+        const furniture = appState.furniture?.getFurniture?.(entityId);
+
+        if (device) {
+          this.applyDeviceMove(entityId, dx, dy, { skipCanvasMove: true });
+          this._recordPendingMove(entityId, { kind: 'device' });
+        } else if (furniture) {
+          this.applyFurnitureMove(entityId, dx, dy, { skipCanvasMove: true });
+          this._recordPendingMove(entityId, { kind: 'furniture' });
+        }
+      }
     }
 
     appState.selection.notify();

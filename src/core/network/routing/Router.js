@@ -18,6 +18,9 @@ import RoutingTable from './RoutingTable.js';
 import ARPCache from './ARPCache.js';
 import ICMPHandler from './ICMPHandler.js';
 import RouterPipeline from './RouterPipeline.js';
+import RIPEngine from './RIPEngine.js';
+import OSPFEngine from './OSPFEngine.js';
+import SimulationBus from './SimulationBus.js';
 
 /**
  * Install router behavior on a Device instance.
@@ -172,15 +175,46 @@ export function installRouterBehavior(device) {
   };
 
   /**
-   * Enable routing protocol (for future RIP/OSPF support).
+   * Enable routing protocol.
    * @param {string} protocol - 'rip' | 'ospf'
    * @param {object} config - Protocol-specific config
    */
   device.enableRoutingProtocol = function(protocol, config = {}) {
-    console.log(
-      `[${this.hostname}] Enabling ${protocol.toUpperCase()} routing protocol`
-    );
-    // TODO: instantiate RIPEngine or OSPFEngine
+    protocol = protocol.toLowerCase();
+
+    if (protocol === 'rip') {
+      if (device.rip) {
+        console.warn(`[${this.hostname}] RIP already enabled`);
+        return;
+      }
+
+      // Create simulation bus if not exists
+      if (!device._simBus) {
+        device._simBus = new SimulationBus();
+      }
+
+      device.rip = new RIPEngine(this, device._simBus);
+      device.rip.enable();
+      console.log(`[${this.hostname}] RIP routing protocol enabled`);
+
+    } else if (protocol === 'ospf') {
+      if (device.ospf) {
+        console.warn(`[${this.hostname}] OSPF already enabled`);
+        return;
+      }
+
+      // Create simulation bus if not exists
+      if (!device._simBus) {
+        device._simBus = new SimulationBus();
+      }
+
+      device.ospf = new OSPFEngine(this, device._simBus, config);
+      device.ospf.enable();
+      console.log(`[${this.hostname}] OSPF routing protocol enabled`);
+
+    } else {
+      console.error(`[${this.hostname}] Unknown routing protocol: ${protocol}`);
+    }
   };
 
   /**
@@ -188,10 +222,21 @@ export function installRouterBehavior(device) {
    * @param {string} protocol - 'rip' | 'ospf'
    */
   device.disableRoutingProtocol = function(protocol) {
-    console.log(
-      `[${this.hostname}] Disabling ${protocol.toUpperCase()} routing protocol`
-    );
-    // TODO: tear down RIPEngine or OSPFEngine
+    protocol = protocol.toLowerCase();
+
+    if (protocol === 'rip' && device.rip) {
+      device.rip.disable();
+      delete device.rip;
+      console.log(`[${this.hostname}] RIP routing protocol disabled`);
+
+    } else if (protocol === 'ospf' && device.ospf) {
+      device.ospf.disable();
+      delete device.ospf;
+      console.log(`[${this.hostname}] OSPF routing protocol disabled`);
+
+    } else {
+      console.warn(`[${this.hostname}] Routing protocol ${protocol} not enabled`);
+    }
   };
 
   // =========================================================================

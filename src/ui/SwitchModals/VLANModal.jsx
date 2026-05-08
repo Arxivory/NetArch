@@ -24,17 +24,21 @@ export default function VLANModal({ onClose, deviceName = "Switch", deviceLocati
   const [spanSource, setSpanSource] = useState("Fa0/1");
   const [spanDest, setSpanDest] = useState("Fa0/24");
 
+  const now = () => new Date().toISOString().replace("T", " ").slice(0, 19);
+
   const handleApply = () => {
-    const logs = [];
+    const ts = now();
+    const dispatch = (message) =>
+      window.dispatchEvent(new CustomEvent("add-system-log", { detail: { device: "Switch", deviceName, message, location: deviceLocation, italic: true } }));
+
     vlans.forEach(v => {
-      if (v.id) logs.push(`[VLAN] ID ${v.id} (${v.name}) — Type: ${v.type}, Status: ${v.status}, MTU: ${v.mtu}, Subnet: ${v.subnet || "unset"}`);
+      if (v.id) {
+        dispatch(`%VLAN-5-DB_UPDATE: [${ts}] ${deviceName} @ ${deviceLocation} — VLAN ${v.id} ("${v.name}") committed to VLAN database. Type: ${v.type} | Status: ${v.status} | MTU: ${v.mtu} | Subnet: ${v.subnet || "unset"}. PVLAN mode: ${v.pvlan}.`);
+      }
     });
-    if (pruning) logs.push(`[VLAN] Pruning: Enabled`);
-    if (macAging) logs.push(`[VLAN] MAC Aging Timer: ${macAging}s`);
-    if (logs.length === 0) logs.push(`[VLAN] Config applied — no parameters set`);
-    logs.forEach(message =>
-      window.dispatchEvent(new CustomEvent("add-system-log", { detail: { device: "Switch", deviceName, message, location: deviceLocation } }))
-    );
+    dispatch(`%VLAN-6-PRUNING_SET: [${ts}] ${deviceName} — VTP pruning: ${pruning ? "ENABLED" : "DISABLED"}. ${pruning ? "Unneeded VLANs will be pruned from trunk links to reduce flooded traffic." : "All VLANs will be forwarded across all trunk links regardless of membership."}`);
+    dispatch(`%VLAN-6-MAC_AGING: [${ts}] ${deviceName} — MAC address aging timer set to ${macAging}s. Entries inactive beyond this interval will be flushed from the CAM table.`);
+    if (spanSource && spanDest) dispatch(`%SPAN-5-SESSION_SET: [${ts}] ${deviceName} — SPAN session configured. Source: ${spanSource} → Destination: ${spanDest}. Ingress and egress traffic will be mirrored to the destination port.`);
     onClose();
   };
 

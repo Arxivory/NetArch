@@ -4,26 +4,30 @@ import appState from "../state/AppState";
 import { UpdateEntityTransformCommand, ChangePropertyCommand } from "../core/editor/DrawingCommands";
 import testSwitchEngine from "../core/network/switching/QuickTest";
 
-import RoutingModal        from "./ConfigModals/RoutingModal";
-import NATModal            from "./ConfigModals/NATModal";
-import ACLModal            from "./ConfigModals/ACLModal";
-import DHCPModal           from "./ConfigModals/DHCPModal";
-import VPNModal            from "./ConfigModals/VPNModal";
-import SNMPModal           from "./ConfigModals/SNMPModal";
-import NTPModal            from "./ConfigModals/NTPModal";
-import SSHModal            from "./ConfigModals/SSHModal";
-import VLANModal           from "./ConfigModals/VLANModal";
-import STPModal            from "./ConfigModals/STPModal";
-import PortSecurityModal   from "./ConfigModals/PortSecurityModal";
-import TrunkingModal       from "./ConfigModals/TrunkingModal";
-import QoSModal            from "./ConfigModals/QoSModal";
-import AuthenticationModal from "./ConfigModals/AuthenticationModal";
-import IGMPModals          from "./ConfigModals/IGMPModals";
-import SyslogModal         from "./ConfigModals/SyslogModal";
+import RoutingModal        from "./RouterModals/RoutingModal";
+import InterfaceModal      from "./RouterModals/InterfaceModal";
+import NATModal            from "./RouterModals/NATModal";
+import ACLModal            from "./RouterModals/ACLModal";
+import DHCPModal           from "./RouterModals/DHCPModal";
+import VPNModal            from "./RouterModals/VPNModal";
+import SNMPModal           from "./RouterModals/SNMPModal";
+import NTPModal            from "./RouterModals/NTPModal";
+import SSHModal            from "./RouterModals/SSHModal";
+import VLANModal           from "./SwitchModals/VLANModal";
+import STPModal            from "./SwitchModals/STPModal";
+import PortSecurityModal   from "./SwitchModals/PortSecurityModal";
+import TrunkingModal       from "./SwitchModals/TrunkingModal";
+import QoSModal            from "./SwitchModals/QoSModal";
+import AuthenticationModal from "./SwitchModals/AuthenticationModal";
+import IGMPModals          from "./SwitchModals/IGMPModals";
+import SyslogModal         from "./SwitchModals/SyslogModal";
+import IPConfigurationModal from "./PCModals/IPConfigurationModal";
+import CommandPromptModal  from "./PCModals/CommandPromptModal";
 
 // ─── Config card map ──────────────────────────────────────────────────────────
 const DEVICE_CONFIGS = {
   router: [
+    { label: "Interface Settings",   desc: "Manage IPs, masks, and gateway for each port" },
     { label: "Routing Protocol",    desc: "Configure OSPF, BGP, or Static routes" },
     { label: "NAT/PAT",             desc: "Translate private IPs to public addresses" },
     { label: "Access Control List", desc: "Create permit/deny traffic rules" },
@@ -35,33 +39,23 @@ const DEVICE_CONFIGS = {
   ],
   switch: [
     { label: "VLAN Manager",   desc: "Create and assign Virtual LANs" },
+    { label: "Interface Settings",   desc: "Manage IPs, masks, and gateway for each port" },
     { label: "Spanning Tree",  desc: "Configure STP to prevent network loops" },
-    { label: "Port Security",  desc: "Bind specific MAC addresses to ports" },
     { label: "VLAN Trunking",  desc: "Configure 802.1Q tags for switch links" },
+    { label: "Port Security",  desc: "Bind specific MAC addresses to ports" },
     { label: "QoS Settings",   desc: "Prioritize voice or video data packets" },
     { label: "User Auth",      desc: "Configure RADIUS/802.1X port access" },
     { label: "IGMP Snooping",  desc: "Optimize multicast traffic delivery" },
     { label: "Logs/Syslog",    desc: "Export event logs to a central server" },
   ],
   pc: [
-    { label: "Interface Metric",   desc: "Set priority between Wi-Fi and Ethernet" },
-    { label: "802.1X Supplicant",  desc: "Configure certificate-based port auth" },
-    { label: "DNS Suffix",         desc: "Set domain name for internal host lookups" },
-    { label: "Static Route",       desc: "Manually override default gateway paths" },
-    { label: "Wake-on-LAN",        desc: "Enable remote power-on via network" },
-    { label: "Proxy Settings",     desc: "Configure web traffic filtering" },
-    { label: "Local Firewall",     desc: "Manage OS-level software rules" },
-    { label: "Remote Desktop",     desc: "Enable/Disable RDP or VNC access" },
+    { label: "IP Configuration",        desc: "Set IP address, subnet mask, and gateway" },
+    { label: "Command Prompt",         desc: "Executes commands to manage and control system operations" },
   ],
+  
   smartphone: [
-    { label: "APN Settings",        desc: "Configure cellular data carrier gateway" },
-    { label: "MDM Profile",         desc: "Enroll device in corporate management" },
-    { label: "VPN On-Demand",       desc: "Trigger secure tunnel for work apps" },
-    { label: "SSID Priority",       desc: "Manage preferred Wi-Fi network list" },
-    { label: "Hotspot Config",      desc: "Manage tethering and sharing settings" },
-    { label: "Certificate Manager", desc: "Install digital IDs for secure Wi-Fi" },
-    { label: "Data Roaming",        desc: "Configure behavior on foreign networks" },
-    { label: "Location Services",   desc: "Permissions for network-based GPS" },
+    { label: "IP Configuration",        desc: "Set IP address, subnet mask, and gateway" },
+    { label: "Command Prompt",         desc: "Executes commands to manage and control system operations" },
   ],
 };
 
@@ -81,6 +75,7 @@ export default function PropertiesPanel({ canvasController }) {
 
   // ── Per-feature modal open state ──────────────────────────────────────────
   const [isRoutingModalOpen,      setIsRoutingModalOpen]      = useState(false);
+  const [isInterfaceModalOpen,    setIsInterfaceModalOpen]    = useState(false);
   const [isNATModalOpen,          setIsNATModalOpen]          = useState(false);
   const [isACLModalOpen,          setIsACLModalOpen]          = useState(false);
   const [isDHCPModalOpen,         setIsDHCPModalOpen]         = useState(false);
@@ -96,6 +91,8 @@ export default function PropertiesPanel({ canvasController }) {
   const [isAuthModalOpen,         setIsAuthModalOpen]         = useState(false);
   const [isIGMPModalOpen,         setIsIGMPModalOpen]         = useState(false);
   const [isSyslogModalOpen,       setIsSyslogModalOpen]       = useState(false);
+  const [isIPConfigurationModalOpen, setIsIPConfigurationModalOpen]     = useState(false);
+  const [isCommandPromptModalOpen, setIsCommandPromptModalOpen] = useState(false);
 
   // ── Subscription: keep selectedEntity in sync with appState ───────────────
   useEffect(() => {
@@ -138,6 +135,7 @@ export default function PropertiesPanel({ canvasController }) {
 
         if (entity) {
           setSelectedEntity(entity);
+          console.log(entity);
           setTransform({
             position: {
               x: entity.transform?.position?.x ?? entity.x ?? 0,
@@ -320,6 +318,7 @@ export default function PropertiesPanel({ canvasController }) {
   const handleConfigItemClick = (label) => {
     const map = {
       "Routing Protocol":    () => setIsRoutingModalOpen(true),
+      "Interface Settings":  () => setIsInterfaceModalOpen(true),
       "NAT/PAT":             () => setIsNATModalOpen(true),
       "Access Control List": () => setIsACLModalOpen(true),
       "DHCP Server":         () => setIsDHCPModalOpen(true),
@@ -335,6 +334,8 @@ export default function PropertiesPanel({ canvasController }) {
       "User Auth":           () => setIsAuthModalOpen(true),
       "IGMP Snooping":       () => setIsIGMPModalOpen(true),
       "Logs/Syslog":         () => setIsSyslogModalOpen(true),
+      "IP Configuration":     () => setIsIPConfigurationModalOpen(true),
+      "Command Prompt":      () => setIsCommandPromptModalOpen(true),
     };
     map[label]?.() ?? console.log(`Opening ${label}`);
   };
@@ -405,30 +406,6 @@ export default function PropertiesPanel({ canvasController }) {
               onFocus={() => handleDeviceFocus('label')}
               onChange={(e) => handleDeviceChange('label', e.target.value)} 
               onBlur={() => handleDeviceBlur('label')}
-            />
-          </div>
-          <div><label>IP Address</label>
-            <input className="field-input" 
-              value={selectedEntity?.interfaces?.[0]?.ipv4?.address ?? selectedEntity?.ipAddress ?? ""} 
-              onFocus={() => handleDeviceFocus('ipAddress')}
-              onChange={(e) => handleDeviceChange('ipAddress', e.target.value)} 
-              onBlur={() => handleDeviceBlur('ipAddress')}
-            />
-          </div>
-          <div><label>Subnet Mask</label>
-            <input className="field-input" 
-              value={selectedEntity?.interfaces?.[0]?.ipv4?.subnetMask ?? selectedEntity?.subnetMask ?? ""} 
-              onFocus={() => handleDeviceFocus('subnetMask')}
-              onChange={(e) => handleDeviceChange('subnetMask', e.target.value)} 
-              onBlur={() => handleDeviceBlur('subnetMask')}
-            />
-          </div>
-          <div><label>Default Gateway</label>
-            <input className="field-input" 
-              value={selectedEntity?.defaultGateway || ""} 
-              onFocus={() => handleDeviceFocus('defaultGateway')}
-              onChange={(e) => handleDeviceChange('defaultGateway', e.target.value)} 
-              onBlur={() => handleDeviceBlur('defaultGateway')}
             />
           </div>
           <button className="floor-specifier-btn" onClick={() => setIsModalOpen(true)}>
@@ -556,6 +533,15 @@ export default function PropertiesPanel({ canvasController }) {
           deviceLocation={resolveDeviceLocation()}
         />
       )}
+
+      {isInterfaceModalOpen && (
+        <InterfaceModal
+          onClose={() => setIsInterfaceModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+          device={selectedEntity}
+        />
+      )}
  
       {isNATModalOpen && (
         <NATModal
@@ -650,6 +636,24 @@ export default function PropertiesPanel({ canvasController }) {
       {isAuthModalOpen         && <AuthenticationModal onClose={() => setIsAuthModalOpen(false)}         />}
       {isIGMPModalOpen         && <IGMPModals          onClose={() => setIsIGMPModalOpen(false)}         />}
       {isSyslogModalOpen       && <SyslogModal         onClose={() => setIsSyslogModalOpen(false)}       />}
+
+        {isIPConfigurationModalOpen && (
+        <IPConfigurationModal
+          onClose={() => setIsIPConfigurationModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+          device={selectedEntity}
+        />
+      )}
+
+      {isCommandPromptModalOpen && (
+        <CommandPromptModal
+          onClose={() => setIsCommandPromptModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+          device={selectedEntity}
+        />
+      )}
     </div>
   );
 }

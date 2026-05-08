@@ -10,16 +10,18 @@ export default function IGMPModals({ onClose, deviceName = "Switch", deviceLocat
   const [querierIP, setQuerierIP] = useState("192.168.10.1");
   const [queryInterval, setQueryInterval] = useState("125");
 
+  const now = () => new Date().toISOString().replace("T", " ").slice(0, 19);
+
   const handleApply = () => {
-    const logs = [];
-    if (igmpEnabled)   logs.push(`[IGMP Snooping] Enabled`);
-    if (fastLeave)     logs.push(`[IGMP Snooping] Fast Leave Processing: Enabled`);
-    if (querierIP)     logs.push(`[IGMP Querier] IP: ${querierIP}`);
-    if (queryInterval) logs.push(`[IGMP Querier] Query Interval: ${queryInterval}s`);
-    if (logs.length === 0) logs.push(`[IGMP] Applied — no parameters configured`);
-    logs.forEach(message =>
-      window.dispatchEvent(new CustomEvent("add-system-log", { detail: { device: "Switch", deviceName, message, location: deviceLocation } }))
-    );
+    const ts = now();
+    const dispatch = (message) =>
+      window.dispatchEvent(new CustomEvent("add-system-log", { detail: { device: "Switch", deviceName, message, location: deviceLocation, italic: true } }));
+
+    dispatch(`%IGMP-5-SNOOP_GLOBAL: [${ts}] ${deviceName} @ ${deviceLocation} — IGMP Snooping global state: ${igmpEnabled ? "ENABLED" : "DISABLED"}. Per-VLAN multicast forwarding tables will be ${igmpEnabled ? "maintained" : "cleared"}.`);
+    dispatch(`%IGMP-6-FAST_LEAVE: [${ts}] ${deviceName} — Fast Leave processing: ${fastLeave ? "ENABLED" : "DISABLED"}. ${fastLeave ? "Ports will be immediately removed from multicast groups on IGMP Leave receipt." : "Leave latency governed by last-member query interval."}`);
+    dispatch(`%IGMP-5-QUERIER_SET: [${ts}] ${deviceName} — IGMP Querier configured at ${querierIP}. General query interval: ${queryInterval}s. Querier will send membership queries to maintain group state.`);
+    dispatch(`%IGMP-6-MROUTER_PORT: [${ts}] ${deviceName} — Multicast router port designations updated. Static and dynamic mrouter ports will forward all IGMP reports upstream.`);
+    dispatch(`%IGMP-6-GROUP_LIMITS: [${ts}] ${deviceName} — Per-port group limits and membership timeout values committed. Excess group join attempts beyond the configured maximum will be dropped.`);
     onClose();
   };
 

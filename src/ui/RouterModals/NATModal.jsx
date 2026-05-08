@@ -8,7 +8,7 @@ let persistentNATState = null;
 function dispatchLog(deviceName, deviceLocation, message) {
   window.dispatchEvent(
     new CustomEvent("add-system-log", {
-      detail: { device: "Router", deviceName, message, location: deviceLocation },
+      detail: { device: "Router", deviceName, message, location: deviceLocation, italic: true },
     })
   );
 }
@@ -48,158 +48,43 @@ export default function NATModal({ onClose, deviceName = "Router-Core-01", devic
   };
 
   const handleApply = () => {
-    const prev = prevState.current;
-    const logs  = [];
-    const ts    = now();
-    const host  = deviceName;
-    const loc   = deviceLocation;
+    const logs = [];
 
-    // ── Interface assignment ──────────────────────────────────────────────
-    if (state.insideIface !== prev.insideIface || state.outsideIface !== prev.outsideIface) {
-      logs.push(
-        `%NAT-5-IFACE_REBIND: [${ts}] ${host} @ ${loc} — NAT interface assignment updated. ` +
-        `Inside: ${prev.insideIface} → ${state.insideIface} | Outside: ${prev.outsideIface} → ${state.outsideIface}. ` +
-        `Translation table flushed; new entries will be created on first packet match.`
-      );
-    } else {
-      logs.push(
-        `%NAT-6-IFACE_CONFIRM: [${ts}] ${host} @ ${loc} — Interface binding verified. ` +
-        `Inside: ${state.insideIface} | Outside: ${state.outsideIface}. No changes detected.`
-      );
-    }
+    // Interface Assignment
+    if (state.insideIface)   logs.push(`[NAT] Inside Interface: ${state.insideIface}`);
+    if (state.outsideIface)  logs.push(`[NAT] Outside Interface: ${state.outsideIface}`);
 
-    // ── ACL ───────────────────────────────────────────────────────────────
-    if (state.aclId) {
-      const changed = state.aclId !== prev.aclId;
-      logs.push(
-        changed
-          ? `%NAT-5-ACL_MODIFY: [${ts}] ${host} — Standard ACL ID changed from ${prev.aclId || "unset"} to ${state.aclId}. ` +
-            `Existing NAT translations referencing previous ACL will be invalidated.`
-          : `%NAT-6-ACL_INSTALL: [${ts}] ${host} — Access Control List ID ${state.aclId} bound to NAT process. ` +
-            `Packet classification engine updated.`
-      );
-    }
-    if (state.srcNetwork) {
-      const changed = state.srcNetwork !== prev.srcNetwork || state.wildcardMask !== prev.wildcardMask;
-      logs.push(
-        changed
-          ? `%NAT-5-NETWORK_MODIFY: [${ts}] ${host} — NAT source network updated from ` +
-            `[${prev.srcNetwork || "—"} ${prev.wildcardMask || "—"}] to ` +
-            `[${state.srcNetwork} ${state.wildcardMask}]. ` +
-            `Translation pool re-evaluated; adjacency timers not affected.`
-          : `%NAT-6-NETWORK_STMT: [${ts}] ${host} — Source network ${state.srcNetwork} / wildcard ${state.wildcardMask} ` +
-            `registered in NAT match criteria. Packets from this range are eligible for translation.`
-      );
-    }
+    // ACL
+    if (state.aclId)        logs.push(`[NAT] ACL ID: ${state.aclId}`);
+    if (state.srcNetwork)   logs.push(`[NAT] Source Network: ${state.srcNetwork}`);
+    if (state.wildcardMask) logs.push(`[NAT] Wildcard Mask: ${state.wildcardMask}`);
 
-    // ── PAT (Overload) ────────────────────────────────────────────────────
+    // PAT
     if (state.activeNatType === "pat") {
-      const modeChanged = state.patMode !== prev.patMode || prev.activeNatType !== "pat";
-      logs.push(
-        modeChanged
-          ? `%PAT-5-MODE_CHANGE: [${ts}] ${host} @ ${loc} — PAT translation mode changed from ` +
-            `"${prev.patMode || "—"}" to "${state.patMode}". ` +
-            `Port mapping table cleared; overloaded sessions will re-negotiate.`
-          : `%PAT-6-MODE_CONFIRM: [${ts}] ${host} — PAT translation mode confirmed: "${state.patMode}". ` +
-            `Port Address Translation active on outside interface.`
-      );
-      if (state.patOverload) {
-        logs.push(
-          `%PAT-6-OVERLOAD_ENABLED: [${ts}] ${host} — Port overload (many-to-one) is ACTIVE. ` +
-          `Source port randomization enabled; concurrent session limit: platform-dependent.`
-        );
-      }
+      if (state.patMode)    logs.push(`[PAT] Translation Mode: ${state.patMode}`);
+      if (state.patOverload) logs.push(`[PAT] Overload (Port Translation): Enabled`);
     }
 
-    // ── Static NAT ────────────────────────────────────────────────────────
+    // Static NAT
     if (state.activeNatType === "static") {
-      if (state.staticPrivateIP || state.staticPublicIP) {
-        const changed =
-          state.staticPrivateIP !== prev.staticPrivateIP ||
-          state.staticPublicIP  !== prev.staticPublicIP;
-        logs.push(
-          changed
-            ? `%NAT-5-STATIC_MODIFY: [${ts}] ${host} @ ${loc} — Static one-to-one mapping updated. ` +
-              `Previous: ${prev.staticPrivateIP || "—"} → ${prev.staticPublicIP || "—"}. ` +
-              `New: ${state.staticPrivateIP} → ${state.staticPublicIP}. ` +
-              `ARP entry invalidated for old public IP; new entry will be resolved on next packet.`
-            : `%NAT-6-STATIC_INSTALL: [${ts}] ${host} — Static NAT entry installed. ` +
-              `Private ${state.staticPrivateIP} permanently mapped to Public ${state.staticPublicIP}. ` +
-              `Translation is bidirectional and session-independent.`
-        );
-      }
-      if (state.staticPrivatePort) {
-        const changed =
-          state.staticPrivatePort !== prev.staticPrivatePort ||
-          state.staticPublicPort  !== prev.staticPublicPort;
-        logs.push(
-          changed
-            ? `%PAT-5-PORTFWD_MODIFY: [${ts}] ${host} — Static PAT rule updated. ` +
-              `Old: port ${prev.staticPrivatePort || "—"} → ${prev.staticPublicPort || "—"}. ` +
-              `New: port ${state.staticPrivatePort} → ${state.staticPublicPort}. ` +
-              `Active sessions on previous port will not be migrated.`
-            : `%PAT-6-PORTFWD_INSTALL: [${ts}] ${host} — Static port-forwarding rule installed. ` +
-              `Inbound traffic on public port ${state.staticPublicPort} will be forwarded to ` +
-              `${state.staticPrivateIP}:${state.staticPrivatePort}.`
-        );
-      }
+      if (state.staticPrivateIP)   logs.push(`[Static NAT] Private IP: ${state.staticPrivateIP}`);
+      if (state.staticPublicIP)    logs.push(`[Static NAT] Public IP: ${state.staticPublicIP}`);
+      if (state.staticPrivatePort) logs.push(`[Static NAT] Private Port: ${state.staticPrivatePort}`);
+      if (state.staticPublicPort)  logs.push(`[Static NAT] Public Port: ${state.staticPublicPort}`);
     }
 
-    // ── Dynamic NAT ───────────────────────────────────────────────────────
+    // Dynamic NAT
     if (state.activeNatType === "dynamic") {
-      if (state.poolName) {
-        const changed = state.poolName !== prev.poolName || prev.activeNatType !== "dynamic";
-        logs.push(
-          changed
-            ? `%NAT-5-POOL_MODIFY: [${ts}] ${host} @ ${loc} — NAT pool identifier changed ` +
-              `from "${prev.poolName || "—"}" to "${state.poolName}". Previous pool bindings cleared.`
-            : `%NAT-6-POOL_CREATE: [${ts}] ${host} — Dynamic NAT pool "${state.poolName}" registered. ` +
-              `Pool entries will be allocated on demand from the configured IP range.`
-        );
-      }
-      if (state.poolStartIP && state.poolEndIP) {
-        const changed =
-          state.poolStartIP !== prev.poolStartIP ||
-          state.poolEndIP   !== prev.poolEndIP   ||
-          state.poolNetmask !== prev.poolNetmask;
-        logs.push(
-          changed
-            ? `%NAT-5-POOL_RANGE_MOD: [${ts}] ${host} — Dynamic pool range updated. ` +
-              `Old: ${prev.poolStartIP || "—"} – ${prev.poolEndIP || "—"} (${prev.poolNetmask || "—"}). ` +
-              `New: ${state.poolStartIP} – ${state.poolEndIP} (${state.poolNetmask}). ` +
-              `Available address count recalculated; existing translations retained where possible.`
-            : `%NAT-6-POOL_RANGE: [${ts}] ${host} — NAT address pool range defined: ` +
-              `${state.poolStartIP} – ${state.poolEndIP}, netmask ${state.poolNetmask}. ` +
-              `Total usable public addresses computed and reserved in translation table.`
-        );
-      }
-      if (state.poolBindACL) {
-        const changed = state.poolBindACL !== prev.poolBindACL;
-        logs.push(
-          changed
-            ? `%NAT-5-POOL_ACL_MOD: [${ts}] ${host} — Pool ACL binding changed from ` +
-              `ACL-${prev.poolBindACL || "—"} to ACL-${state.poolBindACL}. ` +
-              `Traffic classification rules re-evaluated for dynamic address assignment.`
-            : `%NAT-6-POOL_ACL_BIND: [${ts}] ${host} — ACL ${state.poolBindACL} bound to NAT pool "${state.poolName}". ` +
-              `Only traffic matching this ACL will be eligible for dynamic address translation.`
-        );
-      }
+      if (state.poolName)    logs.push(`[Dynamic NAT] Pool Name: ${state.poolName}`);
+      if (state.poolStartIP) logs.push(`[Dynamic NAT] Pool Start IP: ${state.poolStartIP}`);
+      if (state.poolEndIP)   logs.push(`[Dynamic NAT] Pool End IP: ${state.poolEndIP}`);
+      if (state.poolNetmask) logs.push(`[Dynamic NAT] Pool Netmask: ${state.poolNetmask}`);
+      if (state.poolBindACL) logs.push(`[Dynamic NAT] Bind ACL ID: ${state.poolBindACL}`);
     }
 
-    if (logs.length === 0) {
-      logs.push(
-        `%NAT-6-NOP: [${ts}] ${host} @ ${loc} — Apply invoked with no configuration parameters set. ` +
-        `No changes committed to NAT/PAT translation engine.`
-      );
-    }
+    if (logs.length === 0) logs.push(`[NAT] Applied — no parameters configured`);
 
-    // Dispatch every log line to ConsolePanel
     logs.forEach((message) => dispatchLog(deviceName, deviceLocation, message));
-
-    // Persist state for next open (requirement #3)
-    persistentNATState = state;
-    prevState.current  = state;
-
     onClose();
   };
 

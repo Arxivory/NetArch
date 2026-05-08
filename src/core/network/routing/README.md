@@ -72,7 +72,7 @@ Static first, then distance-vector (RIP), then link-state (OSPF).
 
 - `RoutingTable.js` — Static routing storage & lookup
 - `RIPEngine.js` — RIP protocol implementation
-- `OSPFEngine.js` — (Planned)
+- `OSPFEngine.js` — OSPF protocol implementation
 
 ## Core Components
 
@@ -231,6 +231,50 @@ console.log(rip.showNeighbors()); // Active neighbors
 console.log(rip.showStats()); // Statistics
 ```
 
+### 8. OSPF Engine (`OSPFEngine.js`)
+
+Link-state routing protocol with faster convergence than RIP.
+
+**Key Features:**
+- Hello protocol for neighbor discovery (10-second Hello interval, 40-second dead timer)
+- Link State Database (LSDB) with LSA flooding
+- Dijkstra SPF computation for optimal path calculation
+- Single area support (Area 0 / backbone)
+- Link metrics based on bandwidth (1 Gbps = 1 cost unit)
+- Fast convergence on topology changes (1-second SPF delay)
+- Neighbor state machine (init → two-way → full)
+- Statistics tracking and diagnostic commands
+
+```javascript
+const ospf = new OSPFEngine(device, simulationBus);
+
+// Enable OSPF on this router
+ospf.enable(); // Starts 10-second Hello interval
+
+// Handle received Hello packet from neighbor
+ospf.onHelloReceived(helloPacket, ipPacket, ingressInterface);
+
+// Handle received Link State Advertisement
+ospf.onLSAReceived(lsa, ingressInterface);
+
+// Display
+console.log(ospf.showNeighbors()); // Neighbor states (init, two-way, full)
+console.log(ospf.showDatabase()); // Link State Database
+console.log(ospf.showRoutes()); // Computed routes via SPF
+console.log(ospf.showStats()); // Protocol statistics
+```
+
+**OSPF vs RIP:**
+| Feature | RIP | OSPF |
+|---------|-----|------|
+| Algorithm | Bellman-Ford (distance-vector) | Dijkstra (link-state) |
+| Update Interval | 30 seconds | 10 seconds (Hello), event-triggered LSA |
+| Convergence | Slow (can take minutes) | Fast (seconds) |
+| Max Hop Count | 15 | Unlimited |
+| Scalability | Small networks | Large enterprise networks |
+| Metric | Simple hop count | Bandwidth-based cost |
+| Memory Usage | Low | High (maintains full topology) |
+
 ## Usage Workflow
 
 ### 1. Create a Router Device
@@ -327,8 +371,13 @@ The router supports Cisco IOS-like commands:
 // Configuration
 router.addStaticRoute({ destination, mask, nextHop, metric });
 router.removeStaticRoute(destination, mask);
-router.enableRoutingProtocol("rip");
+
+// Enable routing protocol (RIP or OSPF, auto-creates SimulationBus)
+router.enableRoutingProtocol("rip");   // Distance-vector routing
+router.enableRoutingProtocol("ospf");  // Link-state routing
+
 router.disableRoutingProtocol("rip");
+router.disableRoutingProtocol("ospf");
 
 // Diagnostics
 router.showIPRoute(); // show ip route
@@ -354,7 +403,8 @@ This is the order used in the implementation:
 7. ✅ **Router** (`Router.js`) — Behavior installer
 8. ✅ **SimulationBus** (`SimulationBus.js`) — Timed events
 9. ✅ **RIPEngine** (`RIPEngine.js`) — Distance-vector routing
-10. ⏳ **OSPFEngine** (`OSPFEngine.js`) — Link-state routing (future)
+10. ✅ **OSPFEngine** (`OSPFEngine.js`) — Link-state routing
+11. ⏳ **BGP** (`BGPEngine.js` future) — Exterior gateway protocol
 
 ## Files Reference
 
@@ -369,7 +419,8 @@ This is the order used in the implementation:
 | `Router.js`         | Behavior installer                      | ~200  |
 | `SimulationBus.js`  | Discrete event queue                    | ~350  |
 | `RIPEngine.js`      | RIP v2 routing protocol                 | ~350  |
-| `index.js`          | Module exports                          | ~30   |
+| `OSPFEngine.js`     | OSPF v2 routing protocol                | ~400  |
+| `index.js`          | Module exports                          | ~40   |
 
 ## Testing
 

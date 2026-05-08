@@ -20,9 +20,7 @@ export class FurnitureStore {
 
         const newFurnitureData = {
             id: furniture.id,
-            type: "furniture",
-            catalogId: furniture.catalogId,
-            modelId: furniture.modelId,
+            type: furniture.catalogId,
             label: furniture.label || furniture.name || null,
             floorId: furniture.floorId || null,
             spaceId: furniture.spaceId || null,
@@ -31,8 +29,7 @@ export class FurnitureStore {
                 rotation: { x: 0, y: 0, z: 0 },
                 scale: { x: 4, y: 4, z: 4 }
             }
-        };
-
+        }
 
         const newFurniture = new Furniture(newFurnitureData);
         newFurniture.type = furniture.catalogId;

@@ -1,6 +1,7 @@
 import Grid from './Grid.js';
 import ShapeCreator from './ShapeCreator.js';
 import CableEntity from './entities/CableEntity.js';
+// import { buildDeviceIconImages, resolveDeviceIconKey } from './entities/DeviceIcons.js';
 import { buildDeviceIconImages } from './entities/DeviceIcons.js';
 import ShapeRenderer from '../rendering/ShapeRenderer.js';
 import PointerHandler from '../rendering/PointerHandler.js';
@@ -42,7 +43,7 @@ export class LogicalLayout {
       onDoorCreated: opts.onDoorCreated || null,
       onWindowCreated: opts.onWindowCreated || null,
       onCableCreated: opts.onCableCreated || null,
-      onConduitCreated: opts.onConduitCreated ||null,
+      onConduitCreated: opts.onConduitCreated || null,
       onRiserCreated: opts.onRiserCreated || null,
       onUndergroundConduitCreated: opts.onUndergroundConduitCreated || null,
       system: this.system
@@ -470,8 +471,6 @@ export class LogicalLayout {
     }
   }
 
-  
-
   addFurniture(furnitureData, x, y) {
     console.log('Adding furniture with data:', furnitureData, 'from LogicalLaypout bsuiyti');
     const size = this.shapeRenderer.gridSize * 1.5;
@@ -507,8 +506,16 @@ export class LogicalLayout {
       entity.path = updatedPath;
     };
 
+
     const furniture = {
-      id: furnitureData.id || `furniture_${Math.random().toString(36).slice(2, 9)}`, // CHANGED: keep the same id as the furniture store/hierarchy node
+      id: furnitureData.id || `furniture_${Math.random().toString(36).slice(2, 9)}`,
+      // type: furnitureData.type || 'furniture',
+      // entityType: 'furniture',
+      // label: furnitureData.name || furnitureData.label || 'Furniture',
+      // catalogId: furnitureData.catalogId || null, // ADDED: preserve catalog metadata
+      // floorId: furnitureData.floorId ?? appState.ui.activeFloorId ?? null, // ADDED: preserve floor context
+      // spaceId: furnitureData.spaceId ?? null, // ADDED: preserve space context
+      // // CHANGED: keep the same id as the furniture store/hierarchy node
       type: furnitureData.type || 'furniture',
       entityType: 'furniture',
       label: furnitureData.name || furnitureData.label || 'Furniture',
@@ -526,9 +533,30 @@ export class LogicalLayout {
         rotation: { x: 0, y: 0, z: 0 }
       },
       path,
+      //   hitTestMode: 'path',
+      //   saveCurrentPosition() {
+      //     this.savedPosition = { x: this.x, y: this.y };
+      //   },
+      //   restoreToSavedPosition() {
+      //     if (!this.savedPosition) return;
+      //     this.x = this.savedPosition.x;
+      //     this.y = this.savedPosition.y;
+      //     this.transform.position.x = this.x;
+      //     //  updateFurniturePath(this);
+      //     this.transform.position.y = this.y;
+      //   }
+      // };
+
       hitTestMode: 'path',
       saveCurrentPosition() {
         this.savedPosition = { x: this.x, y: this.y };
+      },
+      move(dx, dy) {
+        this.x += dx;
+        this.y += dy;
+        this.transform.position.x = this.x;
+        this.transform.position.y = this.y;
+        updateFurniturePath(this);
       },
       restoreToSavedPosition() {
         if (!this.savedPosition) return;
@@ -536,21 +564,23 @@ export class LogicalLayout {
         this.y = this.savedPosition.y;
         this.transform.position.x = this.x;
         this.transform.position.y = this.y;
-      },
-      move(dx, dy) {
-        this.x += dx;
-        this.y += dy;
-        this.transform.position.x += dx;
-        this.transform.position.y += dy;
+        updateFurniturePath(this);
       }
     };
 
+
+    //   this.furnitures.push(furniture);
+
+    //   if (this.onFurnitureAdded) {
+
+    //     this.onFurnitureAdded(furniture);
+    //   }
+    //   this._render();
+    // } 
+
+
+    // ADDED: New method to add furniture directly from the layout, bypassing the store. Useful for drag-and-drop where the store update might be async or handled separately.
     this.furnitures.push(furniture);
-
-    if (this.onFurnitureAdded) {
-
-      this.onFurnitureAdded(furniture);
-    }
     this._render();
   }
 
@@ -681,7 +711,7 @@ export class LogicalLayout {
       const zoom = this.pointerHandler.getZoom();
       const worldPos = this.pointerHandler.clientToWorld(e.clientX, e.clientY, this.viewState, zoom);
       const multiSelect = e.ctrlKey || e.metaKey || e.shiftKey;
-      const selectionResult = this.identifyEntity(worldPos.x, worldPos.y, {multiSelect});
+      const selectionResult = this.identifyEntity(worldPos.x, worldPos.y, { multiSelect });
       // console.log('[DOWN] identifyEntity result:', en?.id, en?.type, en?.entityType, { multiSelect });
       console.log('[DOWN] identifyEntity result:', selectionResult?.id, selectionResult?.type, selectionResult?.entityType, { multiSelect });
 
@@ -692,6 +722,12 @@ export class LogicalLayout {
         this.selectedEntity = clickedConduit;
         this.selectedEntities = [clickedConduit];
         appState.selection.selectConduit(clickedConduit.id);
+
+        this.routeManager?.clear();
+        const links = appState.network.getAllLinks();
+        const devices = appState.network.getAllDevices();
+        this.routeManager?.resolveAll(links, devices);
+
         this.pointerHandler.setPointerDown(true);
         this._render();
         return;
@@ -704,6 +740,12 @@ export class LogicalLayout {
         this.selectedEntity = clickedRiser;
         this.selectedEntities = [clickedRiser];
         appState.selection.selectRiser(clickedRiser.id);
+
+        this.routeManager?.clear();
+        const links = appState.network.getAllLinks();
+        const devices = appState.network.getAllDevices();
+        this.routeManager?.resolveAll(links, devices);
+
         this.pointerHandler.setPointerDown(true);
         this._render();
         return;
@@ -743,18 +785,18 @@ export class LogicalLayout {
           const distToSrc = Math.hypot(p.x - src.x, p.y - src.y);
           const distToDst = Math.hypot(p.x - dst.x, p.y - dst.y);
 
-              if (distToSrc < distToDst) {
-                  // Detach the Source end
-                  this.interaction = { mode: 'update_cable', cable: en, endpointType: 'source', fixedDevice: dst };
-              } else {
-                  // Detach the Target end
-                  this.interaction = { mode: 'update_cable', cable: en, endpointType: 'target', fixedDevice: src };
-              }
-              
-              this.currentPoint = p;
-              this.pointerHandler.setPointerDown(true);
-              return; // CRITICAL: Return early so it doesn't try to bodily move the cable!
-          } 
+          if (distToSrc < distToDst) {
+            // Detach the Source end
+            this.interaction = { mode: 'update_cable', cable: en, endpointType: 'source', fixedDevice: dst };
+          } else {
+            // Detach the Target end
+            this.interaction = { mode: 'update_cable', cable: en, endpointType: 'target', fixedDevice: src };
+          }
+
+          this.currentPoint = p;
+          this.pointerHandler.setPointerDown(true);
+          return; // CRITICAL: Return early so it doesn't try to bodily move the cable!
+        }
       }
 
 
@@ -822,29 +864,19 @@ export class LogicalLayout {
             if (!srcOnFloor || !dstOnFloor) continue;
           }
 
-        // Use the exact same highly-optimized bounding box we built for hovering
-        if (this._hitTestCable(p.x, p.y, src, dst, 8)) {
-          // Dispatch a custom event telling the UI a link was clicked for deletion
-          window.dispatchEvent(new CustomEvent('requestLinkDeletion', { 
-            detail: { linkId: cable.id, sourceName: src.label || src.name, targetName: dst.label || dst.name } 
-          }));
-          
-          // Reset the tool back to select automatically
-          this.pointerHandler.setPointerDown(false);
-          return;
+          // Use the exact same highly-optimized bounding box we built for hovering
+          if (this._hitTestCable(p.x, p.y, src, dst, 8)) {
+            // Dispatch a custom event telling the UI a link was clicked for deletion
+            window.dispatchEvent(new CustomEvent('requestLinkDeletion', {
+              detail: { linkId: cable.id, sourceName: src.label || src.name, targetName: dst.label || dst.name }
+            }));
+
+            // Reset the tool back to select automatically
+            this.pointerHandler.setPointerDown(false);
+            return;
+          }
         }
       }
-
-      
-      const conduitToDelete = this._findConduitAt(p.x, p.y);
-      if (conduitToDelete) {
-        window.dispatchEvent(new CustomEvent('requestConduitDeletion', {
-          detail: { conduitId: conduitToDelete.id }
-        }));
-        this.pointerHandler.setPointerDown(false);
-        return;
-      }
-    }
       this.interaction = {
         mode: 'move',
         start: { x: p.x, y: p.y },
@@ -1022,47 +1054,47 @@ export class LogicalLayout {
         }
         this.pointerHandler.setCursor(cursor);
         // --- RESTORED CABLE HOVER DETECTION ---
-    if (this.mode === 'select' && !this.pointerHandler.getIsPointerDown()) {
-      let newlyHoveredCable = null;
-      
-      // 1. Determine the active structural hierarchy
-      const focusedType = appState.selection.focusedType;
-      const focusedId = appState.selection.focusedId;
-      
-      const activeSpaceId = (focusedType === 'space' || focusedType === 'Space') ? focusedId : null;
-      const activeFloorId = focusedType === 'floor' ? focusedId : appState.ui.activeFloorId;
+        if (this.mode === 'select' && !this.pointerHandler.getIsPointerDown()) {
+          let newlyHoveredCable = null;
 
-      for (const cable of this.cables) {
-        const src = this.findEntityById(cable.sourceId);
-        const dst = this.findEntityById(cable.targetId);
-        if (!src || !dst) continue;
+          // 1. Determine the active structural hierarchy
+          const focusedType = appState.selection.focusedType;
+          const focusedId = appState.selection.focusedId;
 
-        // 2. Guardrail: Hierarchy Filtering
-        if (activeSpaceId) {
-          // STRICT MODE: If viewing a specific Space, ignore cables that don't touch this room
-          if (src.spaceId !== activeSpaceId && dst.spaceId !== activeSpaceId) continue;
-        } 
-        else if (activeFloorId) {
-          // BROAD MODE: If viewing a Floor, ignore cables that belong to a completely different floor
-          const srcOnFloor = src.floorId == null || src.floorId === activeFloorId;
-          const dstOnFloor = dst.floorId == null || dst.floorId === activeFloorId;
-          if (!srcOnFloor || !dstOnFloor) continue;
+          const activeSpaceId = (focusedType === 'space' || focusedType === 'Space') ? focusedId : null;
+          const activeFloorId = focusedType === 'floor' ? focusedId : appState.ui.activeFloorId;
+
+          for (const cable of this.cables) {
+            const src = this.findEntityById(cable.sourceId);
+            const dst = this.findEntityById(cable.targetId);
+            if (!src || !dst) continue;
+
+            // 2. Guardrail: Hierarchy Filtering
+            if (activeSpaceId) {
+              // STRICT MODE: If viewing a specific Space, ignore cables that don't touch this room
+              if (src.spaceId !== activeSpaceId && dst.spaceId !== activeSpaceId) continue;
+            }
+            else if (activeFloorId) {
+              // BROAD MODE: If viewing a Floor, ignore cables that belong to a completely different floor
+              const srcOnFloor = src.floorId == null || src.floorId === activeFloorId;
+              const dstOnFloor = dst.floorId == null || dst.floorId === activeFloorId;
+              if (!srcOnFloor || !dstOnFloor) continue;
+            }
+
+            // 3. Optimized Bounding Box Hit Test (Using the 'p' variable already defined in move)
+            if (this._hitTestCable(p.x, p.y, src, dst, 8)) {
+              newlyHoveredCable = cable;
+              break;
+            }
+          }
+
+          // Only trigger a re-render if the hover state actually changed
+          if (this.hoveredCable !== newlyHoveredCable) {
+            this.hoveredCable = newlyHoveredCable;
+            this._render();
+          }
         }
-
-        // 3. Optimized Bounding Box Hit Test (Using the 'p' variable already defined in move)
-        if (this._hitTestCable(p.x, p.y, src, dst, 8)) {
-          newlyHoveredCable = cable;
-          break; 
-        }
-      }
-
-      // Only trigger a re-render if the hover state actually changed
-      if (this.hoveredCable !== newlyHoveredCable) {
-        this.hoveredCable = newlyHoveredCable;
-        this._render();
-      }
-    }
-    // -------------------------------------
+        // -------------------------------------
       }
       else {
         this.pointerHandler.setCursor('default');
@@ -1098,6 +1130,13 @@ export class LogicalLayout {
           if (projected) conduit.moveTo(projected.x, projected.y);
         }
 
+        // Sync to structural store
+        appState.structural.updateConduit(conduit.id, { x: conduit.x, y: conduit.y });
+
+        const links = appState.network.getAllLinks();
+        const devices = appState.network.getAllDevices();
+        this.routeManager?.reResolveAll(links, devices);
+
         this._render();
         return;
       }
@@ -1121,6 +1160,12 @@ export class LogicalLayout {
           riser.moveTo(clampedX, clampedY);
         }
 
+        // Sync to structural store
+        appState.structural.updateRiser(riser.id, { x: riser.x, y: riser.y });
+
+        const links = appState.network.getAllLinks();
+        const devices = appState.network.getAllDevices();
+        this.routeManager?.reResolveAll(links, devices);
         this._render();
         return;
       }
@@ -1144,6 +1189,12 @@ export class LogicalLayout {
           undergroundConduit.moveTo(clampedX, clampedY);
         }
 
+        // Sync to structural store
+        appState.structural.updateUndergroundConduit(undergroundConduit.id, { x: undergroundConduit.x, y: undergroundConduit.y });
+
+        const links = appState.network.getAllLinks();
+        const devices = appState.network.getAllDevices();
+        this.routeManager?.reResolveAll(links, devices);
         this._render();
         return;
       }
@@ -1270,46 +1321,37 @@ export class LogicalLayout {
 
   _onPointerUp(e) {
 
-  if (this.interaction && this.interaction.mode === 'update_cable') {
-        const dropDevice = this._findDeviceAt(this.currentPoint.x, this.currentPoint.y);
-        
-        if (dropDevice) {
-            // Tell the controller we want to re-attach this cable
-            window.dispatchEvent(new CustomEvent('requestLinkUpdate', {
-                detail: {
-                    linkId: this.interaction.cable.id,
-                    cableType: this.interaction.cable.type,
-                    endpointType: this.interaction.endpointType,
-                    newDevice: dropDevice,
-                    clientX: e.clientX,
-                    clientY: e.clientY
-                }
-            }));
-        }
-        
-        // Reset interaction state
-        this.interaction = { mode: null, handle: null, start: null };
-        this.pointerHandler.setPointerDown(false);
-        this.hoveredDevice = null;
-        this._render(); // Snaps the cable back if dropped on empty space
-        return;
-    }
+    if (this.interaction && this.interaction.mode === 'update_cable') {
+      const dropDevice = this._findDeviceAt(this.currentPoint.x, this.currentPoint.y);
 
-    if (this.interaction?.mode === 'move_conduit') {
+      if (dropDevice) {
+        // Tell the controller we want to re-attach this cable
+        window.dispatchEvent(new CustomEvent('requestLinkUpdate', {
+          detail: {
+            linkId: this.interaction.cable.id,
+            cableType: this.interaction.cable.type,
+            endpointType: this.interaction.endpointType,
+            newDevice: dropDevice,
+            clientX: e.clientX,
+            clientY: e.clientY
+          }
+        }));
+      }
+
+      // Reset interaction state
       this.interaction = { mode: null, handle: null, start: null };
       this.pointerHandler.setPointerDown(false);
-      this._render();
+      this.hoveredDevice = null;
+      this._render(); // Snaps the cable back if dropped on empty space
       return;
     }
 
-    if (this.interaction?.mode === 'move_riser') {
-      this.interaction = { mode: null, handle: null, start: null };
-      this.pointerHandler.setPointerDown(false);
-      this._render();
-      return;
-    }
-
-    if (this.interaction?.mode === 'move_underground-conduit') {
+    if (this.interaction?.mode === 'move_conduit' ||
+      this.interaction?.mode === 'move_riser' ||
+      this.interaction?.mode === 'move_underground-conduit') {
+      const links = appState.network.getAllLinks();
+      const devices = appState.network.getAllDevices();
+      this.routeManager.reResolveAll(links, devices);
       this.interaction = { mode: null, handle: null, start: null };
       this.pointerHandler.setPointerDown(false);
       this._render();
@@ -1323,24 +1365,24 @@ export class LogicalLayout {
       currentPoint: this.currentPoint
     });
 
-const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !== 'none';
+    const isDrawMode = this.mode !== 'select' && this.mode !== 'pan' && this.mode !== 'none';
     const hasValidDrawPoints = this.startPoint && this.currentPoint;
 
     if (isDrawMode && hasValidDrawPoints) {
       // --- THE PAPERFECT DOOR/WINDOW VALIDATION V5 ---
       let allowCreation = true;
 
-if (this.mode === 'door' || this.mode === 'window') {
+      if (this.mode === 'door' || this.mode === 'window') {
         allowCreation = false;
         let failedReason = null;
-        
+
         const p1x = this.startPoint.x;
         const p1y = this.startPoint.y;
         const p2x = this.currentPoint.x;
         const p2y = this.currentPoint.y;
-        
+
         // Tighter threshold (15px) so you HAVE to click exactly on the line
-        const threshold = 15; 
+        const threshold = 15;
 
         // MATALINONG HELPER: Hahatiin niya KAHIT ANONG shape into "Straight Lines"
         const getEdges = (entity) => {
@@ -1389,12 +1431,12 @@ if (this.mode === 'door' || this.mode === 'window') {
           let target = host;
           // Ayusin ang format kung galing sa appState
           if (host.geometry) {
-             target = { 
-               x: host.geometry.x || host.geometry.left, 
-               y: host.geometry.y || host.geometry.top, 
-               w: host.geometry.w || host.geometry.width, 
-               h: host.geometry.h || host.geometry.height 
-             };
+            target = {
+              x: host.geometry.x || host.geometry.left,
+              y: host.geometry.y || host.geometry.top,
+              w: host.geometry.w || host.geometry.width,
+              h: host.geometry.h || host.geometry.height
+            };
           }
 
           const edges = getEdges(target);
@@ -1420,18 +1462,18 @@ if (this.mode === 'door' || this.mode === 'window') {
           const activeFloorId = this.activeFloorId || appState?.ui?.activeFloorId;
           const currentFloor = appState?.structural?.floors?.find(f => f.id === activeFloorId);
           const site = appState?.structural?.sites?.find(s => s.id === currentFloor?.siteId);
-          
+
           if (site && site.geometry) {
             const b = site.geometry;
             const sx = b.x || b.left || 0;
             const sy = b.y || b.top || 0;
             const sw = b.w || b.width || 0;
             const sh = b.h || b.height || 0;
-            
+
             const margin = 5; // A 5px allowance for snapping perfectly flush to the line
             const isInsideSite = p2x >= sx - margin && p2x <= (sx + sw) + margin &&
-                                 p2y >= sy - margin && p2y <= (sy + sh) + margin;
-            
+              p2y >= sy - margin && p2y <= (sy + sh) + margin;
+
             if (!isInsideSite) {
               allowCreation = false;
               failedReason = "The door swing cannot exceed the overall Site boundaries!";
@@ -1482,6 +1524,12 @@ if (this.mode === 'door' || this.mode === 'window') {
 
         if (this.onEntityChanged) {
           this.onEntityChanged(entity, actualDx, actualDy);
+        }
+
+        if (this._isDeviceEntity(entity) && this.routeManager) {
+          const links = appState.network.getAllLinks();
+          const devices = appState.network.getAllDevices();
+          this.routeManager.reResolveForDevice(entity.id, links, devices);
         }
       }
     }
@@ -1547,7 +1595,7 @@ if (this.mode === 'door' || this.mode === 'window') {
 
 
   _findSpaceEdgeAt(x, y, tolerance = 8) {
-    const focusedId   = appState.selection.focusedId;
+    const focusedId = appState.selection.focusedId;
     const focusedType = appState.selection.focusedType?.toLowerCase();
 
     if (!focusedId || (focusedType !== 'space' && focusedType !== 'floor')) {
@@ -1584,10 +1632,10 @@ if (this.mode === 'door' || this.mode === 'window') {
       const w = shape.w ?? shape.width;
       const h = shape.h ?? shape.height;
       return [
-        { x1: x,     y1: y,     x2: x + w, y2: y     }, // top
-        { x1: x + w, y1: y,     x2: x + w, y2: y + h }, // right
-        { x1: x,     y1: y + h, x2: x + w, y2: y + h }, // bottom
-        { x1: x,     y1: y,     x2: x,     y2: y + h }, // left
+        { x1: x, y1: y, x2: x + w, y2: y }, // top
+        { x1: x + w, y1: y, x2: x + w, y2: y + h }, // right
+        { x1: x, y1: y + h, x2: x + w, y2: y + h }, // bottom
+        { x1: x, y1: y, x2: x, y2: y + h }, // left
       ];
     }
 
@@ -1617,7 +1665,7 @@ if (this.mode === 'door' || this.mode === 'window') {
   _findRiserAt(x, y) {
     for (const riser of this.risers) {
       if (x >= riser.x && x <= riser.x + riser.width &&
-          y >= riser.y && y <= riser.y + riser.height) {
+        y >= riser.y && y <= riser.y + riser.height) {
         return riser;
       }
     }
@@ -1627,7 +1675,7 @@ if (this.mode === 'door' || this.mode === 'window') {
   _findUndergroundConduitAt(x, y) {
     for (const undergroundConduit of this.undergroundConduits) {
       if (x >= undergroundConduit.x && x <= undergroundConduit.x + undergroundConduit.width &&
-          y >= undergroundConduit.y && y <= undergroundConduit.y + undergroundConduit.height) {
+        y >= undergroundConduit.y && y <= undergroundConduit.y + undergroundConduit.height) {
         return undergroundConduit;
       }
     }
@@ -1691,9 +1739,9 @@ if (this.mode === 'door' || this.mode === 'window') {
   }
 
   _placeRiserAt(clickX, clickY) {
-    const focusedId   = appState.selection.focusedId;
+    const focusedId = appState.selection.focusedId;
     const focusedType = appState.selection.focusedType?.toLowerCase();
-    
+
     console.log(focusedType);
 
     if (!focusedId || (focusedType !== 'space' && focusedType !== 'floor')) {
@@ -1721,7 +1769,7 @@ if (this.mode === 'door' || this.mode === 'window') {
     };
 
     if (clickX < bounds.minX || clickX > bounds.maxX ||
-        clickY < bounds.minY || clickY > bounds.maxY) {
+      clickY < bounds.minY || clickY > bounds.maxY) {
       alert('Risers must be placed inside a Space or Floor.');
       return null;
     }
@@ -1730,8 +1778,8 @@ if (this.mode === 'door' || this.mode === 'window') {
 
     const riser = this.shapeCreator.createRiser(clickX, clickY, 5, 5);
     if (riser) {
-      riser.floorId       = parentShape.floorId || null;
-      riser.spaceId       = parentShape.structureType === 'space' ? parentShape.id : null;
+      riser.floorId = parentShape.floorId || null;
+      riser.spaceId = parentShape.structureType === 'space' ? parentShape.id : null;
       riser.parentShapeId = parentShape.id;  // ← this is what was missing
       this.risers.push(riser);
     }
@@ -1739,7 +1787,7 @@ if (this.mode === 'door' || this.mode === 'window') {
   }
 
   _placeUndergroundConduitAt(clickX, clickY) {
-    const focusedId   = appState.selection.focusedId;
+    const focusedId = appState.selection.focusedId;
     const focusedType = appState.selection.focusedType?.toLowerCase();
 
     if (!focusedId || (focusedType !== 'site')) {
@@ -1765,7 +1813,7 @@ if (this.mode === 'door' || this.mode === 'window') {
     };
 
     if (clickX < bounds.minX || clickX > bounds.maxX ||
-        clickY < bounds.minY || clickY > bounds.maxY) {
+      clickY < bounds.minY || clickY > bounds.maxY) {
       alert('Underground Conduits must be placed inside a Site.');
       return null;
     }
@@ -1836,13 +1884,13 @@ if (this.mode === 'door' || this.mode === 'window') {
         if (wall.body) wall.body.floorId = activeFloor || null;
         this.walls.push(wall);
       }
-} else if (this.mode === 'door') {
+    } else if (this.mode === 'door') {
       // 🛑 GHOSTBUSTER HACK: Pigilan si ShapeCreator na mag-snitch agad sa React Hierarchy!
       const uiCallback = this.shapeCreator.onDoorCreated;
-      this.shapeCreator.onDoorCreated = null; 
+      this.shapeCreator.onDoorCreated = null;
 
       const door = this.shapeCreator.createDoor(this.startPoint, this.currentPoint);
-      
+
       this.shapeCreator.onDoorCreated = uiCallback; // Ibalik ang callback
 
       if (door) {
@@ -1860,7 +1908,7 @@ if (this.mode === 'door' || this.mode === 'window') {
           if (door.spaceId === null) alert('Doors must be placed in a Space.');
         }
       }
-      
+
       // ✅ TANGGAL NA YUNG RESET DITO. STAY SA 'door' MODE FOR UNLI-DRAW!
 
     } else if (this.mode === 'window') {
@@ -1869,7 +1917,7 @@ if (this.mode === 'door' || this.mode === 'window') {
       this.shapeCreator.onWindowCreated = null;
 
       const window = this.shapeCreator.createWindow(this.startPoint, this.currentPoint);
-      
+
       this.shapeCreator.onWindowCreated = uiCallback; // Ibalik ang callback
 
       if (window) {
@@ -1948,10 +1996,11 @@ if (this.mode === 'door' || this.mode === 'window') {
       if (resolvedPath && !resolvedPath.isDirect && resolvedPath.canvasPoints.length >= 2) {
         // Draw segmented route through conduits/risers
         const pts = resolvedPath.canvasPoints;
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let i = 1; i < pts.length; i++) {
+        ctx.moveTo(src.x, src.y);
+        for (let i = 1; i < pts.length - 1; i++) {
           ctx.lineTo(pts[i].x, pts[i].y);
         }
+        ctx.lineTo(dst.x, dst.y);
       } else {
         // Fallback: straight line (same space or not yet resolved)
         if (cable.type === 'console') {
@@ -2159,11 +2208,11 @@ if (this.mode === 'door' || this.mode === 'window') {
       );
       ctx.restore();
     }
-else if (this.startPoint && this.currentPoint) {
+    else if (this.startPoint && this.currentPoint) {
       ctx.save();
-      
+
       // --- IBALIK ANG GREEN SA LAHAT NG SPACES/DOMAINS/SITES ---
-      ctx.strokeStyle = '#00ff00'; 
+      ctx.strokeStyle = '#00ff00';
       ctx.fillStyle = 'rgba(0,255,0,0.08)';
       ctx.lineWidth = 1.5;
 
@@ -2198,12 +2247,12 @@ else if (this.startPoint && this.currentPoint) {
         this.shapeRenderer.outlineCircle(ctx, this.startPoint, this.currentPoint);
       } else if (this.mode === 'wall') {
         this.shapeRenderer.outlineWall(ctx, this.startPoint, this.currentPoint);
-} else if (this.mode === 'window') {
+      } else if (this.mode === 'window') {
         // --- GHOST WINDOW PREVIEW (GREEN ERA!) ---
         ctx.globalAlpha = 0.7;
         ctx.strokeStyle = '#00ff00'; // GREEN na siya habang dino-drawing!
         ctx.lineWidth = 4; // Medyo makapal para kitang-kita
-        
+
         ctx.beginPath();
         ctx.moveTo(this.startPoint.x, this.startPoint.y);
         ctx.lineTo(this.currentPoint.x, this.currentPoint.y);
@@ -2382,9 +2431,9 @@ else if (this.startPoint && this.currentPoint) {
           }
         }
 
-            ctx.restore();
-          }
-        }
+        ctx.restore();
+      }
+    }
 
     if (this.hoveredCable && this.mode === 'select') {
       const cable = this.hoveredCable;
@@ -2553,8 +2602,9 @@ else if (this.startPoint && this.currentPoint) {
 
     // 3. Find and splice the entity from its array
     let entityToRemove = null;
+    let removedStructuralEntity = false;
     const targetArrays = ['rectangles', 'circles', 'polygons', 'freeforms',
-                          'devices', 'furnitures', 'cables', 'walls', 'conduits', 'risers', 'undergroundConduits'];
+      'devices', 'furnitures', 'cables', 'walls', 'conduits', 'risers', 'undergroundConduits'];
 
     for (const arrName of targetArrays) {
       if (!this[arrName]) continue;
@@ -2562,6 +2612,9 @@ else if (this.startPoint && this.currentPoint) {
       if (index !== -1) {
         entityToRemove = this[arrName][index];
         this[arrName].splice(index, 1);
+        if (['conduits', 'risers', 'undergroundConduits'].includes(arrName)) {
+          removedStructuralEntity = true;
+        }
         break;
       }
     }
@@ -2570,6 +2623,12 @@ else if (this.startPoint && this.currentPoint) {
     if (entityToRemove?.body && this.system) {
       try { this.system.remove(entityToRemove.body); }
       catch (e) { console.warn('Could not remove body from physics system', e); }
+    }
+
+    if (removedStructuralEntity && this.routeManager) {
+      const links = appState.network.getAllLinks();
+      const devices = appState.network.getAllDevices();
+      this.routeManager.reResolveAll(links, devices);
     }
 
     this._render();
@@ -2668,7 +2727,7 @@ else if (this.startPoint && this.currentPoint) {
       ];
       en = this.selection.identifyEntity(x, y, structuralEntities, this.ctx);
     }
-    
+
     if (!en) {
       this.selectedEntity = null;
 
@@ -2758,12 +2817,24 @@ else if (this.startPoint && this.currentPoint) {
     this._render();
   }
 
+  // _isDeviceEntity(en) {
+  //   // Primary check: stable flag set in Device (UI) constructor.
+  //   // Fallback duck-type handles canvas entities from older save files
+  //   // that pre-date the entityType field.
+  //   return !!en && (
+  //     en.entityType === 'device' ||
+  //     en.catalogId  !== undefined ||
+  //     en.interfaces !== undefined
+  //   );
+  // }
+
   _isDeviceEntity(en) {
     // Primary check: stable flag set in Device (UI) constructor.
     // Fallback duck-type handles canvas entities from older save files
     // that pre-date the entityType field.
-    if (!en) return false;
-    if (en.entityType === 'furniture' || en.type === 'furniture' || en.id?.startsWith('furniture')) return false;
+    if (!en || this._isFurnitureEntity(en)) {
+      return false;
+    }
 
     return (
       en.entityType === 'device' ||
@@ -2772,8 +2843,29 @@ else if (this.startPoint && this.currentPoint) {
     );
   }
 
+
+
+
+
+
+
+
+  // _isFurnitureEntity(en) {
+  //   return !!en && (en.type === 'furniture' || en.id?.startsWith('furniture'));
+  // }
+
+  // Updated furniture detection with more robust duck-typing to handle legacy entities without entityType
   _isFurnitureEntity(en) {
-    return !!en && (en.entityType === 'furniture' || en.type === 'furniture' || en.id?.startsWith('furniture'));
+    if (!en || en.sourceId || en.targetId || en.interfaces !== undefined) return false;
+
+    return (
+      en.entityType === 'furniture' ||
+      en.type === 'furniture' ||
+      ['desk', 'chair', 'rack', 'cabinet', 'table'].includes(en.type) ||
+      ['desk', 'chair', 'rack', 'cabinet', 'table'].includes(en.catalogId) ||
+      ['desk', 'chair', 'rack', 'cabinet', 'table'].includes(en.modelId) ||
+      en.id?.startsWith('furniture')
+    );
   }
 
   _isResizableEntity(en) {
@@ -2898,7 +2990,7 @@ else if (this.startPoint && this.currentPoint) {
 
     if (this._isDeviceEntity(en)) {
       return {
-        x: en.tileX,
+        x: en.tileX,       // ADDED: devices are drawn/hit-tested using tile bounds, not raw x/y/w/h
         y: en.tileY,
         w: en.tileWidth,
         h: en.tileHeight
@@ -2910,7 +3002,7 @@ else if (this.startPoint && this.currentPoint) {
       // We pull back by half the width/height to find the true Top-Left corner!
       const tileW = (en.width || 48) + 32;
       const tileH = (en.height || 48) + 45;
-      
+
       return {
         x: en.x - (tileW / 2),
         y: en.y - (tileH / 2.5),
@@ -2931,8 +3023,10 @@ else if (this.startPoint && this.currentPoint) {
 
   _findDeviceAt(x, y) {
     for (const device of this.devices) {
-      const bounds = this._getEntityInteractionBounds(device);
+      const bounds = this._getEntityInteractionBounds(device); // ADDED: use the same tile bounds used for selection/highlighting
+      console.log('[FIND_DEVICE] checking', device.id, 'bounds:', bounds, 'click:', x, y);
       if (!bounds) continue;
+
 
       if (
         x >= bounds.x &&
@@ -2983,10 +3077,10 @@ else if (this.startPoint && this.currentPoint) {
     }
     let ancestorsId = [];
     if (currentEntity.structureType !== undefined && appState.selection.focusedType !== null) {
-       ancestorsId = appState.structural.getAncestorsId();
+      ancestorsId = appState.structural.getAncestorsId();
     }
 
-// 🛑 THE FIX: Ignore overlap for Assets AND Fenestrations (Doors/Windows)
+    // 🛑 THE FIX: Ignore overlap for Assets AND Fenestrations (Doors/Windows)
     const isAsset = currentEntity.interfaces !== undefined || currentEntity.catalogId !== undefined || currentEntity.type === 'furniture' || currentEntity.id?.startsWith('furniture');
     const isFenestration = currentEntity.type === 'door' || currentEntity.type === 'window';
 

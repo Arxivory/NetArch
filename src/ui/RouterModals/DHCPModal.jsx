@@ -37,7 +37,7 @@ const defaultState = {
 function dispatchLog(deviceName, deviceLocation, message) {
   window.dispatchEvent(
     new CustomEvent("add-system-log", {
-      detail: { device: "Router", deviceName, message, location: deviceLocation },
+      detail: { device: "Router", deviceName, message, location: deviceLocation, italic: true },
     })
   );
 }
@@ -60,178 +60,40 @@ export default function DHCPModal({ onClose, deviceName = "Router-Core-01", devi
 
   const now = () => new Date().toISOString().replace("T", " ").slice(0, 19);
 
-  // ── Req #1 + #5 + #6: Enterprise-style apply logging ─────────────────────
+  // ── Apply: collect only what was configured and dispatch to ConsolePanel ───
   const handleApply = () => {
-    const prev = prevData.current;
     const logs = [];
-    const ts   = now();
 
-    // ── Service state ──────────────────────────────────────────────────────
-    if (formData.dhcpEnabled !== prev.dhcpEnabled) {
-      logs.push(
-        formData.dhcpEnabled
-          ? `%DHCP-5-SERVICE_ENABLED: [${ts}] ${deviceName} @ ${deviceLocation} — DHCP server process STARTED. ` +
-            `Service is now accepting DISCOVER packets on all routed interfaces. ` +
-            `Ensure scope and pool are correctly configured before client deployment.`
-          : `%DHCP-5-SERVICE_DISABLED: [${ts}] ${deviceName} @ ${deviceLocation} — DHCP server process STOPPED. ` +
-            `All pending OFFER and ACK transactions cancelled. ` +
-            `Clients will no longer receive automatic IP assignments from this device.`
-      );
-    }
+    // Basic
+    if (formData.gateway)   logs.push(`[DHCP] Default Gateway: ${formData.gateway}`);
+    if (formData.subnetMask) logs.push(`[DHCP] Subnet Mask: ${formData.subnetMask}`);
+    if (formData.dnsServer)  logs.push(`[DHCP] DNS Server: ${formData.dnsServer}`);
+    if (!formData.dhcpEnabled) logs.push(`[DHCP] Service: Disabled`);
 
-    // ── Basic scope ────────────────────────────────────────────────────────
-    if (formData.gateway && formData.gateway !== prev.gateway) {
-      logs.push(
-        `%DHCP-5-GATEWAY_MODIFY: [${ts}] ${deviceName} — Default Gateway (Option 3) updated ` +
-        `from ${prev.gateway || "unset"} → ${formData.gateway}. ` +
-        `All subsequent DHCP ACK messages will advertise the new gateway to clients. ` +
-        `Existing leases are not renewed automatically; clients must renew or rebind.`
-      );
-    } else if (formData.gateway && formData.gateway === prev.gateway) {
-      logs.push(
-        `%DHCP-6-GATEWAY_CONFIRM: [${ts}] ${deviceName} — Default Gateway confirmed: ${formData.gateway}. ` +
-        `Option 3 will be included in all DHCP ACK responses.`
-      );
-    }
+    // Pool
+    if (formData.startIP)                          logs.push(`[DHCP] Pool Start IP: ${formData.startIP}`);
+    if (formData.endIP)                            logs.push(`[DHCP] Pool End IP: ${formData.endIP}`);
+    if (formData.leaseTime !== "Select")           logs.push(`[DHCP] Lease Time: ${formData.leaseTime}`);
+    if (formData.conflictHandling !== "Select")    logs.push(`[DHCP] Conflict Handling: ${formData.conflictHandling}`);
 
-    if (formData.subnetMask && formData.subnetMask !== prev.subnetMask) {
-      logs.push(
-        `%DHCP-5-SUBNET_MODIFY: [${ts}] ${deviceName} — Subnet Mask (Option 1) changed ` +
-        `from ${prev.subnetMask || "unset"} → ${formData.subnetMask}. ` +
-        `Network boundary re-calculated; verify that pool range falls within new subnet.`
-      );
-    }
-
-    if (formData.dnsServer && formData.dnsServer !== prev.dnsServer) {
-      logs.push(
-        `%DHCP-5-DNS_MODIFY: [${ts}] ${deviceName} — DNS Server (Option 6) updated ` +
-        `from ${prev.dnsServer || "unset"} → ${formData.dnsServer}. ` +
-        `Clients will receive the new resolver address on next DHCP renewal cycle.`
-      );
-    }
-
-    // ── Pool ───────────────────────────────────────────────────────────────
-    if (formData.startIP || formData.endIP) {
-      const poolChanged =
-        formData.startIP !== prev.startIP || formData.endIP !== prev.endIP;
-      logs.push(
-        poolChanged
-          ? `%DHCP-5-POOL_MODIFY: [${ts}] ${deviceName} — IP address pool updated. ` +
-            `Previous range: ${prev.startIP || "—"} – ${prev.endIP || "—"} | ` +
-            `New range: ${formData.startIP} – ${formData.endIP}. ` +
-            `Allocation engine recalculated; total available addresses updated in binding table.`
-          : `%DHCP-6-POOL_INSTALL: [${ts}] ${deviceName} — Address pool committed. ` +
-            `Allocation range: ${formData.startIP} – ${formData.endIP}. ` +
-            `Pool is ready to serve client DISCOVER requests.`
-      );
-    }
-
-    if (formData.leaseTime !== "Select" && formData.leaseTime !== prev.leaseTime) {
-      logs.push(
-        `%DHCP-6-LEASE_MODIFY: [${ts}] ${deviceName} — Lease duration (Option 51) changed ` +
-        `from ${prev.leaseTime === "Select" ? "unset" : prev.leaseTime} → ${formData.leaseTime}. ` +
-        `New leases will honour the updated TTL; active bindings retain their original expiry.`
-      );
-    }
-
-    if (formData.conflictHandling !== "Select" && formData.conflictHandling !== prev.conflictHandling) {
-      logs.push(
-        `%DHCP-5-CONFLICT_POLICY_MOD: [${ts}] ${deviceName} — Address-conflict handling policy changed ` +
-        `from "${prev.conflictHandling === "Select" ? "unset" : prev.conflictHandling}" → "${formData.conflictHandling}". ` +
-        `PING-probe and ARP-check behaviour updated accordingly.`
-      );
-    }
-
-    // ── Static Bindings ────────────────────────────────────────────────────
+    // Reservations
     formData.reservations.forEach((r, i) => {
-      if (!r.mac || !r.ip) return;
-      const prev_r = (prev.reservations || [])[i] || {};
-      const changed = r.mac !== prev_r.mac || r.ip !== prev_r.ip || r.status !== prev_r.status;
-      logs.push(
-        changed
-          ? `%DHCP-5-BINDING_MODIFY: [${ts}] ${deviceName} — Static binding #${i + 1} updated. ` +
-            `Host: ${r.device || "unnamed"} | MAC: ${r.mac} → reserved IP: ${r.ip} (${r.status}). ` +
-            `Previous binding removed from host table; new entry active immediately.`
-          : `%DHCP-6-BINDING_INSTALL: [${ts}] ${deviceName} — Static DHCP binding committed. ` +
-            `Host: ${r.device || "unnamed"} | MAC ${r.mac} permanently mapped to ${r.ip}. ` +
-            `Entry marked ${r.status} in the binding table.`
-      );
+      if (r.mac || r.ip) {
+        logs.push(`[DHCP] Reservation #${i + 1}: ${r.device || "unnamed"} | MAC: ${r.mac} → IP: ${r.ip} (${r.status})`);
+      }
     });
 
-    // ── Advanced / Relay ───────────────────────────────────────────────────
-    if (formData.dhcpRelay && formData.dhcpRelay !== prev.dhcpRelay) {
-      logs.push(
-        `%DHCP-5-RELAY_MODIFY: [${ts}] ${deviceName} — DHCP Relay (ip helper-address) changed ` +
-        `from ${prev.dhcpRelay || "unset"} → ${formData.dhcpRelay}. ` +
-        `Broadcast DISCOVER packets from connected clients will now be forwarded to the new relay target.`
-      );
-    } else if (formData.dhcpRelay && formData.dhcpRelay === prev.dhcpRelay) {
-      logs.push(
-        `%DHCP-6-RELAY_CONFIRM: [${ts}] ${deviceName} — DHCP relay helper-address confirmed: ${formData.dhcpRelay}. ` +
-        `Inter-VLAN DHCP forwarding is active.`
-      );
-    }
+    // Advanced
+    if (formData.domainName)                       logs.push(`[DHCP] Domain Name: ${formData.domainName}`);
+    if (formData.ntpServer)                        logs.push(`[DHCP] NTP Server: ${formData.ntpServer}`);
+    if (formData.dhcpRelay)                        logs.push(`[DHCP] Relay (Helper): ${formData.dhcpRelay}`);
+    if (formData.dnsUpdateMode !== "Select")       logs.push(`[DHCP] DNS Update Mode: ${formData.dnsUpdateMode}`);
+    if (formData.conflictDetection)                logs.push(`[DHCP] Conflict Detection: Enabled`);
+    if (formData.auditTrail)                       logs.push(`[DHCP] Audit Trail: Enabled`);
 
-    if (formData.domainName && formData.domainName !== prev.domainName) {
-      logs.push(
-        `%DHCP-6-DOMAIN_MODIFY: [${ts}] ${deviceName} — Domain Name (Option 15) updated ` +
-        `from "${prev.domainName || "unset"}" → "${formData.domainName}". ` +
-        `Clients will append this suffix during DNS resolution on next lease renewal.`
-      );
-    }
+    if (logs.length === 0) logs.push(`[DHCP] Applied — no parameters configured`);
 
-    if (formData.ntpServer && formData.ntpServer !== prev.ntpServer) {
-      logs.push(
-        `%DHCP-6-NTP_MODIFY: [${ts}] ${deviceName} — NTP Server (Option 42) updated ` +
-        `from ${prev.ntpServer || "unset"} → ${formData.ntpServer}. ` +
-        `Clients will synchronise their clocks with the new time source on next lease renewal.`
-      );
-    }
-
-    if (formData.dnsUpdateMode !== "Select" && formData.dnsUpdateMode !== prev.dnsUpdateMode) {
-      logs.push(
-        `%DHCP-6-DNSUPDATE_MOD: [${ts}] ${deviceName} — DNS dynamic update mode changed ` +
-        `from "${prev.dnsUpdateMode === "Select" ? "unset" : prev.dnsUpdateMode}" → "${formData.dnsUpdateMode}". ` +
-        `DDNS registration behaviour updated; verify DNS server ACLs permit updates from this device.`
-      );
-    }
-
-    if (formData.conflictDetection !== prev.conflictDetection) {
-      logs.push(
-        formData.conflictDetection
-          ? `%DHCP-5-CONFLICT_DET_ON: [${ts}] ${deviceName} — Conflict detection engine ENABLED. ` +
-            `DHCP server will ping addresses before assignment. Allocation latency increases by ~500ms per offer.`
-          : `%DHCP-5-CONFLICT_DET_OFF: [${ts}] ${deviceName} — Conflict detection engine DISABLED. ` +
-            `Addresses will be allocated without pre-assignment verification.`
-      );
-    }
-
-    if (formData.auditTrail !== prev.auditTrail) {
-      logs.push(
-        formData.auditTrail
-          ? `%DHCP-6-AUDIT_ENABLED: [${ts}] ${deviceName} — DHCP audit trail ENABLED. ` +
-            `All binding events (DISCOVER, OFFER, REQUEST, ACK, RELEASE, DECLINE) will be recorded to syslog.`
-          : `%DHCP-6-AUDIT_DISABLED: [${ts}] ${deviceName} — DHCP audit trail DISABLED. ` +
-            `Binding lifecycle events will no longer be forwarded to the syslog collector.`
-      );
-    }
-
-    // ── Fallback if nothing changed ────────────────────────────────────────
-    if (logs.length === 0) {
-      logs.push(
-        `%DHCP-6-NOP: [${ts}] ${deviceName} @ ${deviceLocation} — DHCP Apply invoked; ` +
-        `no configuration parameters were modified. ` +
-        `Current pool, bindings, and relay settings remain unchanged.`
-      );
-    }
-
-    // ── Dispatch every line to ConsolePanel ────────────────────────────────
     logs.forEach((message) => dispatchLog(deviceName, deviceLocation, message));
-
-    // ── Req #3: Persist state ──────────────────────────────────────────────
-    persistentDHCPState = formData;
-    prevData.current    = formData;
-
     onClose();
   };
 

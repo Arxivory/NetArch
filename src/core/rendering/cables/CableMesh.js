@@ -88,29 +88,36 @@ export default class CableMesh {
     // -------------------------------------------------------------------------
 
     _buildMesh() {
-        const points = this._buildCurvePoints();
+        const points    = this._buildCurvePoints();
         const isPartial = this.resolvedPath?.isPartial ?? false;
+        const color     = isPartial ? 0xf97316 : 0x333333;
 
-        const curve    = new THREE.CatmullRomCurve3(points);
-        const geometry = new THREE.TubeGeometry(curve, 50, 0.1, 8, false);
-
-        // Color coding:
-        //  Orange  (#f97316) — partial route, missing conduit/riser
-        //  Dark grey (#333333) — fully resolved or direct (same space)
-        const color = isPartial ? 0xf97316 : 0x333333;
-        const material = new THREE.MeshBasicMaterial({ color });
-
+        const geometry  = this._buildGeometry(points);
+        const material  = new THREE.MeshBasicMaterial({ color });
         return new THREE.Mesh(geometry, material);
     }
 
-    update() {
-        const points   = this._buildCurvePoints();
-        const isPartial = this.resolvedPath?.isPartial ?? false;
-        const color    = isPartial ? 0xf97316 : 0x333333;
+    _buildGeometry(points) {
+        if (points.length < 2) return new THREE.BufferGeometry();
 
-        const curve = new THREE.CatmullRomCurve3(points);
+        // Use LineCurve3 segments for sharp angular routing
+        const path = new THREE.CurvePath();
+        for (let i = 0; i < points.length - 1; i++) {
+            path.add(new THREE.LineCurve3(points[i], points[i + 1]));
+        }
+
+        // Low tubularSegments per segment keeps it tight and sharp
+        const segments = Math.max(points.length - 1, 1) * 4;
+        return new THREE.TubeGeometry(path, segments, 0.08, 6, false);
+    }
+
+    update() {
+        const points    = this._buildCurvePoints();
+        const isPartial = this.resolvedPath?.isPartial ?? false;
+        const color     = isPartial ? 0xf97316 : 0x333333;
+
         this.mesh.geometry.dispose();
-        this.mesh.geometry = new THREE.TubeGeometry(curve, 50, 0.1, 8, false);
+        this.mesh.geometry = this._buildGeometry(points);
         this.mesh.material.color.setHex(color);
     }
 

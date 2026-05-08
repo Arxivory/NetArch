@@ -416,14 +416,13 @@ export class CableRouteResolver {
     _makeWaypoint(x2d, y2d, floorId, type, id, label) {
         const floor    = this.store.floors.find(f => f.id === floorId);
         const altitude = floor?.altitude || 0;
+
+        const yOffset = (type === 'conduit') ? 1.5 : 2;
+
         return {
-            type,
-            id,
-            label,
-            x2d,
-            y2d,
+            type, id, label, x2d, y2d,
             x:  x2d * this.scaler,
-            y:  altitude + 2,           // +2 matches device height offset in PhysicalController
+            y:  altitude + yOffset,
             z:  y2d * this.scaler,
         };
     }

@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Network, ChevronDown, ChevronRight, Layers, Globe } from "lucide-react";
+import { Network, ChevronDown, ChevronRight, Layers } from "lucide-react";
 import appState from "../../state/AppState";
 
 // ---------------------------------------------------------------------------
@@ -16,54 +16,49 @@ const FALLBACK_INTERFACES = [
 ];
 
 // ---------------------------------------------------------------------------
-// Normalise a raw interface object (from Device.js or a plain data object)
+// Normalise a raw interface object (from Device.js or aain data object)
 // into a consistent shape that InterfaceRow can consume.
 // ---------------------------------------------------------------------------
 function normaliseInterface(raw, index) {
   if (!raw) return null;
 
+  // Support both Device.js Interface instances and plain JS objects
   const id   = raw.id   ?? raw.name ?? `iface-${index}`;
   const name = raw.name ?? raw.label ?? raw.id ?? `Interface ${index}`;
   const desc = raw.description ?? raw.desc ?? "";
 
-  // IPv4
+  // IP — accept both class instances (ipv4.address) and plain objects
   const address    = raw.ipv4?.address    ?? raw.ipAddress  ?? raw.ip   ?? "";
   const subnetMask = raw.ipv4?.subnetMask ?? raw.subnetMask ?? raw.mask ?? "";
+  const ipv6Addr   = raw.ipv6?.address    ?? raw.ipv6Address ?? "";
+  const ipv6Prefix = raw.ipv6?.prefixLength ?? raw.ipv6Prefix ?? "";
 
-  // IPv6
-  const ipv6Address    = raw.ipv6?.address       ?? raw.ipv6Address    ?? "";
-  const ipv6Prefix     = raw.ipv6?.prefixLength   ?? raw.ipv6Prefix     ?? "";
-  const ipv6LinkLocal  = raw.ipv6?.linkLocal      ?? raw.ipv6LinkLocal  ?? "";
-  const ipv6EUI64      = raw.ipv6?.eui64          ?? raw.ipv6EUI64      ?? false;
-
+  // Operational status — Device.js exposes isUp / lineStatus
   const isUp =
     raw.isUp !== undefined ? raw.isUp :
-    raw.status === "up"   ? true      : null;
+    raw.status === "up"   ? true      : null;   // null = unknown
 
-  const isConnected = raw.isConnected ?? false;
-  const connectedTo = raw.connectedTo ?? null;
-
-  return {
-    id, name, desc,
-    address, subnetMask,
-    ipv6Address, ipv6Prefix, ipv6LinkLocal, ipv6EUI64,
-    isUp, isConnected, connectedTo,
-  };
+  return { id, name, desc, address, subnetMask, ipv6Addr, ipv6Prefix, isUp };
 }
 
 // ---------------------------------------------------------------------------
-// InterfaceRow — IPv4 tab
+// InterfaceRow
 // ---------------------------------------------------------------------------
-function InterfaceRowIPv4({ iface, deviceId, deviceName, deviceLocation }) {
+function InterfaceRow({ iface, deviceId, deviceName, deviceLocation, deviceType }) {
   const [open,    setOpen]    = useState(false);
   const [ip,      setIp]      = useState(iface.address);
   const [mask,    setMask]    = useState(iface.subnetMask);
+  const [ipv6,    setIpv6]    = useState(iface.ipv6Addr);
+  const [prefix,  setPrefix]  = useState(iface.ipv6Prefix);
   const [applied, setApplied] = useState(false);
+  const isLayer3Device = deviceType === "router" || deviceType === "switch";
 
   const handleApply = () => {
+    // 1. Persist into NetworkStore so the data survives modal close
     if (deviceId && appState?.network) {
       const device = appState.network.getDevice(deviceId);
       if (device) {
+        // Try the Device.js class method first, fall back to plain object mutation
         const rawIface =
           device._interfaces?.get?.(iface.name) ??
           device._interfaces?.get?.(iface.id)   ??
@@ -77,24 +72,66 @@ function InterfaceRowIPv4({ iface, deviceId, deviceName, deviceLocation }) {
           if (typeof rawIface.configureIPv4 === "function") {
             rawIface.configureIPv4(ip, mask);
           } else {
-            rawIface.ipv4 = { ...(rawIface.ipv4 ?? {}), address: ip, subnetMask: mask };
+            rawIface.ipv4 = {
+              ...(rawIface.ipv4 ?? {}),
+              address:    ip,
+              subnetMask: mask,
+            };
+          }
+          
+          // Maintain legacy flat fields for compatibility across older UI/state integrations.
+          rawIface.ipAddress = ip;
+          rawIface.subnetMask = mask;
+
+          // Configure IPv6 for Layer 3 devices (routers/switches)
+          const parsedPrefix = Number.parseInt(prefix, 10);
+          const hasValidPrefix = Number.isInteger(parsedPrefix) && parsedPrefix >= 1 && parsedPrefix <= 128;
+          if (isLayer3Device && (ipv6 || hasValidPrefix)) {
+            if (typeof rawIface.configureIPv6 === "function") {
+              rawIface.configureIPv6(ipv6, hasValidPrefix ? parsedPrefix : null);
+            } else {
+              rawIface.ipv6 = {
+                ...(rawIface.ipv6 ?? {}),
+                address: ipv6,
+                prefixLength: hasValidPrefix ? parsedPrefix : null,
+              };
+            }
+            rawIface.ipv6Address = ipv6;
+            rawIface.ipv6Prefix = hasValidPrefix ? parsedPrefix : "";
+          } else if (isLayer3Device && !ipv6 && !prefix) {
+            if (typeof rawIface.clearIPConfig === "function") {
+              // Preserve IPv4 while clearing IPv6 on class-based interfaces.
+              rawIface.ipv6 = null;
+            } else {
+              rawIface.ipv6 = null;
+            }
+            rawIface.ipv6Address = "";
+            rawIface.ipv6Prefix = "";
           }
         }
 
+        // Trigger store notification so rest of app stays in sync
         appState.network.updateModified?.();
         appState.network.notify?.();
       }
     }
 
+    // 2. Fire system log events (existing pattern)
     const logs = [];
-    if (ip)   logs.push(`[Interface ${iface.name}] IPv4 Address: ${ip}`);
-    if (mask) logs.push(`[Interface ${iface.name}] Subnet Mask: ${mask}`);
-    if (!logs.length) logs.push(`[Interface ${iface.name}] Applied — no IPv4 parameters configured`);
+    if (ip)      logs.push(`[Interface ${iface.name}] IP Address: ${ip}`);
+    if (mask)    logs.push(`[Interface ${iface.name}] Subnet Mask: ${mask}`);
+    if (isLayer3Device && ipv6) logs.push(`[Interface ${iface.name}] IPv6 Address: ${ipv6}/${prefix}`);
+    if (!logs.length) logs.push(`[Interface ${iface.name}] Applied — no parameters configured`);
 
     logs.forEach((message) =>
       window.dispatchEvent(
         new CustomEvent("add-system-log", {
-          detail: { device: "Router", deviceName, message, location: deviceLocation },
+          detail: {
+            device: deviceType === "switch" ? "Switch" : "Router",
+            deviceName,
+            message,
+            location: deviceLocation,
+          },
         })
       )
     );
@@ -103,47 +140,46 @@ function InterfaceRowIPv4({ iface, deviceId, deviceName, deviceLocation }) {
     setTimeout(() => setApplied(false), 2000);
   };
 
-  const isConfigured = ip || mask;
+  const isConfigured = ip || mask || (isLayer3Device && (ipv6 || prefix));
 
+  // Status dot colour
   const statusColor =
     iface.isUp === true  ? "#22c55e" :
     iface.isUp === false ? "#ef4444" : "#6b7280";
 
   return (
     <div className={`iface-row ${open ? "iface-row--open" : ""}`}>
+
+      {/* ── Row header ── */}
       <button className="iface-header" onClick={() => setOpen((v) => !v)}>
         <span className="iface-chevron">
           {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
         </span>
-        <span className="iface-icon"><Network size={14} /></span>
+        <span className="iface-icon">
+          <Network size={14} />
+        </span>
         <span
           title={iface.isUp === true ? "Up" : iface.isUp === false ? "Down" : "Status unknown"}
           style={{
-            display: "inline-block", width: 8, height: 8,
-            borderRadius: "50%", background: statusColor,
-            marginRight: 6, flexShrink: 0,
+            display:      "inline-block",
+            width:        8,
+            height:       8,
+            borderRadius: "50%",
+            background:   statusColor,
+            marginRight:  6,
+            flexShrink:   0,
           }}
         />
         <span className="iface-label">{iface.name}</span>
         {iface.desc && <span className="iface-desc">{iface.desc}</span>}
-        {iface.isConnected && (
-          <span className="iface-badge iface-badge--connected">connected</span>
-        )}
         {isConfigured && <span className="iface-badge">configured</span>}
       </button>
 
+      {/* ── Expanded config ── */}
       {open && (
         <div className="iface-body">
-          {iface.connectedTo && (
-            <div className="iface-connected-info">
-              <span className="iface-connected-label">↔ Connected to</span>
-              <span className="iface-connected-peer">
-                {iface.connectedTo.deviceName}
-                {iface.connectedTo.portName ? ` / ${iface.connectedTo.portName}` : ""}
-              </span>
-            </div>
-          )}
-          <div className="iface-fields">
+          <div className="iface-fields" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            {/* IPv4 Configuration - Row 1 */}
             <div className="iface-field">
               <span className="iface-field-label">IP Address</span>
               <input
@@ -162,174 +198,33 @@ function InterfaceRowIPv4({ iface, deviceId, deviceName, deviceLocation }) {
                 onChange={(e) => setMask(e.target.value)}
               />
             </div>
+            {/* IPv6 Configuration - Row 2 (Routers / Switches) */}
+            {isLayer3Device && (
+              <>
+                <div className="iface-field">
+                  <span className="iface-field-label">IPv6 Address</span>
+                  <input
+                    className="iface-input"
+                    placeholder="2001:db8::1"
+                    value={ipv6}
+                    onChange={(e) => setIpv6(e.target.value)}
+                  />
+                </div>
+                <div className="iface-field">
+                  <span className="iface-field-label">IPv6 Prefix Length</span>
+                  <input
+                    className="iface-input"
+                    type="number"
+                    placeholder="64"
+                    value={prefix}
+                    onChange={(e) => setPrefix(e.target.value)}
+                    min="1"
+                    max="128"
+                  />
+                </div>
+              </>
+            )}
           </div>
-          <div className="iface-apply-row">
-            <button
-              className={`iface-apply-btn ${applied ? "iface-apply-btn--ok" : ""}`}
-              onClick={handleApply}
-            >
-              {applied ? "✓ Applied" : "Apply Interface"}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// InterfaceRow — IPv6 tab
-// ---------------------------------------------------------------------------
-function InterfaceRowIPv6({ iface, deviceId, deviceName, deviceLocation }) {
-  const [open,    setOpen]    = useState(false);
-  const [addr,    setAddr]    = useState(iface.ipv6Address);
-  const [prefix,  setPrefix]  = useState(iface.ipv6Prefix);
-  const [eui64,   setEui64]   = useState(iface.ipv6EUI64);
-  const [applied, setApplied] = useState(false);
-
-  const handleApply = () => {
-    if (deviceId && appState?.network) {
-      const device = appState.network.getDevice(deviceId);
-      if (device) {
-        const rawIface =
-          device._interfaces?.get?.(iface.name) ??
-          device._interfaces?.get?.(iface.id)   ??
-          (Array.isArray(device.interfaces)
-            ? device.interfaces.find(
-                i => (i.id ?? i.name) === iface.id || i.name === iface.name
-              )
-            : null);
-
-        if (rawIface) {
-          if (typeof rawIface.configureIPv6 === "function") {
-            rawIface.configureIPv6(addr, prefix, eui64);
-          } else {
-            rawIface.ipv6 = {
-              ...(rawIface.ipv6 ?? {}),
-              address: addr,
-              prefixLength: prefix,
-              eui64,
-            };
-          }
-        }
-
-        appState.network.updateModified?.();
-        appState.network.notify?.();
-      }
-    }
-
-    const logs = [];
-    if (addr)   logs.push(`[Interface ${iface.name}] IPv6 Address: ${addr}/${prefix || "?"}`);
-    if (eui64)  logs.push(`[Interface ${iface.name}] EUI-64 enabled`);
-    if (!logs.length) logs.push(`[Interface ${iface.name}] Applied — no IPv6 parameters configured`);
-
-    logs.forEach((message) =>
-      window.dispatchEvent(
-        new CustomEvent("add-system-log", {
-          detail: { device: "Router", deviceName, message, location: deviceLocation },
-        })
-      )
-    );
-
-    setApplied(true);
-    setTimeout(() => setApplied(false), 2000);
-  };
-
-  const isConfigured = addr || prefix;
-
-  const statusColor =
-    iface.isUp === true  ? "#22c55e" :
-    iface.isUp === false ? "#ef4444" : "#6b7280";
-
-  return (
-    <div className={`iface-row ${open ? "iface-row--open" : ""}`}>
-      <button className="iface-header" onClick={() => setOpen((v) => !v)}>
-        <span className="iface-chevron">
-          {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-        </span>
-        <span className="iface-icon"><Globe size={14} /></span>
-        <span
-          title={iface.isUp === true ? "Up" : iface.isUp === false ? "Down" : "Status unknown"}
-          style={{
-            display: "inline-block", width: 8, height: 8,
-            borderRadius: "50%", background: statusColor,
-            marginRight: 6, flexShrink: 0,
-          }}
-        />
-        <span className="iface-label">{iface.name}</span>
-        {iface.desc && <span className="iface-desc">{iface.desc}</span>}
-        {iface.isConnected && (
-          <span className="iface-badge iface-badge--connected">connected</span>
-        )}
-        {isConfigured && <span className="iface-badge">configured</span>}
-      </button>
-
-      {open && (
-        <div className="iface-body">
-          {iface.connectedTo && (
-            <div className="iface-connected-info">
-              <span className="iface-connected-label">↔ Connected to</span>
-              <span className="iface-connected-peer">
-                {iface.connectedTo.deviceName}
-                {iface.connectedTo.portName ? ` / ${iface.connectedTo.portName}` : ""}
-              </span>
-            </div>
-          )}
-
-          <div className="iface-fields">
-            <div className="iface-field">
-              <span className="iface-field-label">IPv6 Address</span>
-              <input
-                className="iface-input"
-                placeholder="2001:db8::1"
-                value={addr}
-                onChange={(e) => setAddr(e.target.value)}
-              />
-            </div>
-            <div className="iface-field">
-              <span className="iface-field-label">Prefix Length</span>
-              <input
-                className="iface-input"
-                placeholder="64"
-                value={prefix}
-                onChange={(e) => setPrefix(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Link-local — read-only, auto-derived by router */}
-          {iface.ipv6LinkLocal && (
-            <div className="iface-fields">
-              <div className="iface-field">
-                <span className="iface-field-label">Link-Local</span>
-                <input
-                  className="iface-input iface-input--readonly"
-                  value={iface.ipv6LinkLocal}
-                  readOnly
-                  title="Auto-assigned by the router; not editable here"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* EUI-64 toggle */}
-          <div className="iface-fields">
-            <div className="iface-field iface-field--row">
-              <label className="iface-toggle" htmlFor={`eui64-${iface.id}`}>
-                <input
-                  id={`eui64-${iface.id}`}
-                  type="checkbox"
-                  checked={eui64}
-                  onChange={(e) => setEui64(e.target.checked)}
-                />
-                <span className="iface-toggle-track" />
-                <span className="iface-field-label" style={{ marginLeft: 8 }}>
-                  EUI-64 (auto-generate interface ID)
-                </span>
-              </label>
-            </div>
-          </div>
-
           <div className="iface-apply-row">
             <button
               className={`iface-apply-btn ${applied ? "iface-apply-btn--ok" : ""}`}
@@ -351,91 +246,29 @@ export default function InterfaceModal({
   onClose,
   deviceName     = "Router",
   deviceLocation = "Network",
-  device         = null,
+  device         = null,          // ← the selectedEntity passed from PropertiesPanel
+  deviceType     = "router",      // ← device type (router, switch, etc.)
 }) {
-  // "ipv4" | "ipv6"
-  const [activeTab, setActiveTab] = useState("ipv4");
-
+  // Derive the canonical interface list from the live device object.
+  // Priority:
+  //   1. device._interfaces  (Device.js Map — most authoritative)
+  //   2. device.interfaces   (plain Array on serialised/store objects)
+  //   3. FALLBACK_INTERFACES (sensible defaults when nothing is registered)
   const interfaces = useMemo(() => {
-    const rawList = [];
-    const seen    = new Set();
+    if (!device) return FALLBACK_INTERFACES.map(normaliseInterface);
 
-    const push = (raw, idx) => {
-      if (!raw) return;
-      const key = raw.name ?? raw.id ?? raw.label ?? `iface-${idx}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      rawList.push(raw);
-    };
-
-    if (device) {
-      if (device._interfaces instanceof Map && device._interfaces.size > 0) {
-        [...device._interfaces.values()].forEach(push);
-      }
-      if (device._ports instanceof Map && device._ports.size > 0) {
-        [...device._ports.values()].forEach(push);
-      }
-      if (Array.isArray(device.interfaces) && device.interfaces.length > 0) {
-        device.interfaces.forEach(push);
-      }
+    // Device.js class instances expose ._interfaces as a Map
+    if (device._interfaces instanceof Map && device._interfaces.size > 0) {
+      return [...device._interfaces.values()].map(normaliseInterface).filter(Boolean);
     }
 
-    if (rawList.length === 0) {
-      return FALLBACK_INTERFACES.map(normaliseInterface).filter(Boolean);
+    // Plain array (store objects, serialised JSON)
+    if (Array.isArray(device.interfaces) && device.interfaces.length > 0) {
+      return device.interfaces.map(normaliseInterface).filter(Boolean);
     }
 
-    const connMap  = new Map();
-    const deviceId = device?.id;
-    if (deviceId && appState?.network) {
-      const links   = appState.network.getAllLinks?.()   ?? appState.network.links   ?? [];
-      const devices = appState.network.getAllDevices?.() ?? appState.network.devices ?? [];
-
-      const resolveDevice = (id) => devices.find(d => d.id === id);
-
-      for (const link of links) {
-        const srcId   = link.sourcePort?.id ?? "";
-        const tgtId   = link.targetPort?.id ?? "";
-        const [srcDev, srcPort] = srcId.split("::");
-        const [tgtDev, tgtPort] = tgtId.split("::");
-
-        if (srcDev === deviceId && srcPort) {
-          const peer     = resolveDevice(tgtDev);
-          const peerName = peer?.hostname ?? peer?.label ?? peer?.name ?? tgtDev ?? "Unknown";
-          connMap.set(srcPort, { deviceName: peerName, portName: tgtPort ?? "" });
-        }
-        if (tgtDev === deviceId && tgtPort) {
-          const peer     = resolveDevice(srcDev);
-          const peerName = peer?.hostname ?? peer?.label ?? peer?.name ?? srcDev ?? "Unknown";
-          connMap.set(tgtPort, { deviceName: peerName, portName: srcPort ?? "" });
-        }
-
-        if (link.sourceId === deviceId && link.sourcePort && typeof link.sourcePort === "string") {
-          const peer     = resolveDevice(link.targetId);
-          const peerName = peer?.hostname ?? peer?.label ?? peer?.name ?? link.targetId ?? "Unknown";
-          connMap.set(link.sourcePort, { deviceName: peerName, portName: link.targetPort ?? "" });
-        }
-        if (link.targetId === deviceId && link.targetPort && typeof link.targetPort === "string") {
-          const peer     = resolveDevice(link.sourceId);
-          const peerName = peer?.hostname ?? peer?.label ?? peer?.name ?? link.sourceId ?? "Unknown";
-          connMap.set(link.targetPort, { deviceName: peerName, portName: link.sourcePort ?? "" });
-        }
-      }
-    }
-
-    return rawList
-      .map((raw, idx) => {
-        const norm = normaliseInterface(raw, idx);
-        if (!norm) return null;
-        const conn     = connMap.get(norm.name) ?? connMap.get(norm.id) ?? null;
-        const occupied = raw.isOccupied === true;
-        return {
-          ...norm,
-          isConnected: conn !== null || occupied,
-          connectedTo: conn,
-          isUp: norm.isUp !== null ? norm.isUp : (conn !== null || occupied ? true : null),
-        };
-      })
-      .filter(Boolean);
+    // No interfaces found — use fallback defaults
+    return FALLBACK_INTERFACES.map(normaliseInterface);
   }, [device]);
 
   const deviceId = device?.id ?? null;
@@ -452,27 +285,11 @@ export default function InterfaceModal({
           </div>
 
           <div className="nav-list">
-            {/* IPv4 tab */}
-            <button
-              className={`nav-item ${activeTab === "ipv4" ? "active" : ""}`}
-              onClick={() => setActiveTab("ipv4")}
-            >
+            <button className="nav-item active">
               <div className="nav-icon"><Network size={16} /></div>
               <div className="nav-text">
-                <strong>IPv4</strong>
+                <strong>Interfaces</strong>
                 <p>IP, mask &amp; gateway</p>
-              </div>
-            </button>
-
-            {/* IPv6 tab */}
-            <button
-              className={`nav-item ${activeTab === "ipv6" ? "active" : ""}`}
-              onClick={() => setActiveTab("ipv6")}
-            >
-              <div className="nav-icon"><Globe size={16} /></div>
-              <div className="nav-text">
-                <strong>IPv6</strong>
-                <p>Address &amp; prefix</p>
               </div>
             </button>
           </div>
@@ -481,9 +298,7 @@ export default function InterfaceModal({
         {/* ── MAIN ────────────────────────────────────────────────────── */}
         <div className="nat-main-content">
           <div className="modal-header-clean">
-            <h3>
-              {activeTab === "ipv4" ? "IPv4 INTERFACE SETTINGS" : "IPv6 INTERFACE SETTINGS"}
-            </h3>
+            <h3>INTERFACE SETTINGS</h3>
             <button className="close-btn-mono" onClick={onClose}>×</button>
           </div>
 
@@ -493,32 +308,20 @@ export default function InterfaceModal({
                 {deviceName} — {interfaces.length} Interface{interfaces.length !== 1 ? "s" : ""}
               </p>
               <p className="iface-hint">
-                {activeTab === "ipv4"
-                  ? "Select an interface to configure its IPv4 network parameters."
-                  : "Select an interface to configure its IPv6 address and prefix length."}
+                Select an interface to configure its network parameters.
               </p>
 
               <div className="iface-list">
-                {activeTab === "ipv4"
-                  ? interfaces.map((iface) => (
-                      <InterfaceRowIPv4
-                        key={iface.id}
-                        iface={iface}
-                        deviceId={deviceId}
-                        deviceName={deviceName}
-                        deviceLocation={deviceLocation}
-                      />
-                    ))
-                  : interfaces.map((iface) => (
-                      <InterfaceRowIPv6
-                        key={iface.id}
-                        iface={iface}
-                        deviceId={deviceId}
-                        deviceName={deviceName}
-                        deviceLocation={deviceLocation}
-                      />
-                    ))
-                }
+                {interfaces.map((iface) => (
+                  <InterfaceRow
+                    key={iface.id}
+                    iface={iface}
+                    deviceId={deviceId}
+                    deviceName={deviceName}
+                    deviceLocation={deviceLocation}
+                    deviceType={deviceType}
+                  />
+                ))}
               </div>
             </div>
           </div>

@@ -59,7 +59,6 @@ const handleRowClick = (e) => {
     if (node.floorId) {
       appState.ui.setActiveFloor(node.floorId);
     }
-    console.log("ITs a space " + node.type + " Active Floor: " + appState.ui.getActiveFloor());
   } else {
     appState.ui.setActiveFloor(null);
   }

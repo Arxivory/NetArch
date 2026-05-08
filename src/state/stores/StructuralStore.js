@@ -364,17 +364,57 @@ export class StructuralStore {
     }
 
     getAncestorsId() {
-        if (appState.selection.focusedType === 'domain'){
+        if (appState.selection.focusedType === 'domain') {
             return [];
         }
         const parentID = appState.selection.getFocusedId();
         const ancestorsId = [parentID];
         let ancestor = this.getById(parentID);
-        while (ancestor.getParentId){
+        while (ancestor.getParentId) {
             ancestor = this.getById(ancestor.getParentId());
             ancestorsId.push(ancestor.id);
         }
         return ancestorsId;
+    }
+
+    getDescendantIds() { //gets all structures, doors, windows and walls id of the focused structure
+        const ancestorId = appState.selection.getFocusedId();
+        const ancestorType = appState.selection.focusedType;
+
+        const sitesByDomain = Map.groupBy(this.sites, s => s.domainId);
+        const floorsBySite = Map.groupBy(this.floors, f => f.siteId);
+        const spacesByFloor = Map.groupBy(this.spaces, sp => sp.floorId);
+        const doorsByFloor = Map.groupBy(this.doors, d => d.floorId);
+        const windowsByFloor = Map.groupBy(this.windows, w => w.floorId);
+        const wallsByFloor = Map.groupBy(this.walls, w => w.floorId);
+
+        const ids = new Set();
+
+        const collectFromDomain = (domainId) => {
+            for (const site of sitesByDomain.get(domainId) ?? []) {
+                ids.add(site.id);
+                collectFromSite(site.id);
+            }
+        };
+
+        const collectFromSite = (siteId) => {
+            for (const floor of floorsBySite.get(siteId) ?? []) {
+                ids.add(floor.id);
+                collectFromFloor(floor.id);
+            }
+        };
+
+        const collectFromFloor = (floorId) => {
+            for (const space of spacesByFloor.get(floorId) ?? []) ids.add(space.id);
+            for (const door of doorsByFloor.get(floorId) ?? []) ids.add(door.id);
+            for (const window of windowsByFloor.get(floorId) ?? []) ids.add(window.id);
+            for (const wall of wallsByFloor.get(floorId) ?? []) ids.add(wall.id);
+        };
+
+        if (ancestorType === 'domain') collectFromDomain(ancestorId);
+        else if (ancestorType === 'site') collectFromSite(ancestorId);
+        else if (ancestorType === 'floor') collectFromFloor(ancestorId);
+        return ids;
     }
 
     getById(targetId) {

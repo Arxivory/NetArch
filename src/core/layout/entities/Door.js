@@ -68,7 +68,9 @@ export class Door {
     }
 
     updatePath() {
-        this.initPath();
+        const path = new Path2D();
+        path.rect(this.x, this.y, this.transform.scale.w, this.transform.scale.h);
+        this.path = path;
     }
 
     setWidthAndHeight(w, h) {

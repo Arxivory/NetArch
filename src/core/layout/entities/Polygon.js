@@ -14,6 +14,7 @@ export class Polygon {
         this.type = 'polygon';
         this.structureType = structureType;
         this.hitTestMode = 'path';
+        this.isTransformed = false;
         this.initPath(points);
         this.initBody();
         this.initTransform();
@@ -198,6 +199,13 @@ export class Polygon {
             }
         });
         return overlapping;
+    }
+
+    setIsTransformed( bool){
+        if (typeof bool !== 'boolean'){
+            return;
+        }
+        this.isTransformed = bool;
     }
 }
 

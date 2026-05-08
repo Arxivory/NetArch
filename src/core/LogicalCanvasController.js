@@ -464,7 +464,7 @@ export class LogicalCanvasController {
 
     shape.floorId = resolvedFloorId;
     if (shape.body) {
-      shape.body.floorId = resolvedFloorId;  
+      shape.body.floorId = resolvedFloorId;
       shape.body.structType = structureType;
     }
 
@@ -671,11 +671,11 @@ export class LogicalCanvasController {
     const skipCanvasMove = options.skipCanvasMove === true;
     const skipBounds = options.skipBounds === true;
 
-    if (!skipBounds && !this._isStructuralMoveWithinBounds(structure, shapeType, dx, dy)) {
+    if (!skipBounds && !this._isStructuralMoveWithinBounds(structure, shapeType, dx, dy)) { //wtf is this method
       return false;
     }
 
-    const moveItem = (item) => {
+    const moveItem = (item) => { //incorrect move of struct
       if (!item) return;
       if (item.geometry) {
         item.geometry.x = Number(item.geometry.x) + dx;
@@ -1726,8 +1726,9 @@ export class LogicalCanvasController {
   }
 
   _handleWindowCreated(windowData) {
+    console.log("WINDOw CREATED WITH", windowData);
     const activeSpaceId = appState.selection.focusedId;
-    const activeFloorId = appState.ui?.activeFloorId;
+    const activeFloorId = appState.structural.spaces.find(s => s.id === activeSpaceId)?.floorId;
     if ((activeFloorId || activeSpaceId) && appState.structural.addWindow) {
       console.log('🚪 Persisting Window:', windowData);
       appState.structural.addWindow({ ...windowData, floorId: activeFloorId, spaceId: activeSpaceId });
@@ -1913,88 +1914,140 @@ export class LogicalCanvasController {
           return;
         }
       }
+    }
 
-      if (isDevice) {
-        const persistedDevice = appState.network?.getDevice?.(en.id);
+    if (isDevice) {
+      const persistedDevice = appState.network?.getDevice?.(en.id);
 
-        if (persistedDevice) {
-          const centerX = en.tileX + (en.tileWidth / 2);
-          const centerY = en.tileY + (en.tileHeight / 2);
+      if (persistedDevice) {
+        const centerX = en.tileX + (en.tileWidth / 2);
+        const centerY = en.tileY + (en.tileHeight / 2);
 
-          appState.network.updateDevice(en.id, {
-            floorId: en.floorId ?? persistedDevice.floorId ?? null,
-            spaceId: en.spaceId ?? persistedDevice.spaceId ?? null,
-            transform: {
-              ...persistedDevice.transform,
-              position: {
-                ...persistedDevice.transform.position,
-                x: centerX,
-                y: centerY
-              }
+        appState.network.updateDevice(en.id, {
+          floorId: en.floorId ?? persistedDevice.floorId ?? null,
+          spaceId: en.spaceId ?? persistedDevice.spaceId ?? null,
+          transform: {
+            ...persistedDevice.transform,
+            position: {
+              ...persistedDevice.transform.position,
+              x: centerX,
+              y: centerY
             }
-          });
-        }
-
-        appState.selection.notify?.();
-        return;
-      }
-
-
-      // Debug: Log movement
-      if ((dx !== 0 || dy !== 0) && en.structureType) {
-        console.log(`🚀 Moving ${en.structureType} canvas entity (${en.id}) by dx=${dx}, dy=${dy}`);
-        console.log(`   Canvas entity object:`, en);
-        console.log(`   Current position: x=${en.x}, y=${en.y}`);
-      }
-
-      // Only process children if the parent actually moved
-      if (dx !== 0 || dy !== 0) {
-        const st = appState.structural;
-        let shapeType = null;
-        let shapeObj = null;
-
-        // CRITICAL: Convert canvas entity ID to structural entity ID using mapping
-        const structuralId = this.entityIdMap.get(en.id);
-        console.log(`🔄 Converting canvas id(${en.id}) -> structural id(${structuralId})`);
-
-        if (st.domains && st.domains.some(d => d.id === structuralId)) {
-          shapeType = 'domain';
-          shapeObj = st.domains.find(d => d.id === structuralId);
-          console.log(`✅ Found Domain: ${shapeObj?.id}`);
-        }
-        else if (st.sites && st.sites.some(s => s.id === structuralId)) {
-          shapeType = 'site';
-          shapeObj = st.sites.find(s => s.id === structuralId);
-          console.log(`✅ Found Site: ${shapeObj?.id}`);
-        }
-        else if (st.floors && st.floors.some(f => f.id === structuralId)) {
-          shapeType = 'floor';
-          shapeObj = st.floors.find(f => f.id === structuralId);
-          console.log(`✅ Found Floor: ${shapeObj?.id}`);
-        }
-        else if (st.spaces && st.spaces.some(s => s.id === structuralId)) {
-          shapeType = 'space';
-          shapeObj = st.spaces.find(s => s.id === structuralId);
-          console.log(`✅ Found Space: ${shapeObj?.id}`);
-        }
-
-        if (shapeObj) {
-          const success = this.applyStructuralMove(structuralId, shapeType, dx, dy, { skipCanvasMove: true });
-          if (success) {
-            this._recordPendingMove(structuralId, { kind: 'structure', structureType: shapeType });
           }
-        } else if (appState.network && typeof appState.getDevice === 'function') {
-          const deviceId = this.entityIdMap.get(en.id) || en.id;
-          const device = appState.getDevice(deviceId);
-          if (device) {
-            this.applyDeviceMove(deviceId, dx, dy, { skipCanvasMove: true });
-            this._recordPendingMove(deviceId, { kind: 'device' });
-          }
-        }
+        });
       }
 
-      appState.selection.notify();
+      appState.selection.notify?.();
+      return;
+    }
+
+
+    // // Debug: Log movement
+    // if ((dx !== 0 || dy !== 0) && en.structureType) {
+    //   console.log(`🚀 Moving ${en.structureType} canvas entity (${en.id}) by dx=${dx}, dy=${dy}`);
+    //   console.log(`   Canvas entity object:`, en);
+    //   console.log(`   Current position: x=${en.x}, y=${en.y}`);
+    // }
+
+    // // Only process children if the parent actually moved
+    // if (dx !== 0 || dy !== 0) {
+    //   const st = appState.structural;
+    //   let shapeType = null;
+    //   let shapeObj = null;
+
+    //   // CRITICAL: Convert canvas entity ID to structural entity ID using mapping
+    //   const structuralId = this.entityIdMap.get(en.id);
+    //   console.log(`🔄 Converting canvas id(${en.id}) -> structural id(${structuralId})`);
+
+    //   if (st.domains && st.domains.some(d => d.id === structuralId)) {
+    //     shapeType = 'domain';
+    //     shapeObj = st.domains.find(d => d.id === structuralId);
+    //     console.log(`✅ Found Domain: ${shapeObj?.id}`);
+    //   }
+    //   else if (st.sites && st.sites.some(s => s.id === structuralId)) {
+    //     shapeType = 'site';
+    //     shapeObj = st.sites.find(s => s.id === structuralId);
+    //     console.log(`✅ Found Site: ${shapeObj?.id}`);
+    //   }
+    //   else if (st.floors && st.floors.some(f => f.id === structuralId)) {
+    //     shapeType = 'floor';
+    //     shapeObj = st.floors.find(f => f.id === structuralId);
+    //     console.log(`✅ Found Floor: ${shapeObj?.id}`);
+    //   }
+    //   else if (st.spaces && st.spaces.some(s => s.id === structuralId)) {
+    //     shapeType = 'space';
+    //     shapeObj = st.spaces.find(s => s.id === structuralId);
+    //     console.log(`✅ Found Space: ${shapeObj?.id}`);
+    //   }
+    if (moved && en.structureType) {
+      const structural = appState.structural;
+      const structEn = structural.getById(en.id);
+      if (structEn !== undefined) {
+        const descendantsId = structural.getDescendantIds();
+        console.log(descendantsId);
+        const movedChildrenEntities = this.layout.makeChildrenMoveAlongWithParent(descendantsId, dx, dy);
+        for (const child of movedChildrenEntities) {
+          this.syncGeometry(child);
+        }
+      }
+    }
+
+
+    // if (shapeObj) {
+    //   const success = this.applyStructuralMove(structuralId, shapeType, dx, dy, { skipCanvasMove: true });
+    //   if (success) {
+    //     this._recordPendingMove(structuralId, { kind: 'structure', structureType: shapeType });
+    //   }
+    // }
+    // else if (appState.network && typeof appState.getDevice === 'function') {
+    //   const deviceId = this.entityIdMap.get(en.id) || en.id;
+    //   const device = appState.getDevice(deviceId);
+    //   if (device) {
+    //     this.applyDeviceMove(deviceId, dx, dy, { skipCanvasMove: true });
+    //     this._recordPendingMove(deviceId, { kind: 'device' });
+    //   }
+    // }
+
+
+
+    appState.selection.notify();
+  }
+
+  syncGeometry(entity) {
+    console.log("We are at ", entity.id);
+    const structuralEntity = appState.structural.getById(entity.id);
+    switch (entity.type) {
+      case 'wall':
+        Object.assign(structuralEntity.geometry, {
+          start: { x: entity.x, y: entity.y },
+          end: { x: entity.x2, y: entity.y2 }
+        });
+        break;
+
+      case 'door':
+      case 'window':
+        
+        Object.assign(structuralEntity.geometry, {
+          x: entity.x,
+          y: entity.y,
+          width: entity.w,
+          height: entity.h
+        });
+        break;
+      default:
+        Object.assign(structuralEntity.geometry, {
+          x: entity.x,
+          y: entity.y,
+          maxX: entity.maxX,
+          maxY: entity.maxY,
+          w: entity.w,
+          h: entity.h,
+          radius: entity.r ?? 0,
+          points: entity.points ? [...entity.points] : []
+        });
+        break;
     }
   }
 }
+
 export default LogicalCanvasController;

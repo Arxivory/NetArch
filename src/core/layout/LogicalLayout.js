@@ -39,7 +39,7 @@ export class LogicalLayout {
       onDeviceAdded: opts.onDeviceAdded || null,
       onWallCreated: opts.onWallCreated || null,
       onDoorCreated: opts.onDoorCreated || null,
-      onWindowCreated: opts.onWindowCreated || null,
+      //onWindowCreated: opts.onWindowCreated || null,
       onCableCreated: opts.onCableCreated || null,
       system: this.system
     });
@@ -933,6 +933,8 @@ export class LogicalLayout {
         const dx = p.x - this.interaction.start.x;
         const dy = p.y - this.interaction.start.y;
 
+        en.setIsTransformed(true);
+
         if (this.interaction.mode === "move") {
           if (this._isDeviceEntity(en) || this._isFurnitureEntity(en)) {
             const clamped = this._clampMovementWithinParent(en, dx, dy);
@@ -991,9 +993,7 @@ export class LogicalLayout {
         }
 
         this.interaction.start = { x: p.x, y: p.y };
-        const shouldSyncDuringDrag = !!en.structureType; // ADDED: only structural parents need live sync while dragging so children follow immediately
-
-        if (shouldSyncDuringDrag && this.onEntityChanged) {
+        if (en.isTransformed) {
           this.onEntityChanged(en, dx, dy); // CHANGED: defer device persistence until pointerup for smoother dragging
         }
 
@@ -1169,11 +1169,10 @@ export class LogicalLayout {
       const actualDy = hasSavedPosition
         ? this.selectedEntity.y - this.selectedEntity.savedPosition.y
         : restoreDy;
-      const entityChanged = actualDx > 0 || actualDy > 0 || this.selectedEntity.transform.scale.factor !== 1;
 
-      if (entityChanged) {
-        this.onEntityChanged(this.selectedEntity, actualDx, actualDy); // CHANGED: commit device move/resize only once at drag end
-      }
+      // if (this.selectedEntity.isTransformed) {
+      //   this.onEntityChanged(this.selectedEntity, actualDx, actualDy); // CHANGED: commit device move/resize only once at drag end
+      // }
       if (this.mode === 'select') {
         console.log(this.selectedEntity);
         this.onEntitySelected(this.selectedEntity);
@@ -1251,8 +1250,6 @@ export class LogicalLayout {
         appState.selection.focusedType === 'Space')
         ? appState.selection.focusedId
         : null;
-
-    console.log('The Active Space is: ', activeSpace);
     const focusedId = appState.selection.focusedId;
 
     if (this.mode === 'rectangle') {
@@ -1467,39 +1464,11 @@ export class LogicalLayout {
 
     this.shapeRenderer.renderRectangles(ctx, filterForFloor(this.rectangles));
     this.shapeRenderer.renderPolygons(ctx, filterForFloor(this.polygons));
-    this.shapeRenderer.renderFreeforms(ctx, this.freeforms);
+    this.shapeRenderer.renderFreeforms(ctx, filterForFloor(this.freeforms));
     this.shapeRenderer.renderCircles(ctx, filterForFloor(this.circles));
     this.shapeRenderer.renderWalls(ctx, filterForFloor(this.walls));
-
-    const visibleDoors = filterForFloor(this.doors);
-    ctx.save();
-    ctx.strokeStyle = '#334155';
-    ctx.fillStyle = 'rgba(148, 163, 184, 0.2)';
-    ctx.lineWidth = 2;
-    for (const door of visibleDoors) {
-      if (door.path) {
-        ctx.fill(door.path);
-        ctx.stroke(door.path);
-      }
-    }
-    ctx.restore();
-
-    this.shapeRenderer.renderDoors?.(ctx, visibleDoors);
-
-    const visibleWindows = filterForFloor(this.windows);
-    ctx.save();
-    ctx.strokeStyle = '#c6e0ff';
-    ctx.fillStyle = 'rgb(200, 223, 255)';
-    ctx.lineWidth = 2;
-    for (const window of visibleWindows) {
-      if (window.path) {
-        ctx.fill(window.path);
-        ctx.stroke(window.path);
-      }
-    }
-    ctx.restore();
-
-    this.shapeRenderer.renderDoors?.(ctx, visibleWindows);
+    this.shapeRenderer.renderDoors(ctx, filterForFloor(this.doors));
+    this.shapeRenderer.renderWindows(ctx, filterForFloor(this.windows));
 
     this._renderDeviceCables(ctx, activeFloor);
 
@@ -2371,6 +2340,19 @@ export class LogicalLayout {
     const dy = py - yy;
 
     return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  makeChildrenMoveAlongWithParent(childrenId, dx, dy) {
+    let movedChildren = [];
+    for (const id of childrenId) {
+      const child = this.findEntityById(id) ?? {id: id};
+      movedChildren.push(child);
+      if (typeof child.move !== 'function') {
+        continue;
+      }
+      child.move(dx, dy);
+    }
+    return movedChildren;
   }
 
   _checkForOverlap(currentEntity, action) {

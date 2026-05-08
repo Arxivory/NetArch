@@ -14,6 +14,7 @@ export class Circle {
         this.type = 'circle';
         this.structureType = structureType;
         this.hitTestMode = 'path';
+        this.isTransformed = false;
         this.initPath();
         this.initBody();
         this.initTransform();
@@ -96,22 +97,29 @@ export class Circle {
             if (other !== this.body) {
                 const otherFloorId = other.b?.floorId ?? null;
                 const currentFloorId = floorId ?? null;
-                
+
                 if (!other.b.structType) {
                     overlapping = other.b && otherFloorId === currentFloorId;
                 }
-                if (other.a.structType === other.b.structType){
+                if (other.a.structType === other.b.structType) {
                     overlapping = true;
                 }
-                if (currentFloorId !== otherFloorId){
+                if (currentFloorId !== otherFloorId) {
                     overlapping = false;
                 }
-                if (ancestorsId.includes(other.b.id)){
+                if (ancestorsId.includes(other.b.id)) {
                     overlapping = false;
                 }
             }
-        }); 
+        });
         return overlapping;
+    }
+    
+    setIsTransformed( bool){
+        if (typeof bool !== 'boolean'){
+            return;
+        }
+        this.isTransformed = bool;
     }
 }
 

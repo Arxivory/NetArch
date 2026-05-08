@@ -111,11 +111,11 @@ export class ShapeRenderer {
 
       let fontSize = 12;
       ctx.font = `${fontSize}px sans-serif`;
-      
+
       // Shrink font size dynamically until the text fits the max width (minimum 6px)
       while (ctx.measureText(labelText).width > maxWidth && fontSize > 6) {
-          fontSize -= 0.5;
-          ctx.font = `${fontSize}px sans-serif`;
+        fontSize -= 0.5;
+        ctx.font = `${fontSize}px sans-serif`;
       }
 
       ctx.fillStyle = '#000000';
@@ -126,7 +126,7 @@ export class ShapeRenderer {
   }
 
 
-renderFurnitures(ctx, furnitures) {
+  renderFurnitures(ctx, furnitures) {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.lineWidth = 1;
@@ -161,15 +161,42 @@ renderFurnitures(ctx, furnitures) {
 
       let fontSize = 12;
       ctx.font = `${fontSize}px sans-serif`;
-      
+
       // Shrink font size dynamically until the text fits
       while (ctx.measureText(labelText).width > maxWidth && fontSize > 6) {
-          fontSize -= 0.5;
-          ctx.font = `${fontSize}px sans-serif`;
+        fontSize -= 0.5;
+        ctx.font = `${fontSize}px sans-serif`;
       }
 
       ctx.fillStyle = '#000000';
       ctx.fillText(labelText, dev.x, dev.y + halfSize + 14);
+    }
+    ctx.restore();
+  }
+
+  renderDoors(ctx, doors) {
+    ctx.save();
+    ctx.strokeStyle = '#334155';
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.2)';
+    ctx.lineWidth = 2;
+    for (const door of doors) {
+      door.updatePath();
+      ctx.fill(door.path);
+      ctx.stroke(door.path);
+
+    }
+    ctx.restore();
+  }
+
+  renderWindows(ctx, windows) {
+    ctx.save();
+    ctx.strokeStyle = '#c6e0ff';
+    ctx.fillStyle = 'rgb(200, 223, 255)';
+    ctx.lineWidth = 2;
+    for (const window of windows) {
+      window.updatePath();
+      ctx.fill(window.path);
+      ctx.stroke(window.path);
     }
     ctx.restore();
   }

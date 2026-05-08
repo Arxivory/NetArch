@@ -13,6 +13,7 @@ export class Rectangle {
         this.type = 'rectangle';
         this.structureType = structureType;
         this.hitTestMode = 'path';
+        this.isTransformed = false;
         this.initPath();
         this.initBody();
         this.initTransform();
@@ -138,6 +139,13 @@ export class Rectangle {
             }
         });
         return overlapping;
+    }
+
+    setIsTransformed( bool){
+        if (typeof bool !== 'boolean'){
+            return;
+        }
+        this.isTransformed = bool;
     }
 }
 

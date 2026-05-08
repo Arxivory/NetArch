@@ -16,7 +16,7 @@ const FALLBACK_INTERFACES = [
 ];
 
 // ---------------------------------------------------------------------------
-// Normalise a raw interface object (from Device.js or a plain data object)
+// Normalise a raw interface object (from Device.js or aain data object)
 // into a consistent shape that InterfaceRow can consume.
 // ---------------------------------------------------------------------------
 function normaliseInterface(raw, index) {
@@ -51,7 +51,7 @@ function InterfaceRow({ iface, deviceId, deviceName, deviceLocation, deviceType 
   const [ipv6,    setIpv6]    = useState(iface.ipv6Addr);
   const [prefix,  setPrefix]  = useState(iface.ipv6Prefix);
   const [applied, setApplied] = useState(false);
-  const isSwitch = deviceType === 'switch';
+  const isLayer3Device = deviceType === "router" || deviceType === "switch";
 
   const handleApply = () => {
     // 1. Persist into NetworkStore so the data survives modal close
@@ -79,17 +79,34 @@ function InterfaceRow({ iface, deviceId, deviceName, deviceLocation, deviceType 
             };
           }
           
-          // Configure IPv6 for switches
-          if (isSwitch && (ipv6 || prefix)) {
+          // Maintain legacy flat fields for compatibility across older UI/state integrations.
+          rawIface.ipAddress = ip;
+          rawIface.subnetMask = mask;
+
+          // Configure IPv6 for Layer 3 devices (routers/switches)
+          const parsedPrefix = Number.parseInt(prefix, 10);
+          const hasValidPrefix = Number.isInteger(parsedPrefix) && parsedPrefix >= 1 && parsedPrefix <= 128;
+          if (isLayer3Device && (ipv6 || hasValidPrefix)) {
             if (typeof rawIface.configureIPv6 === "function") {
-              rawIface.configureIPv6(ipv6, parseInt(prefix));
+              rawIface.configureIPv6(ipv6, hasValidPrefix ? parsedPrefix : null);
             } else {
               rawIface.ipv6 = {
                 ...(rawIface.ipv6 ?? {}),
                 address: ipv6,
-                prefixLength: parseInt(prefix),
+                prefixLength: hasValidPrefix ? parsedPrefix : null,
               };
             }
+            rawIface.ipv6Address = ipv6;
+            rawIface.ipv6Prefix = hasValidPrefix ? parsedPrefix : "";
+          } else if (isLayer3Device && !ipv6 && !prefix) {
+            if (typeof rawIface.clearIPConfig === "function") {
+              // Preserve IPv4 while clearing IPv6 on class-based interfaces.
+              rawIface.ipv6 = null;
+            } else {
+              rawIface.ipv6 = null;
+            }
+            rawIface.ipv6Address = "";
+            rawIface.ipv6Prefix = "";
           }
         }
 
@@ -103,13 +120,18 @@ function InterfaceRow({ iface, deviceId, deviceName, deviceLocation, deviceType 
     const logs = [];
     if (ip)      logs.push(`[Interface ${iface.name}] IP Address: ${ip}`);
     if (mask)    logs.push(`[Interface ${iface.name}] Subnet Mask: ${mask}`);
-    if (isSwitch && ipv6) logs.push(`[Interface ${iface.name}] IPv6 Address: ${ipv6}/${prefix}`);
+    if (isLayer3Device && ipv6) logs.push(`[Interface ${iface.name}] IPv6 Address: ${ipv6}/${prefix}`);
     if (!logs.length) logs.push(`[Interface ${iface.name}] Applied — no parameters configured`);
 
     logs.forEach((message) =>
       window.dispatchEvent(
         new CustomEvent("add-system-log", {
-          detail: { device: "Router", deviceName, message, location: deviceLocation },
+          detail: {
+            device: deviceType === "switch" ? "Switch" : "Router",
+            deviceName,
+            message,
+            location: deviceLocation,
+          },
         })
       )
     );
@@ -118,7 +140,7 @@ function InterfaceRow({ iface, deviceId, deviceName, deviceLocation, deviceType 
     setTimeout(() => setApplied(false), 2000);
   };
 
-  const isConfigured = ip || mask || (isSwitch && (ipv6 || prefix));
+  const isConfigured = ip || mask || (isLayer3Device && (ipv6 || prefix));
 
   // Status dot colour
   const statusColor =
@@ -176,8 +198,8 @@ function InterfaceRow({ iface, deviceId, deviceName, deviceLocation, deviceType 
                 onChange={(e) => setMask(e.target.value)}
               />
             </div>
-            {/* IPv6 Configuration - Row 2 (Switches Only) */}
-            {isSwitch && (
+            {/* IPv6 Configuration - Row 2 (Routers / Switches) */}
+            {isLayer3Device && (
               <>
                 <div className="iface-field">
                   <span className="iface-field-label">IPv6 Address</span>
@@ -189,7 +211,7 @@ function InterfaceRow({ iface, deviceId, deviceName, deviceLocation, deviceType 
                   />
                 </div>
                 <div className="iface-field">
-                  <span className="iface-field-label">IPv6 Prefix</span>
+                  <span className="iface-field-label">IPv6 Prefix Length</span>
                   <input
                     className="iface-input"
                     type="number"

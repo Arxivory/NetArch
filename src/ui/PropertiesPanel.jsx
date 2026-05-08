@@ -442,8 +442,8 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
               onChange={(e) => handleDeviceChange('label', e.target.value)}
               onBlur={() => handleDeviceBlur('label')}
             />
-            {/* </div>
-          {deviceType !== "router" && (
+          </div>
+          {deviceType === "switch" && (
             <div><label>Default Gateway</label>
               <input className="field-input"
                 value={selectedEntity?.defaultGateway || ""}
@@ -453,250 +453,250 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
                 placeholder="192.168.1.254"
               />
             </div>
-          )} */}
-            <button className="floor-specifier-btn" onClick={() => setIsModalOpen(true)}>
-              Advanced Configuration
-            </button>
+          )}
+          <button className="floor-specifier-btn" onClick={() => setIsModalOpen(true)}>
+            Advanced Configuration
+          </button>
 
-          </div>
+        </div>
       )}
 
-          {/* ── Furniture ─────────────────────────────────────────────────────── */}
-          {isFurniture && (
-            <div className="properties-group">
-              <hr className="header-separator" />
-              <div><label>Furniture Name</label>
-                <input className="field-input"
-                  value={selectedEntity?.label || ""}
-                  onFocus={() => handleFurnitureFocus('label')}
-                  onChange={(e) => handleFurnitureChange('label', e.target.value)}
-                  onBlur={() => handleFurnitureBlur('label')}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* ── Structure ─────────────────────────────────────────────────────── */}
-          {isStructure && (
-            <div className="properties-group">
-              <hr className="header-separator" />
-              <div>
-                <label>Name</label>
-                <input
-                  className="field-input"
-                  value={selectedEntity.label ?? selectedEntity.name ?? ""}
-                  onFocus={handleStructureRenameFocus}
-                  onChange={handleStructureRenameChange}
-                  onBlur={handleStructureRenameBlur}
-                />
-              </div>
-              <div><label>Type</label><input className="field-input" value={selectedEntity.structureType || selectedEntity.type || ""} readOnly /></div>
-              <div>
-                <label>Material</label>
-                <select className="field-input">
-                  <option>Concrete</option><option>Wood</option><option>Tile</option><option>Carpet</option>
-                </select>
-              </div>
-            </div>
-          )}
-
-          {/* ── Transform ─────────────────────────────────────────────────────── */}
+      {/* ── Furniture ─────────────────────────────────────────────────────── */}
+      {isFurniture && (
+        <div className="properties-group">
           <hr className="header-separator" />
-          <h3>Transformations</h3>
-          {selectedEntity ? (
-            <>
-              <div className="transform-header"><span></span><span>X</span><span>Y</span><span>Z</span></div>
-              <div className="transform-grid">
-                <label>Position</label>
-                <input type="number" className="field-input" value={transform.position.x} onChange={(e) => handleTransformChange("position", "x", e.target.value)} />
-                <input type="number" className="field-input" value={transform.position.y} onChange={(e) => handleTransformChange("position", "y", e.target.value)} />
-                <input type="number" className="field-input" value={transform.position.z} onChange={(e) => handleTransformChange("position", "z", e.target.value)} />
-              </div>
-              <div className="transform-grid">
-                <label>Scale</label>
-                <input type="number" className="field-input" value={transform.scale.factor} onChange={(e) => handleTransformChange("scale", "factor", e.target.value)} />
-                <input type="number" className="field-input" defaultValue={0} disabled />
-                <input type="number" className="field-input" defaultValue={0} disabled />
-              </div>
-              <div className="transform-grid">
-                <label>Rotation</label>
-                <input type="number" className="field-input" value={transform.rotation.x} onChange={(e) => handleTransformChange("rotation", "x", e.target.value)} />
-                <input type="number" className="field-input" value={transform.rotation.y} onChange={(e) => handleTransformChange("rotation", "y", e.target.value)} />
-                <input type="number" className="field-input" value={transform.rotation.z} onChange={(e) => handleTransformChange("rotation", "z", e.target.value)} />
-              </div>
-            </>
-          ) : (
-            <p className="empty-selection-msg">Select an entity to see transform properties</p>
-          )}
-
-          {/* ── Advanced Config grid ──────────────────────────────────────────── */}
-          {isModalOpen && createPortal(
-            <div className="config-modal-overlay">
-              <div className="config-modal-content">
-                <div className="modal-header">
-                  <h2>Advanced {deviceType?.toUpperCase()} Configuration: {selectedEntity?.label}</h2>
-                  <button className="close-btn" onClick={() => setIsModalOpen(false)}>×</button>
-                </div>
-                <div className="modal-body">
-                  {configGroups.map((group) => (
-                    <div key={group.category} className="config-section">
-                      <div className="config-grid">
-                        {group.items.map((item) => (
-                          <div
-                            key={item.label}
-                            className="config-item-card"
-                            onClick={() => handleConfigItemClick(item.label)}
-                          >
-                            <div className="config-text">
-                              <div className="config-label">{item.label}</div>
-                              <div className="config-desc">{item.desc}</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>,
-            document.body
-          )}
-
-          {/* ── Individual modal slots ─────────────────────────────────────────── */}
-          {isRoutingModalOpen && (
-            <RoutingModal
-              onClose={() => setIsRoutingModalOpen(false)}
-              deviceName={selectedEntity?.label || "Router-Core-01"}
-              deviceLocation={resolveDeviceLocation()}
-              device={selectedEntity}
+          <div><label>Furniture Name</label>
+            <input className="field-input"
+              value={selectedEntity?.label || ""}
+              onFocus={() => handleFurnitureFocus('label')}
+              onChange={(e) => handleFurnitureChange('label', e.target.value)}
+              onBlur={() => handleFurnitureBlur('label')}
             />
-          )}
-
-          {isInterfaceModalOpen && (
-            <InterfaceModal
-              onClose={() => setIsInterfaceModalOpen(false)}
-              deviceName={selectedEntity?.label || "Router-Core-01"}
-              deviceLocation={resolveDeviceLocation()}
-              device={selectedEntity}
-              deviceType={deviceType}
-            />
-          )}
-
-          {isNATModalOpen && (
-            <NATModal
-              onClose={() => setIsNATModalOpen(false)}
-              deviceName={selectedEntity?.label || "Router-Core-01"}
-              deviceLocation={resolveDeviceLocation()}
-            />
-          )}
-
-          {isACLModalOpen && (
-            <ACLModal
-              onClose={() => setIsACLModalOpen(false)}
-              deviceName={selectedEntity?.label || "Router-Core-01"}
-              deviceLocation={resolveDeviceLocation()}
-            />
-          )}
-
-          {isDHCPModalOpen && (
-            <DHCPModal
-              onClose={() => setIsDHCPModalOpen(false)}
-              deviceName={selectedEntity?.label || "Router-Core-01"}
-              deviceLocation={resolveDeviceLocation()}
-            />
-          )}
-
-          {isVPNModalOpen && (
-            <VPNModal
-              onClose={() => setIsVPNModalOpen(false)}
-              deviceName={selectedEntity?.label || "Router-Core-01"}
-              deviceLocation={resolveDeviceLocation()}
-            />
-          )}
-
-          {isSNMPModalOpen && (
-            <SNMPModal
-              onClose={() => setIsSNMPModalOpen(false)}
-              deviceName={selectedEntity?.label || "Router-Core-01"}
-              deviceLocation={resolveDeviceLocation()}
-            />
-          )}
-
-          {isNTPModalOpen && (
-            <NTPModal
-              onClose={() => setIsNTPModalOpen(false)}
-              deviceName={selectedEntity?.label || "Router-Core-01"}
-              deviceLocation={resolveDeviceLocation()}
-            />
-          )}
-
-          {isSSHModalOpen && (
-            <SSHModal
-              onClose={() => setIsSSHModalOpen(false)}
-              deviceName={selectedEntity?.label || "Router-Core-01"}
-              deviceLocation={resolveDeviceLocation()}
-            />
-          )}
-          {isVLANModalOpen && (
-            <VLANModal
-              onClose={() => setIsVLANModalOpen(false)}
-              deviceName={selectedEntity?.label || "Router-Core-01"}
-              deviceLocation={resolveDeviceLocation()}
-              device={selectedDeviceRef.current || selectedEntity}
-            />
-          )}
-          {isSTPModalOpen && (
-            <STPModal
-              onClose={() => setIsSTPModalOpen(false)}
-              deviceName={selectedEntity?.label || "Router-Core-01"}
-              deviceLocation={resolveDeviceLocation()}
-              device={selectedDeviceRef.current || selectedEntity}
-            />
-          )}
-          {isPortSecurityModalOpen && (
-            <PortSecurityModal
-              onClose={() => setIsPortSecurityModalOpen(false)}
-              deviceName={selectedEntity?.label || "Router-Core-01"}
-              deviceLocation={resolveDeviceLocation()}
-            />
-          )}
-          {isTrunkingModalOpen && (
-            <TrunkingModal
-              onClose={() => setIsTrunkingModalOpen(false)}
-              deviceName={selectedEntity?.label || "Router-Core-01"}
-              deviceLocation={resolveDeviceLocation()}
-              device={selectedDeviceRef.current || selectedEntity}
-            />
-          )}
-          {isQoSModalOpen && (
-            <QoSModal
-              onClose={() => setIsQoSModalOpen(false)}
-              deviceName={selectedEntity?.label || "Router-Core-01"}
-              deviceLocation={resolveDeviceLocation()}
-            />
-          )}
-          {isAuthModalOpen && <AuthenticationModal onClose={() => setIsAuthModalOpen(false)} />}
-          {isIGMPModalOpen && <IGMPModals onClose={() => setIsIGMPModalOpen(false)} />}
-          {isSyslogModalOpen && <SyslogModal onClose={() => setIsSyslogModalOpen(false)} />}
-
-          {isIPConfigurationModalOpen && (
-            <IPConfigurationModal
-              onClose={() => setIsIPConfigurationModalOpen(false)}
-              deviceName={selectedEntity?.label || "Router-Core-01"}
-              deviceLocation={resolveDeviceLocation()}
-              device={selectedEntity}
-            />
-          )}
-
-          {isCommandPromptModalOpen && (
-            <CommandPromptModal
-              onClose={() => setIsCommandPromptModalOpen(false)}
-              deviceName={selectedEntity?.label || "Router-Core-01"}
-              deviceLocation={resolveDeviceLocation()}
-              device={selectedEntity}
-              networkManager={networkManager}
-            />
-          )}
+          </div>
         </div>
-      );
+      )}
+
+      {/* ── Structure ─────────────────────────────────────────────────────── */}
+      {isStructure && (
+        <div className="properties-group">
+          <hr className="header-separator" />
+          <div>
+            <label>Name</label>
+            <input
+              className="field-input"
+              value={selectedEntity.label ?? selectedEntity.name ?? ""}
+              onFocus={handleStructureRenameFocus}
+              onChange={handleStructureRenameChange}
+              onBlur={handleStructureRenameBlur}
+            />
+          </div>
+          <div><label>Type</label><input className="field-input" value={selectedEntity.structureType || selectedEntity.type || ""} readOnly /></div>
+          <div>
+            <label>Material</label>
+            <select className="field-input">
+              <option>Concrete</option><option>Wood</option><option>Tile</option><option>Carpet</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* ── Transform ─────────────────────────────────────────────────────── */}
+      <hr className="header-separator" />
+      <h3>Transformations</h3>
+      {selectedEntity ? (
+        <>
+          <div className="transform-header"><span></span><span>X</span><span>Y</span><span>Z</span></div>
+          <div className="transform-grid">
+            <label>Position</label>
+            <input type="number" className="field-input" value={transform.position.x} onChange={(e) => handleTransformChange("position", "x", e.target.value)} />
+            <input type="number" className="field-input" value={transform.position.y} onChange={(e) => handleTransformChange("position", "y", e.target.value)} />
+            <input type="number" className="field-input" value={transform.position.z} onChange={(e) => handleTransformChange("position", "z", e.target.value)} />
+          </div>
+          <div className="transform-grid">
+            <label>Scale</label>
+            <input type="number" className="field-input" value={transform.scale.factor} onChange={(e) => handleTransformChange("scale", "factor", e.target.value)} />
+            <input type="number" className="field-input" defaultValue={0} disabled />
+            <input type="number" className="field-input" defaultValue={0} disabled />
+          </div>
+          <div className="transform-grid">
+            <label>Rotation</label>
+            <input type="number" className="field-input" value={transform.rotation.x} onChange={(e) => handleTransformChange("rotation", "x", e.target.value)} />
+            <input type="number" className="field-input" value={transform.rotation.y} onChange={(e) => handleTransformChange("rotation", "y", e.target.value)} />
+            <input type="number" className="field-input" value={transform.rotation.z} onChange={(e) => handleTransformChange("rotation", "z", e.target.value)} />
+          </div>
+        </>
+      ) : (
+        <p className="empty-selection-msg">Select an entity to see transform properties</p>
+      )}
+
+      {/* ── Advanced Config grid ──────────────────────────────────────────── */}
+      {isModalOpen && createPortal(
+        <div className="config-modal-overlay">
+          <div className="config-modal-content">
+            <div className="modal-header">
+              <h2>Advanced {deviceType?.toUpperCase()} Configuration: {selectedEntity?.label}</h2>
+              <button className="close-btn" onClick={() => setIsModalOpen(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              {configGroups.map((group) => (
+                <div key={group.category} className="config-section">
+                  <div className="config-grid">
+                    {group.items.map((item) => (
+                      <div
+                        key={item.label}
+                        className="config-item-card"
+                        onClick={() => handleConfigItemClick(item.label)}
+                      >
+                        <div className="config-text">
+                          <div className="config-label">{item.label}</div>
+                          <div className="config-desc">{item.desc}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Individual modal slots ─────────────────────────────────────────── */}
+      {isRoutingModalOpen && (
+        <RoutingModal
+          onClose={() => setIsRoutingModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+          device={selectedEntity}
+        />
+      )}
+
+      {isInterfaceModalOpen && (
+        <InterfaceModal
+          onClose={() => setIsInterfaceModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+          device={selectedEntity}
+          deviceType={deviceType}
+        />
+      )}
+
+      {isNATModalOpen && (
+        <NATModal
+          onClose={() => setIsNATModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+
+      {isACLModalOpen && (
+        <ACLModal
+          onClose={() => setIsACLModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+
+      {isDHCPModalOpen && (
+        <DHCPModal
+          onClose={() => setIsDHCPModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+
+      {isVPNModalOpen && (
+        <VPNModal
+          onClose={() => setIsVPNModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+
+      {isSNMPModalOpen && (
+        <SNMPModal
+          onClose={() => setIsSNMPModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+
+      {isNTPModalOpen && (
+        <NTPModal
+          onClose={() => setIsNTPModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+
+      {isSSHModalOpen && (
+        <SSHModal
+          onClose={() => setIsSSHModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+      {isVLANModalOpen && (
+        <VLANModal
+          onClose={() => setIsVLANModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+          device={selectedDeviceRef.current || selectedEntity}
+        />
+      )}
+      {isSTPModalOpen && (
+        <STPModal
+          onClose={() => setIsSTPModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+          device={selectedDeviceRef.current || selectedEntity}
+        />
+      )}
+      {isPortSecurityModalOpen && (
+        <PortSecurityModal
+          onClose={() => setIsPortSecurityModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+      {isTrunkingModalOpen && (
+        <TrunkingModal
+          onClose={() => setIsTrunkingModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+          device={selectedDeviceRef.current || selectedEntity}
+        />
+      )}
+      {isQoSModalOpen && (
+        <QoSModal
+          onClose={() => setIsQoSModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+        />
+      )}
+      {isAuthModalOpen && <AuthenticationModal onClose={() => setIsAuthModalOpen(false)} />}
+      {isIGMPModalOpen && <IGMPModals onClose={() => setIsIGMPModalOpen(false)} />}
+      {isSyslogModalOpen && <SyslogModal onClose={() => setIsSyslogModalOpen(false)} />}
+
+      {isIPConfigurationModalOpen && (
+        <IPConfigurationModal
+          onClose={() => setIsIPConfigurationModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+          device={selectedEntity}
+        />
+      )}
+
+      {isCommandPromptModalOpen && (
+        <CommandPromptModal
+          onClose={() => setIsCommandPromptModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+          device={selectedEntity}
+          networkManager={networkManager}
+        />
+      )}
+    </div>
+  );
 }

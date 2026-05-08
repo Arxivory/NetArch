@@ -135,6 +135,7 @@ export default function PropertiesPanel({ canvasController }) {
 
         if (entity) {
           setSelectedEntity(entity);
+          console.log(entity);
           setTransform({
             position: {
               x: entity.transform?.position?.x ?? entity.x ?? 0,

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import appState from "../../state/AppState";
 
-// ─── Dispatch helper (mirrors PropertiesContext pattern) ──────────────────────
+// ─── Dispatch helper ──────────────────────────────────────────────────────────
 function dispatchLog(deviceName, message, location = "Unknown") {
   window.dispatchEvent(
     new CustomEvent("add-system-log", {
@@ -11,202 +11,246 @@ function dispatchLog(deviceName, message, location = "Unknown") {
   );
 }
 
-// ─── Generate EUI-64 link-local from interface name (deterministic per iface) ─
+// ─── Generate EUI-64 link-local from interface name ───────────────────────────
 function generateLinkLocal(ifaceName) {
   const seed = [...(ifaceName || "eth0")].reduce((acc, c) => acc + c.charCodeAt(0), 0);
-  const hex  = (n, pad = 2) => (n & 0xff).toString(16).padStart(pad, "0").toUpperCase();
+  const hex  = (n) => (n & 0xff).toString(16).padStart(2, "0").toUpperCase();
   return `FE80::${hex((seed >> 8) & 0xff)}${hex(seed & 0xff)}:${hex((seed * 3) & 0xff)}FF:FE${hex((seed * 7) & 0xff)}:${hex((seed * 13) & 0xff)}${hex((seed * 17) & 0xff)}`;
 }
 
-// ─── Derive interface list from a device object ───────────────────────────────
+// ─── FastEthernet filter ──────────────────────────────────────────────────────
+// Matches any FastEthernet interface (FastEthernet0, FastEthernet1, Fa0/1, etc.)
+const isFastEthernet = (name = "") => /^fastethernet\d/i.test(name.trim());
+
+// ─── Resolve configurable interfaces ─────────────────────────────────────────
+// Strategy (in order):
+//   1. FastEthernet interfaces from _interfaces Map  (Device class instance)
+//   2. ALL interfaces from _interfaces Map           (fallback — catches any port name)
+//   3. FastEthernet interfaces from interfaces array (NetworkStore plain object)
+//   4. ALL interfaces from interfaces array          (fallback)
+//   5. Hard stub — UI never breaks, but writes will be no-ops (warns to console)
 function resolveInterfaces(device) {
-  if (!device) return [{ id: "default", name: "FastEthernet0" }];
+  // ── Device class instance path (_interfaces is a Map) ─────────────────────
+  if (device?._interfaces instanceof Map && device._interfaces.size > 0) {
+    const all = [...device._interfaces.values()];
 
-  // Device class instance: has _interfaces Map
-  if (device._interfaces instanceof Map && device._interfaces.size > 0) {
-    return [...device._interfaces.values()].map((iface) => ({
-      id:   iface.name || iface.id,
-      name: iface.name,
-      ipv4: iface.ipv4 || {},
+    // Prefer FastEthernet ports; fall back to everything the device exposes
+    const candidates = all.filter((i) => isFastEthernet(i.name));
+    const resolved   = candidates.length > 0 ? candidates : all;
+
+    return resolved.map((i) => ({ id: i.name, name: i.name, ifaceRef: i }));
+  }
+
+  // ── NetworkStore plain-object path (interfaces is an array) ───────────────
+  if (Array.isArray(device?.interfaces) && device.interfaces.length > 0) {
+    const all = device.interfaces;
+
+    const candidates = all.filter((i) => isFastEthernet(i.name || i.label || ""));
+    const resolved   = candidates.length > 0 ? candidates : all;
+
+    return resolved.map((i, idx) => ({
+      id:       i.id    || i.name  || `iface-${idx}`,
+      name:     i.name  || i.label || `Interface${idx}`,
+      ifaceRef: i,
     }));
   }
 
-  // Plain array from NetworkStore
-  if (Array.isArray(device.interfaces) && device.interfaces.length > 0) {
-    return device.interfaces.map((i, idx) => ({
-      id:   i.id   || i.name || `iface-${idx}`,
-      name: i.name || i.label || `Interface${idx}`,
-      ipv4: i.ipv4 || {},
-    }));
-  }
-
-  // Fallback
-  return [{ id: "fa0", name: "FastEthernet0", ipv4: {} }];
+  // ── Hard stub — device has no interfaces at all ────────────────────────────
+  console.warn("[IPConfigurationModal] resolveInterfaces: device has no interfaces — writes will be no-ops.", device);
+  return [{ id: "fa0", name: "FastEthernet0", ifaceRef: null }];
 }
+
+// ─── Read current IPv4 values from a live interface ref ───────────────────────
+// Covers both the Interface class shape (ipv4.address / ipv4.subnetMask) and
+// the plain NetworkStore shape (ipv4.ip / ipv4.mask).
+// Falls back to device._ipv4 / device.ipv4 so values survive serialization
+// round-trips where ifaceRef.ipv4 may not yet be re-hydrated.
+function readIpv4(ifaceRef, device) {
+  // Prefer the live interface ref, then the device-level persisted copy
+  const v4 = ifaceRef?.ipv4 || device?._ipv4 || device?.ipv4 || {};
+  return {
+    address:    v4.address    || v4.ip      || "",
+    subnetMask: v4.subnetMask || v4.mask    || "",
+    gateway:    v4.gateway    || v4.gw      || "",
+    dns:        v4.dns        || v4.dns1    || "",
+    mode:       v4.mode === "dhcp" ? "dhcp" : "static",
+  };
+}
+
+// ─── Read current IPv6 values from a live interface ref ───────────────────────
+// Same fallback strategy as readIpv4.
+function readIpv6(ifaceRef, device) {
+  const v6 = ifaceRef?.ipv6 || device?._ipv6 || device?.ipv6 || {};
+  return {
+    address:   v6.address      || v6.ip            || "",
+    prefix:    v6.prefix       || v6.prefixLength   || "",
+    gateway:   v6.gateway      || v6.gw             || "",
+    dns:       v6.dns          || v6.dns1           || "",
+    mode:      v6.mode === "auto" ? "auto" : "static",
+    linkLocal: v6.linkLocal    || "",
+  };
+}
+
+// ─── Nav items ────────────────────────────────────────────────────────────────
+const NAV_ITEMS = [
+  {
+    id: "ipv4",
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+      </svg>
+    ),
+    label: "IPv4",
+    sub: "Static / DHCP",
+  },
+  {
+    id: "ipv6",
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      </svg>
+    ),
+    label: "IPv6",
+    sub: "Static / Auto",
+  },
+];
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function IPConfigurationModal({
   onClose,
-  device,
-  deviceName   = "PC",
+  device,                 // Device instance or NetworkStore plain object
+  deviceName     = "PC",
   deviceLocation = "Unknown",
+  networkStore,           // NetworkStore instance — notifies listeners on Apply
 }) {
   const interfaces = resolveInterfaces(device);
 
-  // ── Selected interface ──────────────────────────────────────────────────────
+  const [activeTab,       setActiveTab]       = useState("ipv4");
   const [selectedIfaceId, setSelectedIfaceId] = useState(interfaces[0]?.id ?? "fa0");
-  const selectedIface = interfaces.find((i) => i.id === selectedIfaceId) || interfaces[0];
+
+  const selectedEntry = interfaces.find((i) => i.id === selectedIfaceId) || interfaces[0];
+  const ifaceRef      = selectedEntry?.ifaceRef ?? null;
 
   // ── IPv4 state ──────────────────────────────────────────────────────────────
-  const [ipv4Mode,   setIpv4Mode]   = useState("static"); // "dhcp" | "static"
+  const [ipv4Mode,   setIpv4Mode]   = useState("static");
   const [ipv4Addr,   setIpv4Addr]   = useState("");
   const [subnetMask, setSubnetMask] = useState("");
   const [gateway4,   setGateway4]   = useState("");
   const [dns4,       setDns4]       = useState("");
 
   // ── IPv6 state ──────────────────────────────────────────────────────────────
-  const [ipv6Mode,   setIpv6Mode]   = useState("static"); // "auto" | "static"
+  const [ipv6Mode,   setIpv6Mode]   = useState("static");
   const [ipv6Addr,   setIpv6Addr]   = useState("");
   const [ipv6Prefix, setIpv6Prefix] = useState("");
   const [gateway6,   setGateway6]   = useState("");
   const [dns6,       setDns6]       = useState("");
   const [linkLocal,  setLinkLocal]  = useState("");
 
-  // ── Reset fields when interface changes ────────────────────────────────────
+  // ── Seed all fields from the live interface whenever selection changes ──────
   useEffect(() => {
-    const iface = interfaces.find((i) => i.id === selectedIfaceId) || interfaces[0];
-    // Always start empty per spec (no prior user activity)
-    setIpv4Addr("");
-    setSubnetMask("");
-    setGateway4("");
-    setDns4("");
-    setIpv6Addr("");
-    setIpv6Prefix("");
-    setGateway6("");
-    setDns6("");
-    setIpv4Mode("static");
-    setIpv6Mode("static");
-    setLinkLocal(generateLinkLocal(iface?.name));
-  }, [selectedIfaceId]);
+    const entry = interfaces.find((i) => i.id === selectedIfaceId) || interfaces[0];
+    const ref   = entry?.ifaceRef ?? null;
 
-  // ── Debounce refs for console logging ──────────────────────────────────────
-  const timers = useRef({});
+    // Pass device as fallback so persisted _ipv4/_ipv6 are read when ifaceRef.ipv4
+    // hasn't been re-hydrated yet (e.g. after a serialization round-trip).
+    const v4 = readIpv4(ref, device);
+    setIpv4Addr(v4.address);
+    setSubnetMask(v4.subnetMask);
+    setGateway4(v4.gateway);
+    setDns4(v4.dns);
+    setIpv4Mode(v4.mode);
+
+    const v6 = readIpv6(ref, device);
+    setIpv6Addr(v6.address);
+    setIpv6Prefix(v6.prefix);
+    setGateway6(v6.gateway);
+    setDns6(v6.dns);
+    setIpv6Mode(v6.mode);
+    setLinkLocal(v6.linkLocal || generateLinkLocal(entry?.name));
+  }, [selectedIfaceId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Debounce logging ────────────────────────────────────────────────────────
+  const timers    = useRef({});
   const originals = useRef({});
 
-  const scheduleLog = (field, newVal, getOldVal, tag, makeMsg) => {
+  const scheduleLog = (field, newVal, getOldVal, makeMsg) => {
     if (!timers.current[field]) originals.current[field] = getOldVal();
     clearTimeout(timers.current[field]);
     timers.current[field] = setTimeout(() => {
       const oldVal = originals.current[field];
       if (oldVal !== newVal && newVal !== "") {
-        const ts = new Date().toISOString().replace("T", " ").slice(0, 19);
-        dispatchLog(deviceName, makeMsg(ts, oldVal, newVal), deviceLocation);
+        const stamp = new Date().toISOString().replace("T", " ").slice(0, 19);
+        dispatchLog(deviceName, makeMsg(stamp, oldVal, newVal), deviceLocation);
         originals.current[field] = newVal;
       }
       delete timers.current[field];
     }, 1000);
   };
 
-  // ── Logging helpers ─────────────────────────────────────────────────────────
+  // ── Field change handlers ───────────────────────────────────────────────────
   const onIpv4Change = (val) => {
     setIpv4Addr(val);
     scheduleLog("ipv4addr", val, () => ipv4Addr,
-      "SYS-5-IP_CHANGE",
-      (ts, o, n) =>
-        `%SYS-5-IP_CHANGE: [${ts}] ${deviceName} @ ${deviceLocation} — ` +
-        `IPv4 Address updated: ${o || "unset"} → ${n}. ` +
-        `ARP cache cleared for ${selectedIface?.name || "interface"}.`
+      (t, o, n) => `%SYS-5-IP_CHANGE: [${t}] ${deviceName} @ ${deviceLocation} — IPv4 Address updated: ${o || "unset"} → ${n}. ARP cache cleared for ${selectedEntry?.name}.`
     );
   };
-
   const onMaskChange = (val) => {
     setSubnetMask(val);
     scheduleLog("subnet", val, () => subnetMask,
-      "SYS-6-SUBNET_CHANGE",
-      (ts, o, n) =>
-        `%SYS-6-SUBNET_CHANGE: [${ts}] ${deviceName} @ ${deviceLocation} — ` +
-        `Subnet Mask updated: ${o || "unset"} → ${n}. Network boundary recalculated.`
+      (t, o, n) => `%SYS-6-SUBNET_CHANGE: [${t}] ${deviceName} @ ${deviceLocation} — Subnet Mask updated: ${o || "unset"} → ${n}. Network boundary recalculated.`
     );
   };
-
   const onGateway4Change = (val) => {
     setGateway4(val);
     scheduleLog("gw4", val, () => gateway4,
-      "SYS-6-CONFIG",
-      (ts, o, n) =>
-        `%SYS-6-CONFIG: [${ts}] ${deviceName} @ ${deviceLocation} — ` +
-        `Default Gateway updated: ${o || "unset"} → ${n}.`
+      (t, o, n) => `%SYS-6-CONFIG: [${t}] ${deviceName} @ ${deviceLocation} — Default Gateway updated: ${o || "unset"} → ${n}.`
     );
   };
-
   const onDns4Change = (val) => {
     setDns4(val);
     scheduleLog("dns4", val, () => dns4,
-      "SYS-6-CONFIG",
-      (ts, o, n) =>
-        `%SYS-6-CONFIG: [${ts}] ${deviceName} @ ${deviceLocation} — ` +
-        `DNS Server updated: ${o || "unset"} → ${n}.`
+      (t, o, n) => `%SYS-6-CONFIG: [${t}] ${deviceName} @ ${deviceLocation} — DNS Server updated: ${o || "unset"} → ${n}.`
     );
   };
-
   const onIpv6Change = (val) => {
     setIpv6Addr(val);
     scheduleLog("ipv6addr", val, () => ipv6Addr,
-      "SYS-5-IP_CHANGE",
-      (ts, o, n) =>
-        `%SYS-5-IP_CHANGE: [${ts}] ${deviceName} @ ${deviceLocation} — ` +
-        `IPv6 Address updated: ${o || "unset"} → ${n}.`
+      (t, o, n) => `%SYS-5-IP_CHANGE: [${t}] ${deviceName} @ ${deviceLocation} — IPv6 Address updated: ${o || "unset"} → ${n}.`
     );
   };
-
   const onPrefixChange = (val) => {
     setIpv6Prefix(val);
     scheduleLog("prefix6", val, () => ipv6Prefix,
-      "SYS-6-CONFIG",
-      (ts, o, n) =>
-        `%SYS-6-CONFIG: [${ts}] ${deviceName} @ ${deviceLocation} — ` +
-        `IPv6 Prefix Length updated: ${o || "unset"} → ${n}.`
+      (t, o, n) => `%SYS-6-CONFIG: [${t}] ${deviceName} @ ${deviceLocation} — IPv6 Prefix Length updated: ${o || "unset"} → ${n}.`
     );
   };
-
   const onGateway6Change = (val) => {
     setGateway6(val);
     scheduleLog("gw6", val, () => gateway6,
-      "SYS-6-CONFIG",
-      (ts, o, n) =>
-        `%SYS-6-CONFIG: [${ts}] ${deviceName} @ ${deviceLocation} — ` +
-        `IPv6 Default Gateway updated: ${o || "unset"} → ${n}.`
+      (t, o, n) => `%SYS-6-CONFIG: [${t}] ${deviceName} @ ${deviceLocation} — IPv6 Default Gateway updated: ${o || "unset"} → ${n}.`
     );
   };
-
   const onDns6Change = (val) => {
     setDns6(val);
     scheduleLog("dns6", val, () => dns6,
-      "SYS-6-CONFIG",
-      (ts, o, n) =>
-        `%SYS-6-CONFIG: [${ts}] ${deviceName} @ ${deviceLocation} — ` +
-        `IPv6 DNS Server updated: ${o || "unset"} → ${n}.`
+      (t, o, n) => `%SYS-6-CONFIG: [${t}] ${deviceName} @ ${deviceLocation} — IPv6 DNS Server updated: ${o || "unset"} → ${n}.`
     );
   };
 
-  // ── DHCP / Auto mode toggle logging ────────────────────────────────────────
+  // ── Mode toggles ────────────────────────────────────────────────────────────
   const handleIpv4ModeChange = (mode) => {
     setIpv4Mode(mode);
-    const ts = new Date().toISOString().replace("T", " ").slice(0, 19);
+    const stamp = new Date().toISOString().replace("T", " ").slice(0, 19);
     if (mode === "dhcp") {
-      dispatchLog(
-        deviceName,
-        `%SYS-6-CONFIG: [${ts}] ${deviceName} @ ${deviceLocation} — ` +
-          `IPv4 mode switched to DHCP on ${selectedIface?.name}. Requesting address from DHCP server.`,
+      dispatchLog(deviceName,
+        `%SYS-6-CONFIG: [${stamp}] ${deviceName} @ ${deviceLocation} — IPv4 mode switched to DHCP on ${selectedEntry?.name}. Requesting address from DHCP server.`,
         deviceLocation
       );
-      // Clear static fields
       setIpv4Addr(""); setSubnetMask(""); setGateway4(""); setDns4("");
     } else {
-      dispatchLog(
-        deviceName,
-        `%SYS-6-CONFIG: [${ts}] ${deviceName} @ ${deviceLocation} — ` +
-          `IPv4 mode switched to Static on ${selectedIface?.name}.`,
+      dispatchLog(deviceName,
+        `%SYS-6-CONFIG: [${stamp}] ${deviceName} @ ${deviceLocation} — IPv4 mode switched to Static on ${selectedEntry?.name}.`,
         deviceLocation
       );
     }
@@ -214,280 +258,311 @@ export default function IPConfigurationModal({
 
   const handleIpv6ModeChange = (mode) => {
     setIpv6Mode(mode);
-    const ts = new Date().toISOString().replace("T", " ").slice(0, 19);
+    const stamp = new Date().toISOString().replace("T", " ").slice(0, 19);
     if (mode === "auto") {
-      dispatchLog(
-        deviceName,
-        `%SYS-6-CONFIG: [${ts}] ${deviceName} @ ${deviceLocation} — ` +
-          `IPv6 mode switched to Automatic (SLAAC) on ${selectedIface?.name}.`,
+      dispatchLog(deviceName,
+        `%SYS-6-CONFIG: [${stamp}] ${deviceName} @ ${deviceLocation} — IPv6 mode switched to Automatic (SLAAC) on ${selectedEntry?.name}.`,
         deviceLocation
       );
       setIpv6Addr(""); setIpv6Prefix(""); setGateway6(""); setDns6("");
     } else {
-      dispatchLog(
-        deviceName,
-        `%SYS-6-CONFIG: [${ts}] ${deviceName} @ ${deviceLocation} — ` +
-          `IPv6 mode switched to Static on ${selectedIface?.name}.`,
+      dispatchLog(deviceName,
+        `%SYS-6-CONFIG: [${stamp}] ${deviceName} @ ${deviceLocation} — IPv6 mode switched to Static on ${selectedEntry?.name}.`,
         deviceLocation
       );
     }
   };
 
-  // ── Styles (Packet Tracer aesthetic: light grey system UI) ─────────────────
-  const S = {
-    overlay: {
-      position: "fixed", inset: 0,
-      background: "rgba(0,0,0,0.45)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      zIndex: 9999,
-    },
-    modal: {
-      width: 640, maxHeight: "90vh", overflowY: "auto",
-      background: "#d4d0c8",
-      border: "2px solid #808080",
-      boxShadow: "4px 4px 0 #000",
-      fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-      fontSize: 13,
-      color: "#000",
-    },
-    titleBar: {
-      background: "linear-gradient(to right, #0a246a, #a6b5d7)",
-      color: "#fff",
-      padding: "4px 8px",
-      display: "flex", alignItems: "center", justifyContent: "space-between",
-      fontWeight: "bold", fontSize: 13,
-      userSelect: "none",
-    },
-    closeBtn: {
-      background: "#c0392b", color: "#fff",
-      border: "1px solid #7f0000",
-      width: 18, height: 18,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      cursor: "pointer", fontSize: 11, fontWeight: "bold",
-      lineHeight: 1,
-    },
-    body: { padding: "12px 16px", display: "flex", flexDirection: "column", gap: 12 },
-    row: { display: "flex", alignItems: "center", gap: 8 },
-    label: { width: 130, flexShrink: 0, color: "#000" },
-    input: {
-      flex: 1, height: 22, padding: "0 4px",
-      border: "1px solid #7a7a7a",
-      background: "#fff",
-      fontFamily: "inherit", fontSize: 13,
-      outline: "none",
-      boxSizing: "border-box",
-    },
-    inputDisabled: {
-      flex: 1, height: 22, padding: "0 4px",
-      border: "1px solid #7a7a7a",
-      background: "#e8e8e8",
-      fontFamily: "inherit", fontSize: 13,
-      color: "#444",
-      boxSizing: "border-box",
-    },
-    select: {
-      flex: 1, height: 24, padding: "0 4px",
-      border: "1px solid #7a7a7a",
-      background: "#fff",
-      fontFamily: "inherit", fontSize: 13,
-      cursor: "pointer",
-    },
-    sectionTitle: {
-      background: "#c0c0c0",
-      borderTop: "1px solid #808080",
-      borderBottom: "1px solid #808080",
-      padding: "3px 6px",
-      fontWeight: "bold",
-      marginBottom: 6,
-    },
-    radioGroup: { display: "flex", gap: 24, alignItems: "center", marginBottom: 6 },
-    radio: { display: "flex", alignItems: "center", gap: 4, cursor: "pointer" },
-    separator: { borderTop: "1px solid #808080", margin: "6px 0" },
-    ipv6Row: { display: "flex", alignItems: "center", gap: 4 },
-    slash: { fontWeight: "bold", fontSize: 14, color: "#444" },
-    prefixInput: {
-      width: 50, height: 22, padding: "0 4px",
-      border: "1px solid #7a7a7a",
-      background: "#fff",
-      fontFamily: "inherit", fontSize: 13,
-      outline: "none",
-      textAlign: "center",
-    },
+  // ── Apply — write back to live interface + notify NetworkStore ──────────────
+  const handleApply = () => {
+    const stamp = new Date().toISOString().replace("T", " ").slice(0, 19);
+
+    // Build the complete IPv4 and IPv6 objects we want to persist.
+    const nextIpv4 =
+      ipv4Mode === "static"
+        ? { address: ipv4Addr, subnetMask, gateway: gateway4, dns: dns4, mode: "static" }
+        : { address: "", subnetMask: "", gateway: "", dns: "", mode: "dhcp" };
+
+    const nextIpv6 = {
+      address:   ipv6Mode === "static" ? ipv6Addr   : "",
+      prefix:    ipv6Mode === "static" ? ipv6Prefix : "",
+      gateway:   ipv6Mode === "static" ? gateway6   : "",
+      dns:       ipv6Mode === "static" ? dns6       : "",
+      linkLocal: linkLocal,
+      mode:      ipv6Mode,
+    };
+
+    // 1. Write directly to the live Interface object so in-memory state is
+    //    immediately consistent — no second configureIPv4() call will clobber this.
+    if (ifaceRef) {
+      // Always assign the full object so gateway/dns/mode are never orphaned.
+      ifaceRef.ipv4 = nextIpv4;
+      ifaceRef.ipv6 = nextIpv6;
+    }
+
+    // 2. Notify NetworkStore so Canvas + all listeners re-render.
+    //    Pass the full ipv4/ipv6 objects directly — NetworkStore.updateDevice
+    //    will call configureIPv4(address, subnetMask) on the primary interface,
+    //    but since ifaceRef IS that primary interface the values are already set
+    //    above; the call here is purely to trigger notify() + forceCanvasUpdate.
+    //    We skip the ipAddress/subnetMask shortcut path to avoid a second write
+    //    that would strip gateway and dns from the object.
+    if (networkStore && device?.id) {
+      networkStore.updateDevice(device.id, {
+        _ipv4: nextIpv4,   // stored on the device object for serialisation
+        _ipv6: nextIpv6,
+      });
+    }
+
+    // 3. Audit log
+    dispatchLog(
+      deviceName,
+      `%SYS-5-CONFIG_APPLIED: [${stamp}] ${deviceName} @ ${deviceLocation} — ` +
+        `IP configuration applied on ${selectedEntry?.name}. ` +
+        (ipv4Mode === "dhcp"
+          ? "IPv4: DHCP."
+          : `IPv4: ${ipv4Addr || "unset"}/${subnetMask || "unset"}, GW: ${gateway4 || "unset"}.`),
+      deviceLocation
+    );
+
+    onClose();
   };
 
   const isIpv4Static = ipv4Mode === "static";
   const isIpv6Static = ipv6Mode === "static";
 
   return createPortal(
-    <div style={S.overlay}>
-      <div style={S.modal}>
-        {/* Title bar */}
-        <div style={S.titleBar}>
-          <span>IP Configuration</span>
-          <button style={S.closeBtn} onClick={onClose}>✕</button>
-        </div>
+    <div
+      className="acl-modal-layer"
+      style={{
+        position: "fixed", inset: 0,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 9999,
+      }}
+    >
+      <div className="acl-layout">
 
-        <div style={S.body}>
-          {/* Interface selector */}
-          <div style={S.row}>
-            <span style={S.label}>Interface</span>
-            <select
-              style={S.select}
-              value={selectedIfaceId}
-              onChange={(e) => setSelectedIfaceId(e.target.value)}
-            >
-              {interfaces.map((iface) => (
-                <option key={iface.id} value={iface.id}>{iface.name}</option>
-              ))}
-            </select>
+        {/* ── Sidebar ──────────────────────────────────────────────────── */}
+        <aside className="acl-sidebar">
+          <div className="acl-sidebar-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+              <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+              <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+              <line x1="12" y1="20" x2="12.01" y2="20"/>
+            </svg>
+            IP Configuration
           </div>
 
-          <div style={S.separator} />
+          <nav className="acl-nav-list">
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                className={`acl-nav-item${activeTab === item.id ? " active" : ""}`}
+                onClick={() => setActiveTab(item.id)}
+              >
+                <span className="acl-nav-icon">{item.icon}</span>
+                <span className="acl-nav-text">
+                  <strong>{item.label}</strong>
+                  <p>{item.sub}</p>
+                </span>
+              </button>
+            ))}
+          </nav>
+        </aside>
 
-          {/* ── IPv4 Configuration ──────────────────────────────────────── */}
-          <div style={S.sectionTitle}>IP Configuration</div>
-
-          <div style={S.radioGroup}>
-            <label style={S.radio}>
-              <input
-                type="radio" name="ipv4mode" value="dhcp"
-                checked={ipv4Mode === "dhcp"}
-                onChange={() => handleIpv4ModeChange("dhcp")}
-              />
-              DHCP
-            </label>
-            <label style={S.radio}>
-              <input
-                type="radio" name="ipv4mode" value="static"
-                checked={ipv4Mode === "static"}
-                onChange={() => handleIpv4ModeChange("static")}
-              />
-              Static
-            </label>
+        {/* ── Main panel ───────────────────────────────────────────────── */}
+        <div className="acl-main">
+          <div className="acl-header">
+            <h3>
+              {activeTab === "ipv4" ? "IPv4 Configuration" : "IPv6 Configuration"}
+              {" — "}{deviceName}
+            </h3>
+            <button
+              onClick={onClose}
+              style={{
+                background: "transparent", border: "none", cursor: "pointer",
+                color: "#999", fontSize: 16, lineHeight: 1, padding: "2px 4px",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#111")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "#999")}
+            >✕</button>
           </div>
 
-          <div style={S.row}>
-            <span style={S.label}>IPv4 Address</span>
-            <input
-              style={isIpv4Static ? S.input : S.inputDisabled}
-              value={ipv4Addr}
-              disabled={!isIpv4Static}
-              placeholder={isIpv4Static ? "" : "Assigned by DHCP"}
-              onChange={(e) => onIpv4Change(e.target.value)}
-            />
-          </div>
+          <div className="acl-body">
 
-          <div style={S.row}>
-            <span style={S.label}>Subnet Mask</span>
-            <input
-              style={isIpv4Static ? S.input : S.inputDisabled}
-              value={subnetMask}
-              disabled={!isIpv4Static}
-              placeholder={isIpv4Static ? "" : "Assigned by DHCP"}
-              onChange={(e) => onMaskChange(e.target.value)}
-            />
-          </div>
-
-          <div style={S.row}>
-            <span style={S.label}>Default Gateway</span>
-            <input
-              style={S.input}
-              value={gateway4}
-              placeholder=""
-              onChange={(e) => onGateway4Change(e.target.value)}
-            />
-          </div>
-
-          <div style={S.row}>
-            <span style={S.label}>DNS Server</span>
-            <input
-              style={S.input}
-              value={dns4}
-              placeholder=""
-              onChange={(e) => onDns4Change(e.target.value)}
-            />
-          </div>
-
-          <div style={S.separator} />
-
-          {/* ── IPv6 Configuration ──────────────────────────────────────── */}
-          <div style={S.sectionTitle}>IPv6 Configuration</div>
-
-          <div style={S.radioGroup}>
-            <label style={S.radio}>
-              <input
-                type="radio" name="ipv6mode" value="auto"
-                checked={ipv6Mode === "auto"}
-                onChange={() => handleIpv6ModeChange("auto")}
-              />
-              Automatic
-            </label>
-            <label style={S.radio}>
-              <input
-                type="radio" name="ipv6mode" value="static"
-                checked={ipv6Mode === "static"}
-                onChange={() => handleIpv6ModeChange("static")}
-              />
-              Static
-            </label>
-          </div>
-
-          {/* IPv6 Address + prefix length side by side */}
-          <div style={S.row}>
-            <span style={S.label}>IPv6 Address</span>
-            <div style={{ ...S.ipv6Row, flex: 1 }}>
-              <input
-                style={{
-                  ...(isIpv6Static ? S.input : S.inputDisabled),
-                  flex: 1,
-                }}
-                value={ipv6Addr}
-                disabled={!isIpv6Static}
-                placeholder={isIpv6Static ? "" : "SLAAC"}
-                onChange={(e) => onIpv6Change(e.target.value)}
-              />
-              <span style={S.slash}>/</span>
-              <input
-                style={{
-                  ...S.prefixInput,
-                  background: isIpv6Static ? "#fff" : "#e8e8e8",
-                  color: isIpv6Static ? "#000" : "#444",
-                }}
-                value={ipv6Prefix}
-                disabled={!isIpv6Static}
-                placeholder="64"
-                onChange={(e) => onPrefixChange(e.target.value)}
-              />
+            {/* Interface selector */}
+            <div className="acl-section">
+              <label>Interface</label>
+              <div className="acl-inline">
+                <div className="acl-input">
+                  <select
+                    value={selectedIfaceId}
+                    onChange={(e) => setSelectedIfaceId(e.target.value)}
+                  >
+                    {interfaces.map((iface) => (
+                      <option key={iface.id} value={iface.id}>{iface.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
+
+            {/* ── IPv4 tab ──────────────────────────────────────────────── */}
+            {activeTab === "ipv4" && (
+              <>
+                <div className="acl-section">
+                  <label>Address Mode</label>
+                  <div style={{ display: "flex", gap: 20 }}>
+                    {["dhcp", "static"].map((mode) => (
+                      <label key={mode} className="acl-checkbox" style={{ marginTop: 0 }}>
+                        <input
+                          type="radio" name="ipv4mode" value={mode}
+                          checked={ipv4Mode === mode}
+                          onChange={() => handleIpv4ModeChange(mode)}
+                        />
+                        {mode === "dhcp" ? "DHCP" : "Static"}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="acl-section">
+                  <label>IPv4 Address</label>
+                  <div className="acl-inline">
+                    <div className="acl-input">
+                      <input
+                        value={ipv4Addr}
+                        disabled={!isIpv4Static}
+                        placeholder={isIpv4Static ? "e.g. 192.168.1.10" : "Assigned by DHCP"}
+                        onChange={(e) => onIpv4Change(e.target.value)}
+                        style={!isIpv4Static ? { background: "#f5f5f5", color: "#aaa" } : {}}
+                      />
+                    </div>
+                    <div className="acl-input">
+                      <input
+                        value={subnetMask}
+                        disabled={!isIpv4Static}
+                        placeholder={isIpv4Static ? "e.g. 255.255.255.0" : "Assigned by DHCP"}
+                        onChange={(e) => onMaskChange(e.target.value)}
+                        style={!isIpv4Static ? { background: "#f5f5f5", color: "#aaa" } : {}}
+                      />
+                      <span>Subnet Mask</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="acl-section">
+                  <div className="acl-inline">
+                    <div className="acl-input">
+                      <input
+                        value={gateway4}
+                        placeholder="e.g. 192.168.1.1"
+                        onChange={(e) => onGateway4Change(e.target.value)}
+                      />
+                      <span>Default Gateway</span>
+                    </div>
+                    <div className="acl-input">
+                      <input
+                        value={dns4}
+                        placeholder="e.g. 8.8.8.8"
+                        onChange={(e) => onDns4Change(e.target.value)}
+                      />
+                      <span>DNS Server</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ── IPv6 tab ──────────────────────────────────────────────── */}
+            {activeTab === "ipv6" && (
+              <>
+                <div className="acl-section">
+                  <label>Address Mode</label>
+                  <div style={{ display: "flex", gap: 20 }}>
+                    {["auto", "static"].map((mode) => (
+                      <label key={mode} className="acl-checkbox" style={{ marginTop: 0 }}>
+                        <input
+                          type="radio" name="ipv6mode" value={mode}
+                          checked={ipv6Mode === mode}
+                          onChange={() => handleIpv6ModeChange(mode)}
+                        />
+                        {mode === "auto" ? "Automatic (SLAAC)" : "Static"}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="acl-section">
+                  <label>IPv6 Address</label>
+                  <div className="acl-inline">
+                    <div className="acl-input" style={{ flex: 3 }}>
+                      <input
+                        value={ipv6Addr}
+                        disabled={!isIpv6Static}
+                        placeholder={isIpv6Static ? "e.g. 2001:db8::1" : "SLAAC"}
+                        onChange={(e) => onIpv6Change(e.target.value)}
+                        style={!isIpv6Static ? { background: "#f5f5f5", color: "#aaa" } : {}}
+                      />
+                    </div>
+                    <div className="acl-input" style={{ flex: 1 }}>
+                      <input
+                        value={ipv6Prefix}
+                        disabled={!isIpv6Static}
+                        placeholder="64"
+                        onChange={(e) => onPrefixChange(e.target.value)}
+                        style={!isIpv6Static ? { background: "#f5f5f5", color: "#aaa" } : {}}
+                      />
+                      <span>Prefix Length</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="acl-section">
+                  <label>Link-Local Address</label>
+                  <div className="acl-inline">
+                    <div className="acl-input">
+                      <input
+                        value={linkLocal}
+                        readOnly
+                        style={{ background: "#f5f5f5", color: "#888", fontFamily: "monospace", fontSize: 12 }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="acl-section">
+                  <div className="acl-inline">
+                    <div className="acl-input">
+                      <input
+                        value={gateway6}
+                        disabled={!isIpv6Static}
+                        placeholder="e.g. fe80::1"
+                        onChange={(e) => onGateway6Change(e.target.value)}
+                        style={!isIpv6Static ? { background: "#f5f5f5", color: "#aaa" } : {}}
+                      />
+                      <span>Default Gateway</span>
+                    </div>
+                    <div className="acl-input">
+                      <input
+                        value={dns6}
+                        disabled={!isIpv6Static}
+                        placeholder="e.g. 2001:4860:4860::8888"
+                        onChange={(e) => onDns6Change(e.target.value)}
+                        style={!isIpv6Static ? { background: "#f5f5f5", color: "#aaa" } : {}}
+                      />
+                      <span>DNS Server</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
-          <div style={S.row}>
-            <span style={S.label}>Link Local Address</span>
-            <input
-              style={S.inputDisabled}
-              value={linkLocal}
-              readOnly
-            />
-          </div>
-
-          <div style={S.row}>
-            <span style={S.label}>Default Gateway</span>
-            <input
-              style={isIpv6Static ? S.input : S.inputDisabled}
-              value={gateway6}
-              disabled={!isIpv6Static}
-              onChange={(e) => onGateway6Change(e.target.value)}
-            />
-          </div>
-
-          <div style={S.row}>
-            <span style={S.label}>DNS Server</span>
-            <input
-              style={isIpv6Static ? S.input : S.inputDisabled}
-              value={dns6}
-              disabled={!isIpv6Static}
-              onChange={(e) => onDns6Change(e.target.value)}
-            />
+          <div className="acl-footer">
+            <button className="acl-btn-secondary" onClick={onClose}>Cancel</button>
+            <button className="acl-btn-primary" onClick={handleApply}>Apply</button>
           </div>
         </div>
       </div>

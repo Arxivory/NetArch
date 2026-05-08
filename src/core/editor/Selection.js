@@ -36,7 +36,7 @@ export class Selection {
             : en.type;
     }
 
-    identifyEntity(x, y, entities, ctx) {
+identifyEntity(x, y, entities, ctx, appState) {
         x *= this.dpr;
         y *= this.dpr;
 

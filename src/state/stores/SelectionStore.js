@@ -195,17 +195,8 @@ export class SelectionStore {
   }
 
   clearSelection() {
-<<<<<<< HEAD
-    this.selectedDeviceIds = [];
-    this.selectedFurnitureIds = [];
-    this.selectedLinkIds = [];
-    this.selectedDoorIds = [];
-    this.focusedId = null;
-    this.focusedType = null;
-=======
-    this._clearObjectSelections();
+this._clearObjectSelections();
     this._setFocus(null, null);
->>>>>>> 19e7f74e9015c692133719a493710184f7dacde8
     this.highlightedIds = [];
     this.notify();
   }

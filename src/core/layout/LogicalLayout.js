@@ -1130,10 +1130,12 @@ export class LogicalLayout {
           if (projected) conduit.moveTo(projected.x, projected.y);
         }
 
-        this.routeManager?.clear();
+        // Sync to structural store
+        appState.structural.updateConduit(conduit.id, { x: conduit.x, y: conduit.y });
+
         const links   = appState.network.getAllLinks();
         const devices = appState.network.getAllDevices();
-        this.routeManager?.resolveAll(links, devices);
+        this.routeManager?.reResolveAll(links, devices);
 
         this._render();
         return;
@@ -1157,6 +1159,9 @@ export class LogicalLayout {
           const clampedY = Math.max(bounds.minY, Math.min(p.y, bounds.maxY - riser.height));
           riser.moveTo(clampedX, clampedY);
         }
+
+        // Sync to structural store
+        appState.structural.updateRiser(riser.id, { x: riser.x, y: riser.y });
 
         const links   = appState.network.getAllLinks();
         const devices = appState.network.getAllDevices();
@@ -1183,6 +1188,9 @@ export class LogicalLayout {
           const clampedY = Math.max(bounds.minY, Math.min(p.y, bounds.maxY - undergroundConduit.height));
           undergroundConduit.moveTo(clampedX, clampedY);
         }
+
+        // Sync to structural store
+        appState.structural.updateUndergroundConduit(undergroundConduit.id, { x: undergroundConduit.x, y: undergroundConduit.y });
 
         const links   = appState.network.getAllLinks();
         const devices = appState.network.getAllDevices();

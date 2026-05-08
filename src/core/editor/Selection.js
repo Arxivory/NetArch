@@ -1,3 +1,5 @@
+import appState from '../../state/AppState.js';
+
 export class Selection {
     constructor(opts) {
         this.dpr = opts.dpr || 1;
@@ -36,7 +38,7 @@ export class Selection {
             : en.type;
     }
 
-identifyEntity(x, y, entities, ctx, appState) {
+identifyEntity(x, y, entities, ctx) {
         x *= this.dpr;
         y *= this.dpr;
 

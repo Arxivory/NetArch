@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Network, Layers, Cable, ArrowLeftRight, GitBranch, Activity, ShieldCheck, Trash2 } from "lucide-react";
 
-export default function VLANModal({ onClose, deviceName = "Switch", deviceLocation = "Network" }) {
+export default function VLANModal({ onClose, deviceName = "Switch", deviceLocation = "Network", device = null }) {
   const [activeVLANTab, setActiveVLANTab] = useState("vlans");
 
   // ── VLAN Database state ─────────────────────────────────────────────────
@@ -70,6 +70,40 @@ export default function VLANModal({ onClose, deviceName = "Switch", deviceLocati
     const ts = now();
     const dispatch = (message) =>
       window.dispatchEvent(new CustomEvent("add-system-log", { detail: { device: "Switch", deviceName, message, location: deviceLocation, italic: true } }));
+
+    if (device?.vlanManager) {
+      const routerInterfaceName = device?.interfaces?.[0]?.name || portIface;
+
+      vlans.forEach(vlan => {
+        device.vlanManager.addVlan(Number.parseInt(vlan.vlanId, 10), vlan.name, {
+          type: vlan.type.toLowerCase(),
+          status: vlan.status.toLowerCase(),
+          mtu: Number.parseInt(vlan.mtu, 10),
+          subnet: vlan.subnet || null,
+        });
+      });
+
+      if (portIface) {
+        if (portMode.toLowerCase() === "trunk") {
+          device.configureTrunkPort(portIface, {
+            nativeVlan: portAccessVlan || 1,
+            allowedVlans: portAccessVlan ? [portAccessVlan] : [],
+            tagNativeFrames: true,
+          });
+        } else {
+          device.configureAccessPort(portIface, portAccessVlan || 1);
+        }
+      }
+
+      if (sviVlan && (sviIp || device?.type === 'router')) {
+        if (typeof device.configureSwitchSvi === 'function') {
+          device.configureSwitchSvi(sviVlan, sviIp, sviMask);
+          device.enableIpRouting?.(ipRouting);
+        } else if (typeof device.configureRouterOnStick === 'function') {
+          device.configureRouterOnStick(routerInterfaceName, sviVlan, sviIp, sviMask);
+        }
+      }
+    }
 
     vlans.forEach(v => {
       dispatch(`%VLAN-5-DB_UPDATE: [${ts}] ${deviceName} @ ${deviceLocation} — VLAN ${v.vlanId} ("${v.name}") committed. Type: ${v.type} | Status: ${v.status} | MTU: ${v.mtu} | Subnet: ${v.subnet || "unset"}.`);
@@ -279,6 +313,13 @@ export default function VLANModal({ onClose, deviceName = "Switch", deviceLocati
                     <input type="checkbox" checked={ipRouting} onChange={e => setIpRouting(e.target.checked)} />
                     <span>Enable IP routing between VLANs (ip routing)</span>
                   </div>
+                  {device?.type === 'router' && (
+                    <div className="checkbox-wrap">
+                      <span style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>
+                        Router-on-a-stick configuration will create / update a tagged subinterface for this VLAN.
+                      </span>
+                    </div>
+                  )}
                 </>
               )}
 

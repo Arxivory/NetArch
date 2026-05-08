@@ -89,6 +89,7 @@ export default function PropertiesPanel({ canvasController }) {
   const [isAuthModalOpen,         setIsAuthModalOpen]         = useState(false);
   const [isIGMPModalOpen,         setIsIGMPModalOpen]         = useState(false);
   const [isSyslogModalOpen,       setIsSyslogModalOpen]       = useState(false);
+  const selectedDeviceRef = useRef(null);
 
   // ── Subscription: keep selectedEntity in sync with appState ───────────────
   useEffect(() => {
@@ -120,13 +121,33 @@ export default function PropertiesPanel({ canvasController }) {
           storeNode = appState.furniture.getFurniture(entityId);
 
         if (entity && storeNode) {
-          entity = {
-            ...entity,
-            ...storeNode,
-            label: storeNode.label || storeNode.hostname || storeNode.name || entity.label
-          };
+          if (storeNode.interfaces !== undefined) {
+            entity = storeNode;
+            selectedDeviceRef.current = storeNode;
+
+            if (entity.transform && storeNode.transform) {
+              entity.transform = {
+                ...storeNode.transform,
+                ...entity.transform,
+              };
+            } else if (entity.transform == null && storeNode.transform) {
+              entity.transform = storeNode.transform;
+            }
+
+            if (!entity.label) {
+              entity.label = storeNode.label || storeNode.hostname || storeNode.name || entity.label;
+            }
+          } else {
+            entity = {
+              ...entity,
+              ...storeNode,
+              label: storeNode.label || storeNode.hostname || storeNode.name || entity.label
+            };
+            selectedDeviceRef.current = null;
+          }
         } else if (!entity && storeNode) {
           entity = storeNode;
+          selectedDeviceRef.current = storeNode?.interfaces !== undefined ? storeNode : null;
         }
 
         if (entity) {
@@ -148,6 +169,7 @@ export default function PropertiesPanel({ canvasController }) {
         }
       }
       setSelectedEntity(null);
+      selectedDeviceRef.current = null;
     };
 
     const unsubscribeSelection  = appState.selection.subscribe(updatePanelContent);
@@ -611,6 +633,7 @@ export default function PropertiesPanel({ canvasController }) {
           onClose={() => setIsVLANModalOpen(false)}
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
+          device={selectedDeviceRef.current || selectedEntity}
         />
       )}
       {isSTPModalOpen && (
@@ -618,6 +641,7 @@ export default function PropertiesPanel({ canvasController }) {
           onClose={() => setIsSTPModalOpen(false)}
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
+          device={selectedDeviceRef.current || selectedEntity}
         />
       )}
       {isPortSecurityModalOpen && (
@@ -632,6 +656,7 @@ export default function PropertiesPanel({ canvasController }) {
           onClose={() => setIsTrunkingModalOpen(false)}
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
+          device={selectedDeviceRef.current || selectedEntity}
         />
       )}
       {isQoSModalOpen && (

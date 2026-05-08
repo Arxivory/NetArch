@@ -267,7 +267,7 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
       interfaces[0] = firstInterface;
       updatedEntity = { ...selectedEntity, interfaces, [field]: value };
     } else if (field === "defaultGateway") {
-      updatedEntity = { ...selectedEntity, defaultGateway: value };
+      updatedEntity = { ...selectedEntity, defaultGateway: value, interfaces: selectedEntity.interfaces };
     }
     setSelectedEntity(updatedEntity);
   };

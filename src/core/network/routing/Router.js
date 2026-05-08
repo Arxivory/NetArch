@@ -48,6 +48,15 @@ export function installRouterBehavior(device) {
   device.arpCache = new ARPCache(device);
   device.icmp = new ICMPHandler(device);
 
+  // Wire up the ICMP handler to actually transmit packets
+  device.icmp.onSendICMP((frame, egressInterface) => {
+    if (egressInterface._engine) {
+      egressInterface._engine.transmitPacket(frame, egressInterface);
+    } else if (egressInterface.physicalPort?.link) {
+      egressInterface.physicalPort.link.transmitPacket(frame, egressInterface.physicalPort);
+    }
+  });
+
   // =========================================================================
   // OVERRIDE PACKET HANDLING
   // =========================================================================

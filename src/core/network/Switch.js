@@ -18,6 +18,7 @@ import SwitchingEngine from './switching/SwitchingEngine.js';
 import VLANManager from './switching/VLAN.js';
 import STPEngine from './switching/protocols/STP.js';
 import Interface from './Interface.js';
+import PacketBuilder from './routing/PacketBuilder.js';
 
 /**
  * Install switch behavior on a Device instance.
@@ -56,6 +57,48 @@ export function installSwitchBehavior(device) {
    * Called whenever an interface receives a frame from a physical link.
    */
   device.onPacketReceived = function(packet, ingressInterface) {
+    // CHECK L3 INTERCEPT FOR SVI
+    if (packet && packet.etherType === 0x0800) {
+       // Is the destination MAC one of our SVIs? (SVIs use the base MAC of the switch)
+       if (packet.dstMAC === this.interfaces[0]?.macAddress) {
+          const ipPacket = PacketBuilder.extractIPPacket(packet);
+          if (ipPacket && ipPacket.protocol === 'icmp') {
+             const icmp = ipPacket.payload;
+             if (icmp && icmp.type === 'echo-request') {
+                // Find if we have an SVI with this IP
+                let svi = null;
+                if (this.switchVirtualInterfaces) {
+                   for (const intf of this.switchVirtualInterfaces.values()) {
+                      if (intf.ipv4 && intf.ipv4.address === ipPacket.dstIP) {
+                         svi = intf;
+                         break;
+                      }
+                   }
+                }
+                if (svi) {
+                   // Build reply
+                   const replyFrame = PacketBuilder.buildICMPEchoReply(
+                      svi.macAddress,
+                      packet.srcMAC,
+                      ipPacket.dstIP,
+                      ipPacket.srcIP,
+                      icmp.id,
+                      icmp.sequence,
+                      icmp.data
+                   );
+                   // Transmit back out the ingress interface
+                   if (ingressInterface._engine) {
+                      ingressInterface._engine.transmitPacket(replyFrame, ingressInterface);
+                   } else if (ingressInterface.physicalPort?.link) {
+                      ingressInterface.physicalPort.link.transmitPacket(replyFrame, ingressInterface.physicalPort);
+                   }
+                   return; // Consumed by SVI
+                }
+             }
+          }
+       }
+    }
+
     // Route the ethernet frame through the Layer 2 pipeline
     this.engine.processFrame(packet, ingressInterface);
   };

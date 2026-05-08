@@ -1205,7 +1205,7 @@ export class DeleteEntityCommand extends Command {
 
     let snap = { domain: null, 
       sites: [], floors: [], spaces: 
-      [], walls: [], devices: [], furnitures: [], 
+      [], walls: [], doors: [], devices: [], furnitures: [], 
       links: [], conduits: [], risers: [], undergroundConduits: [] };
 
     let childSiteIds = [], childFloorIds = [], childSpaceIds = [];
@@ -1253,11 +1253,16 @@ export class DeleteEntityCommand extends Command {
     if (st.walls?.some(w => w.id === id)) snap.walls = [JSON.parse(JSON.stringify(st.walls.find(w => w.id === id)))];
     if (st.conduits?.some(c => c.id === id)) snap.conduits = [JSON.parse(JSON.stringify(st.conduits.find(c => c.id === id)))];
     if (st.risers?.some(r => r.id === id)) snap.risers = [JSON.parse(JSON.stringify(st.risers.find(r => r.id === id)))];
-    if (st.undergroundConduits?.some(uc => uc.id === id)) 
-      snap.undergroundConduits = [JSON.parse(JSON.stringify(st.undergroundConduits.find(uc => uc.id === id)))];
+if (st.undergroundConduits?.some(uc => uc.id === id)) 
+  snap.undergroundConduits = [JSON.parse(JSON.stringify(st.undergroundConduits.find(uc => uc.id === id)))];
+const layoutDoor = this.controller?.layout?.doors?.find(d => d.id === id);
+if (layoutDoor) snap.doors = [layoutDoor];
 
-    return snap;
-  }
+return snap; 
+
+}
+
+  
 
   execute() {
     if (!this.backup) {
@@ -1295,6 +1300,26 @@ export class DeleteEntityCommand extends Command {
     this.backup.undergroundConduits.forEach(uc => {
         this.appState.structural.removeUndergroundConduit(uc.id);
         window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: uc.id } }));
+    });
+
+    (this.backup.doors || []).forEach(door => {
+        // Remove from canvas
+        if (this.controller?.layout?.doors) {
+            this.controller.layout.doors = this.controller.layout.doors.filter(d => d.id !== door.id);
+        }
+        // Try every possible structural removal method
+        if (typeof this.appState.structural?.removeDoor === 'function') {
+            this.appState.structural.removeDoor(door.id);
+        } else if (Array.isArray(this.appState.structural?.doors)) {
+            this.appState.structural.doors = this.appState.structural.doors.filter(d => d.id !== door.id);
+            this.appState.structural.notify?.();
+        }
+        // Clear selection so hierarchy deselects it
+        if (this.appState.selection?.focusedId === door.id) {
+            this.appState.selection.focusedId = null;
+            this.appState.selection.focusedType = null;
+            this.appState.selection.notify?.();
+        }
     });
 
     let deletedIds = [];

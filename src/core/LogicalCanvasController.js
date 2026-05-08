@@ -200,11 +200,11 @@ export class LogicalCanvasController {
       if (e.key === 'Backspace' || e.key === 'Delete') {
         if (!appState || !appState.selection) return;
 
-        let ids = appState.selection.getSelectedDeviceIds();
-        if (!ids || ids.length === 0) {
-          const focused = appState.selection.getFocusedId();
-          if (focused) ids = [focused];
-        }
+let ids = appState.selection.getSelectedDeviceIds?.() || [];
+if (!ids || ids.length === 0) {
+  const focused = appState.selection.getFocusedId?.() || appState.selection.focusedId;
+  if (focused) ids = [focused];
+}
 
         if (ids && ids.length > 0) {
           const idToDelete = ids[0];
@@ -225,6 +225,15 @@ export class LogicalCanvasController {
                 }
               }));
             }
+          } else if (appState.selection.focusedType === 'door' && this.layout) {
+            this.layout.doors = this.layout.doors.filter(d => d.id !== idToDelete);
+            if (appState.structural?.removeDoor) {
+              appState.structural.removeDoor(idToDelete);
+            }
+            appState.selection.focusedId = null;
+            appState.selection.focusedType = null;
+            appState.selection.notify?.();
+            this.layout._render();
           } else {
             this.executeDelete(idToDelete);
           }
@@ -2035,6 +2044,11 @@ export class LogicalCanvasController {
     else if (entity.type === 'wall') {
       appState.selection.focusedId = entity.id;
       appState.selection.focusedType = 'wall';
+      appState.selection.notify?.();
+    }
+    else if (entity.type === 'door') {
+      appState.selection.focusedId = entity.id;
+      appState.selection.focusedType = 'door';
       appState.selection.notify?.();
     }
     else {

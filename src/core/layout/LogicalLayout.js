@@ -2162,8 +2162,9 @@ else if (this.startPoint && this.currentPoint) {
 
     // 3. Find and splice the entity from its array
     let entityToRemove = null;
-    const targetArrays = ['rectangles', 'circles', 'polygons', 'freeforms',
-      'devices', 'furnitures', 'cables', 'walls'];
+// LogicalLayout.js → removeEntityById
+const targetArrays = ['rectangles', 'circles', 'polygons', 'freeforms',
+  'devices', 'furnitures', 'cables', 'walls', 'doors', 'windows']; // ADD doors & windows
 
     for (const arrName of targetArrays) {
       if (!this[arrName]) continue;
@@ -2304,9 +2305,15 @@ else if (this.startPoint && this.currentPoint) {
     this.selectedEntity = en || null;
 
     if (en) {
-      if (en.type === 'door') {
-        appState.selection.selectDoor?.(en.id, false);
-      } else if (en.structureType) {
+if (en.type === 'door') {
+  if (typeof appState.selection.selectDoor === 'function') {
+    appState.selection.selectDoor(en.id, false);
+  } else {
+    appState.selection.focusedId = en.id;
+    appState.selection.focusedType = 'door';
+    appState.selection.notify?.();
+  }
+}else if (en.structureType) {
         appState.selection.focusedId = en.id;
         appState.selection.focusedType = en.structureType.toLowerCase();
         appState.selection.notify?.();

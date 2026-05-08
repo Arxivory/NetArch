@@ -15,7 +15,7 @@ function dispatchLog(deviceName, message, location = "Unknown") {
 const ts = () => new Date().toISOString().replace("T", " ").slice(0, 19);
 
 // ─── FastEthernet0 filter ─────────────────────────────────────────────────────
-const isFastEthernet = (name = "") => /^fastethernet0$/i.test(name.trim());
+const isFastEthernet = (name = "") => /^fastethernet\d/i.test(name.trim());
 
 // ─── Resolve FastEthernet0 from a Device instance or NetworkStore plain object ─
 // Returns the live interface object, or null.
@@ -24,16 +24,17 @@ function resolveFastEthernet0(device) {
 
   // Device class instance — _interfaces is a Map keyed by interface name
   if (device._interfaces instanceof Map) {
-    const iface = [...device._interfaces.values()].find((i) => isFastEthernet(i.name));
-    if (iface) return iface;
+    const all = [...device._interfaces.values()];
+    const iface = all.find((i) => isFastEthernet(i.name));
+    return iface || all[0] || null;
   }
 
   // NetworkStore plain object — interfaces is an array
-  if (Array.isArray(device.interfaces)) {
+  if (Array.isArray(device.interfaces) && device.interfaces.length > 0) {
     const iface = device.interfaces.find((i) =>
       isFastEthernet(i.name || i.label || "")
     );
-    if (iface) return iface;
+    return iface || device.interfaces[0];
   }
 
   return null;
@@ -41,14 +42,14 @@ function resolveFastEthernet0(device) {
 
 // ─── Read IPv4 fields from a live interface ref ───────────────────────────────
 // Normalises both the Interface class shape and the plain NetworkStore shape.
-function readIpv4(ifaceRef) {
-  if (!ifaceRef) return { address: "", subnetMask: "", gateway: "", dns: "" };
-  const v4 = ifaceRef.ipv4 || {};
+function readIpv4(ifaceRef, device) {
+  if (!ifaceRef && !device) return { address: "", subnetMask: "", gateway: "", dns: "" };
+  const v4 = ifaceRef?.ipv4 || ifaceRef?._ipv4 || ifaceRef?.ip || ifaceRef?.address || device?._ipv4 || device?.ipv4 || {};
   return {
-    address:    v4.address    || v4.ip   || "",
-    subnetMask: v4.subnetMask || v4.mask || "",
-    gateway:    v4.gateway    || v4.gw   || "",
-    dns:        v4.dns        || v4.dns1 || "",
+    address:    v4.address    || v4.ip   || v4.ipAddress || ifaceRef?.address || ifaceRef?.ip || "",
+    subnetMask: v4.subnetMask || v4.mask || v4.netmask || ifaceRef?.subnetMask || ifaceRef?.netmask || "",
+    gateway:    v4.gateway    || v4.gw   || v4.defaultGateway || ifaceRef?.gateway || ifaceRef?.gw || "",
+    dns:        v4.dns        || v4.dns1 || v4.dnsServer || ifaceRef?.dns || "",
   };
 }
 
@@ -127,8 +128,8 @@ function simulateTracert(target, deviceName, location) {
 
 // ─── Simulated ipconfig output ────────────────────────────────────────────────
 // Reads live values from the resolved FastEthernet0 interface.
-function simulateIpconfig(deviceName, ifaceRef) {
-  const { address, subnetMask, gateway, dns } = readIpv4(ifaceRef);
+function simulateIpconfig(deviceName, ifaceRef, device) {
+  const { address, subnetMask, gateway, dns } = readIpv4(ifaceRef, device);
 
   return [
     ``, `Windows IP Configuration`, ``,
@@ -142,8 +143,8 @@ function simulateIpconfig(deviceName, ifaceRef) {
 }
 
 // ─── Simulated ipconfig /all output ──────────────────────────────────────────
-function simulateIpconfigAll(deviceName, ifaceRef) {
-  const { address, subnetMask, gateway, dns } = readIpv4(ifaceRef);
+function simulateIpconfigAll(deviceName, ifaceRef, device) {
+  const { address, subnetMask, gateway, dns } = readIpv4(ifaceRef, device);
 
   // Deterministic MAC derived from deviceName
   const seed  = [...deviceName].reduce((a, c) => a + c.charCodeAt(0), 0);
@@ -185,7 +186,7 @@ const HELP_TEXT = [
   ``,
 ];
 
-function processCommand(raw, deviceName, location, ifaceRef) {
+function processCommand(raw, deviceName, location, ifaceRef, device) {
   const line  = raw.trim();
   const lower = line.toLowerCase();
   const parts = lower.split(/\s+/);
@@ -199,8 +200,8 @@ function processCommand(raw, deviceName, location, ifaceRef) {
   if (cmd === "tracert" || cmd === "traceroute") return simulateTracert(arg, deviceName, location);
   if (cmd === "ipconfig") {
     return arg === "/all"
-      ? simulateIpconfigAll(deviceName, ifaceRef)
-      : simulateIpconfig(deviceName, ifaceRef);
+      ? simulateIpconfigAll(deviceName, ifaceRef, device)
+      : simulateIpconfig(deviceName, ifaceRef, device);
   }
 
   return [
@@ -265,7 +266,9 @@ export default function CommandPromptModal({
 
   async function performNetworkPing(target) {
     const trimmed = target.trim();
-    const ifaceIp = readIpv4(ifaceRef).address;
+    const ifaceIp = readIpv4(ifaceRef, device).address;
+
+    if (!networkManager) console.log('[CommandPromptModal] No network manager available, falling back to simulated ping output.');
 
     if (!networkManager || !ifaceIp || !trimmed) {
       return simulatePing(target, deviceName, deviceLocation);
@@ -386,7 +389,7 @@ export default function CommandPromptModal({
       return;
     }
 
-    const output = processCommand(raw, deviceName, deviceLocation, ifaceRef);
+    const output = processCommand(raw, deviceName, deviceLocation, ifaceRef, device);
 
     if (output[0] === "__CLEAR__") {
       setLines([]);

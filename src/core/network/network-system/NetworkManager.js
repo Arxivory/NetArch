@@ -39,6 +39,8 @@ export default class NetworkManager {
       packetSent: [],
       packetReceived: [],
       packetDropped: [],
+      packetTransmissionScheduled: [],
+      packetDelivered: [],
       networkStatusChanged: [],
     };
   }
@@ -64,6 +66,7 @@ export default class NetworkManager {
         : this.networkStore.links || [];
 
       this.engine = new NetworkIntegrationEngine(devices, links);
+      this._bindEngineEvents();
       this._storeUnsubscribe = typeof this.networkStore.subscribe === 'function'
         ? this.networkStore.subscribe(() => this._syncWithStore())
         : null;
@@ -125,6 +128,10 @@ export default class NetworkManager {
       return null;
     }
 
+    if (!this.isRunning()) {
+      this.start();
+    }
+
     const srcDevice = this._findDeviceByIP(srcIP);
     if (!srcDevice) {
       console.error(`[NetworkManager] No device found with IP ${srcIP}`);
@@ -138,13 +145,13 @@ export default class NetworkManager {
     }
 
     // Build ICMP packet
-    const icmpPacket = {
+    const icmpPacket = createICMPPacket({
       type: 'echo-request',
       code: 0,
-      identifier: Math.floor(Math.random() * 65536),
-      sequenceNumber: 1,
-      timestamp: Date.now(),
-    };
+      id: Math.floor(Math.random() * 65536),
+      sequence: 1,
+      data: `PING ${Date.now()}`,
+    });
 
     const ipPacket = createIPPacket({
       srcIP,
@@ -162,12 +169,12 @@ export default class NetworkManager {
       payload: ipPacket,
     });
 
-    this.engine.transmitPacket(frame, srcInterface);
+    const packetId = this.engine.transmitPacket(frame, srcInterface);
 
     console.log(`[NetworkManager] Sent ping from ${srcIP} to ${dstIP}`);
-    this._emit('packetSent', { srcIP, dstIP, type: 'ICMP' });
+    this._emit('packetSent', { srcIP, dstIP, type: 'ICMP', packetId });
 
-    return frame._timestamp;
+    return packetId;
   }
 
   /**
@@ -183,6 +190,10 @@ export default class NetworkManager {
     if (!this.engine) {
       console.error('[NetworkManager] Engine not initialized');
       return false;
+    }
+
+    if (!this.isRunning()) {
+      this.start();
     }
 
     const srcDevice = this._findDeviceByIP(srcIP);
@@ -238,6 +249,18 @@ export default class NetworkManager {
    */
   getLinks() {
     return this.networkStore.links || [];
+  }
+
+  _bindEngineEvents() {
+    if (!this.engine || typeof this.engine.addEventListener !== 'function') return;
+
+    this.engine.addEventListener('packetTransmissionScheduled', (data) => this._emit('packetTransmissionScheduled', data));
+    this.engine.addEventListener('packetDelivered', (data) => this._emit('packetDelivered', data));
+    this.engine.addEventListener('packetDropped', (data) => this._emit('packetDropped', data));
+  }
+
+  isRunning() {
+    return !!this.engine && !!this.engine._isRunning;
   }
 
   /**
@@ -316,13 +339,19 @@ export default class NetworkManager {
    * @private
    */
   _deviceHasIP(device, ipAddress) {
-    if (!device._interfaces) return false;
-    
-    for (const intf of device._interfaces.values()) {
-      if (intf.ipv4?.address === ipAddress) {
-        return true;
+    if (device._interfaces instanceof Map) {
+      for (const intf of device._interfaces.values()) {
+        if (intf.ipv4?.address === ipAddress) {
+          return true;
+        }
       }
+      return false;
     }
+
+    if (Array.isArray(device.interfaces)) {
+      return device.interfaces.some((intf) => intf.ipv4?.address === ipAddress);
+    }
+
     return false;
   }
 
@@ -332,13 +361,19 @@ export default class NetworkManager {
    * @private
    */
   _getInterfaceWithIP(device, ipAddress) {
-    if (!device._interfaces) return null;
-
-    for (const intf of device._interfaces.values()) {
-      if (intf.ipv4?.address === ipAddress) {
-        return intf;
+    if (device._interfaces instanceof Map) {
+      for (const intf of device._interfaces.values()) {
+        if (intf.ipv4?.address === ipAddress) {
+          return intf;
+        }
       }
+      return null;
     }
+
+    if (Array.isArray(device.interfaces)) {
+      return device.interfaces.find((intf) => intf.ipv4?.address === ipAddress) || null;
+    }
+
     return null;
   }
 

@@ -722,6 +722,12 @@ export class LogicalLayout {
         this.selectedEntity = clickedConduit;
         this.selectedEntities = [clickedConduit];
         appState.selection.selectConduit(clickedConduit.id);
+
+        this.routeManager?.clear();
+        const links   = appState.network.getAllLinks();
+        const devices = appState.network.getAllDevices();
+        this.routeManager?.resolveAll(links, devices);
+
         this.pointerHandler.setPointerDown(true);
         this._render();
         return;
@@ -734,6 +740,12 @@ export class LogicalLayout {
         this.selectedEntity = clickedRiser;
         this.selectedEntities = [clickedRiser];
         appState.selection.selectRiser(clickedRiser.id);
+
+        this.routeManager?.clear();
+        const links   = appState.network.getAllLinks();
+        const devices = appState.network.getAllDevices();
+        this.routeManager?.resolveAll(links, devices);
+
         this.pointerHandler.setPointerDown(true);
         this._render();
         return;
@@ -1118,6 +1130,13 @@ export class LogicalLayout {
           if (projected) conduit.moveTo(projected.x, projected.y);
         }
 
+        // Sync to structural store
+        appState.structural.updateConduit(conduit.id, { x: conduit.x, y: conduit.y });
+
+        const links   = appState.network.getAllLinks();
+        const devices = appState.network.getAllDevices();
+        this.routeManager?.reResolveAll(links, devices);
+
         this._render();
         return;
       }
@@ -1141,6 +1160,12 @@ export class LogicalLayout {
           riser.moveTo(clampedX, clampedY);
         }
 
+        // Sync to structural store
+        appState.structural.updateRiser(riser.id, { x: riser.x, y: riser.y });
+
+        const links   = appState.network.getAllLinks();
+        const devices = appState.network.getAllDevices();
+        this.routeManager?.reResolveAll(links, devices);
         this._render();
         return;
       }
@@ -1164,6 +1189,12 @@ export class LogicalLayout {
           undergroundConduit.moveTo(clampedX, clampedY);
         }
 
+        // Sync to structural store
+        appState.structural.updateUndergroundConduit(undergroundConduit.id, { x: undergroundConduit.x, y: undergroundConduit.y });
+
+        const links   = appState.network.getAllLinks();
+        const devices = appState.network.getAllDevices();
+        this.routeManager?.reResolveAll(links, devices);
         this._render();
         return;
       }
@@ -1315,38 +1346,12 @@ export class LogicalLayout {
         return;
     }
 
-    if (this.interaction?.mode === 'move_conduit') {
-      const conduit = this.interaction.conduit;
-      if (this.routeManager && conduit) {
-        // Re-resolve all cables — any could be using this conduit
-        const links   = appState.network.getAllLinks();
-        const devices = appState.network.getAllDevices();
-        this.routeManager.resolveAll(links, devices);   // won't re-resolve cached ones
-        // Force clear and re-resolve everything since conduit position changed
-        this.routeManager.clear();
-        this.routeManager.resolveAll(links, devices);
-      }
-      this.interaction = { mode: null, handle: null, start: null };
-      this.pointerHandler.setPointerDown(false);
-      this._render();
-      return;
-    }
-
-    if (this.interaction?.mode === 'move_riser') {
-      const riser = this.interaction.riser;
-      if (this.routeManager && riser) {
-        this.routeManager.clear();
-        const links   = appState.network.getAllLinks();
-        const devices = appState.network.getAllDevices();
-        this.routeManager.resolveAll(links, devices);
-      }
-      this.interaction = { mode: null, handle: null, start: null };
-      this.pointerHandler.setPointerDown(false);
-      this._render();
-      return;
-    }
-
-    if (this.interaction?.mode === 'move_underground-conduit') {
+    if (this.interaction?.mode === 'move_conduit' ||
+        this.interaction?.mode === 'move_riser' ||
+        this.interaction?.mode === 'move_underground-conduit') {
+      const links   = appState.network.getAllLinks();
+      const devices = appState.network.getAllDevices();
+      this.routeManager.reResolveAll(links, devices);
       this.interaction = { mode: null, handle: null, start: null };
       this.pointerHandler.setPointerDown(false);
       this._render();
@@ -1985,7 +1990,7 @@ if (this.mode === 'door' || this.mode === 'window') {
         if (!srcOnFloor || !dstOnFloor) continue;
       }
 
-      const resolvedPath = this.routeManager?.getPath(cable.id);
+      const resolvedPath = this.routeManager?.getPath(cable.linkId || cable.id) || this.routeManager?.getPath(cable.id);
       const isPartial = resolvedPath?.isPartial ?? false;
       ctx.beginPath();
       if (resolvedPath && !resolvedPath.isDirect && resolvedPath.canvasPoints.length >= 2) {
@@ -2597,6 +2602,7 @@ else if (this.startPoint && this.currentPoint) {
 
     // 3. Find and splice the entity from its array
     let entityToRemove = null;
+    let removedStructuralEntity = false;
     const targetArrays = ['rectangles', 'circles', 'polygons', 'freeforms',
                           'devices', 'furnitures', 'cables', 'walls', 'conduits', 'risers', 'undergroundConduits'];
 
@@ -2606,6 +2612,9 @@ else if (this.startPoint && this.currentPoint) {
       if (index !== -1) {
         entityToRemove = this[arrName][index];
         this[arrName].splice(index, 1);
+        if (['conduits', 'risers', 'undergroundConduits'].includes(arrName)) {
+          removedStructuralEntity = true;
+        }
         break;
       }
     }
@@ -2614,6 +2623,12 @@ else if (this.startPoint && this.currentPoint) {
     if (entityToRemove?.body && this.system) {
       try { this.system.remove(entityToRemove.body); }
       catch (e) { console.warn('Could not remove body from physics system', e); }
+    }
+
+    if (removedStructuralEntity && this.routeManager) {
+      const links = appState.network.getAllLinks();
+      const devices = appState.network.getAllDevices();
+      this.routeManager.reResolveAll(links, devices);
     }
 
     this._render();

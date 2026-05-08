@@ -38,6 +38,13 @@ export default class NetworkIntegrationEngine {
     this.linkSimulator = new LinkSimulator(this);
     this.packetRouter = new PacketRouter(this.devices, this.links);
 
+    this.eventListeners = {
+      packetTransmissionScheduled: [],
+      packetDelivered: [],
+      packetDropped: [],
+      networkStatusChanged: [],
+    };
+
     // Packet tracking
     /** @type {Map<string, object>} In-flight packets: packetId → {packet, path, link, arrivalTime} */
     this.inFlightPackets = new Map();
@@ -94,6 +101,27 @@ export default class NetworkIntegrationEngine {
     this._isRunning = false;
   }
 
+  addEventListener(eventType, callback) {
+    if (!this.eventListeners[eventType]) return;
+    this.eventListeners[eventType].push(callback);
+  }
+
+  removeEventListener(eventType, callback) {
+    if (!this.eventListeners[eventType]) return;
+    this.eventListeners[eventType] = this.eventListeners[eventType].filter(cb => cb !== callback);
+  }
+
+  _emit(eventType, data) {
+    const listeners = this.eventListeners[eventType] || [];
+    for (const callback of listeners) {
+      try {
+        callback(data);
+      } catch (error) {
+        console.error('[NetworkIntegrationEngine] Event callback failed:', error);
+      }
+    }
+  }
+
   /**
    * Add a device to the running network.
    */
@@ -109,6 +137,8 @@ export default class NetworkIntegrationEngine {
    * Remove a device from the running network.
    */
   removeDevice(deviceId) {
+    const device = this.devices.get(deviceId);
+    if (device) delete device._engineWired;
     this.devices.delete(deviceId);
     this.packetRouter.updateDevices(this.devices);
   }
@@ -160,8 +190,18 @@ export default class NetworkIntegrationEngine {
 
     // Schedule transmission on the link
     this.linkSimulator.scheduleTransmission(packetId, packet, viaLink, outInterface, nextInterface);
+    this._emit('packetTransmissionScheduled', {
+      packetId,
+      packet,
+      srcDevice: device,
+      srcInterface: outInterface,
+      nextDevice,
+      nextInterface,
+      viaLink,
+    });
 
     this.stats.packetsSent++;
+    return packetId;
   }
 
   /**
@@ -176,10 +216,12 @@ export default class NetworkIntegrationEngine {
     const device = receivingInterface.device;
     if (!device || receivingInterface.lineStatus !== 'up') {
       this.stats.packetsDropped++;
+      this._emit('packetDropped', { packet, receivingInterface, reason: 'interface-down' });
       return;
     }
 
     this.stats.packetsReceived++;
+    this._emit('packetDelivered', { packet, receivingInterface, device });
 
     // Call the device's onPacketReceived hook
     // This will route through L2 switching logic or L3 routing logic
@@ -199,6 +241,12 @@ export default class NetworkIntegrationEngine {
    * @private
    */
   _wireDevice(device) {
+    // Prevent double-wiring: start() iterates all devices, addDevice() also calls
+    // _wireDevice — without this guard the handler gets wrapped multiple times,
+    // creating an exponential call chain and stale closure captures.
+    if (device._engineWired) return;
+    device._engineWired = true;
+
     // Save the original onPacketReceived
     const originalOnPacketReceived = device.onPacketReceived || (() => {});
 
@@ -220,8 +268,14 @@ export default class NetworkIntegrationEngine {
     };
 
     // Also wire the interface transmission hooks
-    for (const intf of device._interfaces?.values() || []) {
-      intf._engine = this;
+    if (device._interfaces instanceof Map) {
+      for (const intf of device._interfaces.values()) {
+        intf._engine = this;
+      }
+    } else if (Array.isArray(device.interfaces)) {
+      for (const intf of device.interfaces) {
+        if (intf) intf._engine = this;
+      }
     }
   }
 
@@ -270,3 +324,4 @@ export default class NetworkIntegrationEngine {
     `);
   }
 }
+

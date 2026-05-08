@@ -59,10 +59,8 @@ export default class ICMPHandler {
   handleEchoRequest(icmpPacket, ipPacket, ethernetFrame, ingressInterface) {
     this.stats.echoRequestsReceived++;
 
-    // Find interface with the destination IP
-    const egressInterface = this.device.interfaces.find(
-      iface => iface.ipv4?.address === ipPacket.dstIP
-    );
+    // Just reply out the same interface it came from, to the same MAC!
+    const egressInterface = ingressInterface;
 
     if (!egressInterface || !egressInterface.isUp) {
       // Can't reply if destination interface is down
@@ -70,11 +68,14 @@ export default class ICMPHandler {
       return;
     }
 
+    // Find the IP that it was destined to, to use as the source of our reply.
+    let srcIP = ipPacket.dstIP;
+
     // Build echo reply
     const replyFrame = PacketBuilder.buildICMPEchoReply(
       egressInterface.macAddress,
       ethernetFrame.srcMAC,  // Reply to requester's MAC
-      ipPacket.dstIP,        // Reply from destination IP
+      srcIP,                 // Reply from destination IP
       ipPacket.srcIP,        // Reply to source IP
       icmpPacket.id,
       icmpPacket.sequence,
@@ -85,7 +86,7 @@ export default class ICMPHandler {
     this._sendICMP(replyFrame, egressInterface);
     this.stats.echoRepliesSent++;
 
-    this._log(`Echo reply sent: ${ipPacket.dstIP} → ${ipPacket.srcIP} (seq=${icmpPacket.sequence})`);
+    this._log(`Echo reply sent: ${srcIP} → ${ipPacket.srcIP} (seq=${icmpPacket.sequence})`);
   }
 
   /**

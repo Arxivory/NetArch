@@ -42,6 +42,14 @@ export default class LinkSimulator {
   scheduleTransmission(packetId, packet, link, srcInterface, dstInterface) {
     if (!link || link.status !== 'up') {
       this.engine.stats.packetsDropped++;
+      this.engine._emit?.('packetDropped', {
+        packetId,
+        packet,
+        link,
+        srcInterface,
+        dstInterface,
+        reason: 'link-down',
+      });
       return;
     }
 
@@ -49,6 +57,14 @@ export default class LinkSimulator {
     if (this._shouldDropPacket(link.packetLoss)) {
       this.engine.stats.packetsDropped++;
       console.log(`[LinkSimulator] Packet ${packetId} dropped due to link loss on ${link.id}`);
+      this.engine._emit?.('packetDropped', {
+        packetId,
+        packet,
+        link,
+        srcInterface,
+        dstInterface,
+        reason: 'link-loss',
+      });
       return;
     }
 
@@ -70,8 +86,11 @@ export default class LinkSimulator {
 
     console.log(`[LinkSimulator] Scheduled transmission ${packetId} on ${link.id} (latency: ${delayMs}ms)`);
 
-    // Process pending deliveries
-    this._processPendingDeliveries();
+    // Use real-time setTimeout so delivery actually fires after the latency delay.
+    // _processPendingDeliveries is synchronous and checks clock.now() — without this
+    // the check (deliveryTime <= now) is always false on the same JS tick and packets
+    // sit in the queue forever.
+    setTimeout(() => this._processPendingDeliveries(), delayMs);
   }
 
   /**

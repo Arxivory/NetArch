@@ -60,6 +60,12 @@ export default class ARPCache {
     this._pending = new Map();
 
     /**
+     * Timeout IDs for active ARP retries
+     * @type {Map<string, number>}
+     */
+    this._timeouts = new Map();
+
+    /**
      * Callback functions for SimulationBus integration
      * @type {object}
      */
@@ -252,10 +258,21 @@ export default class ARPCache {
       console.warn(`ARPCache: No callback for ARP request send. targetIP=${targetIP}`);
     }
 
-    // Schedule retry/timeout
-    if (this._callbacks.onARPTimeout) {
-      this._callbacks.onARPTimeout(targetIP, ARP_REQUEST_TIMEOUT);
+    // Cancel any existing timeout for this IP
+    if (this._timeouts.has(targetIP)) {
+      clearTimeout(this._timeouts.get(targetIP));
     }
+
+    // Schedule retry/timeout
+    const timeoutId = setTimeout(() => {
+      this._timeouts.delete(targetIP);
+      // Retry by calling _generateARPRequest again (which increments requestCount)
+      this._generateARPRequest(targetIP);
+    }, ARP_REQUEST_TIMEOUT);
+
+    this._timeouts.set(targetIP, timeoutId);
+
+    console.log(`[ARPCache] ARP request #${pending.requestCount} sent for ${targetIP}, retry in ${ARP_REQUEST_TIMEOUT}ms`);
   }
 
   /**
@@ -320,11 +337,18 @@ export default class ARPCache {
     const entry = this._pending.get(targetIP);
     if (!entry) return;
 
+    // Clear any pending timeout
+    if (this._timeouts.has(targetIP)) {
+      clearTimeout(this._timeouts.get(targetIP));
+      this._timeouts.delete(targetIP);
+    }
+
     entry.packetQueue.forEach(({ onResolved }) => {
       onResolved(mac);
     });
 
     this._pending.delete(targetIP);
+    console.log(`[ARPCache] ARP resolution succeeded for ${targetIP} → ${mac}`);
   }
 
   /**
@@ -335,11 +359,18 @@ export default class ARPCache {
     const entry = this._pending.get(targetIP);
     if (!entry) return;
 
+    // Clear any pending timeout
+    if (this._timeouts.has(targetIP)) {
+      clearTimeout(this._timeouts.get(targetIP));
+      this._timeouts.delete(targetIP);
+    }
+
     entry.packetQueue.forEach(({ onFailed }) => {
       if (onFailed) onFailed();
     });
 
     this._pending.delete(targetIP);
+    console.log(`[ARPCache] ARP resolution failed for ${targetIP} after ${entry.requestCount} attempts`);
   }
 
   // ---------------------------------------------------------------------------

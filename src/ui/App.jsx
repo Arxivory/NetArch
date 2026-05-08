@@ -21,7 +21,14 @@ export default function App() {
     manager.initialize();
     setNetworkManager(manager);
 
+    const handleStatus = ({ status }) => {
+      setNetworkRunning(status === 'running');
+    };
+
+    manager.addEventListener('networkStatusChanged', handleStatus);
+
     return () => {
+      manager.removeEventListener('networkStatusChanged', handleStatus);
       manager.destroy?.();
     };
   }, []);
@@ -47,13 +54,13 @@ export default function App() {
           setNetworkRunning={setNetworkRunning}
         />
 
-        <Workspace canvasControllerRef={canvasControllerRef}/>
+        <Workspace canvasControllerRef={canvasControllerRef} networkManager={networkManager} />
         <div className="main-layout">
           <ObjectLibrary canvasController={controller}/>
           <ConsoleSimulationLogs />
           <div className="right-panel">
             <HierarchyPanel />   
-            <PropertiesPanel canvasController={controller} />
+            <PropertiesPanel canvasController={controller} networkManager={networkManager} />
           </div>
         </div>
       </div>

@@ -64,6 +64,20 @@ export default class RouterPipeline {
       return false;
     }
 
+    // --- INTERCEPT PACKETS DESTINED FOR THIS ROUTER ---
+    const isForMe = device.interfaces.some(i => i.ipv4 && i.ipv4.address === ipPacket.dstIP);
+    if (isForMe) {
+      if (ipPacket.protocol === 'icmp') {
+        const icmpPacket = ipPacket.payload;
+        if (icmpPacket && icmpPacket.type === 'echo-request') {
+          if (device.icmp) {
+            device.icmp.handleEchoRequest(icmpPacket, ipPacket, frame, ingressInterface);
+          }
+        }
+      }
+      return true; // We consumed the packet, don't route it!
+    }
+
     // =========================================================================
     // STEP 3: ROUTING LOOKUP (LONGEST PREFIX MATCH)
     // =========================================================================

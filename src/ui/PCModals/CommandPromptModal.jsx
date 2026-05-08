@@ -15,7 +15,7 @@ function dispatchLog(deviceName, message, location = "Unknown") {
 const ts = () => new Date().toISOString().replace("T", " ").slice(0, 19);
 
 // ─── FastEthernet0 filter ─────────────────────────────────────────────────────
-const isFastEthernet = (name = "") => /^fastethernet0$/i.test(name.trim());
+const isFastEthernet = (name = "") => /^fastethernet\d/i.test(name.trim());
 
 // ─── Resolve FastEthernet0 from a Device instance or NetworkStore plain object ─
 // Returns the live interface object, or null.
@@ -24,16 +24,17 @@ function resolveFastEthernet0(device) {
 
   // Device class instance — _interfaces is a Map keyed by interface name
   if (device._interfaces instanceof Map) {
-    const iface = [...device._interfaces.values()].find((i) => isFastEthernet(i.name));
-    if (iface) return iface;
+    const all = [...device._interfaces.values()];
+    const iface = all.find((i) => isFastEthernet(i.name));
+    return iface || all[0] || null;
   }
 
   // NetworkStore plain object — interfaces is an array
-  if (Array.isArray(device.interfaces)) {
+  if (Array.isArray(device.interfaces) && device.interfaces.length > 0) {
     const iface = device.interfaces.find((i) =>
       isFastEthernet(i.name || i.label || "")
     );
-    if (iface) return iface;
+    return iface || device.interfaces[0];
   }
 
   return null;
@@ -41,14 +42,14 @@ function resolveFastEthernet0(device) {
 
 // ─── Read IPv4 fields from a live interface ref ───────────────────────────────
 // Normalises both the Interface class shape and the plain NetworkStore shape.
-function readIpv4(ifaceRef) {
-  if (!ifaceRef) return { address: "", subnetMask: "", gateway: "", dns: "" };
-  const v4 = ifaceRef.ipv4 || {};
+function readIpv4(ifaceRef, device) {
+  if (!ifaceRef && !device) return { address: "", subnetMask: "", gateway: "", dns: "" };
+  const v4 = ifaceRef?.ipv4 || ifaceRef?._ipv4 || ifaceRef?.ip || ifaceRef?.address || device?._ipv4 || device?.ipv4 || {};
   return {
-    address:    v4.address    || v4.ip   || "",
-    subnetMask: v4.subnetMask || v4.mask || "",
-    gateway:    v4.gateway    || v4.gw   || "",
-    dns:        v4.dns        || v4.dns1 || "",
+    address:    v4.address    || v4.ip   || v4.ipAddress || ifaceRef?.address || ifaceRef?.ip || "",
+    subnetMask: v4.subnetMask || v4.mask || v4.netmask || ifaceRef?.subnetMask || ifaceRef?.netmask || "",
+    gateway:    v4.gateway    || v4.gw   || v4.defaultGateway || ifaceRef?.gateway || ifaceRef?.gw || "",
+    dns:        v4.dns        || v4.dns1 || v4.dnsServer || ifaceRef?.dns || "",
   };
 }
 
@@ -127,8 +128,8 @@ function simulateTracert(target, deviceName, location) {
 
 // ─── Simulated ipconfig output ────────────────────────────────────────────────
 // Reads live values from the resolved FastEthernet0 interface.
-function simulateIpconfig(deviceName, ifaceRef) {
-  const { address, subnetMask, gateway, dns } = readIpv4(ifaceRef);
+function simulateIpconfig(deviceName, ifaceRef, device) {
+  const { address, subnetMask, gateway, dns } = readIpv4(ifaceRef, device);
 
   return [
     ``, `Windows IP Configuration`, ``,
@@ -142,8 +143,8 @@ function simulateIpconfig(deviceName, ifaceRef) {
 }
 
 // ─── Simulated ipconfig /all output ──────────────────────────────────────────
-function simulateIpconfigAll(deviceName, ifaceRef) {
-  const { address, subnetMask, gateway, dns } = readIpv4(ifaceRef);
+function simulateIpconfigAll(deviceName, ifaceRef, device) {
+  const { address, subnetMask, gateway, dns } = readIpv4(ifaceRef, device);
 
   // Deterministic MAC derived from deviceName
   const seed  = [...deviceName].reduce((a, c) => a + c.charCodeAt(0), 0);
@@ -185,7 +186,7 @@ const HELP_TEXT = [
   ``,
 ];
 
-function processCommand(raw, deviceName, location, ifaceRef) {
+function processCommand(raw, deviceName, location, ifaceRef, device) {
   const line  = raw.trim();
   const lower = line.toLowerCase();
   const parts = lower.split(/\s+/);
@@ -199,8 +200,8 @@ function processCommand(raw, deviceName, location, ifaceRef) {
   if (cmd === "tracert" || cmd === "traceroute") return simulateTracert(arg, deviceName, location);
   if (cmd === "ipconfig") {
     return arg === "/all"
-      ? simulateIpconfigAll(deviceName, ifaceRef)
-      : simulateIpconfig(deviceName, ifaceRef);
+      ? simulateIpconfigAll(deviceName, ifaceRef, device)
+      : simulateIpconfig(deviceName, ifaceRef, device);
   }
 
   return [
@@ -241,6 +242,7 @@ export default function CommandPromptModal({
   device,                 // Device instance or NetworkStore plain object
   deviceName     = "PC",
   deviceLocation = "Unknown",
+  networkManager = null,
 }) {
   // Resolve the FastEthernet0 interface once — stable ref for the session.
   // If IP config changes while the modal is open, ipconfig will re-read the
@@ -253,12 +255,112 @@ export default function CommandPromptModal({
     `(c) Microsoft Corporation. All rights reserved.`,
     ``,
   ]);
-  const [input,   setInput]   = useState("");
-  const [history, setHistory] = useState([]);
-  const [histIdx, setHistIdx] = useState(-1);
+  const [input,       setInput]       = useState("");
+  const [history,     setHistory]     = useState([]);
+  const [histIdx,     setHistIdx]     = useState(-1);
+  const [isPingExecuting, setIsPingExecuting] = useState(false);
+  const [pingMessage, setPingMessage] = useState("");
 
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
+
+  async function performNetworkPing(target) {
+    const trimmed = target.trim();
+    const ifaceIp = readIpv4(ifaceRef, device).address;
+
+    if (!networkManager) console.log('[CommandPromptModal] No network manager available, falling back to simulated ping output.');
+
+    if (!networkManager || !ifaceIp || !trimmed) {
+      return simulatePing(target, deviceName, deviceLocation);
+    }
+
+    setIsPingExecuting(true);
+    setPingMessage(`Sending ICMP echo request from ${ifaceIp} to ${trimmed}...`);
+
+    const packetId = networkManager.sendPing(ifaceIp, trimmed);
+    if (!packetId) {
+      setIsPingExecuting(false);
+      return [`Ping request could not find host ${trimmed}. Please check the name and try again.`, ""];
+    }
+
+    const startTime = Date.now();
+    // Increased from 4000ms to 8000ms to allow ARP resolution (5s) + processing
+    const timeoutMs = 8000;
+
+    const result = await new Promise((resolve) => {
+      let finished = false;
+      const cleanup = () => {
+        if (finished) return;
+        finished = true;
+        networkManager.removeEventListener('packetDelivered', onDelivered);
+        networkManager.removeEventListener('packetDropped', onDropped);
+        clearTimeout(timeoutId);
+      };
+
+      const onDelivered = (data) => {
+        const ipPacket = data.packet?.payload;
+        const icmp = ipPacket?.payload;
+        if (!ipPacket || ipPacket.protocol !== 'icmp' || !icmp) return;
+
+        if (
+          icmp.type === 'echo-reply' &&
+          ipPacket.srcIP === trimmed &&
+          ipPacket.dstIP === ifaceIp
+        ) {
+          cleanup();
+          resolve({ success: true, rtt: Date.now() - startTime });
+        }
+      };
+
+      const onDropped = (data) => {
+        if (data.packetId === packetId) {
+          cleanup();
+          resolve({ success: false, reason: 'dropped' });
+        }
+      };
+
+      const timeoutId = setTimeout(() => {
+        cleanup();
+        resolve({ success: false, reason: 'timeout' });
+      }, timeoutMs);
+
+      networkManager.addEventListener('packetDelivered', onDelivered);
+      networkManager.addEventListener('packetDropped', onDropped);
+    });
+
+    setPingMessage(`Processing results from ${trimmed}...`);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    setIsPingExecuting(false);
+
+    if (result.success) {
+      const avg = Math.max(1, Math.round(result.rtt));
+      const times = [avg - 1, avg, avg + 1, avg + 2].map((t) => Math.max(1, t));
+      return [
+        ``,
+        `Pinging ${trimmed} with 32 bytes of data:`,
+        ...times.map((time, index) => `Reply from ${trimmed}: bytes=32 time=${time}ms TTL=128`),
+        ``,
+        `Ping statistics for ${trimmed}:`,
+        `    Packets: Sent = 4, Received = 4, Lost = 0 (0% loss),`,
+        `Approximate round trip times in milli-seconds:`,
+        `    Minimum = ${Math.min(...times)}ms, Maximum = ${Math.max(...times)}ms, Average = ${Math.round(times.reduce((a, b) => a + b, 0) / times.length)}ms`,
+        ``,
+      ];
+    }
+
+    return [
+      ``,
+      `Pinging ${trimmed} with 32 bytes of data:`,
+      `Request timed out for icmp_seq 0`,
+      `Request timed out for icmp_seq 1`,
+      `Request timed out for icmp_seq 2`,
+      `Request timed out for icmp_seq 3`,
+      ``,
+      `Ping statistics for ${trimmed}:`,
+      `    Packets: Sent = 4, Received = 0, Lost = 4 (100% loss),`,
+      ``,
+    ];
+  }
 
   const PROMPT = `C:\\Users\\${deviceName}>`;
 
@@ -270,9 +372,25 @@ export default function CommandPromptModal({
     if (activeTab === "terminal") inputRef.current?.focus();
   }, [activeTab]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const raw    = input;
-    const output = processCommand(raw, deviceName, deviceLocation, ifaceRef);
+    const lower  = raw.trim().toLowerCase();
+    const parts  = lower.split(/\s+/);
+    const cmd    = parts[0];
+    const arg    = parts.slice(1).join(" ");
+
+    if (cmd === "ping" && networkManager) {
+      setLines((prev) => [...prev, `${PROMPT}${raw}`]);
+      if (raw.trim()) setHistory((prev) => [raw, ...prev]);
+      setHistIdx(-1);
+      setInput("");
+
+      const output = await performNetworkPing(arg);
+      setLines((prev) => [...prev, ...output]);
+      return;
+    }
+
+    const output = processCommand(raw, deviceName, deviceLocation, ifaceRef, device);
 
     if (output[0] === "__CLEAR__") {
       setLines([]);
@@ -367,6 +485,7 @@ export default function CommandPromptModal({
               <div
                 className="acl-body"
                 style={{
+                  position: "relative",
                   background: "#0c0c0c",
                   padding: "10px 14px",
                   cursor: "text",
@@ -375,6 +494,35 @@ export default function CommandPromptModal({
                 }}
                 onClick={() => inputRef.current?.focus()}
               >
+                {isPingExecuting && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background: "rgba(0, 0, 0, 0.55)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      zIndex: 2,
+                      pointerEvents: "none",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "14px 18px",
+                        background: "rgba(20, 20, 20, 0.95)",
+                        borderRadius: 10,
+                        color: "#fff",
+                        fontSize: 13,
+                        textAlign: "center",
+                        boxShadow: "0 0 0 1px rgba(255,255,255,0.08)",
+                        maxWidth: 360,
+                      }}
+                    >
+                      {pingMessage || "Processing ping command..."}
+                    </div>
+                  </div>
+                )}
                 {lines.map((line, i) => (
                   <p
                     key={i}

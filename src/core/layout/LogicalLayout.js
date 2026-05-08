@@ -536,6 +536,12 @@ export class LogicalLayout {
         this.y = this.savedPosition.y;
         this.transform.position.x = this.x;
         this.transform.position.y = this.y;
+      },
+      move(dx, dy) {
+        this.x += dx;
+        this.y += dy;
+        this.transform.position.x += dx;
+        this.transform.position.y += dy;
       }
     };
 
@@ -2756,7 +2762,10 @@ else if (this.startPoint && this.currentPoint) {
     // Primary check: stable flag set in Device (UI) constructor.
     // Fallback duck-type handles canvas entities from older save files
     // that pre-date the entityType field.
-    return !!en && (
+    if (!en) return false;
+    if (en.entityType === 'furniture' || en.type === 'furniture' || en.id?.startsWith('furniture')) return false;
+
+    return (
       en.entityType === 'device' ||
       en.catalogId !== undefined ||
       en.interfaces !== undefined
@@ -2764,7 +2773,7 @@ else if (this.startPoint && this.currentPoint) {
   }
 
   _isFurnitureEntity(en) {
-    return !!en && (en.type === 'furniture' || en.id?.startsWith('furniture'));
+    return !!en && (en.entityType === 'furniture' || en.type === 'furniture' || en.id?.startsWith('furniture'));
   }
 
   _isResizableEntity(en) {
@@ -2786,17 +2795,19 @@ else if (this.startPoint && this.currentPoint) {
     }
 
     if (this._isFurnitureEntity(en)) {
-      const w = (en.width ?? 0) + 32;
-      const h = (en.height ?? 0) + 45;
-      const x = en.x - w / 2;
-      const y = en.y - h / 2.5;
+      // FIX: Align the physical bounds logic with the center-offset math
+      const tileW = (en.width || 48) + 32;
+      const tileH = (en.height || 48) + 45;
+      const startX = en.x - (tileW / 2);
+      const startY = en.y - (tileH / 2.5);
+
       return {
-        minX: x,
-        minY: y,
-        maxX: x + w,
-        maxY: y + h,
-        width: w,
-        height: h
+        minX: startX,
+        minY: startY,
+        maxX: startX + tileW,
+        maxY: startY + tileH,
+        width: tileW,
+        height: tileH
       };
     }
 
@@ -2882,9 +2893,7 @@ else if (this.startPoint && this.currentPoint) {
     if (!en) return null;
 
     if (en.type === 'conduit') return null;
-
     if (en.type === 'riser') return null;
-
     if (en.type === 'undergroundConduit') return null;
 
     if (this._isDeviceEntity(en)) {
@@ -2897,14 +2906,16 @@ else if (this.startPoint && this.currentPoint) {
     }
 
     if (this._isFurnitureEntity(en)) {
-      const w = (en.width ?? 0) + 32;
-      const h = (en.height ?? 0) + 45;
-
+      // FIX: furniture.x and furniture.y are CENTER coordinates.
+      // We pull back by half the width/height to find the true Top-Left corner!
+      const tileW = (en.width || 48) + 32;
+      const tileH = (en.height || 48) + 45;
+      
       return {
-        x: en.x - w / 2,
-        y: en.y - h / 2.5,
-        w,
-        h
+        x: en.x - (tileW / 2),
+        y: en.y - (tileH / 2.5),
+        w: tileW,
+        h: tileH
       };
     }
 

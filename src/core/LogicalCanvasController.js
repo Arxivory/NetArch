@@ -841,6 +841,35 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
     return true;
   }
 
+  applyFurnitureMove(furnitureId, dx, dy, options = {}) {
+    if (dx === 0 && dy === 0) {
+      return false;
+    }
+
+    const furniture = typeof appState.furniture?.getFurniture === 'function' ? appState.furniture.getFurniture(furnitureId) : null;
+    if (!furniture) {
+      return false;
+    }
+
+    furniture.transform = furniture.transform || { position: { x: 0, y: 0, z: 0 } };
+    furniture.transform.position.x = Number(furniture.transform.position.x || 0) + (dx * 0.7);
+    furniture.transform.position.z = Number(furniture.transform.position.z || 0) + (dy * 0.7);
+
+    if (!options.skipCanvasMove) {
+      this._applyCanvasEntityMoveById(furnitureId, dx, dy);
+    }
+
+    if (appState.furniture && typeof appState.furniture.notify === 'function') {
+      appState.furniture.notify();
+    }
+
+    if (typeof this.layout._render === 'function') {
+      this.layout._render();
+    }
+
+    return true;
+  }
+
   _commitPendingMoveCommands() {
     if (!this.pendingMoveEntities.size) {
       return;
@@ -879,6 +908,24 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
         }
 
         const moveCommand = new MoveCommand(appState, this, entityId, 'device', null, dx, dy);
+        this.commandHistory.executeCommand(moveCommand);
+      } else if (moveInfo.kind === 'furniture') {
+        const startingPos = this.positionSnapshot.get(entityId);
+        if (!startingPos) {
+          return;
+        }
+
+        const currentFurniture = typeof appState.furniture?.getFurniture === 'function' ? appState.furniture.getFurniture(entityId) : null;
+        const currentX = Number(currentFurniture?.transform?.position?.x || 0);
+        // We use position.z to track the 2D vertical position because FurnitureStore maps altitude to Y
+        const currentZ = Number(currentFurniture?.transform?.position?.z || 0);
+        const dx = currentX - Number(startingPos.x);
+        const dy = currentZ - Number(startingPos.z || startingPos.y);
+        if (dx === 0 && dy === 0) {
+          return;
+        }
+
+        const moveCommand = new MoveCommand(appState, this, entityId, 'furniture', null, dx, dy);
         this.commandHistory.executeCommand(moveCommand);
       }
     });
@@ -1966,8 +2013,8 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
         return;
     }
 
-    const isDevice = en.interfaces !== undefined || en.catalogId !== undefined;
-    const isFurniture = en?.type === 'furniture' || en?.entityType === 'furniture';
+    const isFurniture = en?.type === 'furniture' || en?.entityType === 'furniture' || en?.id?.startsWith('furniture');
+    const isDevice = !isFurniture && (en.entityType === 'device' || en.interfaces !== undefined || en.catalogId !== undefined);
     const hasSavedPosition = en && en.savedPosition !== undefined;
     const moved = (dx !== 0 || dy !== 0) ||
       (hasSavedPosition && (en.x !== en.savedPosition.x || en.y !== en.savedPosition.y));
@@ -1991,12 +2038,15 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
         }
     }
 
-    if (isDevice) {
+    if (isDevice || isFurniture) {
         if (dx !== 0 || dy !== 0) {
-            const deviceId = this.entityIdMap.get(en.id) || en.id;
-            const success = this.applyDeviceMove(deviceId, dx, dy, { skipCanvasMove: true });
+            const entityId = this.entityIdMap.get(en.id) || en.id;
+            const success = isDevice 
+                 ? this.applyDeviceMove(entityId, dx, dy, { skipCanvasMove: true })
+                 : this.applyFurnitureMove(entityId, dx, dy, { skipCanvasMove: true });
+                 
             if (success) {
-                this._recordPendingMove(deviceId, { kind: 'device' });
+                this._recordPendingMove(entityId, { kind: isDevice ? 'device' : 'furniture' });
             }
         }
 
@@ -2049,11 +2099,16 @@ _handleEntityChanged(en, dx = 0, dy = 0) {
                 this._recordPendingMove(structuralId, { kind: 'structure', structureType: shapeType });
             }
         } else if (appState.network && typeof appState.getDevice === 'function') {
-            const deviceId = this.entityIdMap.get(en.id) || en.id;
-            const device = appState.getDevice(deviceId);
+            const entityId = this.entityIdMap.get(en.id) || en.id;
+            const device = appState.getDevice(entityId);
+            const furniture = appState.furniture?.getFurniture?.(entityId);
+            
             if (device) {
-                this.applyDeviceMove(deviceId, dx, dy, { skipCanvasMove: true });
-                this._recordPendingMove(deviceId, { kind: 'device' });
+                this.applyDeviceMove(entityId, dx, dy, { skipCanvasMove: true });
+                this._recordPendingMove(entityId, { kind: 'device' });
+            } else if (furniture) {
+                this.applyFurnitureMove(entityId, dx, dy, { skipCanvasMove: true });
+                this._recordPendingMove(entityId, { kind: 'furniture' });
             }
         }
     }

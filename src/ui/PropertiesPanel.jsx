@@ -38,8 +38,8 @@ const DEVICE_CONFIGS = {
     { label: "SSH",                 desc: "Secure remote command line access" },
   ],
   switch: [
+    { label: "Interface Settings",   desc: "Manage IPs, masks" },
     { label: "VLAN Manager",   desc: "Create and assign Virtual LANs" },
-    { label: "Interface Settings",   desc: "Manage IPs, masks, and gateway for each port" },
     { label: "Spanning Tree",  desc: "Configure STP to prevent network loops" },
     { label: "VLAN Trunking",  desc: "Configure 802.1Q tags for switch links" },
     { label: "Port Security",  desc: "Bind specific MAC addresses to ports" },
@@ -124,13 +124,33 @@ export default function PropertiesPanel({ canvasController }) {
           storeNode = appState.furniture.getFurniture(entityId);
 
         if (entity && storeNode) {
-          entity = {
-            ...entity,
-            ...storeNode,
-            label: storeNode.label || storeNode.hostname || storeNode.name || entity.label
-          };
+          if (storeNode.interfaces !== undefined) {
+            entity = storeNode;
+            selectedDeviceRef.current = storeNode;
+
+            if (entity.transform && storeNode.transform) {
+              entity.transform = {
+                ...storeNode.transform,
+                ...entity.transform,
+              };
+            } else if (entity.transform == null && storeNode.transform) {
+              entity.transform = storeNode.transform;
+            }
+
+            if (!entity.label) {
+              entity.label = storeNode.label || storeNode.hostname || storeNode.name || entity.label;
+            }
+          } else {
+            entity = {
+              ...entity,
+              ...storeNode,
+              label: storeNode.label || storeNode.hostname || storeNode.name || entity.label
+            };
+            selectedDeviceRef.current = null;
+          }
         } else if (!entity && storeNode) {
           entity = storeNode;
+          selectedDeviceRef.current = storeNode?.interfaces !== undefined ? storeNode : null;
         }
 
         if (entity) {
@@ -153,6 +173,7 @@ export default function PropertiesPanel({ canvasController }) {
         }
       }
       setSelectedEntity(null);
+      selectedDeviceRef.current = null;
     };
 
     const unsubscribeSelection  = appState.selection.subscribe(updatePanelContent);
@@ -217,6 +238,7 @@ export default function PropertiesPanel({ canvasController }) {
     let val = selectedEntity[field] || "";
     if (field === 'ipAddress') val = selectedEntity?.interfaces?.[0]?.ipv4?.address || "";
     if (field === 'subnetMask') val = selectedEntity?.interfaces?.[0]?.ipv4?.subnetMask || "";
+    if (field === 'defaultGateway') val = selectedEntity?.defaultGateway || "";
     
     // Save the old value the moment the user clicks into the text box
     originalValueRef.current[field] = val;
@@ -239,6 +261,8 @@ export default function PropertiesPanel({ canvasController }) {
       firstInterface.ipv4 = ipv4;
       interfaces[0] = firstInterface;
       updatedEntity = { ...selectedEntity, interfaces, [field]: value };
+    } else if (field === "defaultGateway") {
+      updatedEntity = { ...selectedEntity, defaultGateway: value };
     }
     setSelectedEntity(updatedEntity);
   };
@@ -249,6 +273,7 @@ export default function PropertiesPanel({ canvasController }) {
     let newValue = selectedEntity[field] || "";
     if (field === 'ipAddress') newValue = selectedEntity?.interfaces?.[0]?.ipv4?.address || "";
     if (field === 'subnetMask') newValue = selectedEntity?.interfaces?.[0]?.ipv4?.subnetMask || "";
+    if (field === 'defaultGateway') newValue = selectedEntity?.defaultGateway || "";
 
     // The user clicked away. Did they actually change the text?
     if (oldValue !== newValue) {
@@ -408,6 +433,15 @@ export default function PropertiesPanel({ canvasController }) {
               onBlur={() => handleDeviceBlur('label')}
             />
           </div>
+          <div><label>Default Gateway</label>
+            <input className="field-input" 
+              value={selectedEntity?.defaultGateway || ""} 
+              onFocus={() => handleDeviceFocus('defaultGateway')}
+              onChange={(e) => handleDeviceChange('defaultGateway', e.target.value)} 
+              onBlur={() => handleDeviceBlur('defaultGateway')}
+              placeholder="192.168.1.254"
+            />
+          </div>
           <button className="floor-specifier-btn" onClick={() => setIsModalOpen(true)}>
             Advanced Configuration
           </button>
@@ -531,6 +565,7 @@ export default function PropertiesPanel({ canvasController }) {
           onClose={() => setIsRoutingModalOpen(false)}
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
+          device={selectedEntity}
         />
       )}
 
@@ -540,6 +575,7 @@ export default function PropertiesPanel({ canvasController }) {
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
           device={selectedEntity}
+          deviceType={deviceType}
         />
       )}
  
@@ -603,6 +639,7 @@ export default function PropertiesPanel({ canvasController }) {
           onClose={() => setIsVLANModalOpen(false)}
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
+          device={selectedDeviceRef.current || selectedEntity}
         />
       )}
       {isSTPModalOpen && (
@@ -610,6 +647,7 @@ export default function PropertiesPanel({ canvasController }) {
           onClose={() => setIsSTPModalOpen(false)}
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
+          device={selectedDeviceRef.current || selectedEntity}
         />
       )}
       {isPortSecurityModalOpen && (
@@ -624,6 +662,7 @@ export default function PropertiesPanel({ canvasController }) {
           onClose={() => setIsTrunkingModalOpen(false)}
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
+          device={selectedDeviceRef.current || selectedEntity}
         />
       )}
       {isQoSModalOpen && (

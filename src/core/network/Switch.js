@@ -17,6 +17,7 @@
 import SwitchingEngine from './switching/SwitchingEngine.js';
 import VLANManager from './switching/VLAN.js';
 import STPEngine from './switching/protocols/STP.js';
+import Interface from './Interface.js';
 
 /**
  * Install switch behavior on a Device instance.
@@ -109,6 +110,108 @@ export function installSwitchBehavior(device) {
     console.log(`[${this.hostname}] MAC address table cleared.`);
   };
 
+  device.configureAccessPort = function(interfaceName, vlanId) {
+    const port = this.getPortByName(interfaceName);
+    if (!port) {
+      throw new Error(`[${this.hostname}] Unknown port ${interfaceName}`);
+    }
+
+    this.vlanManager.setAccessVlan(port.id, Number.parseInt(vlanId, 10));
+    return this.vlanManager.getPortConfig(port.id);
+  };
+
+  device.configureTrunkPort = function(interfaceName, options = {}) {
+    const port = this.getPortByName(interfaceName);
+    if (!port) {
+      throw new Error(`[${this.hostname}] Unknown port ${interfaceName}`);
+    }
+
+    this.vlanManager.setTrunkPort(port.id, options);
+    return this.vlanManager.getPortConfig(port.id);
+  };
+
+  device.configureNativeVlan = function(interfaceName, vlanId) {
+    const port = this.getPortByName(interfaceName);
+    if (!port) {
+      throw new Error(`[${this.hostname}] Unknown port ${interfaceName}`);
+    }
+
+    this.vlanManager.setNativeVlan(port.id, Number.parseInt(vlanId, 10));
+    return this.vlanManager.getPortConfig(port.id);
+  };
+
+  device.configureAllowedVlans = function(interfaceName, vlanList) {
+    const port = this.getPortByName(interfaceName);
+    if (!port) {
+      throw new Error(`[${this.hostname}] Unknown port ${interfaceName}`);
+    }
+
+    const list = Array.isArray(vlanList)
+      ? vlanList
+      : String(vlanList || '')
+          .split(',')
+          .map(value => value.trim())
+          .filter(Boolean);
+
+    this.vlanManager.setTrunkAllowedVlans(port.id, list);
+    return this.vlanManager.getPortConfig(port.id);
+  };
+
+  device.configureRouterOnStick = function(physicalInterfaceName, vlanId, ipAddress, subnetMask) {
+    const baseInterface = this.getInterfaceByName(physicalInterfaceName);
+    if (!baseInterface) {
+      throw new Error(`[${this.hostname}] Unknown interface ${physicalInterfaceName}`);
+    }
+
+    const subInterface = baseInterface.createSubInterface(Number.parseInt(vlanId, 10));
+    subInterface.configureDot1Q(Number.parseInt(vlanId, 10));
+    if (ipAddress && subnetMask) {
+      subInterface.configureIPv4(ipAddress, subnetMask);
+    }
+    return subInterface;
+  };
+
+  device.configureSwitchSvi = function(vlanId, ipAddress, subnetMask) {
+    const normalizedVlanId = Number.parseInt(vlanId, 10);
+    if (!Number.isInteger(normalizedVlanId) || normalizedVlanId <= 0 || normalizedVlanId > 4094) {
+      throw new Error(`[${this.hostname}] Invalid VLAN ID ${vlanId}`);
+    }
+
+    if (!this.vlanManager.database.has(normalizedVlanId)) {
+      this.vlanManager.addVlan(normalizedVlanId);
+    }
+
+    if (!this.switchVirtualInterfaces) {
+      this.switchVirtualInterfaces = new Map();
+    }
+
+    const sviName = `Vlan${normalizedVlanId}`;
+    let svi = this.switchVirtualInterfaces.get(normalizedVlanId) || this.getInterfaceByName(sviName);
+
+    if (!svi) {
+      svi = new Interface({
+        id: `${this.id}::${sviName}::intf`,
+        name: sviName,
+        macAddress: this.interfaces[0]?.macAddress || '00:00:00:00:00:00',
+      });
+      this.addInterface(svi);
+      this.switchVirtualInterfaces.set(normalizedVlanId, svi);
+    }
+
+    if (ipAddress && subnetMask) {
+      svi.configureIPv4(ipAddress, subnetMask);
+    }
+
+    svi.setAccessVlan(normalizedVlanId);
+    this.ipRoutingEnabled = true;
+    return svi;
+  };
+
+  device.enableIpRouting = function(enabled = true) {
+    this.ipRoutingEnabled = Boolean(enabled);
+    return this.ipRoutingEnabled;
+  };
+
   // NEW: UI helper to display VLAN assignments (Cisco: show vlan brief)
   device.showVlanBrief = function() {
     const db = this.vlanManager.getDatabase();
@@ -121,7 +224,14 @@ export function installSwitchBehavior(device) {
                ports.push(portName);
            }
        }
-       return { ...vlan, ports };
+       const trunkPorts = [];
+       for (const [portId, config] of this.vlanManager.trunkConfigs.entries()) {
+         const allowed = config.allowedVlans ? [...config.allowedVlans] : null;
+         if (!allowed || allowed.includes(vlan.id)) {
+           trunkPorts.push(portId.split('::')[1] || portId);
+         }
+       }
+       return { ...vlan, ports, trunkPorts };
     });
   };
 
@@ -164,6 +274,15 @@ export function uninstallSwitchBehavior(device) {
   delete device.engine;
   delete device.showMacAddressTable;
   delete device.clearMacAddressTable;
+  delete device.configureAccessPort;
+  delete device.configureTrunkPort;
+  delete device.configureNativeVlan;
+  delete device.configureAllowedVlans;
+  delete device.configureRouterOnStick;
+  delete device.configureSwitchSvi;
+  delete device.enableIpRouting;
+  delete device.switchVirtualInterfaces;
+  delete device.ipRoutingEnabled;
   delete device.showVlanBrief;
   delete device._switchInstalled;
 

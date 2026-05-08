@@ -19,6 +19,9 @@ export default class VLANManager {
     
     // Maps portId -> vlanId (for access ports)
     this.accessVlans = new Map();
+
+    // Maps portId -> trunk config metadata
+    this.trunkConfigs = new Map();
     
     // Boot up with standard Cisco default VLANs
     this._initDefaults();
@@ -36,12 +39,19 @@ export default class VLANManager {
   // VLAN DATABASE MANAGEMENT
   // =========================================================================
 
-  addVlan(vlanId, name = null) {
+  addVlan(vlanId, name = null, metadata = {}) {
     if (vlanId <= 0 || vlanId > 4094) {
       throw new Error("VLAN ID must be between 1 and 4094.");
     }
     const vlanName = name || `VLAN${vlanId.toString().padStart(4, '0')}`;
-    this.database.set(vlanId, vlanName);
+    this.database.set(vlanId, {
+      id: vlanId,
+      name: vlanName,
+      type: metadata.type || 'data',
+      status: metadata.status || 'active',
+      mtu: metadata.mtu || 1500,
+      subnet: metadata.subnet || null,
+    });
     console.log(`[${this.device.hostname}] Created VLAN ${vlanId} (${vlanName})`);
   }
 
@@ -75,6 +85,17 @@ export default class VLANManager {
     if (!this.accessVlans.has(portId)) {
       this.accessVlans.set(portId, 1);
     }
+
+    if (mode === 'access') {
+      this.trunkConfigs.delete(portId);
+    } else {
+      const existing = this.trunkConfigs.get(portId) || {};
+      this.trunkConfigs.set(portId, {
+        nativeVlan: existing.nativeVlan || 1,
+        allowedVlans: existing.allowedVlans || null,
+        tagNativeFrames: existing.tagNativeFrames || false,
+      });
+    }
   }
 
   setAccessVlan(portId, vlanId) {
@@ -84,6 +105,63 @@ export default class VLANManager {
     }
     this.accessVlans.set(portId, vlanId);
     this.portModes.set(portId, 'access'); // Automatically force to access mode
+    this.trunkConfigs.delete(portId);
+  }
+
+  setTrunkPort(portId, options = {}) {
+    const nativeVlan = Number.parseInt(options.nativeVlan ?? 1, 10) || 1;
+    const allowedVlans = Array.isArray(options.allowedVlans)
+      ? new Set(options.allowedVlans.map(v => Number.parseInt(v, 10)).filter(v => Number.isInteger(v) && v > 0 && v <= 4094))
+      : null;
+
+    if (!this.database.has(nativeVlan)) {
+      this.addVlan(nativeVlan);
+    }
+
+    this.portModes.set(portId, 'trunk');
+    this.trunkConfigs.set(portId, {
+      nativeVlan,
+      allowedVlans,
+      tagNativeFrames: Boolean(options.tagNativeFrames),
+    });
+  }
+
+  setNativeVlan(portId, vlanId) {
+    if (!this.database.has(vlanId)) {
+      this.addVlan(vlanId);
+    }
+
+    const existing = this.trunkConfigs.get(portId) || {};
+    this.portModes.set(portId, 'trunk');
+    this.trunkConfigs.set(portId, {
+      nativeVlan: vlanId,
+      allowedVlans: existing.allowedVlans || null,
+      tagNativeFrames: existing.tagNativeFrames || false,
+    });
+  }
+
+  setTrunkAllowedVlans(portId, vlanList) {
+    const normalized = Array.isArray(vlanList)
+      ? vlanList.map(v => Number.parseInt(v, 10)).filter(v => Number.isInteger(v) && v > 0 && v <= 4094)
+      : [];
+
+    const existing = this.trunkConfigs.get(portId) || {};
+    this.portModes.set(portId, 'trunk');
+    this.trunkConfigs.set(portId, {
+      nativeVlan: existing.nativeVlan || 1,
+      allowedVlans: new Set(normalized),
+      tagNativeFrames: existing.tagNativeFrames || false,
+    });
+  }
+
+  setTagNativeFrames(portId, shouldTag = true) {
+    const existing = this.trunkConfigs.get(portId) || {};
+    this.portModes.set(portId, 'trunk');
+    this.trunkConfigs.set(portId, {
+      nativeVlan: existing.nativeVlan || 1,
+      allowedVlans: existing.allowedVlans || null,
+      tagNativeFrames: Boolean(shouldTag),
+    });
   }
 
   // =========================================================================
@@ -94,8 +172,33 @@ export default class VLANManager {
    * Determines the VLAN of an incoming frame.
    * If the frame arrived on an Access port, it is assigned that port's VLAN.
    */
-  getIngressVlan(portId) {
-    return this.accessVlans.get(portId) || 1;
+  getIngressVlan(portId, frame = null) {
+    return this.resolveIngress(portId, frame).vlanId;
+  }
+
+  resolveIngress(portId, frame = null) {
+    const mode = this.portModes.get(portId) || 'access';
+
+    if (mode === 'trunk') {
+      const trunkConfig = this.trunkConfigs.get(portId) || { nativeVlan: 1, allowedVlans: null, tagNativeFrames: false };
+      const taggedVlan = frame?.vlanTag?.id;
+
+      if (taggedVlan) {
+        if (trunkConfig.allowedVlans && !trunkConfig.allowedVlans.has(taggedVlan)) {
+          return { vlanId: null, dropFrame: true, stripTag: false };
+        }
+        return { vlanId: taggedVlan, dropFrame: false, stripTag: false };
+      }
+
+      return { vlanId: trunkConfig.nativeVlan || 1, dropFrame: false, stripTag: false };
+    }
+
+    const accessVlan = this.accessVlans.get(portId) || 1;
+    return {
+      vlanId: accessVlan,
+      dropFrame: false,
+      stripTag: Boolean(frame?.vlanTag),
+    };
   }
 
   /**
@@ -109,10 +212,40 @@ export default class VLANManager {
       const assignedVlan = this.accessVlans.get(portId) || 1;
       return assignedVlan === frameVlanId;
     } else if (mode === 'trunk') {
-      // Trunk ports allow all VLANs to pass through
-      return true; 
+      const trunkConfig = this.trunkConfigs.get(portId);
+      if (!trunkConfig || !trunkConfig.allowedVlans) {
+        return true;
+      }
+      return trunkConfig.allowedVlans.has(frameVlanId);
     }
     return false;
+  }
+
+  shouldTagEgressFrame(portId, frameVlanId) {
+    const mode = this.portModes.get(portId) || 'access';
+    if (mode !== 'trunk') {
+      return false;
+    }
+
+    const trunkConfig = this.trunkConfigs.get(portId) || { nativeVlan: 1, tagNativeFrames: false };
+    if (frameVlanId === (trunkConfig.nativeVlan || 1) && !trunkConfig.tagNativeFrames) {
+      return false;
+    }
+
+    return true;
+  }
+
+  getPortConfig(portId) {
+    const mode = this.portModes.get(portId) || 'access';
+    const trunkConfig = this.trunkConfigs.get(portId) || null;
+
+    return {
+      mode,
+      accessVlan: this.accessVlans.get(portId) || 1,
+      nativeVlan: trunkConfig?.nativeVlan || 1,
+      allowedVlans: trunkConfig?.allowedVlans ? [...trunkConfig.allowedVlans] : null,
+      tagNativeFrames: trunkConfig?.tagNativeFrames || false,
+    };
   }
 
   // =========================================================================
@@ -120,6 +253,13 @@ export default class VLANManager {
   // =========================================================================
   
   getDatabase() {
-    return Array.from(this.database.entries()).map(([id, name]) => ({ id, name }));
+    return Array.from(this.database.values()).map(vlan => ({
+      id: vlan.id,
+      name: vlan.name,
+      type: vlan.type,
+      status: vlan.status,
+      mtu: vlan.mtu,
+      subnet: vlan.subnet,
+    }));
   }
 }

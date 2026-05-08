@@ -1203,7 +1203,10 @@ export class DeleteEntityCommand extends Command {
     const furn = this.appState.furniture;
     const id = this.idToDelete;
 
-    let snap = { domain: null, sites: [], floors: [], spaces: [], walls: [], devices: [], furnitures: [], links: [] };
+    let snap = { domain: null, 
+      sites: [], floors: [], spaces: 
+      [], walls: [], devices: [], furnitures: [], 
+      links: [], conduits: [], risers: [], undergroundConduits: [] };
 
     let childSiteIds = [], childFloorIds = [], childSpaceIds = [];
 
@@ -1248,6 +1251,10 @@ export class DeleteEntityCommand extends Command {
     if (net && net.getLink(id)) snap.links = [{...net.getLink(id)}];
     if (furn && furn.furnitures?.some(f => f.id === id)) snap.furnitures = [{...furn.furnitures.find(f => f.id === id)}];
     if (st.walls?.some(w => w.id === id)) snap.walls = [JSON.parse(JSON.stringify(st.walls.find(w => w.id === id)))];
+    if (st.conduits?.some(c => c.id === id)) snap.conduits = [JSON.parse(JSON.stringify(st.conduits.find(c => c.id === id)))];
+    if (st.risers?.some(r => r.id === id)) snap.risers = [JSON.parse(JSON.stringify(st.risers.find(r => r.id === id)))];
+    if (st.undergroundConduits?.some(uc => uc.id === id)) 
+      snap.undergroundConduits = [JSON.parse(JSON.stringify(st.undergroundConduits.find(uc => uc.id === id)))];
 
     return snap;
   }
@@ -1273,6 +1280,22 @@ export class DeleteEntityCommand extends Command {
         this.appState.furniture?.removeFurniture(f.id);
         window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: f.id } }));
     });
+    this.backup.walls.forEach(w => {
+        this.appState.structural.removeWall(w.id);
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: w.id } }));
+    });
+    this.backup.conduits.forEach(c => {
+        this.appState.structural.removeConduit(c.id);
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: c.id } }));
+    });
+    this.backup.risers.forEach(r => {
+        this.appState.structural.removeRiser(r.id);
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: r.id } }));
+    });
+    this.backup.undergroundConduits.forEach(uc => {
+        this.appState.structural.removeUndergroundConduit(uc.id);
+        window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: uc.id } }));
+    });
 
     let deletedIds = [];
     const st = this.appState.structural;
@@ -1284,6 +1307,9 @@ export class DeleteEntityCommand extends Command {
     else if (st.floors?.some(f => f.id === id)) deletedIds = st.removeFloor(id) || [id];
     else if (st.spaces?.some(s => s.id === id)) deletedIds = st.removeSpace(id) || [id];
     else if (st.walls?.some(w => w.id === id)) deletedIds = st.removeWall?.(id) || [id];
+    else if (st.conduits?.some(c => c.id === id)) deletedIds = st.removeConduit?.(id) || [id];
+    else if (st.risers?.some(r => r.id === id)) deletedIds = st.removeRiser?.(id) || [id];
+    else if (st.undergroundConduits?.some(uc => uc.id === id)) deletedIds = st.removeUndergroundConduit?.(id) || [id];
 
     // Wipe visually from 2D Layout
     const allIdsToWipeVisually = new Set([

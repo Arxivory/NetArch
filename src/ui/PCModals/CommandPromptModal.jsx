@@ -274,20 +274,88 @@ export default function CommandPromptModal({
     setIsPingExecuting(true);
     setPingMessage(`Sending ICMP echo request from ${ifaceIp} to ${trimmed}...`);
 
-    try {
-      const packetId = networkManager.sendPing(ifaceIp, trimmed);
-      if (!packetId) {
-        return [`Ping request could not find host ${trimmed}. Please check the name and try again.`, ""];
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      setPingMessage(`Awaiting reply from ${trimmed}...`);
-      await new Promise((resolve) => setTimeout(resolve, 800));
-    } finally {
+    const packetId = networkManager.sendPing(ifaceIp, trimmed);
+    if (!packetId) {
       setIsPingExecuting(false);
+      return [`Ping request could not find host ${trimmed}. Please check the name and try again.`, ""];
     }
 
-    return simulatePing(target, deviceName, deviceLocation);
+    const startTime = Date.now();
+    const timeoutMs = 4000;
+
+    const result = await new Promise((resolve) => {
+      let finished = false;
+      const cleanup = () => {
+        if (finished) return;
+        finished = true;
+        networkManager.removeEventListener('packetDelivered', onDelivered);
+        networkManager.removeEventListener('packetDropped', onDropped);
+        clearTimeout(timeoutId);
+      };
+
+      const onDelivered = (data) => {
+        const ipPacket = data.packet?.payload;
+        const icmp = ipPacket?.payload;
+        if (!ipPacket || ipPacket.protocol !== 'icmp' || !icmp) return;
+
+        if (
+          icmp.type === 'echo-reply' &&
+          ipPacket.srcIP === trimmed &&
+          ipPacket.dstIP === ifaceIp
+        ) {
+          cleanup();
+          resolve({ success: true, rtt: Date.now() - startTime });
+        }
+      };
+
+      const onDropped = (data) => {
+        if (data.packetId === packetId) {
+          cleanup();
+          resolve({ success: false, reason: 'dropped' });
+        }
+      };
+
+      const timeoutId = setTimeout(() => {
+        cleanup();
+        resolve({ success: false, reason: 'timeout' });
+      }, timeoutMs);
+
+      networkManager.addEventListener('packetDelivered', onDelivered);
+      networkManager.addEventListener('packetDropped', onDropped);
+    });
+
+    setPingMessage(`Processing results from ${trimmed}...`);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    setIsPingExecuting(false);
+
+    if (result.success) {
+      const avg = Math.max(1, Math.round(result.rtt));
+      const times = [avg - 1, avg, avg + 1, avg + 2].map((t) => Math.max(1, t));
+      return [
+        ``,
+        `Pinging ${trimmed} with 32 bytes of data:`,
+        ...times.map((time, index) => `Reply from ${trimmed}: bytes=32 time=${time}ms TTL=128`),
+        ``,
+        `Ping statistics for ${trimmed}:`,
+        `    Packets: Sent = 4, Received = 4, Lost = 0 (0% loss),`,
+        `Approximate round trip times in milli-seconds:`,
+        `    Minimum = ${Math.min(...times)}ms, Maximum = ${Math.max(...times)}ms, Average = ${Math.round(times.reduce((a, b) => a + b, 0) / times.length)}ms`,
+        ``,
+      ];
+    }
+
+    return [
+      ``,
+      `Pinging ${trimmed} with 32 bytes of data:`,
+      `Request timed out for icmp_seq 0`,
+      `Request timed out for icmp_seq 1`,
+      `Request timed out for icmp_seq 2`,
+      `Request timed out for icmp_seq 3`,
+      ``,
+      `Ping statistics for ${trimmed}:`,
+      `    Packets: Sent = 4, Received = 0, Lost = 4 (100% loss),`,
+      ``,
+    ];
   }
 
   const PROMPT = `C:\\Users\\${deviceName}>`;

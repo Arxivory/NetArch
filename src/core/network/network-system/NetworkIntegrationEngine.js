@@ -199,6 +199,7 @@ export default class NetworkIntegrationEngine {
     });
 
     this.stats.packetsSent++;
+    return packetId;
   }
 
   /**
@@ -259,8 +260,14 @@ export default class NetworkIntegrationEngine {
     };
 
     // Also wire the interface transmission hooks
-    for (const intf of device._interfaces?.values() || []) {
-      intf._engine = this;
+    if (device._interfaces instanceof Map) {
+      for (const intf of device._interfaces.values()) {
+        intf._engine = this;
+      }
+    } else if (Array.isArray(device.interfaces)) {
+      for (const intf of device.interfaces) {
+        if (intf) intf._engine = this;
+      }
     }
   }
 

@@ -169,12 +169,12 @@ export default class NetworkManager {
       payload: ipPacket,
     });
 
-    this.engine.transmitPacket(frame, srcInterface);
+    const packetId = this.engine.transmitPacket(frame, srcInterface);
 
     console.log(`[NetworkManager] Sent ping from ${srcIP} to ${dstIP}`);
-    this._emit('packetSent', { srcIP, dstIP, type: 'ICMP' });
+    this._emit('packetSent', { srcIP, dstIP, type: 'ICMP', packetId });
 
-    return frame._timestamp;
+    return packetId;
   }
 
   /**
@@ -339,13 +339,19 @@ export default class NetworkManager {
    * @private
    */
   _deviceHasIP(device, ipAddress) {
-    if (!device._interfaces) return false;
-    
-    for (const intf of device._interfaces.values()) {
-      if (intf.ipv4?.address === ipAddress) {
-        return true;
+    if (device._interfaces instanceof Map) {
+      for (const intf of device._interfaces.values()) {
+        if (intf.ipv4?.address === ipAddress) {
+          return true;
+        }
       }
+      return false;
     }
+
+    if (Array.isArray(device.interfaces)) {
+      return device.interfaces.some((intf) => intf.ipv4?.address === ipAddress);
+    }
+
     return false;
   }
 
@@ -355,13 +361,19 @@ export default class NetworkManager {
    * @private
    */
   _getInterfaceWithIP(device, ipAddress) {
-    if (!device._interfaces) return null;
-
-    for (const intf of device._interfaces.values()) {
-      if (intf.ipv4?.address === ipAddress) {
-        return intf;
+    if (device._interfaces instanceof Map) {
+      for (const intf of device._interfaces.values()) {
+        if (intf.ipv4?.address === ipAddress) {
+          return intf;
+        }
       }
+      return null;
     }
+
+    if (Array.isArray(device.interfaces)) {
+      return device.interfaces.find((intf) => intf.ipv4?.address === ipAddress) || null;
+    }
+
     return null;
   }
 

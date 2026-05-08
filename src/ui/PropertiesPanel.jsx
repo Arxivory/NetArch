@@ -421,15 +421,6 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
             Advanced Configuration
           </button>
 
-          {/* This button now directly fires your exported QuickTest script! */}
-          <button 
-            className="floor-specifier-btn" 
-            onClick={testSwitchEngine} 
-            style={{ marginTop: '8px', backgroundColor: '#10b981', color: 'white' }}
-          >
-            Run Layer 2 Test
-          </button>
-
         </div>
       )}
 

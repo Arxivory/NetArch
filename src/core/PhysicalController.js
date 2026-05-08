@@ -461,6 +461,8 @@ export class PhysicalController {
         device.transform.position.y = worldY;
 
         deviceMesh.userData = { id: device.id, type: 'device' };
+        // Apply floor altitude to position the device at the correct vertical height
+        deviceMesh.position.y = altitude;
 
         this.scene.add(deviceMesh);
         this.deviceMeshes.set(device.id, deviceMesh);
@@ -475,8 +477,16 @@ export class PhysicalController {
     }
 
     async createFurnitureGLTFMesh(furniture) {
+        if (this.furnitureMeshes.has(furniture.id)) {
+            return this.furnitureMeshes.get(furniture.id);
+        }
+
         const newFurniture = new FurnitureMesh(furniture, this.defaultScaler);
         const furnitureMesh = await newFurniture.getMesh(this.gltfLoader, this.furnitureCatalog);
+
+        if (this.furnitureMeshes.has(furniture.id)) {
+            return this.furnitureMeshes.get(furniture.id);
+        }
 
         const floor = this.store.floors.find(f => f.id === furniture.floorId);
         const altitude = floor ? floor.altitude || 0 : 0;
@@ -489,6 +499,8 @@ export class PhysicalController {
         );
 
         furnitureMesh.userData = { id: furniture.id, type: 'furniture' };
+        // Apply floor altitude to position the furniture at the correct vertical height
+        furnitureMesh.position.y = altitude;
 
         this.scene.add(furnitureMesh);
         this.furnitureMeshes.set(furniture.id, furnitureMesh);

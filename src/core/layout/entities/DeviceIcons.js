@@ -149,6 +149,15 @@ export function resolveDeviceIconKey(deviceData) {
   if (raw.includes('desk') || raw.includes('table')) {
     return 'desk';
   }
+  // if (raw.includes('chair') || raw.includes('seat')) {
+  //   return 'chair';
+  // }
+  // if (raw.includes('rack') || raw.includes('cabinet')) {
+  //   return 'rack';
+  // }
+
+  // Fallback to furniture icons if keywords match, even if they don't match any specific device type
+
   if (raw.includes('chair') || raw.includes('seat')) {
     return 'chair';
   }
@@ -158,6 +167,7 @@ export function resolveDeviceIconKey(deviceData) {
 
   return 'imported';
 }
+
 
 // ---------------------------------------------------------------------------
 // IMAGE MAP BUILDER

@@ -21,12 +21,14 @@ import QoSModal            from "./SwitchModals/QoSModal";
 import AuthenticationModal from "./SwitchModals/AuthenticationModal";
 import IGMPModals          from "./SwitchModals/IGMPModals";
 import SyslogModal         from "./SwitchModals/SyslogModal";
+import IPConfigurationModal from "./PCModals/IPConfigurationModal";
+import CommandPromptModal  from "./PCModals/CommandPromptModal";
 
 // ─── Config card map ──────────────────────────────────────────────────────────
 const DEVICE_CONFIGS = {
   router: [
-    { label: "Routing Protocol",    desc: "Configure OSPF, BGP, or Static routes" },
     { label: "Interface Settings",   desc: "Manage IPs, masks, and gateway for each port" },
+    { label: "Routing Protocol",    desc: "Configure OSPF, BGP, or Static routes" },
     { label: "NAT/PAT",             desc: "Translate private IPs to public addresses" },
     { label: "Access Control List", desc: "Create permit/deny traffic rules" },
     { label: "DHCP Server",         desc: "Manage IP address pools for the network" },
@@ -37,9 +39,10 @@ const DEVICE_CONFIGS = {
   ],
   switch: [
     { label: "VLAN Manager",   desc: "Create and assign Virtual LANs" },
+    { label: "Interface Settings",   desc: "Manage IPs, masks, and gateway for each port" },
     { label: "Spanning Tree",  desc: "Configure STP to prevent network loops" },
-    { label: "Port Security",  desc: "Bind specific MAC addresses to ports" },
     { label: "VLAN Trunking",  desc: "Configure 802.1Q tags for switch links" },
+    { label: "Port Security",  desc: "Bind specific MAC addresses to ports" },
     { label: "QoS Settings",   desc: "Prioritize voice or video data packets" },
     { label: "User Auth",      desc: "Configure RADIUS/802.1X port access" },
     { label: "IGMP Snooping",  desc: "Optimize multicast traffic delivery" },
@@ -88,6 +91,8 @@ export default function PropertiesPanel({ canvasController }) {
   const [isAuthModalOpen,         setIsAuthModalOpen]         = useState(false);
   const [isIGMPModalOpen,         setIsIGMPModalOpen]         = useState(false);
   const [isSyslogModalOpen,       setIsSyslogModalOpen]       = useState(false);
+  const [isIPConfigurationModalOpen, setIsIPConfigurationModalOpen]     = useState(false);
+  const [isCommandPromptModalOpen, setIsCommandPromptModalOpen] = useState(false);
 
   // ── Subscription: keep selectedEntity in sync with appState ───────────────
   useEffect(() => {
@@ -130,6 +135,7 @@ export default function PropertiesPanel({ canvasController }) {
 
         if (entity) {
           setSelectedEntity(entity);
+          console.log(entity);
           setTransform({
             position: {
               x: entity.transform?.position?.x ?? entity.x ?? 0,
@@ -328,6 +334,8 @@ export default function PropertiesPanel({ canvasController }) {
       "User Auth":           () => setIsAuthModalOpen(true),
       "IGMP Snooping":       () => setIsIGMPModalOpen(true),
       "Logs/Syslog":         () => setIsSyslogModalOpen(true),
+      "IP Configuration":     () => setIsIPConfigurationModalOpen(true),
+      "Command Prompt":      () => setIsCommandPromptModalOpen(true),
     };
     map[label]?.() ?? console.log(`Opening ${label}`);
   };
@@ -628,6 +636,24 @@ export default function PropertiesPanel({ canvasController }) {
       {isAuthModalOpen         && <AuthenticationModal onClose={() => setIsAuthModalOpen(false)}         />}
       {isIGMPModalOpen         && <IGMPModals          onClose={() => setIsIGMPModalOpen(false)}         />}
       {isSyslogModalOpen       && <SyslogModal         onClose={() => setIsSyslogModalOpen(false)}       />}
+
+        {isIPConfigurationModalOpen && (
+        <IPConfigurationModal
+          onClose={() => setIsIPConfigurationModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+          device={selectedEntity}
+        />
+      )}
+
+      {isCommandPromptModalOpen && (
+        <CommandPromptModal
+          onClose={() => setIsCommandPromptModalOpen(false)}
+          deviceName={selectedEntity?.label || "Router-Core-01"}
+          deviceLocation={resolveDeviceLocation()}
+          device={selectedEntity}
+        />
+      )}
     </div>
   );
 }

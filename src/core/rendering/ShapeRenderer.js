@@ -145,6 +145,15 @@ renderFurnitures(ctx, furnitures) {
       path.rect(x, y, size, size);
       dev.path = path;
 
+      // if (dev.icon && dev.icon.complete && dev.icon.naturalWidth !== 0) {
+      //   try {
+      //     ctx.drawImage(dev.icon, x, y, dev.renderWidth, dev.renderHeight);
+      //   } catch (e) {
+      //     console.warn("Error drawing furniture icon:", e);
+      //     this._drawFallbackDevice(ctx, x, y, size);
+      //   }
+
+      // --- DRAW IMAGE --- 
       if (dev.icon && dev.icon.complete && dev.icon.naturalWidth !== 0) {
         try {
           // 🐛 THE FIX: Use 'size, size' instead of 'dev.renderWidth, dev.renderHeight'

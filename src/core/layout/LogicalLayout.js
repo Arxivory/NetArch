@@ -1,6 +1,7 @@
 import Grid from './Grid.js';
 import ShapeCreator from './ShapeCreator.js';
-import CableEntity from './entities/CableEntity.js';
+import CableEntity from './entities/CableEntity.js'; 
+// import { buildDeviceIconImages, resolveDeviceIconKey } from './entities/DeviceIcons.js';
 import { buildDeviceIconImages } from './entities/DeviceIcons.js';
 import ShapeRenderer from '../rendering/ShapeRenderer.js';
 import PointerHandler from '../rendering/PointerHandler.js';
@@ -470,8 +471,6 @@ export class LogicalLayout {
     }
   }
 
-  
-
   addFurniture(furnitureData, x, y) {
     console.log('Adding furniture with data:', furnitureData, 'from LogicalLaypout bsuiyti');
     const size = this.shapeRenderer.gridSize * 1.5;
@@ -507,8 +506,16 @@ export class LogicalLayout {
       entity.path = updatedPath;
     };
 
-    const furniture = {
-      id: furnitureData.id || `furniture_${Math.random().toString(36).slice(2, 9)}`, // CHANGED: keep the same id as the furniture store/hierarchy node
+    
+    const furniture = { 
+      id: furnitureData.id || `furniture_${Math.random().toString(36).slice(2, 9)}`, 
+      // type: furnitureData.type || 'furniture',
+      // entityType: 'furniture',
+      // label: furnitureData.name || furnitureData.label || 'Furniture',
+      // catalogId: furnitureData.catalogId || null, // ADDED: preserve catalog metadata
+      // floorId: furnitureData.floorId ?? appState.ui.activeFloorId ?? null, // ADDED: preserve floor context
+      // spaceId: furnitureData.spaceId ?? null, // ADDED: preserve space context
+      // // CHANGED: keep the same id as the furniture store/hierarchy node
       type: furnitureData.type || 'furniture',
       entityType: 'furniture',
       label: furnitureData.name || furnitureData.label || 'Furniture',
@@ -526,9 +533,30 @@ export class LogicalLayout {
         rotation: { x: 0, y: 0, z: 0 }
       },
       path,
-      hitTestMode: 'path',
+    //   hitTestMode: 'path',
+    //   saveCurrentPosition() {
+    //     this.savedPosition = { x: this.x, y: this.y };
+    //   },
+    //   restoreToSavedPosition() {
+    //     if (!this.savedPosition) return;
+    //     this.x = this.savedPosition.x;
+    //     this.y = this.savedPosition.y;
+    //     this.transform.position.x = this.x;
+    //     //  updateFurniturePath(this);
+    //     this.transform.position.y = this.y;
+    //   }
+    // };
+
+    hitTestMode: 'path',
       saveCurrentPosition() {
         this.savedPosition = { x: this.x, y: this.y };
+      },
+      move(dx, dy) {
+        this.x += dx;
+        this.y += dy;
+        this.transform.position.x = this.x;
+        this.transform.position.y = this.y;
+        updateFurniturePath(this);
       },
       restoreToSavedPosition() {
         if (!this.savedPosition) return;
@@ -536,15 +564,23 @@ export class LogicalLayout {
         this.y = this.savedPosition.y;
         this.transform.position.x = this.x;
         this.transform.position.y = this.y;
+        updateFurniturePath(this);
       }
     };
 
-    this.furnitures.push(furniture);
 
-    if (this.onFurnitureAdded) {
+  //   this.furnitures.push(furniture);
 
-      this.onFurnitureAdded(furniture);
-    }
+  //   if (this.onFurnitureAdded) {
+
+  //     this.onFurnitureAdded(furniture);
+  //   }
+  //   this._render();
+  // } 
+
+
+  // ADDED: New method to add furniture directly from the layout, bypassing the store. Useful for drag-and-drop where the store update might be async or handled separately.
+  this.furnitures.push(furniture);
     this._render();
   }
 
@@ -839,16 +875,6 @@ export class LogicalLayout {
           this.pointerHandler.setPointerDown(false);
           return;
         }
-      }
-
-      
-      const conduitToDelete = this._findConduitAt(p.x, p.y);
-      if (conduitToDelete) {
-        window.dispatchEvent(new CustomEvent('requestConduitDeletion', {
-          detail: { conduitId: conduitToDelete.id }
-        }));
-        this.pointerHandler.setPointerDown(false);
-        return;
       }
     }
       this.interaction = {
@@ -2783,19 +2809,55 @@ else if (this.startPoint && this.currentPoint) {
     this._render();
   }
 
+  // _isDeviceEntity(en) {
+  //   // Primary check: stable flag set in Device (UI) constructor.
+  //   // Fallback duck-type handles canvas entities from older save files
+  //   // that pre-date the entityType field.
+  //   return !!en && (
+  //     en.entityType === 'device' ||
+  //     en.catalogId  !== undefined ||
+  //     en.interfaces !== undefined
+  //   );
+  // }
+
   _isDeviceEntity(en) {
     // Primary check: stable flag set in Device (UI) constructor.
     // Fallback duck-type handles canvas entities from older save files
     // that pre-date the entityType field.
-    return !!en && (
+    if (!en || this._isFurnitureEntity(en)) {
+      return false;
+    }
+
+    return (
       en.entityType === 'device' ||
       en.catalogId !== undefined ||
       en.interfaces !== undefined
     );
   }
 
+
+
+
+
+
+
+  
+  // _isFurnitureEntity(en) {
+  //   return !!en && (en.type === 'furniture' || en.id?.startsWith('furniture'));
+  // }
+
+  // Updated furniture detection with more robust duck-typing to handle legacy entities without entityType
   _isFurnitureEntity(en) {
-    return !!en && (en.type === 'furniture' || en.id?.startsWith('furniture'));
+    if (!en || en.sourceId || en.targetId || en.interfaces !== undefined) return false;
+
+    return (
+      en.entityType === 'furniture' ||
+      en.type === 'furniture' ||
+      ['desk', 'chair', 'rack', 'cabinet', 'table'].includes(en.type) ||
+      ['desk', 'chair', 'rack', 'cabinet', 'table'].includes(en.catalogId) ||
+      ['desk', 'chair', 'rack', 'cabinet', 'table'].includes(en.modelId) ||
+      en.id?.startsWith('furniture')
+    );
   }
 
   _isResizableEntity(en) {
@@ -2920,7 +2982,7 @@ else if (this.startPoint && this.currentPoint) {
 
     if (this._isDeviceEntity(en)) {
       return {
-        x: en.tileX,
+        x: en.tileX,       // ADDED: devices are drawn/hit-tested using tile bounds, not raw x/y/w/h
         y: en.tileY,
         w: en.tileWidth,
         h: en.tileHeight
@@ -2951,8 +3013,10 @@ else if (this.startPoint && this.currentPoint) {
 
   _findDeviceAt(x, y) {
     for (const device of this.devices) {
-      const bounds = this._getEntityInteractionBounds(device);
+      const bounds = this._getEntityInteractionBounds(device); // ADDED: use the same tile bounds used for selection/highlighting
+      console.log('[FIND_DEVICE] checking', device.id, 'bounds:', bounds, 'click:', x, y);
       if (!bounds) continue;
+
 
       if (
         x >= bounds.x &&

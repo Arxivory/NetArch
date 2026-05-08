@@ -1105,56 +1105,62 @@ if (this.mode === 'door' || this.mode === 'window') {
           failedReason = `Please draw the ${itemName} flat ALONG the space boundary (black line).`;
         }
 
-// 2. Site Boundary Check: Exact Arc Path Validation (No more false positive full-circle checks)
-        if (allowCreation) {
-          const activeFloorId = this.activeFloorId || appState?.ui?.activeFloorId;
-          const currentFloor = appState?.structural?.floors?.find(f => f.id === activeFloorId);
-          const site = appState?.structural?.sites?.find(s => s.id === currentFloor?.siteId) || appState?.structural?.sites?.[0];
-          
-          if (site) {
-            const b = site.geometry || site;
-            const bx = Number(b.x ?? b.left ?? 0);
-            const by = Number(b.y ?? b.top ?? 0);
-            const bw = Number(b.w ?? b.width ?? 0);
-            const bh = Number(b.h ?? b.height ?? 0);
-            
-            const minX = Math.min(bx, bx + bw);
-            const maxX = Math.max(bx, bx + bw);
-            const minY = Math.min(by, by + bh);
-            const maxY = Math.max(by, by + bh);
-            
+// 2. Site Boundary Check
+if (allowCreation) {
+    const activeFloorId = this.activeFloorId || appState?.ui?.activeFloorId;
+    const currentFloor = appState?.structural?.floors?.find(f => f.id === activeFloorId);
+    const site = appState?.structural?.sites?.find(s => s.id === currentFloor?.siteId) 
+                 || appState?.structural?.sites?.[0];
+    
+    if (site) {
+        const b = site.geometry || site;
+        const bx = Number(b.x ?? b.left ?? 0);
+        const by = Number(b.y ?? b.top ?? 0);
+        const bw = Number(b.w ?? b.width ?? 0);
+        const bh = Number(b.h ?? b.height ?? 0);
+        
+        const minX = Math.min(bx, bx + bw);
+        const maxX = Math.max(bx, bx + bw);
+        const minY = Math.min(by, by + bh);
+        const maxY = Math.max(by, by + bh);
+        
+        let outOfBounds = false;
+
+        if (this.mode === 'window') {
+            // Windows are straight lines — just check both endpoints
+            if (p1x < minX || p1x > maxX || p1y < minY || p1y > maxY) outOfBounds = true;
+            if (p2x < minX || p2x > maxX || p2y < minY || p2y > maxY) outOfBounds = true;
+        } else {
+            // Doors need the full arc swing check
             const dx = p2x - p1x;
             const dy = p2y - p1y;
             const doorLength = Math.hypot(dx, dy);
             const angle = Math.atan2(dy, dx);
-            
-            let outOfBounds = false;
-            
-            // 1. Check if the hinge itself is outside
-            if (p1x < minX || p1x > maxX || p1y < minY || p1y > maxY) outOfBounds = true;
-            
-            // 2. Trace the exact path of the 90-degree swing arc
-            if (!outOfBounds) {
-              // We sample 5 points along the arc to see if any part of the curve crosses the line
-              for (let i = 0; i <= 4; i++) {
-                const currentAngle = angle + (Math.PI / 2) * (i / 4);
-                const arcX = p1x + doorLength * Math.cos(currentAngle);
-                const arcY = p1y + doorLength * Math.sin(currentAngle);
-                
-                // Margin is 0: Pwedeng tumouch sa line, bawal lang lumagpas!
-                if (arcX < minX || arcX > maxX || arcY < minY || arcY > maxY) {
-                  outOfBounds = true;
-                  break;
-                }
-              }
-            }
 
-            if (outOfBounds) {
-              allowCreation = false;
-              failedReason = "The door swing exceeds the overall Site boundaries.";
+            if (p1x < minX || p1x > maxX || p1y < minY || p1y > maxY) outOfBounds = true;
+
+            if (!outOfBounds) {
+                for (let i = 0; i <= 4; i++) {
+                    const currentAngle = angle + (Math.PI / 2) * (i / 4);
+                    const arcX = p1x + doorLength * Math.cos(currentAngle);
+                    const arcY = p1y + doorLength * Math.sin(currentAngle);
+                    
+                    if (arcX < minX || arcX > maxX || arcY < minY || arcY > maxY) {
+                        outOfBounds = true;
+                        break;
+                    }
+                }
             }
-          }
         }
+
+        if (outOfBounds) {
+            allowCreation = false;
+            failedReason = this.mode === 'window'
+                ? "The window exceeds the overall Site boundaries."
+                : "The door swing exceeds the overall Site boundaries.";
+        }
+    }
+}
 
 // 3. Fenestration Overlap Check: Bawal magpatong ang pinto sa pinto (o bintana)
         if (allowCreation) {

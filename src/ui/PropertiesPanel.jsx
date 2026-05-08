@@ -67,8 +67,9 @@ export default function PropertiesPanel({ canvasController }) {
     scale:    { factor: 1 },
     rotation: { x: 0, y: 0, z: 0 },
   });
-  const originalLabelRef = useRef("");
-  const originalValueRef = useRef({});
+  const originalLabelRef  = useRef("");
+  const originalValueRef  = useRef({});
+  const selectedDeviceRef = useRef(null);
 
   // ── Advanced Config grid modal ─────────────────────────────────────────────
   const [isModalOpen, setIsModalOpen] = useState(false);

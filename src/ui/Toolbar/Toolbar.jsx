@@ -15,7 +15,7 @@ import {
 import StructuralOption from "./StructuralOption";
 import PathwayOption from "./PathwayOption";
 
-export default function Toolbar({ canvasController }) {
+export default function Toolbar({ canvasController, networkManager, networkRunning, setNetworkRunning }) {
   const [activeTool, setActiveTool] = useState("select");
 
   // 1. Update the state hooks
@@ -102,6 +102,17 @@ const handleDelete = () => {
     if (!canvasController?.duplicateSelection) return;
     return canvasController.duplicateSelection();
   }, [canvasController]);
+
+  const handleSimulationToggle = () => {
+    if (!networkManager) return;
+    if (networkRunning) {
+      networkManager.stop();
+      setNetworkRunning(false);
+    } else {
+      networkManager.start();
+      setNetworkRunning(true);
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -294,8 +305,8 @@ const handleDelete = () => {
       </div>
 
       <div className="toolbar-group ml-auto">
-        <button className="simulate-btn">
-          <Play size={16} /> Simulate
+        <button className="simulate-btn" onClick={handleSimulationToggle}>
+          <Play size={16} /> {networkRunning ? 'Stop' : 'Simulate'}
         </button>
         <span className="toolbar-label invisible">Simulate</span>
       </div>

@@ -5,38 +5,42 @@ export class Selection {
         this.dpr = opts.dpr || 1;
     }
 
-    getEntityPriority(en) {
-        const isDevice = en.interfaces !== undefined || en.catalogId !== undefined;
-        const isFurniture = en.type === 'furniture' || en.id?.startsWith('furniture');
-        const isDoor = en.type === 'door';
+getEntityPriority(en) {
+    const isDevice = en.interfaces !== undefined || en.catalogId !== undefined;
+    const isFurniture = en.type === 'furniture' || en.id?.startsWith('furniture');
+    const isDoor = en.type === 'door';
+    const isWindow = en.type === 'window'; // ADD THIS
 
-        if (isDevice) return 5;     // ADDED: devices must win clicks over spaces/sites/domains
-        if (isFurniture) return 4;  // ADDED: furniture should also sit above structural parents
-        if (isDoor) return 2;       // ADDED: doors higher priority than walls
+    if (isDevice) return 5;
+    if (isFurniture) return 4;
+    if (isDoor) return 3;     // bumped up
+    if (isWindow) return 3;   // ADD THIS — same priority as door
 
-        const priorityMap = {
-            'Space': 3,
-            'Floor': 2,
-            'Site': 1,
-            'Domain': 0
-        };
+    const priorityMap = {
+        'Space': 2,           // bumped down to make room
+        'Floor': 1,
+        'Site': 0,
+        'Domain': 0
+    };
 
-        return priorityMap[en.structureType] ?? 0;
-    }
+    return priorityMap[en.structureType] ?? 0;
+}
 
-    getFocusType(en) {
-        const isDevice = en.interfaces !== undefined || en.catalogId !== undefined;
-        const isFurniture = en.type === 'furniture' || en.id?.startsWith('furniture');
-        const isDoor = en.type === 'door';
+getFocusType(en) {
+    const isDevice = en.interfaces !== undefined || en.catalogId !== undefined;
+    const isFurniture = en.type === 'furniture' || en.id?.startsWith('furniture');
+    const isDoor = en.type === 'door';
+    const isWindow = en.type === 'window'; // ADD THIS
 
-        if (isDevice) return 'device'; // ADDED: normalize device focus type instead of using router/switch/etc.
-        if (isFurniture) return 'furniture'; // ADDED: normalize furniture focus type
-        if (isDoor) return 'door'; // ADDED: recognize doors
+    if (isDevice) return 'device';
+    if (isFurniture) return 'furniture';
+    if (isDoor) return 'door';
+    if (isWindow) return 'window'; // ADD THIS
 
-        return en.structureType
-            ? en.structureType.toLowerCase()
-            : en.type;
-    }
+    return en.structureType
+        ? en.structureType.toLowerCase()
+        : en.type;
+}
 
 identifyEntity(x, y, entities, ctx) {
         x *= this.dpr;

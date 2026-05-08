@@ -1431,39 +1431,69 @@ const door = this.shapeCreator.createDoor(this.startPoint, this.currentPoint);
       }
       
       // ✅ TANGGAL NA YUNG RESET DITO. STAY SA 'door' MODE FOR UNLI-DRAW!
-
+      
     } else if (this.mode === 'window') {
-      // 🛑 GHOSTBUSTER HACK: Same strategy for windows!
       const uiCallback = this.shapeCreator.onWindowCreated;
       this.shapeCreator.onWindowCreated = null;
 
-const window = this.shapeCreator.createWindow(this.startPoint, this.currentPoint);
-      
-      this.shapeCreator.onWindowCreated = uiCallback; // Ibalik ang callback
+      const win = this.shapeCreator.createWindow(this.startPoint, this.currentPoint);
 
-      if (window) {
-        // --- FORCE EXACT PARITY WITH GHOST PREVIEW ---
-        const windowPath = new Path2D();
-        windowPath.moveTo(this.startPoint.x, this.startPoint.y);
-        windowPath.lineTo(this.currentPoint.x, this.currentPoint.y);
-        window.path = windowPath;
-        // ---------------------------------------------
+      this.shapeCreator.onWindowCreated = uiCallback;
 
-        window.floorId = activeFloor || null;
-        window.spaceId = activeSpace || null;
-        if (window.body) window.body.floorId = activeFloor || null;
+      if (win) {
+        const windowPath = new Path2D();
+        windowPath.moveTo(this.startPoint.x, this.startPoint.y);
+        windowPath.lineTo(this.currentPoint.x, this.currentPoint.y);
+        win.path = windowPath;
 
-        if ((window.spaceId !== null || window.floorId !== null) && !this._checkForOverlap(window, "creation")) {
-          this.windows.push(window);
-          // ✅ PUMASA SA CANVAS!
-          if (this.shapeCreator.onWindowCreated) this.shapeCreator.onWindowCreated(window);
+        win.hitTestMode = 'stroke';
+        win.x = this.startPoint.x;
+        win.y = this.startPoint.y;
+        win.startPoint = { x: this.startPoint.x, y: this.startPoint.y };
+        win.currentPoint = { x: this.currentPoint.x, y: this.currentPoint.y };
+
+        win.saveCurrentPosition = function() {
+          this.savedStartPoint = { x: this.startPoint.x, y: this.startPoint.y };
+          this.savedCurrentPoint = { x: this.currentPoint.x, y: this.currentPoint.y };
+          this.savedX = this.x;
+          this.savedY = this.y;
+        };
+
+        win.restoreToSavedPosition = function() {
+          if (!this.savedStartPoint || !this.savedCurrentPoint) return;
+          this.startPoint = { x: this.savedStartPoint.x, y: this.savedStartPoint.y };
+          this.currentPoint = { x: this.savedCurrentPoint.x, y: this.savedCurrentPoint.y };
+          this.x = this.savedX;
+          this.y = this.savedY;
+        };
+
+        win.move = function(dx, dy) {
+          this.x += dx;
+          this.y += dy;
+          this.startPoint.x += dx;
+          this.startPoint.y += dy;
+          this.currentPoint.x += dx;
+          this.currentPoint.y += dy;
+          const newPath = new Path2D();
+          newPath.moveTo(this.startPoint.x, this.startPoint.y);
+          newPath.lineTo(this.currentPoint.x, this.currentPoint.y);
+          this.path = newPath;
+        };
+
+        win.floorId = activeFloor || null;
+        win.spaceId = activeSpace || null;
+        if (win.body) win.body.floorId = activeFloor || null;
+
+        if ((win.spaceId !== null || win.floorId !== null) && !this._checkForOverlap(win, "creation")) {
+          this.windows.push(win);
+          if (this.shapeCreator.onWindowCreated) this.shapeCreator.onWindowCreated(win);
         } else {
-          // ❌ FAILED OVERLAP!
-          if (window.body) this.system.remove(window.body);
-          if (window.spaceId === null && window.floorId === null) alert('Windows must be placed in a Space or Floor.');
+          if (win.body) this.system.remove(win.body);
+          if (win.spaceId === null && win.floorId === null) alert('Windows must be placed in a Space or Floor.');
         }
       }
-      // ✅ TANGGAL NA YUNG RESET DITO. STAY SA 'window' MODE FOR UNLI-DRAW!
+      // STAY IN 'window' MODE FOR UNLI-DRAW!
+
     } else if (this.mode === 'polygon') {
       const polygon = this.shapeCreator.createPolygon(this.currentPolygon, this.structureType, focusedId);
       if (polygon) {
@@ -1710,19 +1740,24 @@ const visibleDoors = filterForFloor(this.doors);
       const h = bounds?.h;
 
       // For circles, we only need x, y, and radius defined
-      const isCircle = en.type === 'circle' && en.r !== undefined;
-      const isDoor = en.type === 'door';
+const isDoor = en.type === 'door';
+const isWindow = en.type === 'window'; // ADD THIS
+const isCircle = en.type === 'circle' && en.r !== undefined; // ADD THIS BACK
 
-      if (isDoor) {
-        // Draw door selection highlight
-        ctx.save();
-        ctx.strokeStyle = "#00AEEF";
-        ctx.lineWidth = 4;
-        if (en.path) {
-          ctx.stroke(en.path);
-        }
-        ctx.restore();
-      } else if (isCircle || (x !== undefined && w !== undefined)) {
+if (isDoor) {
+    ctx.save();
+    ctx.strokeStyle = "#00AEEF";
+    ctx.lineWidth = 4;
+    if (en.path) ctx.stroke(en.path);
+    ctx.restore();
+} else if (isWindow) {  // ADD THIS BLOCK
+    ctx.save();
+    ctx.strokeStyle = "#00AEEF";
+    ctx.lineWidth = 6;
+    if (en.path) ctx.stroke(en.path);
+    ctx.restore();
+} else if (isCircle || (x !== undefined && w !== undefined)) {
+    // ... existing rectangle/circle selection code
         ctx.save();
         ctx.strokeStyle = "#00AEEF";
         ctx.lineWidth = 2;
@@ -2298,35 +2333,56 @@ const targetArrays = ['rectangles', 'circles', 'polygons', 'freeforms',
       }
     }
 
+// In LogicalLayout.js identifyEntity(), add this block right after the door hit-test block:
+
+if (!en) {
+  for (const win of this.windows) {
+    if (win.path) {
+      const originalLineWidth = this.ctx.lineWidth;
+      this.ctx.lineWidth = 12;
+      if (this.ctx.isPointInStroke(win.path, x, y)) {
+        en = win;
+        this.ctx.lineWidth = originalLineWidth;
+        break;
+      }
+      this.ctx.lineWidth = originalLineWidth;
+    }
+  }
+}
+
     // Only fall back to the canvas path-based hit-test for structural shapes
     // (rectangles, polygons, circles etc.) if no device/furniture was hit.
     if (!en) {
-      const structuralEntities = [
-        this.rectangles, this.polygons, this.circles,
-        this.windows, this.walls, this.roofs, this.freeforms
-      ];
+const structuralEntities = [
+    this.rectangles, this.polygons, this.circles,
+    this.walls, this.roofs, this.freeforms  // windows removed
+];
       en = this.selection.identifyEntity(x, y, structuralEntities, this.ctx);
     }
 
     this.selectedEntity = en || null;
 
-    if (en) {
-if (en.type === 'door') {
-  if (typeof appState.selection.selectDoor === 'function') {
-    appState.selection.selectDoor(en.id, false);
-  } else {
-    appState.selection.focusedId = en.id;
-    appState.selection.focusedType = 'door';
-    appState.selection.notify?.();
-  }
-}else if (en.structureType) {
-        appState.selection.focusedId = en.id;
-        appState.selection.focusedType = en.structureType.toLowerCase();
-        appState.selection.notify?.();
-      } else {
-        appState.selection.selectDevice?.(en.id, false);
-      }
+if (en) {
+  if (en.type === 'door') {
+    if (typeof appState.selection.selectDoor === 'function') {
+      appState.selection.selectDoor(en.id, false);
     } else {
+      appState.selection.focusedId = en.id;
+      appState.selection.focusedType = 'door';
+      appState.selection.notify?.();
+    }
+  } else if (en.type === 'window') {
+    appState.selection.focusedId = en.id;
+    appState.selection.focusedType = 'window';
+    appState.selection.notify?.();
+  } else if (en.structureType) {
+    appState.selection.focusedId = en.id;
+    appState.selection.focusedType = en.structureType.toLowerCase();
+    appState.selection.notify?.();
+  } else {
+    appState.selection.selectDevice?.(en.id, false);
+  }
+} else {
       appState.selection.clearSelection?.();
     }
 

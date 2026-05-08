@@ -225,15 +225,34 @@ if (!ids || ids.length === 0) {
                 }
               }));
             }
-          } else if (appState.selection.focusedType === 'door' && this.layout) {
-            this.layout.doors = this.layout.doors.filter(d => d.id !== idToDelete);
-            if (appState.structural?.removeDoor) {
-              appState.structural.removeDoor(idToDelete);
-            }
-            appState.selection.focusedId = null;
-            appState.selection.focusedType = null;
-            appState.selection.notify?.();
-            this.layout._render();
+} else if (appState.selection.focusedType === 'door' && this.layout) {
+    if (this.layout.selectedEntity?.id === idToDelete) {
+        this.layout.selectedEntity = null;
+    }
+    this.layout.doors = this.layout.doors.filter(d => d.id !== idToDelete);
+    if (appState.structural?.removeDoor) {
+        appState.structural.removeDoor(idToDelete);
+    }
+    appState.selection.focusedId = null;
+    appState.selection.focusedType = null;
+    appState.selection.notify?.();
+    this.layout._render();
+} else if (appState.selection.focusedType === 'window' && this.layout) {
+    // 1. Clear canvas selection state FIRST to prevent stale render
+    if (this.layout.selectedEntity?.id === idToDelete) {
+        this.layout.selectedEntity = null;
+    }
+    // 2. Remove from canvas array
+    this.layout.windows = this.layout.windows.filter(w => w.id !== idToDelete);
+    // 3. Remove from structural store
+    if (appState.structural?.removeWindow) {
+        appState.structural.removeWindow(idToDelete);
+    }
+    // 4. Clear selection state
+    appState.selection.focusedId = null;
+    appState.selection.focusedType = null;
+    appState.selection.notify?.();
+    this.layout._render();
           } else {
             this.executeDelete(idToDelete);
           }
@@ -2049,8 +2068,13 @@ if (!ids || ids.length === 0) {
     else if (entity.type === 'door') {
       appState.selection.focusedId = entity.id;
       appState.selection.focusedType = 'door';
-      appState.selection.notify?.();
-    }
+    appState.selection.notify?.();
+}
+else if (entity.type === 'window') {  // ADD THIS
+    appState.selection.focusedId = entity.id;
+    appState.selection.focusedType = 'window';
+    appState.selection.notify?.();
+}
     else {
       appState.selection.selectDevice?.(entity.id, false);
     }

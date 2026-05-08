@@ -59,7 +59,7 @@ const DEVICE_CONFIGS = {
   ],
 };
 
-export default function PropertiesPanel({ canvasController }) {
+export default function PropertiesPanel({ canvasController, networkManager }) {
   // ── Entity + transform state ───────────────────────────────────────────────
   const [selectedEntity, setSelectedEntity] = useState(null);
   const [transform, setTransform] = useState({
@@ -408,6 +408,15 @@ export default function PropertiesPanel({ canvasController }) {
               onBlur={() => handleDeviceBlur('label')}
             />
           </div>
+          <div><label>Default Gateway</label>
+            <input className="field-input" 
+              value={selectedEntity?.defaultGateway || ""} 
+              onFocus={() => handleDeviceFocus('defaultGateway')}
+              onChange={(e) => handleDeviceChange('defaultGateway', e.target.value)} 
+              onBlur={() => handleDeviceBlur('defaultGateway')}
+              placeholder="192.168.1.254"
+            />
+          </div>
           <button className="floor-specifier-btn" onClick={() => setIsModalOpen(true)}>
             Advanced Configuration
           </button>
@@ -652,6 +661,7 @@ export default function PropertiesPanel({ canvasController }) {
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
           device={selectedEntity}
+          networkManager={networkManager}
         />
       )}
     </div>

@@ -39,6 +39,8 @@ export default class NetworkManager {
       packetSent: [],
       packetReceived: [],
       packetDropped: [],
+      packetTransmissionScheduled: [],
+      packetDelivered: [],
       networkStatusChanged: [],
     };
   }
@@ -64,6 +66,7 @@ export default class NetworkManager {
         : this.networkStore.links || [];
 
       this.engine = new NetworkIntegrationEngine(devices, links);
+      this._bindEngineEvents();
       this._storeUnsubscribe = typeof this.networkStore.subscribe === 'function'
         ? this.networkStore.subscribe(() => this._syncWithStore())
         : null;
@@ -123,6 +126,10 @@ export default class NetworkManager {
     if (!this.engine) {
       console.error('[NetworkManager] Engine not initialized');
       return null;
+    }
+
+    if (!this.isRunning()) {
+      this.start();
     }
 
     const srcDevice = this._findDeviceByIP(srcIP);
@@ -185,6 +192,10 @@ export default class NetworkManager {
       return false;
     }
 
+    if (!this.isRunning()) {
+      this.start();
+    }
+
     const srcDevice = this._findDeviceByIP(srcIP);
     if (!srcDevice) {
       console.error(`[NetworkManager] No device found with IP ${srcIP}`);
@@ -238,6 +249,18 @@ export default class NetworkManager {
    */
   getLinks() {
     return this.networkStore.links || [];
+  }
+
+  _bindEngineEvents() {
+    if (!this.engine || typeof this.engine.addEventListener !== 'function') return;
+
+    this.engine.addEventListener('packetTransmissionScheduled', (data) => this._emit('packetTransmissionScheduled', data));
+    this.engine.addEventListener('packetDelivered', (data) => this._emit('packetDelivered', data));
+    this.engine.addEventListener('packetDropped', (data) => this._emit('packetDropped', data));
+  }
+
+  isRunning() {
+    return !!this.engine && !!this.engine._isRunning;
   }
 
   /**

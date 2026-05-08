@@ -38,6 +38,13 @@ export default class NetworkIntegrationEngine {
     this.linkSimulator = new LinkSimulator(this);
     this.packetRouter = new PacketRouter(this.devices, this.links);
 
+    this.eventListeners = {
+      packetTransmissionScheduled: [],
+      packetDelivered: [],
+      packetDropped: [],
+      networkStatusChanged: [],
+    };
+
     // Packet tracking
     /** @type {Map<string, object>} In-flight packets: packetId → {packet, path, link, arrivalTime} */
     this.inFlightPackets = new Map();
@@ -92,6 +99,27 @@ export default class NetworkIntegrationEngine {
     console.log('[NetworkIntegrationEngine] Stopping simulation');
     this.clock.stop();
     this._isRunning = false;
+  }
+
+  addEventListener(eventType, callback) {
+    if (!this.eventListeners[eventType]) return;
+    this.eventListeners[eventType].push(callback);
+  }
+
+  removeEventListener(eventType, callback) {
+    if (!this.eventListeners[eventType]) return;
+    this.eventListeners[eventType] = this.eventListeners[eventType].filter(cb => cb !== callback);
+  }
+
+  _emit(eventType, data) {
+    const listeners = this.eventListeners[eventType] || [];
+    for (const callback of listeners) {
+      try {
+        callback(data);
+      } catch (error) {
+        console.error('[NetworkIntegrationEngine] Event callback failed:', error);
+      }
+    }
   }
 
   /**
@@ -160,6 +188,15 @@ export default class NetworkIntegrationEngine {
 
     // Schedule transmission on the link
     this.linkSimulator.scheduleTransmission(packetId, packet, viaLink, outInterface, nextInterface);
+    this._emit('packetTransmissionScheduled', {
+      packetId,
+      packet,
+      srcDevice: device,
+      srcInterface: outInterface,
+      nextDevice,
+      nextInterface,
+      viaLink,
+    });
 
     this.stats.packetsSent++;
   }
@@ -176,10 +213,12 @@ export default class NetworkIntegrationEngine {
     const device = receivingInterface.device;
     if (!device || receivingInterface.lineStatus !== 'up') {
       this.stats.packetsDropped++;
+      this._emit('packetDropped', { packet, receivingInterface, reason: 'interface-down' });
       return;
     }
 
     this.stats.packetsReceived++;
+    this._emit('packetDelivered', { packet, receivingInterface, device });
 
     // Call the device's onPacketReceived hook
     // This will route through L2 switching logic or L3 routing logic

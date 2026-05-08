@@ -624,6 +624,42 @@ restoreCanvasDevice(deviceData, canvasId, x, y) {
     return this.layout?.getSnappedCanvasCoords(clientX, clientY);
   }
 
+  getEntityScreenPosition(entityId) {
+    if (!this.layout || typeof this.layout.findEntityById !== 'function' || !this.layout.canvas) {
+      return null;
+    }
+
+    let canvasEntity = this.layout.findEntityById(entityId);
+    if (!canvasEntity && this.structuralToCanvasMap) {
+      const mappedId = this.structuralToCanvasMap.get(entityId);
+      if (mappedId) {
+        canvasEntity = this.layout.findEntityById(mappedId);
+      }
+    }
+
+    if (!canvasEntity) return null;
+
+    const geom = canvasEntity.geometry || canvasEntity;
+    const x = Number(geom.x ?? geom.left ?? 0);
+    const y = Number(geom.y ?? geom.top ?? 0);
+    let width = Number(geom.width ?? geom.w ?? 0);
+    let height = Number(geom.height ?? geom.h ?? 0);
+
+    if (geom.r !== undefined && Number.isFinite(geom.r)) {
+      width = height = Number(geom.r) * 2;
+    }
+
+    const centerX = x + (width || 0) / 2;
+    const centerY = y + (height || 0) / 2;
+    const zoom = this.layout.pointerHandler.getZoom();
+    const offset = this.layout.viewState || { e: 0, f: 0 };
+
+    return {
+      x: centerX * zoom + offset.e,
+      y: centerY * zoom + offset.f,
+    };
+  }
+
   clear() {
     this.layout?.clear();
   }

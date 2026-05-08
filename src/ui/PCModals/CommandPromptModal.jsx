@@ -241,6 +241,7 @@ export default function CommandPromptModal({
   device,                 // Device instance or NetworkStore plain object
   deviceName     = "PC",
   deviceLocation = "Unknown",
+  networkManager = null,
 }) {
   // Resolve the FastEthernet0 interface once — stable ref for the session.
   // If IP config changes while the modal is open, ipconfig will re-read the
@@ -253,12 +254,41 @@ export default function CommandPromptModal({
     `(c) Microsoft Corporation. All rights reserved.`,
     ``,
   ]);
-  const [input,   setInput]   = useState("");
-  const [history, setHistory] = useState([]);
-  const [histIdx, setHistIdx] = useState(-1);
+  const [input,       setInput]       = useState("");
+  const [history,     setHistory]     = useState([]);
+  const [histIdx,     setHistIdx]     = useState(-1);
+  const [isPingExecuting, setIsPingExecuting] = useState(false);
+  const [pingMessage, setPingMessage] = useState("");
 
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
+
+  async function performNetworkPing(target) {
+    const trimmed = target.trim();
+    const ifaceIp = readIpv4(ifaceRef).address;
+
+    if (!networkManager || !ifaceIp || !trimmed) {
+      return simulatePing(target, deviceName, deviceLocation);
+    }
+
+    setIsPingExecuting(true);
+    setPingMessage(`Sending ICMP echo request from ${ifaceIp} to ${trimmed}...`);
+
+    try {
+      const packetId = networkManager.sendPing(ifaceIp, trimmed);
+      if (!packetId) {
+        return [`Ping request could not find host ${trimmed}. Please check the name and try again.`, ""];
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      setPingMessage(`Awaiting reply from ${trimmed}...`);
+      await new Promise((resolve) => setTimeout(resolve, 800));
+    } finally {
+      setIsPingExecuting(false);
+    }
+
+    return simulatePing(target, deviceName, deviceLocation);
+  }
 
   const PROMPT = `C:\\Users\\${deviceName}>`;
 
@@ -270,8 +300,24 @@ export default function CommandPromptModal({
     if (activeTab === "terminal") inputRef.current?.focus();
   }, [activeTab]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const raw    = input;
+    const lower  = raw.trim().toLowerCase();
+    const parts  = lower.split(/\s+/);
+    const cmd    = parts[0];
+    const arg    = parts.slice(1).join(" ");
+
+    if (cmd === "ping" && networkManager) {
+      setLines((prev) => [...prev, `${PROMPT}${raw}`]);
+      if (raw.trim()) setHistory((prev) => [raw, ...prev]);
+      setHistIdx(-1);
+      setInput("");
+
+      const output = await performNetworkPing(arg);
+      setLines((prev) => [...prev, ...output]);
+      return;
+    }
+
     const output = processCommand(raw, deviceName, deviceLocation, ifaceRef);
 
     if (output[0] === "__CLEAR__") {
@@ -367,6 +413,7 @@ export default function CommandPromptModal({
               <div
                 className="acl-body"
                 style={{
+                  position: "relative",
                   background: "#0c0c0c",
                   padding: "10px 14px",
                   cursor: "text",
@@ -375,6 +422,35 @@ export default function CommandPromptModal({
                 }}
                 onClick={() => inputRef.current?.focus()}
               >
+                {isPingExecuting && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background: "rgba(0, 0, 0, 0.55)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      zIndex: 2,
+                      pointerEvents: "none",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "14px 18px",
+                        background: "rgba(20, 20, 20, 0.95)",
+                        borderRadius: 10,
+                        color: "#fff",
+                        fontSize: 13,
+                        textAlign: "center",
+                        boxShadow: "0 0 0 1px rgba(255,255,255,0.08)",
+                        maxWidth: 360,
+                      }}
+                    >
+                      {pingMessage || "Processing ping command..."}
+                    </div>
+                  </div>
+                )}
                 {lines.map((line, i) => (
                   <p
                     key={i}

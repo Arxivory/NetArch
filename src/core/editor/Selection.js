@@ -67,12 +67,17 @@ identifyEntity(x, y, entities, ctx) {
         return null;
     }
 
-    wasHit(en, x, y, ctx) {
-        if (en.hitTestMode === 'path') {
-            return ctx.isPointInPath(en.path, x, y);
-        }
-        else if (en.hitTestMode === 'stroke') {
-            return ctx.isPointInStroke(en.path, x, y);
-        }
+wasHit(en, x, y, ctx) {
+    if (en.hitTestMode === 'path') {
+        return ctx.isPointInPath(en.path, x, y);
     }
+    else if (en.hitTestMode === 'stroke') {
+        const originalLineWidth = ctx.lineWidth;
+        ctx.lineWidth = 12; // Wide tolerance for stroke hit
+        const hit = ctx.isPointInStroke(en.path, x, y);
+        ctx.lineWidth = originalLineWidth;
+        return hit;
+    }
+}
+
 }

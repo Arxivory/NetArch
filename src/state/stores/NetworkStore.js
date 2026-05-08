@@ -64,22 +64,114 @@ updateDevice(deviceId, updates) {
     const device = this.devices.find(d => d.id === deviceId);
     if (!device) return false;
 
-    // 1. Guardrail: Prevent Empty Names
-    if (updates.label !== undefined) {
-        if (updates.label.trim() === '') {
-            delete updates.label; // Cancel this specific update
+    const normalizedUpdates = { ...updates };
+
+    // ── Path A: Full IPv4/IPv6 objects from IPConfigurationModal ──────────────
+    // The modal already wrote to the live ifaceRef directly; here we persist
+    // the values on both the device record and the correct interface object so
+    // that toJSON(), readIpv4(), and future modal opens all see consistent data.
+    // We deliberately do NOT call configureIPv4() — that strips gateway/dns/mode.
+    if (normalizedUpdates._ipv4 !== undefined || normalizedUpdates._ipv6 !== undefined) {
+
+      // ── Resolve the FastEthernet0 interface by name, mirroring resolveInterfaces()
+      // in IPConfigurationModal so we always patch the exact same object the modal
+      // wrote to — not just whichever interface happens to be at index 0.
+      const isFastEthernet = (name = '') => /^fastethernet\d/i.test(name.trim());
+
+      let targetIface = null;
+
+      if (device._interfaces instanceof Map) {
+        // Device class instance — search the Map by name
+        const all = [...device._interfaces.values()];
+        targetIface =
+          all.find(i => isFastEthernet(i.name)) ||   // prefer FastEthernet
+          all[0] ||                                    // fallback: first interface
+          null;
+      } else if (Array.isArray(device.interfaces) && device.interfaces.length > 0) {
+        // Plain NetworkStore object — search the array by name/label
+        targetIface =
+          device.interfaces.find(i => isFastEthernet(i.name || i.label || '')) ||
+          device.interfaces[0];
+      }
+
+      if (normalizedUpdates._ipv4 !== undefined) {
+        const nextIpv4 = normalizedUpdates._ipv4;
+        delete normalizedUpdates._ipv4;
+
+        // Persist on device for serialisation / re-hydration consumers
+        device._ipv4 = nextIpv4;
+        // Also store under plain ipv4 so toJSON() picks it up without special-casing
+        device.ipv4  = nextIpv4;
+
+        // Patch the resolved interface object (the same one ifaceRef points to)
+        if (targetIface) {
+          targetIface.ipv4 = nextIpv4;
+        }
+      }
+
+      if (normalizedUpdates._ipv6 !== undefined) {
+        const nextIpv6 = normalizedUpdates._ipv6;
+        delete normalizedUpdates._ipv6;
+
+        device._ipv6 = nextIpv6;
+        device.ipv6  = nextIpv6;
+
+        if (targetIface) {
+          targetIface.ipv6 = nextIpv6;
+        }
+      }
+    }
+
+    // ── Path B: Legacy ipAddress/subnetMask shortcut (other callers) ──────────
+    // Only runs when _ipv4 is NOT present so the modal path never hits this.
+    if (normalizedUpdates.ipAddress !== undefined || normalizedUpdates.subnetMask !== undefined) {
+      const addressFromUpdate = normalizedUpdates.ipAddress;
+      const maskFromUpdate = normalizedUpdates.subnetMask;
+
+      const deviceInterfaces = Array.isArray(device.interfaces) ? device.interfaces : [];
+
+      if (deviceInterfaces.length > 0) {
+        const primaryInterface = deviceInterfaces[0];
+        const currentAddress = primaryInterface?.ipv4?.address ?? '';
+        const currentMask = primaryInterface?.ipv4?.subnetMask ?? '';
+        const nextAddress = addressFromUpdate !== undefined ? addressFromUpdate : currentAddress;
+        const nextMask = maskFromUpdate !== undefined ? maskFromUpdate : currentMask;
+
+        if (typeof primaryInterface.configureIPv4 === 'function') {
+          primaryInterface.configureIPv4(nextAddress, nextMask);
         } else {
-            device.hostname = updates.label;
-            device.name = updates.label;
-            device.label = updates.label;
+          primaryInterface.ipv4 = {
+            ...(primaryInterface.ipv4 || {}),
+            address: nextAddress,
+            subnetMask: nextMask
+          };
+        }
+      } else {
+        const fallbackAddress = addressFromUpdate !== undefined ? addressFromUpdate : '';
+        const fallbackMask = maskFromUpdate !== undefined ? maskFromUpdate : '';
+        device.interfaces = [{ ipv4: { address: fallbackAddress, subnetMask: fallbackMask } }];
+      }
+
+      delete normalizedUpdates.ipAddress;
+      delete normalizedUpdates.subnetMask;
+    }
+
+    // 1. Guardrail: Prevent Empty Names
+    if (normalizedUpdates.label !== undefined) {
+        if (normalizedUpdates.label.trim() === '') {
+            delete normalizedUpdates.label; // Cancel this specific update
+        } else {
+            device.hostname = normalizedUpdates.label;
+            device.name = normalizedUpdates.label;
+            device.label = normalizedUpdates.label;
         }
     }
 
-    Object.assign(device, updates);
+    Object.assign(device, normalizedUpdates);
 
     // 2. Dispatch event to instantly update Canvas
     window.dispatchEvent(new CustomEvent('forceCanvasUpdate', { 
-        detail: { id: deviceId, updates } 
+        detail: { id: deviceId, updates: normalizedUpdates } 
     }));
     
     this.updateModified();

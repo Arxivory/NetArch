@@ -5,6 +5,9 @@ import Space from "../../core/structural/Space";
 import Wall from "../../core/structural/Wall";
 import Door from "../../core/structural/Door";
 import Window from "../../core/structural/Window";
+import Conduit from "../../core/structural/Conduit";
+import Riser from "../../core/structural/Riser";
+import UndergroundConduit from "../../core/structural/UndergroundConduit";
 import appState from "../AppState";
 
 export class StructuralStore {
@@ -17,6 +20,9 @@ export class StructuralStore {
         this.listeners = [];
         this.walls = [];
         this.windows = [];
+        this.conduits = [];
+        this.risers = [];
+        this.undergroundConduits = [];
     }
 
     // ============= Domain Methods =============
@@ -110,7 +116,9 @@ export class StructuralStore {
 
         this.sites.push(newSite);
         this.notify();
-        return site;
+        
+        // --- CRITICAL FIX: Return the instantiated class, not the raw argument ---
+        return newSite; 
     }
 
     removeSite(siteId) {
@@ -192,6 +200,9 @@ export class StructuralStore {
         }
 
         const spaceIds = this.spaces.filter(sp => sp.floorId === floorId).map(sp => sp.id);
+        this.conduits = this.conduits.filter(c => 
+            c.floorId !== floorId && !spaceIds.includes(c.spaceId)
+        );
 
         // --- NEW: Bulletproof Cascading Delete for Assets ---
         if (appState.network) {
@@ -216,9 +227,14 @@ export class StructuralStore {
 
         this.spaces = this.spaces.filter(sp => sp.floorId !== floorId);
         this.floors.splice(index, 1);
-
+        
         window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: floorId } }));
-
+        
+        if (appState.ui && appState.ui.activeFloorId === floorId) {
+            appState.ui.setActiveFloor(null);
+            if (window.__layoutRef) window.__layoutRef.setActiveFloor(null);
+        }
+        
         this.notify();
         return [floorId, ...spaceIds];
     }
@@ -278,6 +294,8 @@ export class StructuralStore {
             });
         }
 
+        this.conduits = this.conduits.filter(c => c.spaceId !== spaceId);
+
         this.spaces.splice(index, 1);
 
         window.dispatchEvent(new CustomEvent('forceCanvasDelete', { detail: { id: spaceId } }));
@@ -295,6 +313,105 @@ export class StructuralStore {
         this.walls.splice(index, 1);
         this.notify();
         return [wallId];
+    }
+
+    addConduit(conduit) {
+        if (!conduit.id) throw new Error('Conduit must have an id');
+        if (this.conduits.find(c => c.id === conduit.id)) return null;
+
+        const newConduit = new Conduit(conduit);
+
+        this.conduits.push(newConduit);
+        this.notify();
+        return newConduit;
+    }
+
+    removeConduit(conduitId) {
+        const index = this.conduits.findIndex(c => c.id === conduitId);
+        if (index === -1) return false;
+        this.conduits.splice(index, 1);
+        this.notify();
+        return true;
+    }
+
+    updateConduit(conduitId, updates) {
+        const conduit = this.conduits.find(c => c.id === conduitId);
+        if (!conduit) return null;
+        Object.assign(conduit, updates);
+        if (updates.x !== undefined || updates.y !== undefined) {
+            if (!conduit.transform) conduit.transform = { position: {} };
+            if (!conduit.transform.position) conduit.transform.position = {};
+            if (updates.x !== undefined) conduit.transform.position.x = updates.x;
+            if (updates.y !== undefined) conduit.transform.position.z = updates.y;
+        }
+        this.notify();
+        return conduit;
+    }
+
+    addRiser(riser) {
+        if (!riser.id) throw new Error('Riser must have an id');
+        if (this.risers.find(r => r.id === riser.id)) return null;
+
+        const newRiser = new Riser(riser);
+
+        this.risers.push(newRiser);
+        this.notify();
+        return newRiser;
+    }
+
+    removeRiser(riserId) {
+        const index = this.risers.findIndex(r => r.id === riserId);
+        if (index === -1) return false;
+        this.risers.splice(index, 1);
+        this.notify();
+        return true;
+    }
+
+    updateRiser(riserId, updates) {
+        const riser = this.risers.find(r => r.id === riserId);
+        if (!riser) return null;
+        Object.assign(riser, updates);
+        if (updates.x !== undefined || updates.y !== undefined) {
+            if (!riser.transform) riser.transform = { position: {} };
+            if (!riser.transform.position) riser.transform.position = {};
+            if (updates.x !== undefined) riser.transform.position.x = updates.x;
+            if (updates.y !== undefined) riser.transform.position.z = updates.y;
+        }
+        this.notify();
+        return riser;
+    }
+
+    addUndergroundConduit(ugConduit) {
+        if (!ugConduit.id) throw new Error('Underground Conduit must have an id');
+        if (this.undergroundConduits.find(ug => ug.id === ugConduit.id)) return null;
+
+        const newUGConduit = new UndergroundConduit(ugConduit);
+
+        this.undergroundConduits.push(newUGConduit);
+        this.notify();
+        return newUGConduit;
+    }
+
+    removeUndergroundConduit(ugConduitId) {
+        const index = this.undergroundConduits.findIndex(ug => ug.id === ugConduitId);
+        if (index === -1) return false;
+        this.undergroundConduits.splice(index, 1);
+        this.notify();
+        return true;
+    }
+
+    updateUndergroundConduit(ugConduitId, updates) {
+        const ugConduit = this.undergroundConduits.find(ug => ug.id === ugConduitId);
+        if (!ugConduit) return null;
+        Object.assign(ugConduit, updates);
+        if (updates.x !== undefined || updates.y !== undefined) {
+            if (!ugConduit.transform) ugConduit.transform = { position: {} };
+            if (!ugConduit.transform.position) ugConduit.transform.position = {};
+            if (updates.x !== undefined) ugConduit.transform.position.x = updates.x;
+            if (updates.y !== undefined) ugConduit.transform.position.z = updates.y;
+        }
+        this.notify();
+        return ugConduit;
     }
 
     getSpacesByFloor(floorId) {
@@ -452,13 +569,28 @@ export class StructuralStore {
 
     _buildSiteChildren(domainId, networkStore = null, furnitureStore = null) {
         const sites = this.sites.filter(s => String(s.domainId) === String(domainId));
-        return sites.map(site => ({
-            id: site.id,
-            label: site.label || `Site ${site.id}`,
-            type: 'site',
-            domainId: site.domainId,
-            children: this._buildFloorChildren(site.id, networkStore, furnitureStore)
-        }));
+        
+        return sites.map(site => {
+            const floorChildren = this._buildFloorChildren(site.id, networkStore, furnitureStore);
+
+            const siteUndergroundConduits = this.undergroundConduits
+                .filter(ug => String(ug.siteId) === String(site.id))
+                .map(ug => ({
+                    id: ug.id,
+                    label: ug.label || `Underground Conduit ${ug.id}`,
+                    type: 'undergroundConduit',
+                    siteId: ug.siteId,
+                    children: []
+                }));
+
+            return {
+                id: site.id,
+                label: site.label || `Site ${site.id}`,
+                type: 'site',
+                domainId: site.domainId,
+                children: [...floorChildren, ...siteUndergroundConduits]
+            };
+        });
     }
 
     _buildFloorChildren(siteId, networkStore = null, furnitureStore = null) {
@@ -609,7 +741,28 @@ export class StructuralStore {
                 children: []
             }));
 
-        return [...devicesInSpace, ...furnituresInSpace, ...wallsInSpace, ...doorsInSpace, ...windowsInSpace];
+        const conduits = this.conduits
+            .filter(c => c.spaceId === spaceId)
+            .map(conduit => ({
+                id: conduit.id,
+                label: conduit.label || `Conduit ${conduit.id}`,
+                type: 'conduit',
+                spaceId: conduit.spaceId,
+                conduitId: conduit.id,
+                children: []
+            }));
+
+        const risersInSpace = this.risers
+        .filter(r => r.spaceId === spaceId)
+        .map(r => ({
+            id: r.id,
+            label: r.label || `Riser ${r.id}`,
+            type: 'riser',
+            spaceId: r.spaceId,
+            children: []
+        }));
+
+        return [...devicesInSpace, ...furnituresInSpace, ...wallsInSpace, ...doorsInSpace, ...windowsInSpace, ...conduits, ...risersInSpace];
     }
 
     subscribe(callback) {

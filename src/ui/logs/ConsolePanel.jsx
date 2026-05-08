@@ -2,13 +2,13 @@ import { Trash2, BrushCleaning, FunnelPlus } from "lucide-react";
 import { useState, useMemo, useEffect, useRef } from "react";
 
 const EMPTY_FILTERS = {
-  device: "",
+  device:     "",
   deviceName: "",
-  location: "",
-  date: "",
+  location:   "",
+  date:       "",
 };
 
-// ── Single source of truth for column widths ─────────────────────────────────
+// ── Single source of truth for column widths ──────────────────────────────────
 const COL_WIDTHS = {
   device:   "10%",
   name:     "14%",
@@ -17,6 +17,18 @@ const COL_WIDTHS = {
   date:     "10%",
   location: "11%",
   action:   "5%",
+};
+
+// Shared th/td style — guarantees header and body columns are pixel-identical
+const cellStyle = {
+  paddingLeft:  8,
+  paddingRight: 4,
+  overflow:     "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace:   "nowrap",
+  verticalAlign:"middle",
+  textAlign:    "left",
+  boxSizing:    "border-box",
 };
 
 function Colgroup() {
@@ -33,58 +45,23 @@ function Colgroup() {
   );
 }
 
-const tdStyle = {
-  paddingLeft:   8,
-  overflow:      "hidden",
-  textOverflow:  "ellipsis",
-  whiteSpace:    "nowrap",
-  verticalAlign: "middle",
-};
-
-export default function ConsolePanel() {
-  const [logData,        setLogData]        = useState([]);
+export default function ConsolePanel({ logData, setLogData }) {
   const [search,         setSearch]         = useState("");
   const [showClearModal, setShowClearModal] = useState(false);
   const [showFilters,    setShowFilters]    = useState(false);
   const [tempFilters,    setTempFilters]    = useState(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
 
-  const scrollRef = useRef(null);
+  const scrollRef  = useRef(null);
+  const tbodyWrap  = useRef(null);
+  const [scrollH, setScrollH] = useState(40);
 
-  // ── Listen for add-system-log events ─────────────────────────────────────
-  useEffect(() => {
-    const handleNewLog = (event) => {
-      const { device, deviceName, message, location } = event.detail;
-      const now = new Date();
-      const sev = deriveSeverity(message);
-
-      const newEntry = {
-        id:         now.getTime() + Math.random(),
-        device:     device     || "System",
-        deviceName: deviceName || "Unknown Device",
-        message:    formatEnterpriseLog(message, sev),
-        time:       now.toLocaleTimeString([], {
-                      hour:   "2-digit",
-                      minute: "2-digit",
-                      second: "2-digit",
-                    }),
-        date:       now.toLocaleDateString("en-GB"), // DD/MM/YYYY
-        location:   location || "Unspecified",
-      };
-
-      setLogData((prev) => [newEntry, ...prev]);
-    };
-
-    window.addEventListener("add-system-log", handleNewLog);
-    return () => window.removeEventListener("add-system-log", handleNewLog);
-  }, []);
-
-  // ── Scroll to top on new log ──────────────────────────────────────────────
+  // ── Scroll to top on new log ───────────────────────────────────────────────
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [logData.length]);
 
-  // ── Filtered view ─────────────────────────────────────────────────────────
+  // ── Filtered view ──────────────────────────────────────────────────────────
   const filteredLogs = useMemo(() => {
     return logData.filter((log) => {
       const searchMatch =
@@ -105,8 +82,7 @@ export default function ConsolePanel() {
     });
   }, [logData, search, appliedFilters]);
 
-  // ── Filter modal handlers ─────────────────────────────────────────────────
-  // Opening the filter modal always resets the draft to empty (requirement #1)
+  // ── Filter modal handlers ──────────────────────────────────────────────────
   const openFilterModal = () => {
     setTempFilters(EMPTY_FILTERS);
     setShowFilters(true);
@@ -117,7 +93,6 @@ export default function ConsolePanel() {
     setShowFilters(false);
   };
 
-  // Reset clears the applied filter too → all logs return to the table (requirement #2)
   const handleResetFilters = () => {
     setTempFilters(EMPTY_FILTERS);
     setAppliedFilters(EMPTY_FILTERS);
@@ -133,7 +108,7 @@ export default function ConsolePanel() {
     setLogData((prev) => prev.filter((log) => log.id !== id));
   };
 
-  // ── Search highlight ──────────────────────────────────────────────────────
+  // ── Search highlight ───────────────────────────────────────────────────────
   const highlightText = (text, highlight) => {
     if (!highlight.trim()) return text;
     const escaped = highlight.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -153,19 +128,32 @@ export default function ConsolePanel() {
     );
   };
 
-  // ── Display state ─────────────────────────────────────────────────────────
+  // ── Display state ──────────────────────────────────────────────────────────
   const hasLogs        = logData.length > 0;
   const showNoMatch    = hasLogs && filteredLogs.length === 0;
   const showEmptyState = !hasLogs;
   const isSearching    = search.trim() !== "";
 
-  // Scroll area grows with rows; always shows a default bar when empty
-  const ROW_H      = 30;
   const MIN_SCROLL = 40;
   const MAX_SCROLL = 175;
-  const scrollH    = hasLogs
-    ? Math.min(MAX_SCROLL, Math.max(MIN_SCROLL, filteredLogs.length * ROW_H))
-    : MIN_SCROLL;
+
+  // ── Dynamically size the scroll area to match actual rendered content ──────
+  useEffect(() => {
+    const el = tbodyWrap.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver(([entry]) => {
+      const contentH = entry.contentRect.height;
+      if (!hasLogs) {
+        setScrollH(MIN_SCROLL);
+      } else {
+        setScrollH(Math.min(MAX_SCROLL, Math.max(MIN_SCROLL, contentH)));
+      }
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasLogs]);
 
   return (
     <div className="console-panel">
@@ -193,20 +181,29 @@ export default function ConsolePanel() {
       </div>
 
       {/* ── Table ──────────────────────────────────────────────────────────── */}
+      {/*
+        ALIGNMENT FIX (#2):
+        Both the header <table> and the body <table> share the same
+        Colgroup component and the same `cellStyle` object, so every
+        th and td will be pixel-perfect aligned regardless of scroll.
+      */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
         {/* Fixed thead */}
-        <table className="console-panel-table" style={{ tableLayout: "fixed", width: "100%" }}>
+        <table
+          className="console-panel-table"
+          style={{ tableLayout: "fixed", width: "100%", borderCollapse: "collapse" }}
+        >
           <Colgroup />
           <thead>
             <tr>
-              <th style={{ textAlign: "left", paddingLeft: 8 }}>Device</th>
-              <th style={{ textAlign: "left", paddingLeft: 8 }}>Name</th>
-              <th style={{ textAlign: "left", paddingLeft: 8 }}>Message</th>
-              <th style={{ textAlign: "left", paddingLeft: 8 }}>Time</th>
-              <th style={{ textAlign: "left", paddingLeft: 8 }}>Date</th>
-              <th style={{ textAlign: "left", paddingLeft: 8 }}>Location</th>
-              <th />
+              <th style={cellStyle}>Device</th>
+              <th style={cellStyle}>Name</th>
+              <th style={cellStyle}>Message</th>
+              <th style={cellStyle}>Time</th>
+              <th style={cellStyle}>Date</th>
+              <th style={cellStyle}>Location</th>
+              <th style={{ width: COL_WIDTHS.action }} />
             </tr>
           </thead>
         </table>
@@ -221,6 +218,8 @@ export default function ConsolePanel() {
             background: "#fff",
           }}
         >
+          {/* Inner wrapper — ResizeObserver measures its natural height */}
+          <div ref={tbodyWrap}>
           {showEmptyState ? (
             <div className="empty-state-container" style={{ minHeight: `${MIN_SCROLL}px`, border: "none" }}>
               <p style={{ margin: 0, color: "#999", fontSize: 11 }}>
@@ -234,19 +233,22 @@ export default function ConsolePanel() {
               </p>
             </div>
           ) : (
-            <table className="console-panel-table" style={{ tableLayout: "fixed", width: "100%" }}>
+            <table
+              className="console-panel-table"
+              style={{ tableLayout: "fixed", width: "100%", borderCollapse: "collapse" }}
+            >
               <Colgroup />
               <tbody>
                 {filteredLogs.map((log) => (
                   <tr key={log.id}>
-                    <td style={tdStyle}>{log.device}</td>
-                    <td style={tdStyle}>{log.deviceName}</td>
-                    <td style={{ ...tdStyle, fontStyle: "italic" }}>
-                      {highlightText(log.message, search)}
+                    <td style={cellStyle}>{log.device}</td>
+                    <td style={cellStyle}>{log.deviceName}</td>
+                    <td style={{ ...cellStyle, fontStyle: "italic", whiteSpace: "normal", wordBreak: "break-word", overflowWrap: "break-word", overflow: "visible" }}>
+                      {highlightText(formatEnterpriseLog(log.message, deriveSeverity(log.message)), search)}
                     </td>
-                    <td style={tdStyle}>{log.time}</td>
-                    <td style={tdStyle}>{log.date}</td>
-                    <td style={tdStyle}>{log.location}</td>
+                    <td style={cellStyle}>{log.time}</td>
+                    <td style={cellStyle}>{log.date}</td>
+                    <td style={cellStyle}>{log.location}</td>
                     <td style={{ textAlign: "center", verticalAlign: "middle" }}>
                       <Trash2
                         className="console-panel-delete"
@@ -259,6 +261,7 @@ export default function ConsolePanel() {
               </tbody>
             </table>
           )}
+          </div>{/* end tbodyWrap */}
         </div>
       </div>
 
@@ -274,12 +277,12 @@ export default function ConsolePanel() {
                 onChange={(e) => setTempFilters({ ...tempFilters, device: e.target.value })}
               />
               <input
-                placeholder="Device Name (e.g. Cisco 1941)"
+                placeholder="Device Name (e.g. Router-01)"
                 value={tempFilters.deviceName}
                 onChange={(e) => setTempFilters({ ...tempFilters, deviceName: e.target.value })}
               />
               <input
-                placeholder="Location (e.g. Main Floor)"
+                placeholder="Location (e.g. Core Network)"
                 value={tempFilters.location}
                 onChange={(e) => setTempFilters({ ...tempFilters, location: e.target.value })}
               />
@@ -322,6 +325,7 @@ function deriveSeverity(message = "") {
   if (m.includes("error") || m.includes("fail") || m.includes("denied"))  return "ERROR";
   if (m.includes("warn")  || m.includes("exceed") || m.includes("retry")) return "WARNING";
   if (m.includes("auth")  || m.includes("ssh")    || m.includes("vpn"))   return "NOTICE";
+  if (m.includes("nat_change") || m.includes("change"))                   return "NOTICE";
   return "INFO";
 }
 
@@ -329,11 +333,30 @@ function deriveSeverity(message = "") {
  * Maps a raw tag+value string dispatched from a config modal
  * into an enterprise / Cisco-IOS-style syslog message.
  *
- * New configs:    [OSPF] Networks: 192.168.1.0/24
- * Changed fields: [OSPF] Networks: 10.0.0.0/8 → 192.168.1.0/24
+ * Handles:
+ *   [NAT_SET]    → first-time configuration
+ *   [NAT_CHANGE] → field modification (triggers NOTICE severity)
+ *   [NAT_INFO]   → informational / no-op
+ *   All existing OSPF / BGP / Static / Route Control tags
  */
 function formatEnterpriseLog(raw = "", severity = "INFO") {
   const r = raw.toLowerCase();
+  const facilityMap = { ERROR: "3", WARNING: "4", NOTICE: "5", INFO: "6" };
+  const sev         = facilityMap[severity] || "6";
+
+  // ── NAT / PAT ─────────────────────────────────────────────────────────────
+  if (r.startsWith("[nat_change]")) {
+    const detail = raw.replace(/^\[NAT_CHANGE\]\s*/i, "");
+    return `%NAT-5-XLATE_MODIFY: Configuration change detected — ${detail}`;
+  }
+  if (r.startsWith("[nat_set]")) {
+    const detail = raw.replace(/^\[NAT_SET\]\s*/i, "");
+    return `%NAT-6-XLATE_INSTALL: Translation rule installed — ${detail}`;
+  }
+  if (r.startsWith("[nat_info]")) {
+    const detail = raw.replace(/^\[NAT_INFO\]\s*/i, "");
+    return `%NAT-6-XLATE_NOP: ${detail}`;
+  }
 
   const extractChange = (label) => {
     const idx = raw.indexOf(label);
@@ -495,6 +518,5 @@ function formatEnterpriseLog(raw = "", severity = "INFO") {
   }
 
   // ── Fallback ──────────────────────────────────────────────────────────────
-  const facilityMap = { ERROR: "3", WARNING: "4", NOTICE: "5", INFO: "6" };
-  return `%SYS-${facilityMap[severity] || "6"}-CONFIG_CHANGE: ${raw}`;
+  return `%SYS-${sev}-CONFIG_CHANGE: ${raw}`;
 }

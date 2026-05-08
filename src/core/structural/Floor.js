@@ -9,17 +9,14 @@ export default class Floor {
         this.shapeType = appState.structural.sites.find(s => s.id === this.siteId).shapeType;
         this.label = data.label || 'Floor';
         this.structureType = data.structureType || 'Floor';
-        this.shapeType = data.type;
-        this.type = 'floor';
-        this.altitude = data.altitude || 0;
+        this.type = data.type || 'floor';
+        this.altitude = data.altitude || 0; 
 
         this.geometry = {
             x: data.x || 0,
             y: data.y || 0,
-            maxX: data.maxX || 0,
-            maxY: data.maxY || 0,
-            w: data.w || 0,
-            h: data.h || 0,
+            width: data.w || 0,
+            height: data.h || 0,
             radius: data.r || 0,
             points: data.points ? [...data.points] : []
         };

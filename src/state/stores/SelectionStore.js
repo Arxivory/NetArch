@@ -11,14 +11,42 @@ export class SelectionStore {
     this.listeners = [];
   }
 
-  focusedNode(id, type) {
-    this.focusedId = id;
-    this.focusedType = type;
-
+  _clearObjectSelections() {
     this.selectedDeviceIds = [];
     this.selectedFurnitureIds = [];
     this.selectedLinkIds = [];
     this.selectedDoorIds = [];
+  }
+
+  _setFocus(id, type) {
+    this.focusedId = id;
+    this.focusedType = type;
+  }
+
+  _ensureFocusedSelection() {
+    if (this.focusedId) return;
+
+    if (this.selectedDeviceIds.length > 0) {
+      this._setFocus(this.selectedDeviceIds[this.selectedDeviceIds.length - 1], 'device');
+      return;
+    }
+
+    if (this.selectedFurnitureIds.length > 0) {
+      this._setFocus(this.selectedFurnitureIds[this.selectedFurnitureIds.length - 1], 'furniture');
+      return;
+    }
+
+    if (this.selectedLinkIds.length > 0) {
+      this._setFocus(this.selectedLinkIds[this.selectedLinkIds.length - 1], 'cable');
+      return;
+    }
+
+    this._setFocus(null, null);
+  }
+
+  focusedNode(id, type) {
+    this._setFocus(id, type);
+    this._clearObjectSelections();
 
     console.log(`Focused on ${type} with ID: ${id}`);
 
@@ -35,62 +63,155 @@ export class SelectionStore {
 
   selectDevice(deviceId, multiSelect = false) {
     if (!multiSelect) {
-      this.selectedDeviceIds = [];
-      this.selectedFurnitureIds = [];
-      this.selectedLinkIds = [];
+      this._clearObjectSelections();
     }
 
     if (!this.selectedDeviceIds.includes(deviceId)) {
       this.selectedDeviceIds.push(deviceId);
     }
 
-    this.focusedId = deviceId;
-    this.focusedType = 'device'; // ADDED: keep device selection semantics consistent with hierarchy selection
+    this._setFocus(deviceId, 'device');
     this.notify();
   }
 
   deselectDevice(deviceId) {
     this.selectedDeviceIds = this.selectedDeviceIds.filter(id => id !== deviceId);
     if (this.focusedId === deviceId) {
-      this.focusedId = null;
-      this.focusedType = null;
+      this._setFocus(null, null);
+    }
+    this._ensureFocusedSelection();
+    this.notify();
+  }
+
+  selectConduit(conduitId, multiSelect = false) {
+    if (!multiSelect) {
+      this._clearObjectSelections();
+    }
+    this._setFocus(conduitId, 'conduit');
+    this.notify();
+  }
+
+  deselectConduit(conduitId) {
+    if (this.focusedId === conduitId) {
+      this._setFocus(null, null);
     }
     this.notify();
   }
 
+  selectRiser(riserId, multiSelect = false) {
+    if (!multiSelect) this._clearObjectSelections();
+    this._setFocus(riserId, 'riser');
+    this.notify();
+  }
+
+  deselectRiser(riserId) {
+    if (this.focusedId === riserId) this._setFocus(null, null);
+    this.notify();
+  }
+
+  selectUndergroundConduit(ugConduitId, multiSelect = false) {
+    if (!multiSelect) this._clearObjectSelections();
+    this._setFocus(ugConduitId, 'underground-conduit');
+    this.notify();
+  }
+
+  deselectUndergroundConduit(ugConduitId) {
+    if (this.focusedId === ugConduitId) this._setFocus(null, null);
+    this.notify();
+  }
+
+  toggleDeviceSelection(deviceId) {
+    if (this.isDeviceSelected(deviceId)) {
+      this.deselectDevice(deviceId);
+      return false;
+    }
+
+    this.selectDevice(deviceId, true);
+    return true;
+  }
+
+  selectFurniture(furnitureId, multiSelect = false) {
+    if (!multiSelect) {
+      this._clearObjectSelections();
+    }
+
+    if (!this.selectedFurnitureIds.includes(furnitureId)) {
+      this.selectedFurnitureIds.push(furnitureId);
+    }
+
+    this._setFocus(furnitureId, 'furniture');
+    this.notify();
+  }
+
+  deselectFurniture(furnitureId) {
+    this.selectedFurnitureIds = this.selectedFurnitureIds.filter(id => id !== furnitureId);
+    if (this.focusedId === furnitureId) {
+      this._setFocus(null, null);
+    }
+    this._ensureFocusedSelection();
+    this.notify();
+  }
+
+  toggleFurnitureSelection(furnitureId) {
+    if (this.isFurnitureSelected(furnitureId)) {
+      this.deselectFurniture(furnitureId);
+      return false;
+    }
+
+    this.selectFurniture(furnitureId, true);
+    return true;
+  }
+
   selectLink(linkId, multiSelect = false) {
     if (!multiSelect) {
-      this.selectedDeviceIds = [];
-      this.selectedFurnitureIds = [];
-      this.selectedLinkIds = [];
+      this._clearObjectSelections();
     }
 
     if (!this.selectedLinkIds.includes(linkId)) {
       this.selectedLinkIds.push(linkId);
     }
 
-    this.focusedId = linkId;
-    this.focusedType = 'link';
+    this._setFocus(linkId, 'cable');
     this.notify();
   }
 
   deselectLink(linkId) {
     this.selectedLinkIds = this.selectedLinkIds.filter(id => id !== linkId);
     if (this.focusedId === linkId) {
-      this.focusedId = null;
-      this.focusedType = null;
+      this._setFocus(null, null);
     }
+    this._ensureFocusedSelection();
     this.notify();
   }
 
+  toggleLinkSelection(linkId) {
+    if (this.isLinkSelected(linkId)) {
+      this.deselectLink(linkId);
+      return false;
+    }
+
+    this.selectLink(linkId, true);
+    return true;
+  }
+
   clearSelection() {
+<<<<<<< HEAD
     this.selectedDeviceIds = [];
     this.selectedFurnitureIds = [];
     this.selectedLinkIds = [];
     this.selectedDoorIds = [];
     this.focusedId = null;
     this.focusedType = null;
+=======
+    this._clearObjectSelections();
+    this._setFocus(null, null);
+>>>>>>> 19e7f74e9015c692133719a493710184f7dacde8
     this.highlightedIds = [];
+    this.notify();
+  }
+
+  focusSelection(id, type) {
+    this._setFocus(id, type);
     this.notify();
   }
 

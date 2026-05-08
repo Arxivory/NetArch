@@ -5,35 +5,19 @@ export default class Site {
         this.id = data.id || `site-${Math.random().toString(36).substr(2, 9)}`;
         this.domainId = data.domainId;
         this.label = data.label || 'New Site';
-        this.shapeType = data.type;
+        this.shapeType = data.shapeType;
         this.type = 'site';
 
         this.geometry = {
             x: data.x || 0,
             y: data.y || 0,
-            maxX: data.maxX || 0,
-            maxY: data.maxY || 0,
-            w: data.w || 0,
-            h: data.h || 0,
+            width: data.w || 0,
+            height: data.h || 0,
             radius: data.r || 0,
-            points: data.points ? [...data.points] : []
+            points: data.points ? [...data.points]: []
         };
 
         this.floors = data.floors ? data.floors.map(f => new Floor(f)) : [];
         
     }
-
-    getParentId(){
-        return this.domainId;
-    }
-
-    // updateHeight() {
-    //     this.geometry.height = this.floors.reduce((sum, f) => sum + (f.height || 3.0), 0);
-    // }
-
-    // addFloor(floor) {
-    //     floor.altitude = this.geometry.height;
-    //     this.floors.push(floor);
-    //     this.updateHeight();
-    // }
 }

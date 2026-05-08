@@ -1,5 +1,3 @@
-import appState from "../../state/AppState";
-
 export class Selection {
     constructor(opts) {
         this.dpr = opts.dpr || 1;
@@ -8,9 +6,11 @@ export class Selection {
     getEntityPriority(en) {
         const isDevice = en.interfaces !== undefined || en.catalogId !== undefined;
         const isFurniture = en.type === 'furniture' || en.id?.startsWith('furniture');
+        const isDoor = en.type === 'door';
 
         if (isDevice) return 5;     // ADDED: devices must win clicks over spaces/sites/domains
         if (isFurniture) return 4;  // ADDED: furniture should also sit above structural parents
+        if (isDoor) return 2;       // ADDED: doors higher priority than walls
 
         const priorityMap = {
             'Space': 3,
@@ -39,9 +39,7 @@ export class Selection {
     identifyEntity(x, y, entities, ctx) {
         x *= this.dpr;
         y *= this.dpr;
-        
-        const priorityMap = { 'Space': 3, 'Site': 2, 'Domain': 1 };
-        
+
         let bestMatch = null;
         let bestPriority = -1;
 
@@ -50,10 +48,7 @@ export class Selection {
                 if (!en || !en.path) continue;
 
                 if (this.wasHit(en, x, y, ctx)) {
-                    // ADDED: Give doors higher priority (2) than walls (0)
-                    let priority = priorityMap[en.structureType] || 0;
-                    if (en.type === 'door') priority = 2;
-                    
+                    const priority = this.getEntityPriority(en);
                     if (priority > bestPriority) {
                         bestMatch = en;
                         bestPriority = priority;

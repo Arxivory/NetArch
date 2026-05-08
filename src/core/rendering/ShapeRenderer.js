@@ -1,6 +1,7 @@
 export class ShapeRenderer {
   constructor(opts = {}) {
     this.gridSize = opts.gridSize || 32;
+    this.scaler = 0.7;
   }
 
   renderRectangles(ctx, rectangles) {
@@ -84,42 +85,47 @@ export class ShapeRenderer {
     ctx.lineWidth = 1;
 
     for (const dev of devices) {
-      const cx = dev.x + dev.renderWidth / 2;
-      const cy = dev.y + dev.renderHeight / 2;
-      const w = dev.renderWidth;
-      const h = dev.renderHeight;
-      const x = dev.x;
-      const y = dev.y;
+      // Calculate the absolute CENTER of the bounding box
+      const cx = dev.x + (dev.renderWidth / 2);
+      const cy = dev.y + (dev.renderHeight / 2);
+      
+      // Calculate the scaled width and height for the icon
+      const w = dev.renderWidth * this.scaler;
+      const h = dev.renderHeight * this.scaler;
+      
+      // Perfectly center the icon by offsetting it from the center point
+      const drawX = cx - (w / 2);
+      const drawY = cy - (h / 2);
 
       dev.updatePath();
 
       // --- DRAW IMAGE ---
       if (dev.icon && dev.icon.complete && dev.icon.naturalWidth !== 0) {
         try {
-          ctx.drawImage(dev.icon, x, y, w, h);
+          ctx.drawImage(dev.icon, drawX, drawY, w, h);
         } catch (e) {
           console.warn("Error drawing device icon:", e);
-          this._drawFallbackDevice(ctx, x, y, w);
+          this._drawFallbackDevice(ctx, drawX, drawY, w);
         }
       } else {
-        this._drawFallbackDevice(ctx, x, y, w);
+        this._drawFallbackDevice(ctx, drawX, drawY, w);
       }
 
       // --- AUTO-SCALING LABEL ---
       const labelText = dev.label || dev.hostname || dev.name || 'Device';
-      const maxWidth = w * 1.5; // Max text width is 150% of the device icon width
+      const maxWidth = w * 1.5; 
 
       let fontSize = 12;
       ctx.font = `${fontSize}px sans-serif`;
       
-      // Shrink font size dynamically until the text fits the max width (minimum 6px)
       while (ctx.measureText(labelText).width > maxWidth && fontSize > 6) {
           fontSize -= 0.5;
           ctx.font = `${fontSize}px sans-serif`;
       }
 
       ctx.fillStyle = '#000000';
-      ctx.fillText(labelText, cx, cy + (h / 2) + 12);
+      // Draw text anchored to the center X coordinate
+      ctx.fillText(labelText, cx, cy + (dev.renderHeight / 2) + 12);
     }
 
     ctx.restore();
@@ -134,7 +140,7 @@ renderFurnitures(ctx, furnitures) {
     for (const dev of furnitures) {
       const s = dev.transform?.scale?.factor || dev.transform?.scale?.x || 1;
       const baseSize = this.gridSize * 1.5;
-      const size = baseSize * s;
+      const size = baseSize * s * this.scaler;
       const halfSize = size / 2;
 
       const x = dev.x - halfSize;
@@ -144,9 +150,20 @@ renderFurnitures(ctx, furnitures) {
       path.rect(x, y, size, size);
       dev.path = path;
 
+      // if (dev.icon && dev.icon.complete && dev.icon.naturalWidth !== 0) {
+      //   try {
+      //     ctx.drawImage(dev.icon, x, y, dev.renderWidth, dev.renderHeight);
+      //   } catch (e) {
+      //     console.warn("Error drawing furniture icon:", e);
+      //     this._drawFallbackDevice(ctx, x, y, size);
+      //   }
+
+      // --- DRAW IMAGE --- 
       if (dev.icon && dev.icon.complete && dev.icon.naturalWidth !== 0) {
         try {
-          ctx.drawImage(dev.icon, x, y, dev.renderWidth, dev.renderHeight);
+          // 🐛 THE FIX: Use 'size, size' instead of 'dev.renderWidth, dev.renderHeight'
+          // Furniture objects don't use the renderWidth property!
+          ctx.drawImage(dev.icon, x, y, size, size);
         } catch (e) {
           console.warn("Error drawing furniture icon:", e);
           this._drawFallbackDevice(ctx, x, y, size);
@@ -159,7 +176,7 @@ renderFurnitures(ctx, furnitures) {
       const labelText = dev.label || dev.name || 'Furniture';
       const maxWidth = size * 1.5; // Max text width is 150% of the furniture icon width
 
-      let fontSize = 12;
+      let fontSize = 12 * this.scaler;
       ctx.font = `${fontSize}px sans-serif`;
       
       // Shrink font size dynamically until the text fits

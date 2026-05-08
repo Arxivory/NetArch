@@ -2370,3 +2370,480 @@ html,
   border: 1px solid #86efac;
 }
    
+/* ═══════════════════════════════════════════════════════════
+   TOPBAR — shortcut hints in dropdown items
+   ═══════════════════════════════════════════════════════════ */
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.dropdown-shortcut {
+  font-size: 11px;
+  color: #999;
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SHARED MODAL OVERLAY
+   ═══════════════════════════════════════════════════════════ */
+.help-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HELP MODAL
+   ═══════════════════════════════════════════════════════════ */
+.help-modal {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.22);
+  width: 680px;
+  max-width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.help-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.help-modal-header h2,
+.help-modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #111;
+}
+
+.help-modal-close {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: #888;
+  padding: 4px 8px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.help-modal-close:hover {
+  background: #f3f4f6;
+  color: #333;
+}
+
+.help-modal-tabs {
+  display: flex;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0 16px;
+  gap: 2px;
+}
+
+.help-tab-btn {
+  background: none;
+  border: none;
+  padding: 10px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #666;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-weight: 500;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.help-tab-btn:hover {
+  color: #333;
+}
+
+.help-tab-btn.active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+}
+
+.help-modal-body {
+  overflow-y: auto;
+  flex: 1;
+  padding: 20px;
+}
+
+.help-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.help-intro {
+  margin: 0;
+  font-size: 13px;
+  color: #555;
+  line-height: 1.6;
+}
+
+/* Getting Started Steps */
+.help-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.help-step {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.help-step-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.help-step-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111;
+  margin-bottom: 4px;
+}
+
+.help-step-desc {
+  font-size: 12px;
+  color: #555;
+  line-height: 1.5;
+}
+
+/* Keybindings Table */
+.keybinding-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.keybinding-table thead th {
+  text-align: left;
+  padding: 8px 10px;
+  color: #888;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.keybinding-table tbody tr {
+  border-bottom: 1px solid #f3f4f6;
+  transition: background 0.1s;
+}
+
+.keybinding-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.keybinding-table tbody tr.editing-row {
+  background: #eff6ff;
+}
+
+.keybinding-table td {
+  padding: 9px 10px;
+  color: #333;
+}
+
+.kb-badge {
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 12px;
+  font-family: monospace;
+  color: #374151;
+}
+
+.kb-category {
+  font-size: 11px;
+  background: #e0e7ff;
+  color: #3730a3;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-weight: 600;
+}
+
+.kb-capture-input {
+  border: 1px solid #2563eb;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: monospace;
+  width: 120px;
+  outline: none;
+  background: #fff;
+}
+
+.kb-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.kb-btn {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.kb-btn.edit {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  color: #374151;
+}
+
+.kb-btn.edit:hover { background: #e5e7eb; }
+
+.kb-btn.confirm {
+  background: #2563eb;
+  color: #fff;
+}
+
+.kb-btn.confirm:hover { background: #1d4ed8; }
+
+.kb-btn.cancel {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  color: #374151;
+}
+
+.kb-btn.cancel:hover { background: #e5e7eb; }
+
+.kb-duplicate-warning {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.kb-reset-btn {
+  align-self: flex-start;
+  margin-top: 4px;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 5px;
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  cursor: pointer;
+  color: #374151;
+}
+
+.kb-reset-btn:hover { background: #e5e7eb; }
+
+/* Search Tools */
+.help-search-input {
+  width: 100%;
+  padding: 9px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.help-search-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37,99,235,0.12);
+}
+
+.help-no-results {
+  font-size: 13px;
+  color: #888;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.help-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.help-search-item {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  padding: 11px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.help-search-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111;
+}
+
+.help-search-desc {
+  font-size: 12px;
+  color: #555;
+}
+
+/* About */
+.help-about {
+  align-items: center;
+  text-align: center;
+  padding: 12px 0;
+}
+
+.help-about-logo {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+
+.help-about h3 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111;
+  margin: 0 0 4px;
+}
+
+.help-version {
+  font-size: 12px;
+  color: #888;
+  margin: 0 0 12px;
+}
+
+.help-about p {
+  font-size: 13px;
+  color: #555;
+  max-width: 420px;
+  line-height: 1.6;
+  margin: 0 auto;
+}
+
+.help-about-grid {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.help-about-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 16px 20px;
+  width: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.help-about-icon { font-size: 28px; }
+
+.help-about-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111;
+}
+
+.help-about-subdesc {
+  font-size: 11px;
+  color: #666;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.help-about-footer {
+  margin-top: 20px !important;
+  font-size: 11px !important;
+  color: #aaa !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   EXPORT MODAL
+   ═══════════════════════════════════════════════════════════ */
+.export-modal {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.22);
+  width: 380px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.export-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px 20px;
+}
+
+.export-option-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.export-option-btn:hover {
+  background: #eff6ff;
+  border-color: #2563eb;
+}
+
+.export-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.export-format-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111;
+  margin-bottom: 3px;
+}
+
+.export-format-desc {
+  font-size: 12px;
+  color: #666;
+}

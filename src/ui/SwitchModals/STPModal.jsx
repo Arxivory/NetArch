@@ -5,11 +5,17 @@ import { GitBranch, Network, Layers, ShieldCheck, Activity } from "lucide-react"
 export default function STPModal({ onClose, deviceName = "Switch", deviceLocation = "Network" }) {
   const [activeSTPTab, setActiveSTPTab] = useState("global");
 
+  const now = () => new Date().toISOString().replace("T", " ").slice(0, 19);
+
   const handleApply = () => {
-    const logs = [`[STP] Config applied on ${deviceName}`];
-    logs.forEach(message =>
-      window.dispatchEvent(new CustomEvent("add-system-log", { detail: { device: "Switch", deviceName, message, location: deviceLocation } }))
-    );
+    const ts = now();
+    const dispatch = (message) =>
+      window.dispatchEvent(new CustomEvent("add-system-log", { detail: { device: "Switch", deviceName, message, location: deviceLocation, italic: true } }));
+
+    dispatch(`%STP-5-MODE_SET: [${ts}] ${deviceName} @ ${deviceLocation} — Spanning Tree Protocol configuration committed. Active STP mode applied to all participating VLANs.`);
+    dispatch(`%STP-6-BRIDGE_PRIORITY: [${ts}] ${deviceName} — Bridge priority values updated. Root bridge election will be triggered on next BPDU exchange.`);
+    dispatch(`%STP-6-PORTFAST: [${ts}] ${deviceName} — PortFast / Edge port settings applied. Designated access ports will bypass listening and learning states on link-up.`);
+    dispatch(`%STP-5-GUARD_SET: [${ts}] ${deviceName} — BPDU Guard, Root Guard, and Loop Guard protection policies updated. Violations will trigger err-disabled state on affected ports.`);
     onClose();
   };
 

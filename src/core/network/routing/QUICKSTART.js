@@ -129,28 +129,73 @@ async function testPing() {
 
 
 // ============================================================================
-// 7. ENABLE ROUTING PROTOCOLS (RIP)
+// 7. ENABLE ROUTING PROTOCOLS (RIP vs OSPF)
 // ============================================================================
 
 // Create simulation bus for timed events
 const simBus = new SimulationBus();
 
+// ─────────────────────────────────────────────────────────────────────────
+// OPTION A: Use RIP (distance-vector, simpler)
+// ─────────────────────────────────────────────────────────────────────────
+
 // Create RIP engines for both routers
 const rip1 = new RIPEngine(router1, simBus);
 const rip2 = new RIPEngine(router2, simBus);
 
-// Enable RIP
+// Enable RIP (or use device.enableRoutingProtocol('rip'))
 rip1.enable();   // Starts periodic 30-second updates
 rip2.enable();
 
-// Manually trigger updates (for testing)
+// View RIP database and neighbors
+console.log(rip1.showDatabase());
+console.log(rip1.showNeighbors());
+console.log(rip1.showStats());
+
+// ─────────────────────────────────────────────────────────────────────────
+// OPTION B: Use OSPF (link-state, faster convergence)
+// ─────────────────────────────────────────────────────────────────────────
+
+// Create OSPF engines for both routers
+// const ospf1 = new OSPFEngine(router1, simBus, { 
+//   routerId: '1.1.1.1',
+//   area: '0.0.0.0'  // Backbone area
+// });
+// const ospf2 = new OSPFEngine(router2, simBus, {
+//   routerId: '2.2.2.2',
+//   area: '0.0.0.0'
+// });
+
+// Enable OSPF (or use device.enableRoutingProtocol('ospf', config))
+// ospf1.enable();
+// ospf2.enable();
+
+// View OSPF database and neighbors
+// console.log(ospf1.showNeighbors());
+// console.log(ospf1.showDatabase());
+// console.log(ospf1.showRoutes());
+// console.log(ospf1.showStats());
+
+// ─────────────────────────────────────────────────────────────────────────
+// EASIER: Use device.enableRoutingProtocol() method
+// ─────────────────────────────────────────────────────────────────────────
+
+// Enable RIP on a router
+// router1.enableRoutingProtocol('rip');
+// router2.enableRoutingProtocol('rip');
+
+// Or enable OSPF
+router1.enableRoutingProtocol('ospf', { routerId: '1.1.1.1' });
+router2.enableRoutingProtocol('ospf', { routerId: '2.2.2.2' });
+
+// Manually trigger events (for testing)
 // simBus.step();  // Execute one event
 // simBus.step();
 // simBus.step();
 // etc.
 
-// Or run simulation
-simBus.start();  // Start event loop
+// Or run simulation automatically
+simBus.start();  // Start event loop (processes events from queue)
 
 
 // ============================================================================

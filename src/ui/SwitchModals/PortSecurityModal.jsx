@@ -5,11 +5,18 @@ import { ShieldCheck, Cable, Lock, Activity, AlertTriangle } from "lucide-react"
 export default function PortSecurityModal({ onClose, deviceName = "Switch", deviceLocation = "Network" }) {
   const [activePortSecurityTab, setActivePortSecurityTab] = useState("mac");
 
+  const now = () => new Date().toISOString().replace("T", " ").slice(0, 19);
+
   const handleApply = () => {
-    const logs = [`[Port Security] Config applied on ${deviceName}`];
-    logs.forEach(message =>
-      window.dispatchEvent(new CustomEvent("add-system-log", { detail: { device: "Switch", deviceName, message, location: deviceLocation } }))
-    );
+    const ts = now();
+    const dispatch = (message) =>
+      window.dispatchEvent(new CustomEvent("add-system-log", { detail: { device: "Switch", deviceName, message, location: deviceLocation, italic: true } }));
+
+    dispatch(`%PORTSEC-5-MAC_BIND: [${ts}] ${deviceName} @ ${deviceLocation} — Secure MAC address table updated. Static and sticky MAC bindings committed on configured access ports.`);
+    dispatch(`%PORTSEC-5-VIOLATION_POLICY: [${ts}] ${deviceName} — Violation action policy applied. Ports will respond to unauthorized MAC events per the configured mode (Shutdown / Restrict / Protect).`);
+    dispatch(`%PORTSEC-6-STICKY_MAC: [${ts}] ${deviceName} — Sticky MAC learning parameters updated. Dynamically learned MACs will be persisted to the running-config on the next save.`);
+    dispatch(`%DOT1X-5-PORT_AUTH: [${ts}] ${deviceName} — 802.1X / NAC port authentication settings applied. Supplicant re-authentication timers and auth-fail VLAN assignments updated.`);
+    dispatch(`%STORM-5-THRESHOLD: [${ts}] ${deviceName} — Storm control thresholds committed. Broadcast and multicast rate limiters active; violating traffic will trigger the configured action.`);
     onClose();
   };
 

@@ -5,11 +5,17 @@ import { ArrowLeftRight, Network, Cable, GitBranch, Activity, Layers } from "luc
 export default function Trunking({ onClose, deviceName = "Switch", deviceLocation = "Network" }) {
   const [activeTrunkTab, setActiveTrunkTab] = useState("config");
 
+  const now = () => new Date().toISOString().replace("T", " ").slice(0, 19);
+
   const handleApply = () => {
-    const logs = [`[Trunking] Config applied on ${deviceName}`];
-    logs.forEach(message =>
-      window.dispatchEvent(new CustomEvent("add-system-log", { detail: { device: "Switch", deviceName, message, location: deviceLocation } }))
-    );
+    const ts = now();
+    const dispatch = (message) =>
+      window.dispatchEvent(new CustomEvent("add-system-log", { detail: { device: "Switch", deviceName, message, location: deviceLocation, italic: true } }));
+
+    dispatch(`%TRUNK-5-8021Q_CONFIG: [${ts}] ${deviceName} @ ${deviceLocation} — 802.1Q trunk port configuration applied. Native VLAN, allowed VLAN list, and DTP mode updated on trunk interfaces.`);
+    dispatch(`%TRUNK-6-ETHERCHANNEL: [${ts}] ${deviceName} — EtherChannel (LACP/PAgP) bundle parameters committed. Port-channel load-balancing algorithm re-evaluated.`);
+    dispatch(`%VTP-5-DOMAIN_SET: [${ts}] ${deviceName} — VTP domain, mode, and pruning configuration applied. VTP summary advertisement will be sent on next hello interval.`);
+    dispatch(`%TRUNK-6-VLAN_TRANSLATE: [${ts}] ${deviceName} — VLAN translation and rewrite maps updated. Ingress/egress VLAN tag rewriting active on configured interfaces.`);
     onClose();
   };
 

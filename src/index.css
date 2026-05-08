@@ -1831,14 +1831,33 @@ html,
   z-index: 9999;
 }
 
-/* ================= TABLE FIXES ================= */
+/* .vlan-modal-layer .nat-sidebar-layout {
+  width: min(960px, 100vw);
+  height: min(550px, 100vh);
+} */
+
+/* Global Modal Resizing */
+.nat-sidebar-layout {
+  width: min(960px, 100vw);
+  height: min(550px, 100vh);
+  display: flex;
+  background-color: #ffffff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* ================= TABLE FIXES ===
+============== */
+
 
 .vlan-modal-layer .acl-table {
   width: 100%;
+  table-layout: fixed;
   overflow-x: auto;
-  border: 1px solid #2a2a2a;
+  border: 1px solid #e5e5e5;
   border-radius: 12px;
-  background: #111111;
+  background: #ffffff;
 }
 
 .vlan-modal-layer .acl-table table {
@@ -1847,18 +1866,20 @@ html,
 }
 
 .vlan-modal-layer .acl-table th {
-  background: #181818;
-  color: #f5f5f5;
+  background: #fafafa;
+  color: #333333;
   font-size: 13px;
   font-weight: 600;
-  padding: 14px;
-  border-bottom: 1px solid #2a2a2a;
+  padding: 11px 12px;
+  border-bottom: 1px solid #e5e5e5;
   text-align: left;
 }
 
 .vlan-modal-layer .acl-table td {
-  padding: 12px;
-  border-bottom: 1px solid #222;
+  padding: 10px 12px;
+  border-bottom: 1px solid #eeeeee;
+  vertical-align: middle;
+  word-break: normal;
 }
 
 .vlan-modal-layer .acl-table tr:last-child td {
@@ -1870,20 +1891,75 @@ html,
 .vlan-modal-layer input,
 .vlan-modal-layer select {
   width: 100%;
-  background: #0d0d0d;
-  border: 1px solid #2c2c2c;
-  color: #f5f5f5;
-  padding: 10px 12px;
-  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #dddddd;
+  color: #222222;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
   outline: none;
   transition: 0.2s ease;
   font-size: 13px;
 }
 
+.switch-config-table th:nth-child(1),
+.switch-config-table td:nth-child(1) {
+  width: 13%;
+}
+
+.switch-config-table th:nth-child(2),
+.switch-config-table td:nth-child(2),
+.switch-config-table th:nth-child(5),
+.switch-config-table td:nth-child(5) {
+  width: 16%;
+}
+
+.switch-config-table th:nth-child(3),
+.switch-config-table td:nth-child(3),
+.switch-config-table th:nth-child(4),
+.switch-config-table td:nth-child(4) {
+  width: 13%;
+}
+
+.switch-config-table th:nth-child(6),
+.switch-config-table td:nth-child(6) {
+  width: 12%;
+  text-align: center;
+}
+
+.switch-config-table th:nth-child(7),
+.switch-config-table td:nth-child(7) {
+  width: 12%;
+  text-align: right;
+}
+
+.table-muted-value {
+  color: #8a94a6;
+}
+
+.table-status-on {
+  color: #166534;
+  font-weight: 600;
+}
+
+.table-action-btn {
+  border: 1px solid #d9d9d9;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #111111;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.table-action-btn:hover {
+  background: #f5f5f5;
+}
+
 .vlan-modal-layer input:focus,
 .vlan-modal-layer select:focus {
-  border-color: #4b8dff;
-  box-shadow: 0 0 0 1px #4b8dff;
+  border-color: #111111;
+  box-shadow: none;
 }
 
 /* ================= STATUS COLORS ================= */
@@ -1914,7 +1990,205 @@ html,
   background: transparent;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   InterfaceModal — append to your existing stylesheet
+   ───────────────────────────────────────────────────────────────────────────── */
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   InterfaceModal — append to your existing stylesheet
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Sidebar helper note */
+
+
+/* Section heading + hint */
+.iface-list-group {
+  margin-bottom: 0;
+}
+
+.iface-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #444;
+  letter-spacing: 0.3px;
+  margin: 0 0 4px 0;
+}
+
+.iface-hint {
+  font-size: 11px;
+  color: #aaa;
+  margin: 0 0 10px 0;
+}
+
+/* ── Interface list container ── */
+.iface-list {
+  border: 1px solid #eaeaea;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* ── Individual row ── */
+.iface-row {
+  border-bottom: 1px solid #eee;
+}
+
+.iface-row:last-child {
+  border-bottom: none;
+}
+
+.iface-row--open {
+  background: #fafafa;
+}
+
+/* Row toggle button */
+.iface-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+
+.iface-header:hover {
+  background: #f5f5f5;
+}
+
+.iface-chevron {
+  color: #bbb;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.iface-icon {
+  color: #666;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Monospace label — matches ACL/NAT code-style text */
+.iface-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #111;
+  font-family: 'SFMono-Regular', 'Consolas', 'Menlo', monospace;
+  flex-shrink: 0;
+  letter-spacing: 0.2px;
+}
+
+.iface-desc {
+  font-size: 11px;
+  color: #aaa;
+  flex: 1;
+  font-weight: 400;
+  font-family: inherit;
+}
+
+/* "configured" badge */
+.iface-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: #f0f7ff;
+  color: #3b82f6;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  padding: 2px 7px;
+  flex-shrink: 0;
+}
+
+/* ── Expanded config body ── */
+.iface-body {
+  padding: 12px 16px 14px 16px;
+  border-top: 1px solid #f0f0f0;
+  background: #fdfdfd;
+  animation: ifaceSlide 0.16s ease;
+}
+
+@keyframes ifaceSlide {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+/* Three fields stacked in a row — each takes equal width */
+.iface-fields {
+  display: flex;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
+/* Each field column */
+.iface-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0; /* prevent flex blowout */
+}
+
+/* Field label — matches .acl-input span / .input-wrap span */
+.iface-field-label {
+  font-size: 10px;
+  color: #888;
+  font-weight: 500;
+}
+
+/* Field input — matches .acl-input input */
+.iface-input {
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 13px;
+  color: #111;
+  background: #fff;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.iface-input:focus {
+  border-color: #111;
+  outline: none;
+}
+
+/* Apply row */
+.iface-apply-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+/* Apply button — matches .btn-primary style */
+.iface-apply-btn {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  background: #fff;
+  color: #222;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.iface-apply-btn:hover {
+  background: #f5f5f5;
+  border-color: #bbb;
+}
+
+/* Green confirmed state */
+.iface-apply-btn--ok {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #16a34a;
+}
 
 .floor-specifier-container {
   margin: 4px 0 4px 16px;

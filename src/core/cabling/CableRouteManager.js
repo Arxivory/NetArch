@@ -43,12 +43,12 @@ export class CableRouteManager {
      * @param {object[]} links   - All links from NetworkStore
      * @param {object[]} devices - All devices from NetworkStore
      */
-    resolveAll(links, devices) {
+    resolveAll(links, devices, force = false) {
         const deviceMap = new Map(devices.map(d => [d.id, d]));
 
         for (const link of links) {
-            // Skip if already resolved (avoid redundant recomputation on every sync)
-            if (this.paths.has(link.id)) continue;
+            // Skip if already resolved and not explicitly forced.
+            if (!force && this.paths.has(link.id)) continue;
 
             const srcId = link.sourcePort?.id?.split('::')[0] ?? link.sourceId;
             const dstId = link.targetPort?.id?.split('::')[0] ?? link.targetId;
@@ -102,6 +102,18 @@ export class CableRouteManager {
 
         this.paths.set(link.id, resolved);
         return resolved;
+    }
+
+    /**
+     * Force recompute routes for all links.
+     * Use this when structural path components move or are deleted.
+     *
+     * @param {object[]} links
+     * @param {object[]} devices
+     */
+    reResolveAll(links, devices) {
+        this.paths.clear();
+        this.resolveAll(links, devices, true);
     }
 
     /**

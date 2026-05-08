@@ -5,11 +5,17 @@ import { ServerIcon, Server, Activity, Filter, Radio, Eye } from "lucide-react";
 export default function SyslogModal({ onClose, deviceName = "Switch", deviceLocation = "Network" }) {
   const [activeSyslogTab, setActiveSyslogTab] = useState("servers");
 
+  const now = () => new Date().toISOString().replace("T", " ").slice(0, 19);
+
   const handleApply = () => {
-    const logs = [`[Syslog] Config applied on ${deviceName}`];
-    logs.forEach(message =>
-      window.dispatchEvent(new CustomEvent("add-system-log", { detail: { device: "Switch", deviceName, message, location: deviceLocation } }))
-    );
+    const ts = now();
+    const dispatch = (message) =>
+      window.dispatchEvent(new CustomEvent("add-system-log", { detail: { device: "Switch", deviceName, message, location: deviceLocation, italic: true } }));
+
+    dispatch(`%SYSLOG-5-SERVER_CONFIG: [${ts}] ${deviceName} @ ${deviceLocation} — Remote syslog server destinations updated. UDP/TCP transport and target IPs committed to logging subsystem.`);
+    dispatch(`%SYSLOG-6-SEVERITY_SET: [${ts}] ${deviceName} — Severity level filtering applied. Only messages at or above the configured level will be forwarded to remote collectors.`);
+    dispatch(`%SPAN-5-SESSION_UPDATE: [${ts}] ${deviceName} — SPAN/RSPAN session configuration updated. Source and destination port mirror assignments re-evaluated.`);
+    dispatch(`%SYSLOG-6-VLAN_FILTER: [${ts}] ${deviceName} — Per-VLAN event log filter rules applied. VLAN-specific log suppression and forwarding policies are now active.`);
     onClose();
   };
 

@@ -31,7 +31,7 @@ const defaultState = {
 function dispatchLog(deviceName, deviceLocation, message) {
   window.dispatchEvent(
     new CustomEvent("add-system-log", {
-      detail: { device: "Router", deviceName, message, location: deviceLocation },
+      detail: { device: "Router", deviceName, message, location: deviceLocation, italic: true },
     })
   );
 }
@@ -50,88 +50,38 @@ export default function ACLModal({ onClose, deviceName = "Router-Core-01", devic
   const now = () => new Date().toISOString().replace("T", " ").slice(0, 19);
 
   const handleApply = () => {
-    const prev = prevState.current;
     const logs = [];
-    const ts = now();
 
-    // ACL identity
-    if (state.aclName !== prev.aclName || state.aclType !== prev.aclType) {
-      logs.push(
-        `%ACL-5-POLICY_MODIFY: [${ts}] ${deviceName} @ ${deviceLocation} — ACL configuration updated. ` +
-        `Type: ${prev.aclType || "—"} → ${state.aclType} | ID/Name: "${prev.aclName || "—"}" → "${state.aclName || "—"}". ` +
-        `Policy re-evaluated on all bound interfaces.`
-      );
-    } else if (state.aclName) {
-      logs.push(
-        `%ACL-6-POLICY_INSTALL: [${ts}] ${deviceName} @ ${deviceLocation} — ` +
-        `${state.aclType} ACL "${state.aclName}" committed to TCAM. ` +
-        `Top-down rule evaluation active; implicit deny-all appended at sequence end.`
-      );
-    }
+    // ACL Mode
+    if (state.aclType && state.aclType !== "Select") logs.push(`[ACL] Type: ${state.aclType}`);
+    if (state.aclName)                               logs.push(`[ACL] ID / Name: ${state.aclName}`);
 
     // Rules
     state.rules.forEach((rule, i) => {
       if (rule.source || rule.destination || rule.port) {
-        const prev_r = (prev.rules || [])[i] || {};
-        const changed =
-          rule.action !== prev_r.action ||
-          rule.protocol !== prev_r.protocol ||
-          rule.source !== prev_r.source ||
-          rule.destination !== prev_r.destination ||
-          rule.port !== prev_r.port;
-        logs.push(
-          changed
-            ? `%ACL-5-RULE_MODIFY: [${ts}] ${deviceName} — Rule #${i + 1} updated. ` +
-              `${rule.action.toUpperCase()} ${rule.protocol.toUpperCase()} ` +
-              `src ${rule.source || "any"} → dst ${rule.destination || "any"} port ${rule.port || "any"}. ` +
-              `${rule.log ? "Match events will be sent to syslog." : "Logging suppressed for this rule."}`
-            : `%ACL-6-RULE_INSTALL: [${ts}] ${deviceName} — Rule #${i + 1}: ` +
-              `${rule.action.toUpperCase()} ${rule.protocol.toUpperCase()} ` +
-              `from ${rule.source || "any"} to ${rule.destination || "any"}` +
-              `${rule.port ? ` on port(s) ${rule.port}` : ""}.`
-        );
+        logs.push(`[ACL Rule #${i + 1}] Action: ${rule.action} | Protocol: ${rule.protocol}` +
+          (rule.source      ? ` | Source: ${rule.source}`           : "") +
+          (rule.destination ? ` | Destination: ${rule.destination}` : "") +
+          (rule.port        ? ` | Port: ${rule.port}`               : "") +
+          (rule.log         ? ` | Log: Enabled`                     : ""));
       }
     });
+    if (state.implicitDeny) logs.push(`[ACL] Implicit Deny: Enabled`);
 
-    // Interface binding
-    if (state.interface !== prev.interface || state.direction !== prev.direction || state.applyTo !== prev.applyTo) {
-      logs.push(
-        `%ACL-5-BINDING_MODIFY: [${ts}] ${deviceName} — Interface binding updated. ` +
-        `Interface: ${prev.interface || "—"} → ${state.interface} | ` +
-        `Direction: ${prev.direction || "—"} → ${state.direction} | ` +
-        `Scope: ${prev.applyTo || "—"} → ${state.applyTo}. ` +
-        `Hardware ACL tables refreshed on affected interface.`
-      );
-    }
+    // Interface Binding
+    if (state.interface && state.interface !== "Select") logs.push(`[ACL Binding] Interface: ${state.interface}`);
+    if (state.direction && state.direction !== "Select") logs.push(`[ACL Binding] Direction: ${state.direction}`);
+    if (state.applyTo   && state.applyTo   !== "Select") logs.push(`[ACL Binding] Apply To: ${state.applyTo}`);
 
-    // Traffic behavior
-    if (state.defaultAction !== prev.defaultAction) {
-      logs.push(
-        `%ACL-5-DEFAULT_ACTION_MOD: [${ts}] ${deviceName} — Default traffic action changed ` +
-        `from ${prev.defaultAction || "—"} to ${state.defaultAction}. ` +
-        `Unmatched packets will now be ${state.defaultAction.toLowerCase()}ed at the end of the ACL.`
-      );
-    }
-    if (state.statefulInspection !== prev.statefulInspection) {
-      logs.push(
-        state.statefulInspection
-          ? `%ACL-5-SPI_ENABLED: [${ts}] ${deviceName} — Stateful Packet Inspection enabled. ` +
-            `Return traffic for established sessions will be automatically permitted.`
-          : `%ACL-5-SPI_DISABLED: [${ts}] ${deviceName} — Stateful inspection disabled. ` +
-            `Return traffic must be explicitly permitted via ACL rules.`
-      );
-    }
+    // Traffic Behavior
+    if (state.defaultAction && state.defaultAction !== "Select") logs.push(`[ACL Traffic] Default Action: ${state.defaultAction}`);
+    if (state.loggingLevel  && state.loggingLevel  !== "None")   logs.push(`[ACL Traffic] Logging Level: ${state.loggingLevel}`);
+    if (state.statefulInspection) logs.push(`[ACL Traffic] Stateful Inspection: Enabled`);
+    if (state.rateLimiting)       logs.push(`[ACL Traffic] Rate Limiting: Enabled`);
 
-    if (logs.length === 0) {
-      logs.push(
-        `%ACL-6-NOP: [${ts}] ${deviceName} @ ${deviceLocation} — ACL Apply invoked; no parameter changes detected. ` +
-        `Existing policy unchanged.`
-      );
-    }
+    if (logs.length === 0) logs.push(`[ACL] Applied — no parameters configured`);
 
     logs.forEach((message) => dispatchLog(deviceName, deviceLocation, message));
-    persistentACLState = state;
-    prevState.current = state;
     onClose();
   };
 

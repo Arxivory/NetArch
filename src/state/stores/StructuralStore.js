@@ -334,6 +334,20 @@ class StructuralStore {
         return true;
     }
 
+    updateConduit(conduitId, updates) {
+        const conduit = this.conduits.find(c => c.id === conduitId);
+        if (!conduit) return null;
+        Object.assign(conduit, updates);
+        if (updates.x !== undefined || updates.y !== undefined) {
+            if (!conduit.transform) conduit.transform = { position: {} };
+            if (!conduit.transform.position) conduit.transform.position = {};
+            if (updates.x !== undefined) conduit.transform.position.x = updates.x;
+            if (updates.y !== undefined) conduit.transform.position.z = updates.y;
+        }
+        this.notify();
+        return conduit;
+    }
+
     addRiser(riser) {
         if (!riser.id) throw new Error('Riser must have an id');
         if (this.risers.find(r => r.id === riser.id)) return null;
@@ -353,6 +367,20 @@ class StructuralStore {
         return true;
     }
 
+    updateRiser(riserId, updates) {
+        const riser = this.risers.find(r => r.id === riserId);
+        if (!riser) return null;
+        Object.assign(riser, updates);
+        if (updates.x !== undefined || updates.y !== undefined) {
+            if (!riser.transform) riser.transform = { position: {} };
+            if (!riser.transform.position) riser.transform.position = {};
+            if (updates.x !== undefined) riser.transform.position.x = updates.x;
+            if (updates.y !== undefined) riser.transform.position.z = updates.y;
+        }
+        this.notify();
+        return riser;
+    }
+
     addUndergroundConduit(ugConduit) {
         if (!ugConduit.id) throw new Error('Underground Conduit must have an id');
         if (this.undergroundConduits.find(ug => ug.id === ugConduit.id)) return null;
@@ -370,6 +398,20 @@ class StructuralStore {
         this.undergroundConduits.splice(index, 1);
         this.notify();
         return true;
+    }
+
+    updateUndergroundConduit(ugConduitId, updates) {
+        const ugConduit = this.undergroundConduits.find(ug => ug.id === ugConduitId);
+        if (!ugConduit) return null;
+        Object.assign(ugConduit, updates);
+        if (updates.x !== undefined || updates.y !== undefined) {
+            if (!ugConduit.transform) ugConduit.transform = { position: {} };
+            if (!ugConduit.transform.position) ugConduit.transform.position = {};
+            if (updates.x !== undefined) ugConduit.transform.position.x = updates.x;
+            if (updates.y !== undefined) ugConduit.transform.position.z = updates.y;
+        }
+        this.notify();
+        return ugConduit;
     }
 
     getSpacesByFloor(floorId) {

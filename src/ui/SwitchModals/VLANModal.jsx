@@ -161,8 +161,8 @@ export default function VLANModal({ onClose, deviceName = "Switch", deviceLocati
                     </div>
                   </div>
                   <div className="checkbox-wrap">
-                    <input type="checkbox" checked={pruning} onChange={e => setPruning(e.target.checked)} />
-                    <span>Enable VLAN Pruning</span>
+                    {/* <input type="checkbox" checked={pruning} onChange={e => setPruning(e.target.checked)} />
+                    <span>Enable VLAN Pruning</span> */}
                   </div>
                   <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px" }}>
                     <button className="btn-primary" onClick={handleAddVlan} disabled={!vlanId}>Add VLAN</button>

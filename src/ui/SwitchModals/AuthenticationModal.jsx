@@ -29,7 +29,7 @@ export default function AuthenticationModal({ onClose, deviceName = "Switch", de
 
   return createPortal(
     <div className="config-modal-overlay auth-modal-layer">
-      <div className="nat-sidebar-layout">
+      <div className="config-modal-content nat-sidebar-layout">
 
         <div className="nat-sidebar">
           <div className="sidebar-header">

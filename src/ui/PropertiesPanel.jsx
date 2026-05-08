@@ -4,58 +4,58 @@ import appState from "../state/AppState";
 import { UpdateEntityTransformCommand, ChangePropertyCommand } from "../core/editor/DrawingCommands";
 import testSwitchEngine from "../core/network/switching/QuickTest";
 
-import RoutingModal        from "./RouterModals/RoutingModal";
-import InterfaceModal      from "./RouterModals/InterfaceModal";
-import NATModal            from "./RouterModals/NATModal";
-import ACLModal            from "./RouterModals/ACLModal";
-import DHCPModal           from "./RouterModals/DHCPModal";
-import VPNModal            from "./RouterModals/VPNModal";
-import SNMPModal           from "./RouterModals/SNMPModal";
-import NTPModal            from "./RouterModals/NTPModal";
-import SSHModal            from "./RouterModals/SSHModal";
-import VLANModal           from "./SwitchModals/VLANModal";
-import STPModal            from "./SwitchModals/STPModal";
-import PortSecurityModal   from "./SwitchModals/PortSecurityModal";
-import TrunkingModal       from "./SwitchModals/TrunkingModal";
-import QoSModal            from "./SwitchModals/QoSModal";
+import RoutingModal from "./RouterModals/RoutingModal";
+import InterfaceModal from "./RouterModals/InterfaceModal";
+import NATModal from "./RouterModals/NATModal";
+import ACLModal from "./RouterModals/ACLModal";
+import DHCPModal from "./RouterModals/DHCPModal";
+import VPNModal from "./RouterModals/VPNModal";
+import SNMPModal from "./RouterModals/SNMPModal";
+import NTPModal from "./RouterModals/NTPModal";
+import SSHModal from "./RouterModals/SSHModal";
+import VLANModal from "./SwitchModals/VLANModal";
+import STPModal from "./SwitchModals/STPModal";
+import PortSecurityModal from "./SwitchModals/PortSecurityModal";
+import TrunkingModal from "./SwitchModals/TrunkingModal";
+import QoSModal from "./SwitchModals/QoSModal";
 import AuthenticationModal from "./SwitchModals/AuthenticationModal";
-import IGMPModals          from "./SwitchModals/IGMPModals";
-import SyslogModal         from "./SwitchModals/SyslogModal";
+import IGMPModals from "./SwitchModals/IGMPModals";
+import SyslogModal from "./SwitchModals/SyslogModal";
 import IPConfigurationModal from "./PCModals/IPConfigurationModal";
-import CommandPromptModal  from "./PCModals/CommandPromptModal";
+import CommandPromptModal from "./PCModals/CommandPromptModal";
 
 // ─── Config card map ──────────────────────────────────────────────────────────
 const DEVICE_CONFIGS = {
   router: [
-    { label: "Interface Settings",   desc: "Manage IPs, masks, and gateway for each port" },
-    { label: "Routing Protocol",    desc: "Configure OSPF, BGP, or Static routes" },
-    { label: "NAT/PAT",             desc: "Translate private IPs to public addresses" },
+    { label: "Interface Settings", desc: "Manage IPs, masks, and gateway for each port" },
+    { label: "Routing Protocol", desc: "Configure OSPF, BGP, or Static routes" },
+    { label: "NAT/PAT", desc: "Translate private IPs to public addresses" },
     { label: "Access Control List", desc: "Create permit/deny traffic rules" },
-    { label: "DHCP Server",         desc: "Manage IP address pools for the network" },
-    { label: "VPN Config",          desc: "Set up secure site-to-site tunnels" },
-    { label: "SNMP/MIB",            desc: "Configure remote monitoring and alerts" },
-    { label: "NTP",                 desc: "Synchronize device clock with time servers" },
-    { label: "SSH",                 desc: "Secure remote command line access" },
+    { label: "DHCP Server", desc: "Manage IP address pools for the network" },
+    { label: "VPN Config", desc: "Set up secure site-to-site tunnels" },
+    { label: "SNMP/MIB", desc: "Configure remote monitoring and alerts" },
+    { label: "NTP", desc: "Synchronize device clock with time servers" },
+    { label: "SSH", desc: "Secure remote command line access" },
   ],
   switch: [
-    { label: "VLAN Manager",   desc: "Create and assign Virtual LANs" },
-    { label: "Interface Settings",   desc: "Manage IPs, masks, and gateway for each port" },
-    { label: "Spanning Tree",  desc: "Configure STP to prevent network loops" },
-    { label: "VLAN Trunking",  desc: "Configure 802.1Q tags for switch links" },
-    { label: "Port Security",  desc: "Bind specific MAC addresses to ports" },
-    { label: "QoS Settings",   desc: "Prioritize voice or video data packets" },
-    { label: "User Auth",      desc: "Configure RADIUS/802.1X port access" },
-    { label: "IGMP Snooping",  desc: "Optimize multicast traffic delivery" },
-    { label: "Logs/Syslog",    desc: "Export event logs to a central server" },
+    { label: "Interface Settings", desc: "Manage IPs, masks" },
+    { label: "VLAN Manager", desc: "Create and assign Virtual LANs" },
+    { label: "Spanning Tree", desc: "Configure STP to prevent network loops" },
+    { label: "VLAN Trunking", desc: "Configure 802.1Q tags for switch links" },
+    { label: "Port Security", desc: "Bind specific MAC addresses to ports" },
+    { label: "QoS Settings", desc: "Prioritize voice or video data packets" },
+    { label: "User Auth", desc: "Configure RADIUS/802.1X port access" },
+    { label: "IGMP Snooping", desc: "Optimize multicast traffic delivery" },
+    { label: "Logs/Syslog", desc: "Export event logs to a central server" },
   ],
   pc: [
-    { label: "IP Configuration",        desc: "Set IP address, subnet mask, and gateway" },
-    { label: "Command Prompt",         desc: "Executes commands to manage and control system operations" },
+    { label: "IP Configuration", desc: "Set IP address, subnet mask, and gateway" },
+    { label: "Command Prompt", desc: "Executes commands to manage and control system operations" },
   ],
-  
+
   smartphone: [
-    { label: "IP Configuration",        desc: "Set IP address, subnet mask, and gateway" },
-    { label: "Command Prompt",         desc: "Executes commands to manage and control system operations" },
+    { label: "IP Configuration", desc: "Set IP address, subnet mask, and gateway" },
+    { label: "Command Prompt", desc: "Executes commands to manage and control system operations" },
   ],
 };
 
@@ -64,7 +64,7 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
   const [selectedEntity, setSelectedEntity] = useState(null);
   const [transform, setTransform] = useState({
     position: { x: 0, y: 0, z: 0 },
-    scale:    { factor: 1 },
+    scale: { factor: 1 },
     rotation: { x: 0, y: 0, z: 0 },
   });
   const originalLabelRef = useRef("");
@@ -74,24 +74,25 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // ── Per-feature modal open state ──────────────────────────────────────────
-  const [isRoutingModalOpen,      setIsRoutingModalOpen]      = useState(false);
-  const [isInterfaceModalOpen,    setIsInterfaceModalOpen]    = useState(false);
-  const [isNATModalOpen,          setIsNATModalOpen]          = useState(false);
-  const [isACLModalOpen,          setIsACLModalOpen]          = useState(false);
-  const [isDHCPModalOpen,         setIsDHCPModalOpen]         = useState(false);
-  const [isVPNModalOpen,          setIsVPNModalOpen]          = useState(false);
-  const [isSNMPModalOpen,         setIsSNMPModalOpen]         = useState(false);
-  const [isNTPModalOpen,          setIsNTPModalOpen]          = useState(false);
-  const [isSSHModalOpen,          setIsSSHModalOpen]          = useState(false);
-  const [isVLANModalOpen,         setIsVLANModalOpen]         = useState(false);
-  const [isSTPModalOpen,          setIsSTPModalOpen]          = useState(false);
+  const [isRoutingModalOpen, setIsRoutingModalOpen] = useState(false);
+  const [isInterfaceModalOpen, setIsInterfaceModalOpen] = useState(false);
+  const [isNATModalOpen, setIsNATModalOpen] = useState(false);
+  const [isACLModalOpen, setIsACLModalOpen] = useState(false);
+  const [isDHCPModalOpen, setIsDHCPModalOpen] = useState(false);
+  const [isVPNModalOpen, setIsVPNModalOpen] = useState(false);
+  const [isSNMPModalOpen, setIsSNMPModalOpen] = useState(false);
+  const [isNTPModalOpen, setIsNTPModalOpen] = useState(false);
+  const [isSSHModalOpen, setIsSSHModalOpen] = useState(false);
+  const [isVLANModalOpen, setIsVLANModalOpen] = useState(false);
+  const [isSTPModalOpen, setIsSTPModalOpen] = useState(false);
   const [isPortSecurityModalOpen, setIsPortSecurityModalOpen] = useState(false);
-  const [isTrunkingModalOpen,     setIsTrunkingModalOpen]     = useState(false);
-  const [isQoSModalOpen,          setIsQoSModalOpen]          = useState(false);
-  const [isAuthModalOpen,         setIsAuthModalOpen]         = useState(false);
-  const [isIGMPModalOpen,         setIsIGMPModalOpen]         = useState(false);
-  const [isSyslogModalOpen,       setIsSyslogModalOpen]       = useState(false);
-  const [isIPConfigurationModalOpen, setIsIPConfigurationModalOpen]     = useState(false);
+  const [isTrunkingModalOpen, setIsTrunkingModalOpen] = useState(false);
+  const [isQoSModalOpen, setIsQoSModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isIGMPModalOpen, setIsIGMPModalOpen] = useState(false);
+  const [isSyslogModalOpen, setIsSyslogModalOpen] = useState(false);
+  const selectedDeviceRef = useRef(null);
+  const [isIPConfigurationModalOpen, setIsIPConfigurationModalOpen] = useState(false);
   const [isCommandPromptModalOpen, setIsCommandPromptModalOpen] = useState(false);
 
   // ── Subscription: keep selectedEntity in sync with appState ───────────────
@@ -105,16 +106,16 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
 
       if (ids && ids.length > 0) {
         const entityId = ids[0];
-        let entity    = findEntityById(entityId);
+        let entity = findEntityById(entityId);
         let storeNode = null;
 
         if (appState.structural) {
           const { domains, sites, floors, spaces } = appState.structural;
           storeNode =
-            (domains || []).find(d  => d.id  === entityId) ||
-            (sites   || []).find(s  => s.id  === entityId) ||
-            (floors  || []).find(f  => f.id  === entityId) ||
-            (spaces  || []).find(sp => sp.id === entityId);
+            (domains || []).find(d => d.id === entityId) ||
+            (sites || []).find(s => s.id === entityId) ||
+            (floors || []).find(f => f.id === entityId) ||
+            (spaces || []).find(sp => sp.id === entityId);
         }
 
         if (!storeNode && appState.network)
@@ -124,13 +125,33 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
           storeNode = appState.furniture.getFurniture(entityId);
 
         if (entity && storeNode) {
-          entity = {
-            ...entity,
-            ...storeNode,
-            label: storeNode.label || storeNode.hostname || storeNode.name || entity.label
-          };
+          if (storeNode.interfaces !== undefined) {
+            entity = storeNode;
+            selectedDeviceRef.current = storeNode;
+
+            if (entity.transform && storeNode.transform) {
+              entity.transform = {
+                ...storeNode.transform,
+                ...entity.transform,
+              };
+            } else if (entity.transform == null && storeNode.transform) {
+              entity.transform = storeNode.transform;
+            }
+
+            if (!entity.label) {
+              entity.label = storeNode.label || storeNode.hostname || storeNode.name || entity.label;
+            }
+          } else {
+            entity = {
+              ...entity,
+              ...storeNode,
+              label: storeNode.label || storeNode.hostname || storeNode.name || entity.label
+            };
+            selectedDeviceRef.current = null;
+          }
         } else if (!entity && storeNode) {
           entity = storeNode;
+          selectedDeviceRef.current = storeNode?.interfaces !== undefined ? storeNode : null;
         }
 
         if (entity) {
@@ -142,7 +163,7 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
               y: entity.transform?.position?.y ?? entity.y ?? 0,
               z: entity.transform?.position?.z ?? 0,
             },
-            scale:    entity.transform?.scale    ?? 1,
+            scale: entity.transform?.scale ?? 1,
             rotation: {
               x: entity.transform?.rotation?.x ?? 0,
               y: entity.transform?.rotation?.y ?? 0,
@@ -153,20 +174,21 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
         }
       }
       setSelectedEntity(null);
+      selectedDeviceRef.current = null;
     };
 
-    const unsubscribeSelection  = appState.selection.subscribe(updatePanelContent);
+    const unsubscribeSelection = appState.selection.subscribe(updatePanelContent);
     const unsubscribeStructural = appState.structural.subscribe(updatePanelContent);
-    const unsubscribeNetwork    = appState.network.subscribe(updatePanelContent);
-    const unsubscribeFurniture  = appState.furniture.subscribe(updatePanelContent);
+    const unsubscribeNetwork = appState.network.subscribe(updatePanelContent);
+    const unsubscribeFurniture = appState.furniture.subscribe(updatePanelContent);
 
     updatePanelContent();
 
     return () => {
-      if (unsubscribeSelection)  unsubscribeSelection();
+      if (unsubscribeSelection) unsubscribeSelection();
       if (unsubscribeStructural) unsubscribeStructural();
-      if (unsubscribeNetwork)    unsubscribeNetwork();
-      if (unsubscribeFurniture)  unsubscribeFurniture();
+      if (unsubscribeNetwork) unsubscribeNetwork();
+      if (unsubscribeFurniture) unsubscribeFurniture();
     };
   }, [canvasController]);
 
@@ -184,11 +206,11 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
 
   const getDeviceType = () => {
     if (!selectedEntity) return null;
-    const typeStr  = (selectedEntity.type  || "").toLowerCase();
+    const typeStr = (selectedEntity.type || "").toLowerCase();
     const labelStr = (selectedEntity.label || "").toLowerCase().replace(/\s/g, "");
     if (typeStr.includes("router") || labelStr.includes("router")) return "router";
     if (typeStr.includes("switch") || labelStr.includes("switch")) return "switch";
-    if (typeStr.includes("phone")  || labelStr.includes("phone"))  return "smartphone";
+    if (typeStr.includes("phone") || labelStr.includes("phone")) return "smartphone";
     return "pc";
   };
 
@@ -206,25 +228,26 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
     if (entity) {
       setTransform({
         position: { ...entity.transform.position },
-        scale:    entity.transform.scale ?? 1,
+        scale: entity.transform.scale ?? 1,
         rotation: { ...entity.transform.rotation },
       });
     }
   };
-  
+
   const handleDeviceFocus = (field) => {
     if (!selectedEntity) return;
     let val = selectedEntity[field] || "";
     if (field === 'ipAddress') val = selectedEntity?.interfaces?.[0]?.ipv4?.address || "";
     if (field === 'subnetMask') val = selectedEntity?.interfaces?.[0]?.ipv4?.subnetMask || "";
-    
+    if (field === 'defaultGateway') val = selectedEntity?.defaultGateway || "";
+
     // Save the old value the moment the user clicks into the text box
     originalValueRef.current[field] = val;
   };
 
   const handleDeviceChange = (field, value) => {
     if (!selectedEntity) return;
-    
+
     // ONLY update the local React UI so the user can type smoothly. 
     // Do NOT dispatch a command here!
     let updatedEntity = { ...selectedEntity, [field]: value };
@@ -239,6 +262,8 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
       firstInterface.ipv4 = ipv4;
       interfaces[0] = firstInterface;
       updatedEntity = { ...selectedEntity, interfaces, [field]: value };
+    } else if (field === "defaultGateway") {
+      updatedEntity = { ...selectedEntity, defaultGateway: value };
     }
     setSelectedEntity(updatedEntity);
   };
@@ -249,6 +274,7 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
     let newValue = selectedEntity[field] || "";
     if (field === 'ipAddress') newValue = selectedEntity?.interfaces?.[0]?.ipv4?.address || "";
     if (field === 'subnetMask') newValue = selectedEntity?.interfaces?.[0]?.ipv4?.subnetMask || "";
+    if (field === 'defaultGateway') newValue = selectedEntity?.defaultGateway || "";
 
     // The user clicked away. Did they actually change the text?
     if (oldValue !== newValue) {
@@ -256,9 +282,9 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
       const command = new ChangePropertyCommand(appState, selectedEntity.id, 'device', field, oldValue, newValue);
       appState.pushCommand(command);
       command.execute();
-      
+
       // Update our ref so subsequent edits don't glitch
-      originalValueRef.current[field] = newValue; 
+      originalValueRef.current[field] = newValue;
     }
   };
 
@@ -305,53 +331,53 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
     } else if (newName !== previousLabel) {
       // If the name actually changed, log it in the Time Machine!
       const typeStr = (selectedEntity.structureType || selectedEntity.type || "").toLowerCase();
-      
+
       const command = new ChangePropertyCommand(appState, selectedEntity.id, typeStr, 'label', previousLabel, newName);
       appState.pushCommand(command);
       command.execute();
-      
+
       // Update our reference so subsequent edits work correctly
-      originalLabelRef.current = newName; 
+      originalLabelRef.current = newName;
     }
   };
 
   const handleConfigItemClick = (label) => {
     const map = {
-      "Routing Protocol":    () => setIsRoutingModalOpen(true),
-      "Interface Settings":  () => setIsInterfaceModalOpen(true),
-      "NAT/PAT":             () => setIsNATModalOpen(true),
+      "Routing Protocol": () => setIsRoutingModalOpen(true),
+      "Interface Settings": () => setIsInterfaceModalOpen(true),
+      "NAT/PAT": () => setIsNATModalOpen(true),
       "Access Control List": () => setIsACLModalOpen(true),
-      "DHCP Server":         () => setIsDHCPModalOpen(true),
-      "VPN Config":          () => setIsVPNModalOpen(true),
-      "SNMP/MIB":            () => setIsSNMPModalOpen(true),
-      "NTP":                 () => setIsNTPModalOpen(true),
-      "SSH":                 () => setIsSSHModalOpen(true),
-      "VLAN Manager":        () => setIsVLANModalOpen(true),
-      "Spanning Tree":       () => setIsSTPModalOpen(true),
-      "Port Security":       () => setIsPortSecurityModalOpen(true),
-      "VLAN Trunking":       () => setIsTrunkingModalOpen(true),
-      "QoS Settings":        () => setIsQoSModalOpen(true),
-      "User Auth":           () => setIsAuthModalOpen(true),
-      "IGMP Snooping":       () => setIsIGMPModalOpen(true),
-      "Logs/Syslog":         () => setIsSyslogModalOpen(true),
-      "IP Configuration":     () => setIsIPConfigurationModalOpen(true),
-      "Command Prompt":      () => setIsCommandPromptModalOpen(true),
+      "DHCP Server": () => setIsDHCPModalOpen(true),
+      "VPN Config": () => setIsVPNModalOpen(true),
+      "SNMP/MIB": () => setIsSNMPModalOpen(true),
+      "NTP": () => setIsNTPModalOpen(true),
+      "SSH": () => setIsSSHModalOpen(true),
+      "VLAN Manager": () => setIsVLANModalOpen(true),
+      "Spanning Tree": () => setIsSTPModalOpen(true),
+      "Port Security": () => setIsPortSecurityModalOpen(true),
+      "VLAN Trunking": () => setIsTrunkingModalOpen(true),
+      "QoS Settings": () => setIsQoSModalOpen(true),
+      "User Auth": () => setIsAuthModalOpen(true),
+      "IGMP Snooping": () => setIsIGMPModalOpen(true),
+      "Logs/Syslog": () => setIsSyslogModalOpen(true),
+      "IP Configuration": () => setIsIPConfigurationModalOpen(true),
+      "Command Prompt": () => setIsCommandPromptModalOpen(true),
     };
     map[label]?.() ?? console.log(`Opening ${label}`);
   };
 
   // ── Derived flags ──────────────────────────────────────────────────────────
-  const deviceType   = getDeviceType();
+  const deviceType = getDeviceType();
   const configGroups = [{ category: "Advanced Configuration", items: DEVICE_CONFIGS[deviceType] || [] }];
 
   const isDevice = selectedEntity && selectedEntity.interfaces !== undefined;
-  const isCable  = selectedEntity && selectedEntity.sourceId !== undefined && selectedEntity.targetId !== undefined;
-  const isWall   = selectedEntity && selectedEntity.type === "wall";
+  const isCable = selectedEntity && selectedEntity.sourceId !== undefined && selectedEntity.targetId !== undefined;
+  const isWall = selectedEntity && selectedEntity.type === "wall";
   const isStructure = selectedEntity && (
     selectedEntity.structureType === "Domain" ||
-    selectedEntity.structureType === "Site"   ||
-    selectedEntity.structureType === "Floor"  ||
-    selectedEntity.structureType === "Space"  ||
+    selectedEntity.structureType === "Site" ||
+    selectedEntity.structureType === "Floor" ||
+    selectedEntity.structureType === "Space" ||
     ["space", "site", "domain", "floor"].includes(selectedEntity.type)
   );
   const isFurniture = selectedEntity && !isDevice && !isCable && !isWall && !isStructure;
@@ -375,7 +401,7 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
       {/* ── Cable ─────────────────────────────────────────────────────────── */}
       {isCable && (
         <div className="properties-group">
-          <div><label>Cable Type</label>    <input className="field-input" value={selectedEntity.type       || ""} readOnly /></div>
+          <div><label>Cable Type</label>    <input className="field-input" value={selectedEntity.type || ""} readOnly /></div>
           <div><label>Source Device</label> <input className="field-input" value={getDeviceLabel(selectedEntity.sourceId)} readOnly /></div>
           <div><label>Source Port</label>   <input className="field-input" value={selectedEntity.sourcePort || ""} readOnly /></div>
           <div><label>Target Device</label> <input className="field-input" value={getDeviceLabel(selectedEntity.targetId)} readOnly /></div>
@@ -401,18 +427,18 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
         <div className="properties-group">
           <hr className="header-separator" />
           <div><label>Device Name</label>
-            <input className="field-input" 
-              value={selectedEntity?.label || ""} 
+            <input className="field-input"
+              value={selectedEntity?.label || ""}
               onFocus={() => handleDeviceFocus('label')}
-              onChange={(e) => handleDeviceChange('label', e.target.value)} 
+              onChange={(e) => handleDeviceChange('label', e.target.value)}
               onBlur={() => handleDeviceBlur('label')}
             />
           </div>
           <div><label>Default Gateway</label>
-            <input className="field-input" 
-              value={selectedEntity?.defaultGateway || ""} 
+            <input className="field-input"
+              value={selectedEntity?.defaultGateway || ""}
               onFocus={() => handleDeviceFocus('defaultGateway')}
-              onChange={(e) => handleDeviceChange('defaultGateway', e.target.value)} 
+              onChange={(e) => handleDeviceChange('defaultGateway', e.target.value)}
               onBlur={() => handleDeviceBlur('defaultGateway')}
               placeholder="192.168.1.254"
             />
@@ -429,10 +455,10 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
         <div className="properties-group">
           <hr className="header-separator" />
           <div><label>Furniture Name</label>
-            <input className="field-input" 
-              value={selectedEntity?.label || ""} 
+            <input className="field-input"
+              value={selectedEntity?.label || ""}
               onFocus={() => handleFurnitureFocus('label')}
-              onChange={(e) => handleFurnitureChange('label', e.target.value)} 
+              onChange={(e) => handleFurnitureChange('label', e.target.value)}
               onBlur={() => handleFurnitureBlur('label')}
             />
           </div>
@@ -531,6 +557,7 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
           onClose={() => setIsRoutingModalOpen(false)}
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
+          device={selectedEntity}
         />
       )}
 
@@ -540,9 +567,10 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
           device={selectedEntity}
+          deviceType={deviceType}
         />
       )}
- 
+
       {isNATModalOpen && (
         <NATModal
           onClose={() => setIsNATModalOpen(false)}
@@ -550,7 +578,7 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
           deviceLocation={resolveDeviceLocation()}
         />
       )}
- 
+
       {isACLModalOpen && (
         <ACLModal
           onClose={() => setIsACLModalOpen(false)}
@@ -558,7 +586,7 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
           deviceLocation={resolveDeviceLocation()}
         />
       )}
- 
+
       {isDHCPModalOpen && (
         <DHCPModal
           onClose={() => setIsDHCPModalOpen(false)}
@@ -566,7 +594,7 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
           deviceLocation={resolveDeviceLocation()}
         />
       )}
- 
+
       {isVPNModalOpen && (
         <VPNModal
           onClose={() => setIsVPNModalOpen(false)}
@@ -574,7 +602,7 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
           deviceLocation={resolveDeviceLocation()}
         />
       )}
- 
+
       {isSNMPModalOpen && (
         <SNMPModal
           onClose={() => setIsSNMPModalOpen(false)}
@@ -582,7 +610,7 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
           deviceLocation={resolveDeviceLocation()}
         />
       )}
- 
+
       {isNTPModalOpen && (
         <NTPModal
           onClose={() => setIsNTPModalOpen(false)}
@@ -590,7 +618,7 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
           deviceLocation={resolveDeviceLocation()}
         />
       )}
- 
+
       {isSSHModalOpen && (
         <SSHModal
           onClose={() => setIsSSHModalOpen(false)}
@@ -603,6 +631,7 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
           onClose={() => setIsVLANModalOpen(false)}
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
+          device={selectedDeviceRef.current || selectedEntity}
         />
       )}
       {isSTPModalOpen && (
@@ -610,6 +639,7 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
           onClose={() => setIsSTPModalOpen(false)}
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
+          device={selectedDeviceRef.current || selectedEntity}
         />
       )}
       {isPortSecurityModalOpen && (
@@ -624,6 +654,7 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
           onClose={() => setIsTrunkingModalOpen(false)}
           deviceName={selectedEntity?.label || "Router-Core-01"}
           deviceLocation={resolveDeviceLocation()}
+          device={selectedDeviceRef.current || selectedEntity}
         />
       )}
       {isQoSModalOpen && (
@@ -633,11 +664,11 @@ export default function PropertiesPanel({ canvasController, networkManager }) {
           deviceLocation={resolveDeviceLocation()}
         />
       )}
-      {isAuthModalOpen         && <AuthenticationModal onClose={() => setIsAuthModalOpen(false)}         />}
-      {isIGMPModalOpen         && <IGMPModals          onClose={() => setIsIGMPModalOpen(false)}         />}
-      {isSyslogModalOpen       && <SyslogModal         onClose={() => setIsSyslogModalOpen(false)}       />}
+      {isAuthModalOpen && <AuthenticationModal onClose={() => setIsAuthModalOpen(false)} />}
+      {isIGMPModalOpen && <IGMPModals onClose={() => setIsIGMPModalOpen(false)} />}
+      {isSyslogModalOpen && <SyslogModal onClose={() => setIsSyslogModalOpen(false)} />}
 
-        {isIPConfigurationModalOpen && (
+      {isIPConfigurationModalOpen && (
         <IPConfigurationModal
           onClose={() => setIsIPConfigurationModalOpen(false)}
           deviceName={selectedEntity?.label || "Router-Core-01"}

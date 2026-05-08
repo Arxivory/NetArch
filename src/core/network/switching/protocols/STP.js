@@ -26,6 +26,23 @@ export default class STPEngine {
     this.isRunning = false;
   }
 
+  setBridgePriority(priority) {
+    const normalized = Number.parseInt(priority, 10);
+    if (!Number.isInteger(normalized) || normalized < 0 || normalized > 61440) {
+      throw new Error('STP priority must be between 0 and 61440.');
+    }
+
+    this.priority = normalized;
+    this.bridgeId = `${this.priority}.${this.baseMac || this.device.interfaces[0]?.macAddress || '00:00:00:00:00:00'}`;
+    this.rootId = this.bridgeId;
+    this.rootPathCost = 0;
+    return this.bridgeId;
+  }
+
+  getPortSummary() {
+    return Array.from(this.portStates.entries()).map(([portId, state]) => ({ portId, state }));
+  }
+
   start() {
     if (this.isRunning) return;
     

@@ -1,8 +1,22 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Network, Activity, ArrowLeftRight, Map, Server } from "lucide-react";
+import { Network, Activity, ArrowLeftRight, Map, Server, Trash2 } from "lucide-react";
 
-export default function RoutingModal({ onClose, deviceName = "Router", deviceLocation = "Network" }) {
+// Helper function to convert prefix length to subnet mask
+const _prefixLengthToMask = (prefixLen) => {
+  if (prefixLen <= 0) return "255.255.255.255";
+  if (prefixLen >= 32) return "0.0.0.0";
+  
+  const bits = (0xffffffff << (32 - prefixLen)) >>> 0;
+  return [
+    (bits >>> 24) & 0xff,
+    (bits >>> 16) & 0xff,
+    (bits >>> 8) & 0xff,
+    bits & 0xff
+  ].join('.');
+};
+
+export default function RoutingModal({ onClose, deviceName = "Router", deviceLocation = "Network", device = null }) {
   const [activeRoutingTab, setActiveRoutingTab] = useState("ospf");
 
   // ── Global ─────────────────────────────────────────────────────────────────
@@ -31,12 +45,81 @@ export default function RoutingModal({ onClose, deviceName = "Router", deviceLoc
   const [staticMetric,   setStaticMetric]   = useState("");
   const [staticIface,    setStaticIface]    = useState("G0/0");
   const [staticFloating, setStaticFloating] = useState(false);
+  const [staticRoutes,   setStaticRoutes]   = useState([]);
 
   // ── Route Control ──────────────────────────────────────────────────────────
   const [ctrlRedist,    setCtrlRedist]    = useState("None");
   const [ctrlFilter,    setCtrlFilter]    = useState("");
   const [ctrlMaxRoutes, setCtrlMaxRoutes] = useState("");
   const [ctrlLogging,   setCtrlLogging]   = useState(false);
+
+   const handleAddStaticRoute = () => {
+    if (!staticDest || !staticNextHop) return;
+
+    // Add to UI state
+    setStaticRoutes((currentRoutes) => [
+      ...currentRoutes,
+      {
+        id: `static-${Date.now()}`,
+        destination: staticDest,
+        nextHop: staticNextHop,
+        metric: staticMetric || "-",
+        interface: staticIface,
+        floating: staticFloating ? "Yes" : "No",
+      },
+    ]);
+
+    // Add to routing table immediately
+    if (device && device.routingTable) {
+      const [destNet, prefixLen] = staticDest.includes('/') 
+        ? staticDest.split('/') 
+        : [staticDest, '24'];
+      
+      const subnetMask = _prefixLengthToMask(parseInt(prefixLen) || 24);
+
+      device.routingTable.addRoute({
+        destination: destNet,
+        mask: subnetMask,
+        nextHop: staticNextHop,
+        egressInterface: staticIface,
+        metric: parseInt(staticMetric) || 1,
+        protocol: 'static',
+        active: true,
+      });
+    }
+
+    const staticSummary = `[Static] ${staticDest} -> ${staticNextHop}`;
+    window.dispatchEvent(
+      new CustomEvent("add-system-log", {
+        detail: {
+          device: "Router",
+          deviceName,
+          message: staticSummary,
+          location: deviceLocation,
+        },
+      })
+    );
+  };
+
+  const handleDeleteStaticRoute = (routeId) => {
+    // Find the route to get destination and mask for deletion
+    setStaticRoutes((currentRoutes) => {
+      const routeToDelete = currentRoutes.find((route) => route.id === routeId);
+      
+      if (routeToDelete && device && device.routingTable) {
+        const [destNet, prefixLen] = routeToDelete.destination.includes('/') 
+          ? routeToDelete.destination.split('/') 
+          : [routeToDelete.destination, '24'];
+        
+        const subnetMask = _prefixLengthToMask(parseInt(prefixLen) || 24);
+
+        // Remove from routing table
+        device.routingTable.removeRoute(destNet, subnetMask, routeToDelete.nextHop);
+      }
+
+      return currentRoutes.filter((route) => route.id !== routeId);
+    });
+  };
 
   // ── Apply: collect only what was configured and dispatch to ConsolePanel ───
   const handleApply = () => {
@@ -62,12 +145,10 @@ export default function RoutingModal({ onClose, deviceName = "Router", deviceLoc
   if (bgpNetworks)   logs.push(`[BGP] Advertised Networks: ${bgpNetworks}`);
   if (bgpReflector)  logs.push(`[BGP] Route Reflector: Enabled`);
 
-  // Static Route
-  if (staticDest)     logs.push(`[Static] Destination: ${staticDest}`);
-  if (staticNextHop)  logs.push(`[Static] Next Hop: ${staticNextHop}`);
-  if (staticMetric)   logs.push(`[Static] Metric: ${staticMetric}`);
-  if (staticIface)    logs.push(`[Static] Interface: ${staticIface}`);
-  if (staticFloating) logs.push(`[Static] Floating Route: Enabled`);
+  // Static Routes - Already added to routing table when "Add Static Route" was clicked
+  staticRoutes.forEach((route) => {
+    logs.push(`[Static] ${route.destination} -> ${route.nextHop} (metric: ${route.metric}, interface: ${route.interface})`);
+  });
 
   // Route Control
   if (ctrlRedist !== "None") logs.push(`[Route Control] Redistribution: ${ctrlRedist}`);
@@ -150,26 +231,16 @@ export default function RoutingModal({ onClose, deviceName = "Router", deviceLoc
           </div>
 
           <div className="config-body">
-
-            {/* GLOBAL — always shown */}
+            
             <div className="config-group-mono">
-              <label>Global Routing Settings</label>
+              {/* <label>Global Routing Settings</label> */}
               <div className="inline-fields">
                 <div className="input-wrap">
-                  <span>Router ID</span>
-                  <input
-                    placeholder="1.1.1.1"
-                    value={routerId}
-                    onChange={(e) => setRouterId(e.target.value)}
-                  />
+                  {/* <span>Router ID</span> */}
                 </div>
                 <div className="input-wrap">
-                  <span>Default Route</span>
-                  <input
-                    placeholder="0.0.0.0/0 → 192.168.1.1"
-                    value={defaultRoute}
-                    onChange={(e) => setDefaultRoute(e.target.value)}
-                  />
+                  {/* <span>Default Route</span> */}
+                  
                 </div>
               </div>
             </div>
@@ -361,7 +432,64 @@ export default function RoutingModal({ onClose, deviceName = "Router", deviceLoc
                       onChange={(e) => setStaticFloating(e.target.checked)}
                     />
                     <span>Floating Route (backup)</span>
+                  </div> 
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px" }}>
+                    <button
+                      className="btn-primary"
+                      onClick={handleAddStaticRoute}
+                      disabled={!staticDest || !staticNextHop}
+                    >
+                      Add Static Route
+                    </button>
                   </div>
+
+                  {staticRoutes.length > 0 && (
+                    <div style={{ marginTop: '18px' }}>
+                      <label>Configured Static Routes</label>
+                      <div style={{ overflowX: 'auto', marginTop: '10px' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                          <thead>
+                            <tr>
+                              <th style={{ textAlign: 'left', padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Destination</th>
+                              <th style={{ textAlign: 'left', padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Next Hop</th>
+                              <th style={{ textAlign: 'left', padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Metric</th>
+                              <th style={{ textAlign: 'left', padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Interface</th>
+                              <th style={{ textAlign: 'left', padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Floating</th>
+                              <th style={{ textAlign: 'center', padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {staticRoutes.map((route) => (
+                              <tr key={route.id}>
+                                <td style={{ padding: '10px', borderBottom: '1px solid #f1f5f9' }}>{route.destination}</td>
+                                <td style={{ padding: '10px', borderBottom: '1px solid #f1f5f9' }}>{route.nextHop}</td>
+                                <td style={{ padding: '10px', borderBottom: '1px solid #f1f5f9' }}>{route.metric}</td>
+                                <td style={{ padding: '10px', borderBottom: '1px solid #f1f5f9' }}>{route.interface}</td>
+                                <td style={{ padding: '10px', borderBottom: '1px solid #f1f5f9' }}>{route.floating}</td>
+                                <td style={{ padding: '10px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
+                                  <button
+                                    onClick={() => handleDeleteStaticRoute(route.id)}
+                                    style={{
+                                      background: 'transparent',
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      color: '#ef4444',
+                                      padding: '4px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }}
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 

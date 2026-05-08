@@ -86,8 +86,11 @@ export default class LinkSimulator {
 
     console.log(`[LinkSimulator] Scheduled transmission ${packetId} on ${link.id} (latency: ${delayMs}ms)`);
 
-    // Process pending deliveries
-    this._processPendingDeliveries();
+    // Use real-time setTimeout so delivery actually fires after the latency delay.
+    // _processPendingDeliveries is synchronous and checks clock.now() — without this
+    // the check (deliveryTime <= now) is always false on the same JS tick and packets
+    // sit in the queue forever.
+    setTimeout(() => this._processPendingDeliveries(), delayMs);
   }
 
   /**

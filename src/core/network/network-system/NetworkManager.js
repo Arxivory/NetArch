@@ -145,13 +145,13 @@ export default class NetworkManager {
     }
 
     // Build ICMP packet
-    const icmpPacket = {
+    const icmpPacket = createICMPPacket({
       type: 'echo-request',
       code: 0,
-      identifier: Math.floor(Math.random() * 65536),
-      sequenceNumber: 1,
-      timestamp: Date.now(),
-    };
+      id: Math.floor(Math.random() * 65536),
+      sequence: 1,
+      data: `PING ${Date.now()}`,
+    });
 
     const ipPacket = createIPPacket({
       srcIP,

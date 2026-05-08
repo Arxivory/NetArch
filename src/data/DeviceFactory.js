@@ -4,6 +4,7 @@ import PhysicalPort from '../core/network/PhysicalPort.js';
 import Interface from '../core/network/Interface.js';
 import { installSwitchBehavior } from '../core/network/Switch.js';
 import { installRouterBehavior } from '../core/network/routing/Router.js';
+import { installHostBehavior } from '../core/network/Host.js';
 import appState from '../state/AppState.js';
 
 /**
@@ -53,53 +54,58 @@ export default class DeviceFactory {
       },
     });
 
-    // Build PhysicalPort + Interface pairs from portGroups
+    // Build PhysicalPort + Interface pairs from portGroups FIRST,
+    // then install behavior — this ensures STP, routing engines, etc.
+    // see the real port/interface objects when they initialize.
     if (!catalog.portGroups || catalog.portGroups.length === 0) {
       console.warn(`DeviceFactory: Catalog entry "${catalogId}" has no portGroups.`);
-      return device;
+    } else {
+      for (const group of catalog.portGroups) {
+        const ports = _expandPortGroup(group);
+
+        for (const portName of ports) {
+          const portId = `${deviceId}::${portName}`;
+
+          // Physical Port (Layer 1)
+          const physPort = new PhysicalPort({
+            id:            portId,
+            name:          portName,
+            portType:      group.portType,
+            connectorType: group.connectorType,
+            speedBps:      group.speedBps,
+            fullDuplex:    group.fullDuplex,
+            autoMdix:      catalog.autoMdix ?? false,
+          });
+
+          // Logical Interface (Layer 2/3)
+          // Console / serial ports don't get a network interface — they're
+          // management-plane only. We still create a PhysicalPort for them
+          // so the UI can render the socket, but no Interface is needed.
+          if (group.portType !== PORT_TYPES.SERIAL) {
+            const intf = new Interface({
+              id:        `${portId}::intf`,
+              name:      portName,  // Interface name mirrors port name (standard Cisco behaviour)
+              macAddress: _generateMac(),
+            });
+
+            // Wire them together
+            physPort.bindInterface(intf);  // PhysicalPort → Interface
+            device.addInterface(intf);     // Device → Interface
+          }
+
+          device.addPort(physPort);        // Device → PhysicalPort
+        }
+      }
     }
 
+    // Install behavior AFTER ports/interfaces exist so engines (STP, routing)
+    // can enumerate real ports during their initialization.
     if (catalog.family === 'switch') {
       installSwitchBehavior(device);
     } else if (catalog.family === 'router') {
       installRouterBehavior(device);
-    }
-
-    for (const group of catalog.portGroups) {
-      const ports = _expandPortGroup(group);
-
-      for (const portName of ports) {
-        const portId = `${deviceId}::${portName}`;
-
-        // Physical Port (Layer 1)
-        const physPort = new PhysicalPort({
-          id:            portId,
-          name:          portName,
-          portType:      group.portType,
-          connectorType: group.connectorType,
-          speedBps:      group.speedBps,
-          fullDuplex:    group.fullDuplex,
-          autoMdix:      catalog.autoMdix ?? false,
-        });
-
-        // Logical Interface (Layer 2/3)
-        // Console / serial ports don't get a network interface — they're
-        // management-plane only. We still create a PhysicalPort for them
-        // so the UI can render the socket, but no Interface is needed.
-        if (group.portType !== PORT_TYPES.SERIAL) {
-          const intf = new Interface({
-            id:        `${portId}::intf`,
-            name:      portName,  // Interface name mirrors port name (standard Cisco behaviour)
-            macAddress: _generateMac(),
-          });
-
-          // Wire them together
-          physPort.bindInterface(intf);  // PhysicalPort → Interface
-          device.addInterface(intf);     // Device → Interface
-        }
-
-        device.addPort(physPort);        // Device → PhysicalPort
-      }
+    } else if (catalog.family === 'end-device') {
+      installHostBehavior(device);
     }
 
     return device;

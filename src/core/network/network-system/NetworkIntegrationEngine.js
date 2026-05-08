@@ -137,6 +137,8 @@ export default class NetworkIntegrationEngine {
    * Remove a device from the running network.
    */
   removeDevice(deviceId) {
+    const device = this.devices.get(deviceId);
+    if (device) delete device._engineWired;
     this.devices.delete(deviceId);
     this.packetRouter.updateDevices(this.devices);
   }
@@ -239,6 +241,12 @@ export default class NetworkIntegrationEngine {
    * @private
    */
   _wireDevice(device) {
+    // Prevent double-wiring: start() iterates all devices, addDevice() also calls
+    // _wireDevice — without this guard the handler gets wrapped multiple times,
+    // creating an exponential call chain and stale closure captures.
+    if (device._engineWired) return;
+    device._engineWired = true;
+
     // Save the original onPacketReceived
     const originalOnPacketReceived = device.onPacketReceived || (() => {});
 
@@ -316,3 +324,4 @@ export default class NetworkIntegrationEngine {
     `);
   }
 }
+

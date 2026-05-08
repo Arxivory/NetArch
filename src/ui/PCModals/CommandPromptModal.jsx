@@ -284,7 +284,8 @@ export default function CommandPromptModal({
     }
 
     const startTime = Date.now();
-    const timeoutMs = 4000;
+    // Increased from 4000ms to 8000ms to allow ARP resolution (5s) + processing
+    const timeoutMs = 8000;
 
     const result = await new Promise((resolve) => {
       let finished = false;

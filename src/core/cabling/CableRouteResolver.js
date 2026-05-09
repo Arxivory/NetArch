@@ -268,6 +268,15 @@ export class CableRouteResolver {
     // PATHWAY FINDERS
     // -------------------------------------------------------------------------
 
+    _getConduitFloorId(c) {
+        if (c.floorId) return c.floorId;
+        if (c.spaceId) {
+            const space = this.store.spaces.find(s => s.id === c.spaceId);
+            if (space) return space.floorId;
+        }
+        return null;
+    }
+
     /**
      * Find the conduit nearest to a device, searching in the device's space first,
      * then falling back to its floor.
@@ -291,20 +300,30 @@ export class CableRouteResolver {
         // Step 2: Try conduits on the same floor that have NO space assignment
         // (floor-level conduits, not belonging to any specific room)
         const floorOnlyConduits = context.floorId
-            ? allConduits.filter(c => c.floorId === context.floorId && !c.spaceId)
+            ? allConduits.filter(c => this._getConduitFloorId(c) === context.floorId && !c.spaceId)
             : [];
 
         if (floorOnlyConduits.length > 0) {
             return this._pickNearest(floorOnlyConduits, device);
         }
 
-        // Step 3: No valid conduit found
+        // Step 3: Try ANY conduit on the same floor
+        const floorConduits = context.floorId
+            ? allConduits.filter(c => this._getConduitFloorId(c) === context.floorId)
+            : [];
+
+        if (floorConduits.length > 0) {
+            return this._pickNearest(floorConduits, device);
+        }
+
+        // Step 4: No valid conduit found
         return null;
     }
 
     _pickNearest(conduits, device) {
-        const devX = device.transform?.position?.x ?? 0;
-        const devY = device.transform?.position?.z ?? 0;
+        // device coordinates are scaled by this.scaler, conduit coordinates are raw 2D canvas
+        const devX = (device.transform?.position?.x ?? 0) / this.scaler;
+        const devY = (device.transform?.position?.z ?? 0) / this.scaler;
 
         return conduits.reduce((nearest, c) => {
             const dist = Math.hypot(
@@ -319,18 +338,8 @@ export class CableRouteResolver {
         });
     }
 
-    /**
-     * Find a riser that spans between two floors.
-     * A riser is considered valid if both floors are within its declared span.
-     *
-     * @param {string} floorAId
-     * @param {string} floorBId
-     * @returns {object|null}
-     */
     _findRiserBetweenFloors(floorAId, floorBId) {
         const allRisers = this.store.risers || [];
-
-        console.log(allRisers);
 
         // Collect altitude for comparison
         const floorA = this.store.floors.find(f => f.id === floorAId);
@@ -348,7 +357,8 @@ export class CableRouteResolver {
         // Find a riser whose floorId is on the lower floor and that is in the same site
         // For simplicity: a riser placed on either floor in the same site works
         return allRisers.find(r => {
-            const riserFloor = this.store.floors.find(f => f.id === r.floorId);
+            const rFloorId = r.floorId || (r.spaceId ? this.store.spaces.find(s => s.id === r.spaceId)?.floorId : null);
+            const riserFloor = this.store.floors.find(f => f.id === rFloorId);
             if (!riserFloor || riserFloor.siteId !== siteId) return false;
             const rAlt = riserFloor.altitude || 0;
             // Riser must be at or between the two floor altitudes

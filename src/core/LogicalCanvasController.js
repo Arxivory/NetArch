@@ -1844,19 +1844,38 @@ _handleShapeCreated(shapeData, shapeType) {
   }
 
   _handleConduitCreated(conduitData) {
-    const activeSpaceId = appState.selection.focusedId;
-    if (activeSpaceId && appState.structural.addConduit) {
+    let spaceId = null;
+    let floorId = null;
+
+    if (appState.selection.focusedType === 'space') {
+        spaceId = appState.selection.focusedId;
+        const space = appState.structural.spaces.find(s => s.id === spaceId);
+        if (space) floorId = space.floorId;
+    } else if (appState.selection.focusedType === 'floor') {
+        floorId = appState.selection.focusedId;
+    }
+
+    if ((floorId || spaceId) && appState.structural.addConduit) {
       console.log('New Conduit Data: ', conduitData);
-      appState.structural.addConduit({ ...conduitData, spaceId: activeSpaceId, label: conduitData.label || `Conduit ${this.counters.conduit++}` });
+      appState.structural.addConduit({ ...conduitData, floorId, spaceId, label: conduitData.label || `Conduit ${this.counters.conduit++}` });
     }
   }
 
   _handleRiserCreated(riserData) {
-    const activeSpaceId = appState.selection.focusedType === 'space' ? appState.selection.focusedId : null;
-    const activeFloorId = appState.structural.floors.find(f => f.id === appState.structural.spaces.find(s => s.id === activeSpaceId).floorId).id;
-    if (activeFloorId || activeSpaceId || appState.structural.addRiser) {
+    let spaceId = null;
+    let floorId = null;
+
+    if (appState.selection.focusedType === 'space') {
+        spaceId = appState.selection.focusedId;
+        const space = appState.structural.spaces.find(s => s.id === spaceId);
+        if (space) floorId = space.floorId;
+    } else if (appState.selection.focusedType === 'floor') {
+        floorId = appState.selection.focusedId;
+    }
+
+    if ((floorId || spaceId) && appState.structural.addRiser) {
       console.log('New Riser Data: ', riserData);
-      appState.structural.addRiser({ ...riserData, floorId: activeFloorId, spaceId: activeSpaceId, label: riserData.label || `Riser ${this.counters.riser++}` });
+      appState.structural.addRiser({ ...riserData, floorId, spaceId, label: riserData.label || `Riser ${this.counters.riser++}` });
     }
   }
 

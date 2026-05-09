@@ -174,7 +174,11 @@ export class Wall {
         let overlapping = false;
         this.system.checkOne(this.body, (other) => {
             if (other !== this.body) {
-                overlapping = true;
+                const otherFloorId = other.b?.floorId ?? null;
+                const currentFloorId = floorId ?? null;
+                if (otherFloorId === currentFloorId) {
+                    overlapping = true;
+                }
             }
         });
         return overlapping;

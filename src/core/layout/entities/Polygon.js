@@ -182,15 +182,17 @@ export class Polygon {
             if (other !== this.body) {
                 const otherFloorId = other.b?.floorId ?? null;
                 const currentFloorId = floorId ?? null;
+
+                if (ancestorsId.includes(other.b.id)) {
+                    return;
+                }
+
                 if (!other.b.structType) {
-                    overlapping = other.b && otherFloorId === currentFloorId;
-                }
-                if (other.a.structType === other.b.structType){
+                    if (other.b && otherFloorId === currentFloorId) {
+                        overlapping = true;
+                    }
+                } else if (other.a.structType === other.b.structType && otherFloorId === currentFloorId) {
                     overlapping = true;
-                }
-                if (ancestorsId.includes(other.b.id)){
-                    console.log("Culprit");
-                    overlapping = false;
                 }
             }
         });

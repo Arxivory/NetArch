@@ -139,6 +139,10 @@ export class Door {
 
             const otherBody = other.b ?? other;
             const structType = otherBody?.structType;
+            const otherFloorId = otherBody?.floorId ?? null;
+            const currentFloorId = floorId ?? null;
+
+            if (otherFloorId !== currentFloorId) return;
 
             if (!structType) return;
 

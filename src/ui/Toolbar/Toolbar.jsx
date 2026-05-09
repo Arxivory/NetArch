@@ -14,6 +14,7 @@ import {
 } from "../../core/editor/DrawingCommands";
 import StructuralOption from "./StructuralOption";
 import PathwayOption from "./PathwayOption";
+import { triggerSimulation } from "../../util/Simulatenetwork";
 
 export default function Toolbar({ canvasController, networkManager, networkRunning, setNetworkRunning }) {
   const [activeTool, setActiveTool] = useState("select");
@@ -104,15 +105,16 @@ const handleDelete = () => {
   }, [canvasController]);
 
   const handleSimulationToggle = () => {
-    if (!networkManager) return;
-    if (networkRunning) {
-      networkManager.stop();
-      setNetworkRunning(false);
-    } else {
-      networkManager.start();
-      setNetworkRunning(true);
-    }
-  };
+  if (!networkManager) return;
+  if (networkRunning) {
+    networkManager.stop();
+    setNetworkRunning(false);
+  } else {
+    networkManager.start();
+    setNetworkRunning(true);
+    triggerSimulation(networkManager); // ← add this line only
+  }
+};
 
   useEffect(() => {
     const handleKeyDown = (event) => {

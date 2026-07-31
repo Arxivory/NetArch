@@ -39,3 +39,7 @@ Follow these steps to get your development environment running:
 `npm install`
 
 **Note:** The software is currently on development mode so it is better to run it in the browser for smooth flows using `npm run start` command for now. For a better 3D experience, please enable GPU acceleration on your browser.
+
+---
+
+Designed by BSCS3A students for the Software Engineering course.

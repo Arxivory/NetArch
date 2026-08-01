@@ -2,6 +2,8 @@
 
 > **A Spatially-Aware Network Design and Simulation Platform**
 
+<img src="public/NetArch-Preview.png" alt="NetArch Preview">
+
 NetArch-3D is a high-fidelity network designer and simulator designed to bridge the gap between abstract 2D logical diagrams and 3D physical constraints. Inspired by the architecture of professional CAD tools like Sketchup and SolidWorks, it allows network engineers to validate designs within a realistic 3D environment, preventing costly physical deployment errors.
 
 ## Project Overview

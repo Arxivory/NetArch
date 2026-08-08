@@ -32,7 +32,7 @@ Traditional network tools often ignore spatial reality. NetArch-3D integrates **
 Follow these steps to get your development environment running:
 
 **Step 1:** Clone the repository.\
-**Step 2:** For QA and Testing go to the branch entitled '**qa**'\
+**Step 2:** Head to the '**master**' branch to run the recent and latest update\
 **Step 3:** enter `npm install` or `npm i` to install dependencies on the terminal.\
 **Step 4:** To run the software, enter `npm run start` for development mode (software will run on browser), on the other hand, enter `npm run electron-build` for production mode (software will run on the dedicated container using electron).\
 **Step 5:** If there are any issues regarding running the software, run these commands in your terminal in order: \

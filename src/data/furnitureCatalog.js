@@ -16,6 +16,12 @@ const furnitures = {
     displayName: "Rack",
     family: "furniture",
     model3D: "objects/furnitures/network-rack.glb",
+  },
+  "closed-rack": {
+    modelId: "closed-rack",
+    displayName: "Closed Rack",
+    family: "furniture",
+    model3D: "objects/furnitures/server-rack.glb",
   }
 };
 
